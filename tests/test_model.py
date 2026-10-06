@@ -52,7 +52,9 @@ def foutcellen(wb):
     """Foutwaarden buiten de plekken waar NA() hoort (grafiekkolommen voorbij de laatste periode, vorige prognose)."""
     n = wb["Model"]["BY8"].value
     chart = {LY.M[k] for k in LY.M if k.startswith("g_")}
-    na_ok = {LY.FIX["vorig"], LY.M["g_vorige"], LY.M["g_punt_nu"], LY.M["g_punt_dal"], LY.M["g_eind_upside"], LY.M["g_eind_downside"], LY.M["g_eind_basis"]}
+    na_ok = {LY.FIX["vorig"], LY.M["g_vorige"], LY.M["g_punt_nu"], LY.M["g_punt_dal"], LY.M["g_eind_upside"], LY.M["g_eind_downside"], LY.M["g_eind_basis"],
+             LY.M["g_realisatie"], LY.M["g_scenario"], LY.M["g_eind_scenario"], LY.M["g_punt_uitverkocht"], LY.M["g_punt_alles_transport"]}
+    na_ok |= {LY.m_col(blok, k) for blok in ("gv", "gt") for k in range(1, LY.N_TYPES + 1)}   # lege typeblokken: NA()
     fouten = []
     for ws in wb.worksheets:
         for row in ws.iter_rows():
@@ -61,7 +63,7 @@ def foutcellen(wb):
                 if isinstance(v, str) and v.startswith("#"):
                     col = "".join(ch for ch in c.coordinate if ch.isalpha())
                     ok = v == "#N/A" and ((ws.title == "Model" and (col in na_ok or (col in chart and c.row > 7 + n)))
-                                          or (ws.title == "PowerPoint" and (c.row > 7 + n or col in ("M", "U", "V", "W", "X"))))
+                                          or (ws.title == "PowerPoint" and (c.row > 7 + n or col in ("M", "N", "V", "W", "X", "Y"))))
                     if not ok:
                         fouten.append(f"{ws.title}!{c.coordinate}={v}")
     return fouten

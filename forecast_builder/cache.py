@@ -127,6 +127,9 @@ def _patch_chart(xml, model, n):
     """Zet str-/numCache in elke reeks: categorieën (g_kwartaal), waarden (g_*) en reeksnamen (Model!$BY$..)."""
     kolom = {"g_kwartaal": LY.FIX["kwartaal"]}
     kolom.update({naam: col for naam, col in LY.M.items() if naam.startswith("g_")})
+    for k in range(1, LY.N_TYPES + 1):
+        kolom[f"g_v{k}"] = LY.m_col("gv", k)
+        kolom[f"g_t{k}"] = LY.m_col("gt", k)
 
     def reeks(naam):
         col = kolom.get(naam)
@@ -150,7 +153,7 @@ def _patch_chart(xml, model, n):
         return m.group(0) if w is None else f"<c:f>Model!{m.group(2)}</c:f>{_str_cache([w])}</c:strRef>"
 
     xml = re.sub(r"<c:f>\[0\]!(g_kwartaal)</c:f></c:strRef>", cat, xml)
-    xml = re.sub(r"<c:f>\[0\]!(g_[a-z_]+)</c:f></c:numRef>", val, xml)
+    xml = re.sub(r"<c:f>\[0\]!(g_[a-z_0-9]+)</c:f></c:numRef>", val, xml)
     xml = re.sub(r"<c:f>Model!(\$([A-Z]+\$[0-9]+))</c:f></c:strRef>", lambda m: tx(_M(m)), xml)
     return xml
 

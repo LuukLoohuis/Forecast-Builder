@@ -46,17 +46,26 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
 ## Indeling van het werkboek
 
 * **Dashboard** – kaarten, drie grafieken en in kolom V alle knoppen: actuals t/m, jaarrente, rente t/m (start bouw of
-  hele looptijd), rente ook in de basis (ja/nee), verkooptempo-model aan/uit, per scenario: verschuiving verkoop/transport,
-  uitstel start bouw, opbrengsten %, kosten %; norm verkocht vóór start bouw; negen controles (oplopende kwartalen zonder
-  gaten, maximaal 60 periodes, rijen zonder jaar, jaar als getal, verkocht/transport = aantal, termijnen); overzicht types.
+  hele looptijd), rente ook in de basis (ja/nee), verkooptempo-model aan/uit, per scenario (downside, upside én de
+  scenariolijn): verschuiving verkoop/transport, uitstel start bouw, opbrengsten %, kosten %; scenariolijn aan/uit en naam;
+  norm verkocht vóór start bouw; tien controles (oplopende kwartalen zonder gaten, maximaal 60 periodes, rijen zonder jaar,
+  jaar als getal, koprij, verkocht/transport = aantal, termijnen); overzicht types.
+  De grafieken (`forecast_builder/chartxml.py`): *scenario's* (basis met de band tussen downside en upside), *cashflow per
+  kwartaal* (opbrengsten, kosten, cumulatieve cashflow, vorige prognose en de gele scenariolijn vanaf het punt 'nu') en
+  *verkoop en transport per woningtype* (per kwartaal verkocht omhoog en getransporteerd omlaag, vaste kleur per typeblok,
+  cel-legenda boven de grafiek, labels 'uitverkocht' en 'laatste transport'). Een grijs vlak markeert de gerealiseerde
+  kwartalen.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
 * **Woningtypes** – per type één blok van drie kolommen (vanaf kolom C): naam, aantal, koopsom, start bouw en een eigen
   lijst termijnen (naam, % van de koopsom, bouwkwartaal). Elk type kan dus andere termijnen hebben.
-* **Model** – rekenblad. Kolommen A:L uit de invoer (B = bronrij op Invoer), M:BF model, scenario's, rente en
-  grafiekkolommen, BX:BY hulpcellen (BY8 = aantal periodes, de VBA leest die cel), vanaf CA de typeblokken.
-* **PowerPoint** – teksten, tabellen en grafiekblokken voor de dia's; kolom F = vormnaam op de dia.
+* **Model** – rekenblad. Kolommen A:L uit de invoer (B = bronrij op Invoer), M:BU model, scenario's, scenariolijn, rente en
+  grafiekkolommen, BX:BY hulpcellen (BY8 = aantal periodes, de VBA leest die cel), vanaf CA de typeblokken (verkocht cum,
+  transport cum, transport cum up/down/scenariolijn, termijnen, en per type verkocht en getransporteerd per kwartaal voor
+  de grafiek, benoemde bereiken `g_v<k>`/`g_t<k>`).
+* **PowerPoint** – teksten, tabellen en grafiekblokken voor de dia's; kolom F = vormnaam op de dia. Het cashflowblok heeft
+  acht kolommen (de achtste is de scenariolijn; de grafiek op dia 3 gebruikt alleen de reeksen die hij al heeft).
 
 ### Type toevoegen of verwijderen
 
@@ -77,6 +86,14 @@ bouw van het project (vroegste type) plus het uitstel van dat scenario, of over 
 * *Rente ook in de basis = nee* (standaard): de basis blijft je eigen cashflow; downside en upside krijgen alleen het
   verschil in rente ten opzichte van de basis. Met alle knoppen op nul zijn de scenario's dan gelijk aan de basis.
 * *ja*: basis en scenario's krijgen rente; kaarten, kosten en dia's rekenen daarmee.
+
+### Scenariolijn
+
+De gele lijn in de cashflowgrafiek is een derde scenario met eigen knoppen (kolom *Scenario* naast downside en upside):
+verschuiving, uitstel start bouw, opbrengsten %, kosten %. Hij staat los van de band in de scenariografiek, begint bij
+het punt 'nu' en is met *Scenariolijn tonen = nee* uit te zetten; de naam staat in de legenda en bij het eindpunt. Het
+Model rekent hem in de kolommen `model_scn` … `stand_scn` en het typeblok `tscn`; eindsaldo, dieptepunt, break-even en
+rente staan in de hulpcellen en op tab PowerPoint (blok *extra knoppen en scenariolijn*).
 
 ## Controle
 

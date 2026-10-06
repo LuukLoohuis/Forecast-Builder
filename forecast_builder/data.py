@@ -30,6 +30,8 @@ PARAM_STANDAARD = {
     "uitstel_down": 4, "uitstel_up": 0,
     "opbr_down": -0.03, "opbr_up": 0.02,
     "kosten_down": 0.03, "kosten_up": 0.0,
+    # scenariolijn (gele lijn in de cashflowgrafiek): standaard verkoop en transport twee kwartalen eerder
+    "shift_scn": -2, "uitstel_scn": 0, "opbr_scn": 0.0, "kosten_scn": 0.0, "scn_aan": "ja", "scn_naam": "Scenario",
     "norm": 0.7,
     "sjabloon": None,
 }
@@ -197,9 +199,16 @@ def _lees_v2(wb):
     if namen:
         p.termijn_namen = list(dict.fromkeys(namen))[:LY.N_TERMIJNEN]
     d = wb["Dashboard"]
+    scn_kolom = _v(d, f"Y{LY.D_ROW_SCENARIO + 1}") == "Scenario"       # oudere v2-bestanden hebben de kolom Scenario nog niet
+    scn_keys = ("shift_scn", "uitstel_scn", "opbr_scn", "kosten_scn", "scn_aan", "scn_naam")
+    norm_cel = LY.D["norm"] if scn_kolom else "W24"                     # de norm stond vóór de kolom Scenario in W24
     for naam, cel in LY.D.items():
-        if naam in ("start_project", "dekking", "rente_down", "rente_up"):
+        if naam in ("start_project", "dekking", "rente_down", "rente_up", "rente_scn"):
             continue
+        if naam in scn_keys and not scn_kolom:
+            continue
+        if naam == "norm":
+            cel = norm_cel
         p.params[naam] = _v(d, cel)
     if "PowerPoint" in wb.sheetnames:
         p.params["sjabloon"] = _v(wb["PowerPoint"], LY.PP_CEL_SJABLOON)

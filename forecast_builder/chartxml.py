@@ -28,7 +28,11 @@ TXT = "666666"
 TXT_LIGHT = "7A7A7A"
 LABEL_BORDER = "E3E6EA"
 
+# vaste kleuren per woningtype (blok 1..10), ook gebruikt voor de cel-legenda op het Dashboard
+TYPEKLEUREN = ["2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "008300", "4A3AA7", "E34948", "1F8A8A", "8C6D3F"]
+
 PT = 12700             # EMU per punt
+FMT_ABS = "0;0"        # geen minteken onder de as (vlindergrafiek)
 FMT_MLN = '&quot;€&quot;0&quot;M&quot;;&quot;−€&quot;0&quot;M&quot;;&quot;€&quot;0&quot;M&quot;'
 AX1, AX2, AX3, AX4 = 111111111, 222222222, 333333333, 444444444
 
@@ -138,6 +142,21 @@ def cat_ax(ax_id, cross_id, deleted=False):
             f'<c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="1"/></c:catAx>')
 
 
+def cat_ax_nul(ax_id, cross_id):
+    """Categorie-as die op 0 ligt, als dunne stippellijn; de labels staan onderaan (tickLblPos low)."""
+    return (f'<c:catAx><c:axId val="{ax_id}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/>'
+            f'<c:axPos val="b"/><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/>'
+            f'<c:minorTickMark val="none"/><c:tickLblPos val="low"/><c:spPr><a:ln w="{int(0.75 * PT)}">{_solid(AXIS)}'
+            f'<a:prstDash val="sysDash"/></a:ln></c:spPr>{_txpr(750, False, TXT)}<c:crossAx val="{cross_id}"/>'
+            f'<c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/>'
+            f'<c:noMultiLvlLbl val="1"/></c:catAx>')
+
+
+def donker(kleur, f=0.72):
+    """Zelfde tint, iets donkerder (transportkolommen)."""
+    return "".join(f"{int(int(kleur[i:i + 2], 16) * f):02X}" for i in (0, 2, 4))
+
+
 def val_ax(ax_id, cross_id, fmt, pos="l", crosses="autoZero", grid=True, deleted=False, vmin=None, vmax=None, zichtbaar=True):
     scaling = '<c:scaling><c:orientation val="minMax"/>'
     if vmax is not None:
@@ -158,7 +177,7 @@ def legend(verborgen=()):
     return f'<c:legend><c:legendPos val="t"/>{entries}<c:overlay val="0"/>{_txpr(800, False, TXT)}</c:legend>'
 
 
-def chart_space(groepen, assen, legenda):
+def chart_space(groepen, assen, legenda=""):
     return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<c:chartSpace {NS}><c:date1904 val="0"/><c:lang val="nl-NL"/>'
             f'<c:roundedCorners val="0"/><c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>{"".join(groepen)}{"".join(assen)}'
             f'<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>{legenda}<c:plotVisOnly val="0"/>'
@@ -235,3 +254,21 @@ def verkoop_cumulatief(r, lbl):
     ]
     groepen = [grp_waas(0, kw, r["realisatie"]), grp_line(lines)]
     return chart_space(groepen, [cat_ax(AX1, AX2), val_ax(AX2, AX1, "0")] + assen_waas(), legend([0, 4, 5]))
+
+
+def verkoop_types(r, lbl, types):
+    """Vlinder per woningtype: verkocht per kwartaal als gestapelde kolommen omhoog, getransporteerd (negatief in het
+    Model) als gestapelde kolommen omlaag in een donkerder tint van dezelfde typekleur. Geen legenda in de grafiek
+    (lege typeblokken zouden spookvermeldingen geven): de legenda staat als gekleurde cellen boven de grafiek.
+    `types` = [(naamcel, verkocht-bereik, transport-bereik)] per typeblok, vaste kleur per blok.
+
+    Groepsvolgorde balken -> punten -> waas: LibreOffice tekent de categorie-as en de rasterlijnen verkeerd als een
+    lijngroep op de primaire as na een vlakgroep op de tweede as staat."""
+    kw = r["kwartaal"]
+    n = len(types)
+    bars = [ser_bar(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)]) for k, (naam, v, _) in enumerate(types)]
+    bars += [ser_bar(n + k, "=" + naam, kw, t, donker(TYPEKLEUREN[k % len(TYPEKLEUREN)])) for k, (naam, _, t) in enumerate(types)]
+    punten = [ser_punt(2 * n, "=" + lbl["uitverkocht"], kw, r["punt_uitverkocht"], NAVY, "t"),
+              ser_punt(2 * n + 1, "=" + lbl["alles_transport"], kw, r["punt_alles_transport"], NAVY, "b")]
+    groepen = [grp_bar(bars, grouping="stacked", gap=55, overlap=100), grp_line(punten), grp_waas(2 * n + 2, kw, r["realisatie"])]
+    return chart_space(groepen, [cat_ax_nul(AX1, AX2), val_ax(AX2, AX1, FMT_ABS)] + assen_waas())

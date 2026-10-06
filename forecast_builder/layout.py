@@ -100,12 +100,16 @@ for i, name in enumerate([
     "rente_up", "stand_up_raw", "rente_down", "stand_down_raw",   # W X Y Z
     "stand_basis", "kosten_basis", "stand_up", "stand_down",       # AA AB AC AD  (getoond)
     "pos_basis", "pos_up", "pos_down", "pos_vorig",     # AE AF AG AH
+    # scenariolijn (gele lijn in de cashflowgrafiek, eigen knoppen in de derde kolom op het Dashboard)
+    "model_scn", "cum_opbr_scn", "opbr_scn", "kosten_scn", "rente_scn", "stand_scn_raw", "stand_scn", "pos_scn",
     # grafiekkolommen
     "g_voorfinanciering", "g_positief_saldo", "g_opbrengsten", "g_kosten", "g_stand", "g_vorige",
     "g_band_onder", "g_bandbreedte", "g_downside", "g_upside",
     "g_punt_nu", "g_punt_dal", "g_eind_upside", "g_eind_downside", "g_eind_basis",
     "g_verkocht", "g_getransporteerd", "g_verkocht_cum", "g_getransporteerd_cum",
     "g_verkocht_pct", "g_getransporteerd_pct", "g_opbrengsten_pct", "g_kosten_pct",
+    "g_scenario", "g_eind_scenario", "g_realisatie",            # scenariolijn, eindpunt, waas (1 in gerealiseerde kwartalen)
+    "g_punt_uitverkocht", "g_punt_alles_transport",             # mijlpalen in de verkoopgrafiek (top/onderkant van de stapel)
     "stap_ok",                                          # controle: idx loopt met de juiste stap op
 ], start=13):
     M[name] = L(i)
@@ -114,7 +118,9 @@ M_HULP_LABEL = "BX"
 M_HULP = "BY"
 M_SPACER = "BW"
 M_BLOK1 = 79          # kolom CA
-BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv"]   # verkocht cum, transport cum, transport cum up/down, termijnen vervallen
+# verkocht cum, transport cum, transport cum up/down, termijnen vervallen, transport cum scenariolijn,
+# grafiek: verkocht per kwartaal (gv) en getransporteerd per kwartaal als negatief getal (gt); benoemde bereiken g_v<k>, g_t<k>
+BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt"]
 
 
 def m_col(blok, k):
@@ -147,6 +153,13 @@ H = {
     "rente_eind_basis": 60, "rente_eind_up": 61, "rente_eind_down": 62,
     "rente_basis_tot": 63, "rente_up_tot": 64, "rente_down_tot": 65, "rente_up_extra": 66, "rente_down_extra": 67,
     "rente_tekst": 68, "aantal_types": 69,
+    # scenariolijn
+    "scn_aan": 70, "scn_naam": 71, "eind_scn": 72, "dal_scn": 73, "dal_scn_kw": 74, "be_scn": 75, "be_scn_pos": 76,
+    "rente_eind_scn": 77, "rente_scn_tot": 78, "rente_scn_extra": 79, "lbl_scenario": 80, "lbl_eind_scn": 81,
+    "lbl_nu_cf": 82, "lbl_eind_basis_cf": 83,
+    # verkoopgrafiek
+    "uitverkocht_pos": 84, "alles_transport_pos": 85, "lbl_uitverkocht": 86, "lbl_alles_transport": 87,
+    "nog_verkopen": 88, "nog_transport": 89,
 }
 
 
@@ -160,7 +173,7 @@ def hm(name):
     return f"Model!{h(name)}"
 
 
-# ---- Dashboard (parameters in kolom V/W/X, toelichting in Y) ----------------
+# ---- Dashboard (parameters in kolom V/W/X/Y, toelichting in Z) ----------------
 D = {
     "actuals_jaar": "W5", "actuals_kw": "X5",
     "rente": "W6", "rente_tm": "W7", "rente_basis": "W8", "start_project": "W9",
@@ -170,12 +183,19 @@ D = {
     "opbr_down": "W19", "opbr_up": "X19",
     "kosten_down": "W20", "kosten_up": "X20",
     "rente_down": "W21", "rente_up": "X21",
-    "norm": "W24",
+    # scenariolijn (derde kolom Y; de koptekst 'Scenario' in Y16 laat data.py zien dat deze kolom bestaat)
+    "shift_scn": "Y17", "uitstel_scn": "Y18", "opbr_scn": "Y19", "kosten_scn": "Y20", "rente_scn": "Y21",
+    "scn_aan": "Y23", "scn_naam": "Y24",
+    "norm": "W27",
 }
-D_ROW_POWERPOINT = 31      # knop staat op W32:X33 (vast: de VBA-macro zet hem daar)
-D_ROW_CONTROLES = 37
-D_ROW_TYPES = 48           # overzicht woningtypes
-D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B70"}
+D_ROW_SCENARIO = 15        # sectie SCENARIO'S (kop Downside/Upside/Scenario in rij 16)
+D_ROW_VERKOOP = 26
+D_ROW_POWERPOINT = 32      # knop staat op W33:X34 (vast: de VBA-macro zet hem daar)
+D_ROW_CONTROLES = 38
+D_ROW_TYPES = 49           # overzicht woningtypes
+D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
+D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71"}
+D_LEGENDA_CELLEN = ["B", "C", "D", "E", "G", "H", "I", "J", "L", "M"]   # chip per typeblok 1..N_TYPES
 D_ROW_UITLEG = 93
 
 
@@ -193,8 +213,8 @@ def dabs(name):
 
 # ---- PowerPoint ----------------------------------------------------------------
 PP_KPI_ROW1 = 8
-PP_BLOK = {"cf": "G", "sc": "O", "vt": "Z", "vo": "AF"}     # kopcellen rij 7 (VBA leest G7, O7, Z7, AF7)
-PP_TABEL_SC = "AL7"            # 9 rijen x 4 kolommen
-PP_TABEL_VT_ROW = 18           # kop in AL18, daaronder N_TYPES rijen
+PP_BLOK = {"cf": "G", "sc": "P", "vt": "AA", "vo": "AG"}    # kopcellen rij 7 (VBA leest G7, P7, AA7, AG7); cf heeft 8 kolommen (+ scenariolijn)
+PP_TABEL_SC = "AM7"            # 9 rijen x 4 kolommen
+PP_TABEL_VT_ROW = 18           # kop in AM18, daaronder N_TYPES rijen
 PP_CEL_SJABLOON = "D52"
 PP_CEL_NAAM = "D53"

@@ -46,12 +46,13 @@ Private Const INVOER_RIJN As Long = 500        ' zelfde grens als de formules (l
 
 Private Function Grafieken() As Variant
     ' vormnaam op de dia, kopcel van het blok op tabblad PowerPoint, aantal kolommen
-    Grafieken = Array(Array("CF_GRAFIEK", "G7", 7), Array("SC_GRAFIEK", "O7", 10), Array("VT_GRAFIEK", "Z7", 5), Array("VO_GRAFIEK", "AF7", 5))
+    ' het blok cashflow heeft acht kolommen (de achtste is de scenariolijn); de grafiek op dia 3 gebruikt de reeksen die hij heeft
+    Grafieken = Array(Array("CF_GRAFIEK", "G7", 8), Array("SC_GRAFIEK", "P7", 10), Array("VT_GRAFIEK", "AA7", 5), Array("VO_GRAFIEK", "AG7", 5))
 End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    Tabellen = Array(Array("SC_TABEL", "AL7", 9, 4, 0), Array("VT_TABEL", "AL18", MAX_TYPES + 1, 8, 1))
+    Tabellen = Array(Array("SC_TABEL", "AM7", 9, 4, 0), Array("VT_TABEL", "AM18", MAX_TYPES + 1, 8, 1))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -63,7 +64,7 @@ Public Sub KnoppenControleren()
     On Error Resume Next
     Set ws = ThisWorkbook.Worksheets(SH_DASH)
     If Not BestaatVorm(ws, "btnNaarPowerPoint") Then
-        MaakKnop ws, ws.Range("W32:X33"), "btnNaarPowerPoint", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 0, 0, 2
+        MaakKnop ws, ws.Range("W33:X34"), "btnNaarPowerPoint", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 0, 0, 2
     End If
     Set ws = ThisWorkbook.Worksheets(SH_PP)
     If Not BestaatVorm(ws, "btnNaarPowerPoint2") Then

@@ -56,6 +56,9 @@ def bouw_werkboek(project):
         if naam.startswith("g_"):
             wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${col}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
     wb.defined_names["g_kwartaal"] = DefinedName("g_kwartaal", attr_text=f"OFFSET(Model!${LY.FIX['kwartaal']}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
+    for k in range(1, LY.N_TYPES + 1):   # verkoopgrafiek: per typeblok verkocht (g_v<k>) en getransporteerd (g_t<k>) per kwartaal
+        for naam, blok in ((f"g_v{k}", "gv"), (f"g_t{k}", "gt")):
+            wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.m_col(blok, k)}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
     charts.plaats_grafieken(ws_dash, wb)
     wb.calculation.fullCalcOnLoad = True
     return wb
