@@ -11,6 +11,8 @@ Option Explicit
 '  KnoppenControleren    zet ontbrekende knoppen op de tabbladen (draait bij het openen)
 '  TypeInvoegen          voegt een leeg typeblok in (drie kolommen op Woningtypes, twee op Invoer)
 '  TypeVerwijderen       haalt een typeblok weg (zelfde kolommen); alles rechts schuift mee
+'  SchikDia5             na het vullen van VT_TABEL (dia 5): bij meer dan 4 types rijen en letters
+'                        kleiner, zo nodig de grafiekkaart korter, en de tabelkaart sluit om de tabel
 '
 '  Welke tekst naar welke vorm gaat staat op tabblad "PowerPoint", kolom F.
 ' =====================================================================================
@@ -475,9 +477,96 @@ Private Sub VulTabel(pres As Object, vorm As String, kop As Range, nRijen As Lon
             tbl.Rows(tbl.Rows.Count).Delete
         Loop
     End If
+    If vorm = "VT_TABEL" Then SchikDia5 pres, tbl
     Exit Sub
 Mislukt:
     fouten = fouten & vorm & ": " & Err.Description & vbCrLf
+End Sub
+
+Private Sub SchikDia5(pres As Object, tbl As Object)
+    ' na het vullen van VT_TABEL: bij meer dan 4 typeregels de tabel binnen de kaart en boven het dianummer houden
+    '   a) rijen lager (tot 10 pt) en letters kleiner (tot 5,5 pt), celmarges boven en onder 1 pt
+    '   b) past het dan nog niet: grafiekkaart en grafiek inkorten (grafiek minimaal 110 pt), tabelkaart en tabel omhoog
+    '   c) tabelkaart eindigt 8 pt onder de tabel
+    ' alles in punten; fouten worden stil overgeslagen (de dia blijft dan zoals het sjabloon hem had)
+    Dim tabelVorm As Object, tabelKaart As Object, kaart As Object, grafiek As Object
+    Dim nR As Long, r As Long, c As Long
+    Dim onder As Double, beschikbaar As Double, rijH As Double, letter As Double
+    Dim tekort As Double, extra As Double, krimp As Double, schuif As Double, tabelH As Double
+    Const RIJ_MAX As Double = 14.4
+    Const RIJ_MIN As Double = 10
+    Const LETTER_MAX As Double = 6.5
+    Const LETTER_MIN As Double = 5.5
+    Const AFSTAND As Double = 8
+    Const GRAFIEK_MIN As Double = 110
+
+    On Error Resume Next
+    nR = tbl.Rows.Count
+    If nR <= 5 Then Exit Sub                                     ' kop + 4 types: het sjabloon past zo
+    Set tabelVorm = ZoekVorm(pres, "VT_TABEL")
+    Set tabelKaart = ZoekVorm(pres, "VT_TABELKAART")
+    Set kaart = ZoekVorm(pres, "VT_KAART")
+    Set grafiek = ZoekVorm(pres, "VT_GRAFIEK")
+    If tabelVorm Is Nothing Then Exit Sub
+
+    ' ondergrens: 30 pt boven de dia-rand, daar staat het dianummer
+    onder = 0
+    onder = pres.PageSetup.SlideHeight - 30
+    If onder <= 0 Then onder = 375
+    beschikbaar = onder - tabelVorm.Top
+
+    ' b) past de tabel ook met de laagste rijen niet, dan ruimte halen bij de grafiekkaart:
+    '    eerst de ruimte tussen de kaarten boven de 8 pt, de rest door grafiekkaart en grafiek in te korten
+    '    (grafiek minimaal 110 pt); tabelkaart en tabel schuiven omhoog en houden 8 pt tot de grafiekkaart
+    tekort = nR * RIJ_MIN - beschikbaar
+    If tekort > 0 And Not kaart Is Nothing And Not grafiek Is Nothing Then
+        extra = 0
+        If Not tabelKaart Is Nothing Then extra = tabelKaart.Top - (kaart.Top + kaart.Height) - AFSTAND
+        krimp = tekort - extra
+        If krimp > grafiek.Height - GRAFIEK_MIN Then krimp = grafiek.Height - GRAFIEK_MIN
+        If krimp < 0 Then krimp = 0
+        schuif = krimp + extra
+        If schuif > tekort Then schuif = tekort
+        If krimp > 0 Then
+            kaart.Height = kaart.Height - krimp
+            grafiek.Height = grafiek.Height - krimp
+        End If
+        If schuif > 0 Then
+            If Not tabelKaart Is Nothing Then tabelKaart.Top = tabelKaart.Top - schuif
+            tabelVorm.Top = tabelVorm.Top - schuif
+            beschikbaar = onder - tabelVorm.Top
+        End If
+    End If
+
+    ' a) rijhoogte en lettergrootte
+    rijH = beschikbaar / nR
+    If rijH > RIJ_MAX Then rijH = RIJ_MAX
+    If rijH < RIJ_MIN Then rijH = RIJ_MIN
+    letter = LETTER_MAX * rijH / RIJ_MAX
+    If letter < LETTER_MIN Then letter = LETTER_MIN
+    ' eerst letters en marges, dan de hoogte: PowerPoint maakt een rij nooit lager dan zijn tekst
+    For r = 1 To nR
+        For c = 1 To tbl.Columns.Count
+            With tbl.Cell(r, c).Shape.TextFrame
+                .MarginTop = 1
+                .MarginBottom = 1
+                .TextRange.Font.Size = letter
+            End With
+        Next c
+    Next r
+    For r = 1 To nR
+        tbl.Rows(r).Height = rijH
+    Next r
+
+    ' c) tabelkaart om de tabel sluiten; de rijhoogten teruglezen, want een gezette hoogte is een minimum
+    tabelH = 0
+    For r = 1 To nR
+        tabelH = tabelH + tbl.Rows(r).Height
+    Next r
+    If Not tabelKaart Is Nothing And tabelH > 0 Then
+        tabelKaart.Height = tabelVorm.Top + tabelH + AFSTAND - tabelKaart.Top
+    End If
+    On Error GoTo 0
 End Sub
 
 Private Sub VulGrafiek(pres As Object, vorm As String, kop As Range, n As Long, nKol As Long, ByRef mist As String, ByRef fouten As String)

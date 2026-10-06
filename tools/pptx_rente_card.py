@@ -13,12 +13,17 @@ Bewerking:
     labels mogen omlopen zonder de WAARDE te raken.
   * Lettergroottes in de smallere kaarten: LABEL 6pt, SUB 6,5pt en lange
     WAARDE-teksten (>10 tekens) 11pt, zodat niets buiten de kaart afbreekt.
+  * De WAARDE- en SUB-vakken van KPI4..KPI8 krijgen 'tekst verkleinen bij
+    overloop' (<a:normAutofit/> in bodyPr, tekstterugloop aan): past een
+    ingevulde waarde of toelichting niet, dan verkleint PowerPoint de letters
+    zelf in plaats van buiten de kaart te lopen.
 """
 import argparse
 import copy
 import sys
 
 from pptx import Presentation
+from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.util import Pt
 
 SLIDE_IDX = 1          # dia 2
@@ -36,6 +41,7 @@ LABEL_H = 219456
 LABEL_Y = 3291840 + 128016 // 2 - LABEL_H // 2        # 3246120
 SMALL = ["KPI4", "KPI5", "KPI6", "KPI7", "KPI8"]
 PARTS = ["KAART", "LABEL", "WAARDE", "SUB"]
+AUTOFIT = ["WAARDE", "SUB"]   # tekstvakken die 'verkleinen bij overloop' krijgen
 
 KPI8_TEXT = {
     "LABEL": "RENTELASTEN",
@@ -61,6 +67,22 @@ def set_text_keep_format(shape, text):
         r._r.getparent().remove(r._r)
     for extra in list(tf.paragraphs[1:]):
         extra._p.getparent().remove(extra._p)
+
+
+def zet_autofit(shape):
+    """'Tekst verkleinen bij overloop': <a:normAutofit/> in bodyPr, terugloop aan.
+
+    python-pptx vervangt een bestaande <a:spAutoFit/> of <a:noAutofit/> door
+    <a:normAutofit/>; de lettergroottes zelf blijven zoals ze zijn.
+    """
+    tf = shape.text_frame
+    tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    body_pr = tf._txBody.bodyPr
+    kinderen = [c.tag.split("}")[1] for c in body_pr]
+    assert "normAutofit" in kinderen and "spAutoFit" not in kinderen \
+        and "noAutofit" not in kinderen, (shape.name, kinderen)
+    assert body_pr.get("wrap") == "square", (shape.name, body_pr.get("wrap"))
 
 
 def main():
@@ -120,13 +142,20 @@ def main():
                 for p in sh.text_frame.paragraphs:
                     for r in p.runs:
                         r.font.size = Pt(pt)
+            if part in AUTOFIT:
+                zet_autofit(sh)
 
     prs.save(args.uitvoer)
     print(f"Opgeslagen: {args.uitvoer}")
     for sh in slide.shapes:
         if sh.name.startswith("KPI") and sh.name[3] in "45678":
+            autofit = ""
+            if sh.has_text_frame:
+                autofit = " autofit=" + ",".join(
+                    c.tag.split("}")[1] for c in sh.text_frame._txBody.bodyPr
+                    if c.tag.endswith("Autofit") or c.tag.endswith("AutoFit"))
             print(f"  {sh.shape_id:3d} {sh.name:12s} x={sh.left:8d} y={sh.top:8d} "
-                  f"w={sh.width:8d} h={sh.height:7d} rechts={sh.left+sh.width}")
+                  f"w={sh.width:8d} h={sh.height:7d} rechts={sh.left+sh.width}{autofit}")
 
 
 if __name__ == "__main__":
