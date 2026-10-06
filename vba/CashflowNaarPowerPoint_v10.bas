@@ -42,7 +42,7 @@ Private Const TYPE_RIJ_TN As Long = 25
 Private Const INVOER_COL1 As Long = 12        ' kolom L: eerste paar (verkocht, transport) op tabblad Invoer
 Private Const INVOER_BREEDTE As Long = 2
 Private Const INVOER_RIJ1 As Long = 8
-Private Const INVOER_RIJN As Long = 67
+Private Const INVOER_RIJN As Long = 500        ' zelfde grens als de formules (layout.IN_ROWMAX)
 
 Private Function Grafieken() As Variant
     ' vormnaam op de dia, kopcel van het blok op tabblad PowerPoint, aantal kolommen
@@ -63,22 +63,24 @@ Public Sub KnoppenControleren()
     On Error Resume Next
     Set ws = ThisWorkbook.Worksheets(SH_DASH)
     If Not BestaatVorm(ws, "btnNaarPowerPoint") Then
-        MaakKnop ws, ws.Range("W32:X33"), "btnNaarPowerPoint", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 0, 0
+        MaakKnop ws, ws.Range("W32:X33"), "btnNaarPowerPoint", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 0, 0, 2
     End If
     Set ws = ThisWorkbook.Worksheets(SH_PP)
     If Not BestaatVorm(ws, "btnNaarPowerPoint2") Then
-        MaakKnop ws, ws.Range("C4:C5"), "btnNaarPowerPoint2", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 150, 0
+        MaakKnop ws, ws.Range("C4:C5"), "btnNaarPowerPoint2", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 150, 0, 2
     End If
     If Not BestaatVorm(ws, "btnControle") Then
-        MaakKnop ws, ws.Range("D4:D5"), "btnControle", "Sjabloon controleren", "ControleerSjabloon", RGB(91, 97, 105), 150, 0
+        MaakKnop ws, ws.Range("D4:D5"), "btnControle", "Sjabloon controleren", "ControleerSjabloon", RGB(91, 97, 105), 150, 0, 2
     End If
+    Set ws = Nothing
     Set ws = ThisWorkbook.Worksheets(SH_TYPES)
     If Not ws Is Nothing Then
+        ' los van de cellen (plaatsing 3): kolommen invoegen of verwijderen schuift de knoppen niet weg
         If Not BestaatVorm(ws, "btnTypeInvoegen") Then
-            MaakKnop ws, ws.Range("B4"), "btnTypeInvoegen", "Type invoegen", "TypeInvoegen", RGB(23, 54, 93), 110, 0
+            MaakKnop ws, ws.Range("B4"), "btnTypeInvoegen", "Type invoegen", "TypeInvoegen", RGB(23, 54, 93), 92, 0, 3
         End If
         If Not BestaatVorm(ws, "btnTypeVerwijderen") Then
-            MaakKnop ws, ws.Range("B4"), "btnTypeVerwijderen", "Type verwijderen", "TypeVerwijderen", RGB(91, 97, 105), 120, 118
+            MaakKnop ws, ws.Range("B4"), "btnTypeVerwijderen", "Type verwijderen", "TypeVerwijderen", RGB(91, 97, 105), 96, 96, 3
         End If
     End If
     On Error GoTo 0
@@ -92,7 +94,7 @@ Private Function BestaatVorm(ws As Worksheet, naam As String) As Boolean
     On Error GoTo 0
 End Function
 
-Private Sub MaakKnop(ws As Worksheet, plek As Range, naam As String, tekst As String, macro As String, kleur As Long, breedte As Double, links As Double)
+Private Sub MaakKnop(ws As Worksheet, plek As Range, naam As String, tekst As String, macro As String, kleur As Long, breedte As Double, links As Double, plaatsing As Long)
     Dim shp As Shape, w As Double, hg As Double
     w = plek.Width - 4
     If breedte > 0 Then w = breedte
@@ -110,7 +112,7 @@ Private Sub MaakKnop(ws As Worksheet, plek As Range, naam As String, tekst As St
         .TextFrame2.TextRange.ParagraphFormat.Alignment = 2      ' gecentreerd
         .TextFrame2.VerticalAnchor = 3                           ' midden
         .TextFrame2.WordWrap = 0
-        .Placement = 3                                           ' los van de cellen (schuift niet mee met kolommen)
+        .Placement = plaatsing                                   ' 2 = meebewegen met de cellen, 3 = los
         .OnAction = macro
     End With
 End Sub
@@ -131,10 +133,12 @@ Public Sub TypeInvoegen()
     k = Application.InputBox("Op welke positie komt het nieuwe type? (1 t/m " & MAX_TYPES & ")", "Type invoegen", 1, , , , , 1)
     If VarType(k) = vbBoolean Then Exit Sub
     pos = CLng(k)
-    If pos < 1 Or pos > MAX_TYPES Then
-        MsgBox "Kies een positie van 1 t/m " & MAX_TYPES & ".", vbExclamation, "Type invoegen"
+    If pos < 1 Or pos > MAX_TYPES Or pos <> k Then
+        MsgBox "Kies een heel getal van 1 t/m " & MAX_TYPES & ".", vbExclamation, "Type invoegen"
         Exit Sub
     End If
+    If MsgBox("Op positie " & pos & " komt een leeg type; de types erachter schuiven op (ook op tabblad Invoer). " & _
+              "Dit kan niet ongedaan worden gemaakt. Doorgaan?", vbQuestion + vbYesNo, "Type invoegen") <> vbYes Then Exit Sub
     Application.ScreenUpdating = False
     BlokInvoegen wsT, TYPE_COL1 + (pos - 1) * TYPE_BREEDTE, TYPE_BREEDTE
     BlokInvoegen wsI, INVOER_COL1 + (pos - 1) * INVOER_BREEDTE, INVOER_BREEDTE
@@ -159,13 +163,13 @@ Public Sub TypeVerwijderen()
     k = Application.InputBox("Welk type wil je verwijderen? (positie 1 t/m " & MAX_TYPES & ")", "Type verwijderen", 1, , , , , 1)
     If VarType(k) = vbBoolean Then Exit Sub
     pos = CLng(k)
-    If pos < 1 Or pos > MAX_TYPES Then
-        MsgBox "Kies een positie van 1 t/m " & MAX_TYPES & ".", vbExclamation, "Type verwijderen"
+    If pos < 1 Or pos > MAX_TYPES Or pos <> k Then
+        MsgBox "Kies een heel getal van 1 t/m " & MAX_TYPES & ".", vbExclamation, "Type verwijderen"
         Exit Sub
     End If
     naam = CStr(wsT.Cells(TYPE_RIJ_NAAM, TYPE_COL1 + (pos - 1) * TYPE_BREEDTE).Value)
-    If MsgBox("Type " & pos & IIf(Len(naam) > 0, " (" & naam & ")", "") & " verwijderen, inclusief verkoop en transport op tabblad Invoer?", _
-              vbQuestion + vbYesNo, "Type verwijderen") <> vbYes Then Exit Sub
+    If MsgBox("Type " & pos & IIf(Len(naam) > 0, " (" & naam & ")", "") & " verwijderen, inclusief verkoop en transport op tabblad Invoer? " & _
+              "Dit kan niet ongedaan worden gemaakt.", vbQuestion + vbYesNo, "Type verwijderen") <> vbYes Then Exit Sub
     Application.ScreenUpdating = False
     ' eerst achteraan een leeg blok bijmaken, dan het gekozen blok weghalen: het aantal blokken blijft gelijk
     BlokKopieAanEind wsT, TYPE_COL1, TYPE_BREEDTE
@@ -495,7 +499,7 @@ Private Sub SchikDia5(pres As Object, tbl As Object)
     Dim tekort As Double, extra As Double, krimp As Double, schuif As Double, tabelH As Double
     Const RIJ_MAX As Double = 14.4
     Const RIJ_MIN As Double = 10
-    Const LETTER_MAX As Double = 6.5
+    Const LETTER_MAX As Double = 7.5                           ' lettergrootte van de cellen in het sjabloon
     Const LETTER_MIN As Double = 5.5
     Const AFSTAND As Double = 8
     Const GRAFIEK_MIN As Double = 110

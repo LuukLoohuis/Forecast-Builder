@@ -67,9 +67,19 @@ def herbereken(pad_xlsx, werkmap, locale="nl-NL", timeout=300):
     return str(kopie)
 
 
+_LEEG_STR = re.compile(r'<c r="([A-Z]+[0-9]+)"[^>]*\st="str"[^>]*>(?:<f[^>]*>.*?</f>|<f[^>]*/>)?(?:<v></v>|<v/>)?</c>', re.S)
+
+
 def lees_waarden(pad):
+    """Uitkomsten per blad; een formule met uitkomst "" wordt als "" opgenomen (openpyxl geeft daar None voor)."""
     wb = load_workbook(pad, data_only=True)
-    return {ws.title: {c.coordinate: c.value for row in ws.iter_rows() for c in row if c.value is not None} for ws in wb.worksheets}
+    waarden = {ws.title: {c.coordinate: c.value for row in ws.iter_rows() for c in row if c.value is not None} for ws in wb.worksheets}
+    with zipfile.ZipFile(pad) as z:
+        for bestand, blad in _bladen(z).items():
+            xml = z.read(bestand).decode("utf-8")
+            for m in _LEEG_STR.finditer(xml):
+                waarden.setdefault(blad, {}).setdefault(m.group(1), "")
+    return waarden
 
 
 def _v_xml(waarde):
@@ -93,6 +103,9 @@ def _patch_sheet(xml, waarden):
         w = waarden.get(ref)
         if w is None:
             return m.group(0)
+        if w == "":
+            attrs = re.sub(r'\s+t="[^"]*"', "", attrs)
+            return f'<c r="{ref}"{attrs} t="str">{f}<v></v></c>'
         extra, v = _v_xml(w)
         attrs = re.sub(r'\s+t="[^"]*"', "", attrs)
         return f'<c r="{ref}"{attrs}{extra}>{f}<v>{v}</v></c>'
@@ -159,8 +172,17 @@ def _bladen(z):
     """Bestandsnaam in het zip -> bladnaam, via workbook.xml en de rels."""
     wb = z.read("xl/workbook.xml").decode("utf-8")
     rels = z.read("xl/_rels/workbook.xml.rels").decode("utf-8")
-    doel = {m.group(2): m.group(1) for m in re.finditer(r'Target="/?(xl/worksheets/[^"]+)"[^>]*Id="([^"]+)"', rels)}
-    doel.update({m.group(1): m.group(2) for m in re.finditer(r'Id="([^"]+)"[^>]*Target="/?(xl/worksheets/[^"]+)"', rels)})
+    def norm(t):
+        t = t.lstrip("/")
+        return t if t.startswith("xl/") else "xl/" + t          # LibreOffice schrijft relatieve doelen (worksheets/sheet1.xml)
+    doel = {}
+    for rel in re.findall(r"<Relationship\b[^>]*>", rels):
+        if "worksheet" not in rel:
+            continue
+        t = re.search(r'Target="([^"]+)"', rel)
+        i = re.search(r'Id="([^"]+)"', rel)
+        if t and i:
+            doel[i.group(1)] = norm(t.group(1))
     uit = {}
     for m in re.finditer(r'<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"', wb):
         if m.group(2) in doel:

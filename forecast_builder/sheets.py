@@ -45,6 +45,7 @@ def bouw_woningtypes(wb, data):
         ws.column_dimensions[L(LY.wt_col(k, 1))].width = 8
         ws.column_dimensions[L(LY.wt_col(k, 2))].width = 7
     ws.row_dimensions[LY.WT_R_TERMIJNKOP].height = 18
+    ws.row_dimensions[4].height = 22      # ruimte voor de knoppen Type invoegen / Type verwijderen (.xlsm)
 
     put(ws, "B1", "Woningtypes — per type één blok van drie kolommen", f=F_TITLE)
     put(ws, "B2", "Blauw op lichtblauw = invoer. Naam en aantal altijd; koopsom, start bouw en termijnen alleen als je het "
@@ -665,10 +666,13 @@ def bouw_dashboard(wb, data):
         ("Niet meer dan 60 periodes",
          f'=IF(COUNTA({b_rng})-1<={LY.N_PERIODS},"OK","LET OP: "&(COUNTA({b_rng})-1)&" gevulde rijen, alleen de eerste {LY.N_PERIODS} tellen mee")'),
         ("Elke gevulde rij heeft een jaar",
-         f'=IF(SUMPRODUCT(({b_rng}="")*({LY.in_rng("C", "AE")}<>""))=0,"OK","LET OP: rij met cijfers maar zonder jaar telt niet mee")'),
+         f'=IF(SUMPRODUCT(({b_rng}="")*({LY.in_rng("C", LY.WT_RANGE_END)}<>""))=0,"OK","LET OP: rij met cijfers maar zonder jaar telt niet mee")'),
         ("Jaar is een getal tussen 1990 en 2100",
-         f'=IF(SUMPRODUCT(({b_rng}<>"")*ISTEXT({b_rng}))-1+COUNTIF({b_rng},"<1990")+COUNTIF({b_rng},">2100")=0,"OK",'
+         f'=IF(SUMPRODUCT(({b_rng}<>"")*ISTEXT({b_rng}))-COUNTIF({b_rng},"Jaar")+COUNTIF({b_rng},"<1990")+COUNTIF({b_rng},">2100")=0,"OK",'
          f'"LET OP: jaar als tekst, datum of buiten 1990-2100 (tekst werkt, maar maak er een getal van)")'),
+        ("Koprij 'Jaar' staat boven de periodes",
+         f'=IF(IFERROR(INDEX({b_rng},MATCH(TRUE,INDEX({b_rng}<>"",0),0)),"")="Jaar","OK",'
+         f'"LET OP: koprij \'Jaar\' op tab Invoer ontbreekt; de eerste gevulde rij telt dan niet mee")'),
         ("Verkocht = aantal woningen",
          f'=IF({hm("verkocht_plan")}={hm("woningen")},"OK","LET OP: "&{hm("verkocht_plan")}&" verkocht tegen "&{hm("woningen")}&" woningen")'),
         ("Getransporteerd = aantal woningen",
