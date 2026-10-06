@@ -210,7 +210,7 @@ def cashflow(r, lbl, scenario=True):
     verborgen += [nxt, nxt + 1, nxt + 2]
     nxt += 3
     if scenario:
-        punten.append(ser_punt(nxt, "=" + lbl["eind_scenario"], kw, r["eind_scenario"], AMBER, "b"))
+        punten.append(ser_punt(nxt, "=" + lbl["eind_scenario"], kw, r["eind_scenario"], AMBER, "t"))   # basis-label links, scenario boven
         verborgen.append(nxt)
     groepen = [grp_area(areas), waas, grp_bar(bars, grouping="stacked", gap=55, overlap=100), grp_line(lines + punten)]
     return chart_space(groepen, [cat_ax(AX1, AX2), val_ax(AX2, AX1, FMT_MLN)] + assen_waas(), legend(verborgen))
