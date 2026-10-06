@@ -22,9 +22,9 @@ Private Const SH_TYPES As String = "Woningtypes"
 Private Const SH_INVOER As String = "Invoer"
 Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
-Private Const CEL_SJABLOON As String = "D50"
-Private Const CEL_NAAM As String = "D51"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v9.pptx"
+Private Const CEL_SJABLOON As String = "D52"
+Private Const CEL_NAAM As String = "D53"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v10.pptx"
 Private Const MAX_RIJEN As Long = 60
 Private Const TITEL As String = "Naar PowerPoint"
 

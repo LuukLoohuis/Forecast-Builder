@@ -9,8 +9,8 @@ Gebruik:
   python build.py --from oud.xlsm --out map/naam    # eigen bestandsnaam (zonder extensie)
   python build.py --vba ander.xlsm                  # VBA uit een ander .xlsm halen
 
-Daarna in Excel: open het .xlsm, importeer vba/CashflowNaarPowerPoint_v10.bas over de oude module
-(VBA-editor: module CashflowNaarPowerPoint verwijderen, Bestand > Bestand importeren) en bewaar.
+De VBA-module (vba/CashflowNaarPowerPoint_v10.bas) wordt in het .xlsm geschreven: importeren is niet nodig.
+Het .xlsm wordt altijd gemaakt; als VBA-sjabloon dient vba/vbaProject_template.bin (of --vba <ander .xlsm>).
 """
 import argparse
 import os
@@ -20,6 +20,25 @@ from openpyxl import Workbook
 from openpyxl.workbook.defined_name import DefinedName
 
 from forecast_builder import charts, data as D, layout as LY, package, sheets
+
+HIER = os.path.dirname(os.path.abspath(__file__))
+VBA_BAS = os.path.join(HIER, "vba", "CashflowNaarPowerPoint_v10.bas")
+VBA_TEMPLATE = os.path.join(HIER, "vba", "vbaProject_template.bin")
+VBA_MODULE = "CashflowNaarPowerPoint"
+
+
+def vba_bin_maken(template_pad=None, bas_pad=VBA_BAS):
+    """vbaProject.bin met de module uit het .bas, op basis van het sjabloon (document-modules, projectinstellingen)."""
+    from forecast_builder import vbabuild
+    pad = template_pad or VBA_TEMPLATE
+    if pad.lower().endswith(".xlsm"):
+        template = package.lees_vba(pad)
+    else:
+        with open(pad, "rb") as f:
+            template = f.read()
+    with open(bas_pad, encoding="utf-8", newline="") as f:
+        bron = f.read().replace("\r\n", "\n").replace("\n", "\r\n")   # VBA-bron wordt met CRLF opgeslagen
+    return vbabuild.build_vbaproject(template, {VBA_MODULE: bron})
 
 
 def bouw_werkboek(project):
@@ -35,7 +54,7 @@ def bouw_werkboek(project):
     for naam, col in LY.M.items():
         if naam.startswith("g_"):
             wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${col}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
-    wb.defined_names["g_kwartaal"] = DefinedName("g_kwartaal", attr_text=f"OFFSET(Model!$C${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
+    wb.defined_names["g_kwartaal"] = DefinedName("g_kwartaal", attr_text=f"OFFSET(Model!${LY.FIX['kwartaal']}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
     charts.plaats_grafieken(ws_dash, wb)
     wb.calculation.fullCalcOnLoad = True
     return wb
@@ -62,13 +81,14 @@ def bouw(project, pad_uit_basis, vba_bin=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from", dest="bron", help="bestaand werkboek waaruit invoer en knoppen worden overgenomen")
-    ap.add_argument("--vba", help=".xlsm waaruit de VBA (vbaProject.bin) wordt overgenomen; standaard het --from-bestand als dat een .xlsm is")
+    ap.add_argument("--vba", help="VBA-sjabloon: een .xlsm of vbaProject.bin waaruit de projectstructuur en document-modules komen "
+                                  "(standaard vba/vbaProject_template.bin); de module zelf komt altijd uit vba/CashflowNaarPowerPoint_v10.bas")
+    ap.add_argument("--geen-vba", action="store_true", help="alleen een .xlsx maken")
     ap.add_argument("--out", default="out/Cashflow_scenario", help="uitvoerpad zonder extensie (standaard out/Cashflow_scenario)")
     args = ap.parse_args()
 
     project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld()
-    vba_pad = args.vba or (args.bron if args.bron and args.bron.lower().endswith(".xlsm") else None)
-    vba_bin = package.lees_vba(vba_pad) if vba_pad else None
+    vba_bin = None if args.geen_vba else vba_bin_maken(args.vba)
     for pad in bouw(project, args.out, vba_bin):
         print("geschreven:", pad)
 

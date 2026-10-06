@@ -15,26 +15,28 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v9.pptx`).
 | `forecast_builder/charts.py` | grafiek-XML voor het Dashboard |
 | `forecast_builder/package.py` | nabewerking: grafieken en VBA in het bestand zetten |
 | `vba/CashflowNaarPowerPoint_v10.bas` | VBA-module: Naar PowerPoint, Sjabloon controleren, Type invoegen, Type verwijderen |
+| `forecast_builder/vbabuild.py` | schrijft de VBA-module in het .xlsm (vbaProject.bin: MS-CFB + MS-OVBA), zodat importeren niet nodig is |
+| `tools/pptx_rente_card.py` | zet de vijfde KPI-kaart (rente) op dia 2 van het PowerPoint-sjabloon (v9 → v10) |
 
 ## Bouwen
 
 ```bash
-python build.py                                      # voorbeeldproject -> out/Cashflow_scenario.xlsx
-python build.py --from Cashflow_scenario.xlsm        # invoer, knoppen én VBA uit je huidige werkboek -> .xlsx + .xlsm
+python build.py                                      # voorbeeldproject -> out/Cashflow_scenario.xlsx + .xlsm
+python build.py --from Cashflow_scenario.xlsm        # invoer en knoppen uit je huidige werkboek (oude of nieuwe indeling)
 python build.py --from oud.xlsm --out map/naam       # eigen uitvoernaam (zonder extensie)
+python build.py --geen-vba                           # alleen .xlsx
 ```
 
-`--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken).
-Je kunt het dus ook gebruiken om later een bijgewerkt werkboek opnieuw te genereren zonder gegevens over te typen.
+Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`
+geschreven (`forecast_builder/vbabuild.py`, op basis van `vba/vbaProject_template.bin` met de documentmodules en
+projectinstellingen). Importeren in de VBA-editor is dus niet nodig. Bij het openen zet `KnoppenControleren`
+de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v10.pptx` naast het werkboek
+(of vul het pad in op tab PowerPoint).
 
-Daarna in Excel:
+`--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken), dus een
+bijgewerkt werkboek genereer je later opnieuw zonder gegevens over te typen.
 
-1. Open het `.xlsm`.
-2. VBA-editor (Alt+F11): module `CashflowNaarPowerPoint` verwijderen → Bestand › Bestand importeren → `vba/CashflowNaarPowerPoint_v10.bas`.
-3. Bewaren. Bij het openen zet `KnoppenControleren` de knoppen neer (Dashboard, PowerPoint, Woningtypes).
-
-Zonder stap 2 werkt de oude module (v9) ook nog: de knop Naar PowerPoint leest dezelfde cellen, alleen de
-typetabel op dia 5 stopt dan na vijf types en de knoppen Type invoegen/verwijderen ontbreken.
+Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om formules door te rekenen).
 
 ## Indeling van het werkboek
 
@@ -42,11 +44,12 @@ typetabel op dia 5 stopt dan na vijf types en de knoppen Type invoegen/verwijder
   hele looptijd), rente ook in de basis (ja/nee), verkooptempo-model aan/uit, per scenario: verschuiving verkoop/transport,
   uitstel start bouw, opbrengsten %, kosten %; norm verkocht vóór start bouw; controles; overzicht woningtypes.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
-  verkocht | transport (vanaf kolom L).
+  verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
+  mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
 * **Woningtypes** – per type één blok van drie kolommen (vanaf kolom C): naam, aantal, koopsom, start bouw en een eigen
   lijst termijnen (naam, % van de koopsom, bouwkwartaal). Elk type kan dus andere termijnen hebben.
-* **Model** – rekenblad. Kolommen A:K uit de invoer, L:BE model, scenario's, rente en grafiekkolommen, BX:BY hulpcellen
-  (BY8 = aantal periodes, de VBA leest die cel), vanaf CA de typeblokken.
+* **Model** – rekenblad. Kolommen A:L uit de invoer (B = bronrij op Invoer), M:BF model, scenario's, rente en
+  grafiekkolommen, BX:BY hulpcellen (BY8 = aantal periodes, de VBA leest die cel), vanaf CA de typeblokken.
 * **PowerPoint** – teksten, tabellen en grafiekblokken voor de dia's; kolom F = vormnaam op de dia.
 
 ### Type toevoegen of verwijderen

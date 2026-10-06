@@ -12,9 +12,11 @@ alles meeschuiven zonder formules aan te passen.
 from openpyxl.utils import get_column_letter as L
 
 N_TYPES = 10          # aantal typeblokken (capaciteit)
-N_PERIODS = 60        # rijen 8 t/m 67
-ROW1 = 8              # eerste periode-rij (Invoer en Model lopen gelijk)
+N_PERIODS = 60        # modelrijen 8 t/m 67 (maximaal 60 periodes)
+ROW1 = 8              # eerste periode-rij op Invoer en in het Model
 ROWN = ROW1 + N_PERIODS - 1   # 67
+IN_ROWMAX = 500       # Invoer-bereiken lopen tot rij 500: rijen invoegen/verwijderen kan ze niet breken;
+                      # het Model leest de i-de gevulde rij (kolom Bronrij), dus lege rijen worden overgeslagen
 N_TERMIJNEN = 10      # bouwtermijnen per type (naast de grondtermijn)
 
 # ---- Woningtypes -----------------------------------------------------------
@@ -69,12 +71,19 @@ def in_col(k, offset=0):
 
 
 def in_ref(row, k, offset=0):
-    """Positionele verwijzing naar de invoercel van type k in periode-rij `row`."""
-    return f"INDEX(Invoer!$A${ROW1}:${WT_RANGE_END}${ROWN},{row - ROW1 + 1},{in_col(k, offset)})"
+    """Positionele verwijzing naar de invoercel van type k voor modelrij `row` (via de bronrij in kolom B)."""
+    return f"INDEX(Invoer!$A${ROW1}:${WT_RANGE_END}${IN_ROWMAX},${FIX['bron']}{row},{in_col(k, offset)})"
+
+
+def in_col_ref(col_letter, row):
+    """Invoercel in kolom `col_letter` (B..J) voor modelrij `row`, via de bronrij."""
+    return f"INDEX(Invoer!${col_letter}${ROW1}:${col_letter}${IN_ROWMAX},${FIX['bron']}{row})"
 
 
 # ---- Model -------------------------------------------------------------------
-# vaste kolommen A..K, modelkolommen L..BE, hulpcellen BX:BY, typeblokken vanaf CA
+# vaste kolommen A..L, modelkolommen M..BF, hulpcellen BX:BY, typeblokken vanaf CA
+FIX = {"nr": "A", "bron": "B", "kw": "C", "kwartaal": "D", "kwartaal_vol": "E", "idx": "F", "fase": "G",
+       "kosten": "H", "opbr": "I", "stand": "J", "cum_opbr": "K", "vorig": "L"}
 M = {}
 for i, name in enumerate([
     "model_basis", "model_up", "model_down",            # L M N
@@ -90,7 +99,7 @@ for i, name in enumerate([
     "g_punt_nu", "g_punt_dal", "g_eind_upside", "g_eind_downside", "g_eind_basis",
     "g_verkocht", "g_getransporteerd", "g_verkocht_cum", "g_getransporteerd_cum",
     "g_verkocht_pct", "g_getransporteerd_pct", "g_opbrengsten_pct", "g_kosten_pct",
-], start=12):
+], start=13):
     M[name] = L(i)
 
 M_HULP_LABEL = "BX"
@@ -179,5 +188,5 @@ PP_KPI_ROW1 = 8
 PP_BLOK = {"cf": "G", "sc": "O", "vt": "Z", "vo": "AF"}     # kopcellen rij 7 (VBA leest G7, O7, Z7, AF7)
 PP_TABEL_SC = "AL7"            # 9 rijen x 4 kolommen
 PP_TABEL_VT_ROW = 18           # kop in AL18, daaronder N_TYPES rijen
-PP_CEL_SJABLOON = "D50"
-PP_CEL_NAAM = "D51"
+PP_CEL_SJABLOON = "D52"
+PP_CEL_NAAM = "D53"
