@@ -447,9 +447,73 @@ def _normalize_source(text: str) -> str:
     return text.replace("\n", "\r\n")
 
 
-def build_vbaproject(template_bin: bytes, modules: dict[str, str]) -> bytes:
+REC_MODULENAME = 0x0019
+REC_MODULENAMEUNICODE = 0x0047
+REC_MODULESTREAMNAME = 0x001A
+REC_MODULESTREAMNAMEUNICODE = 0x0032
+REC_PROJECTMODULES = 0x000F
+REC_MODULETYPE_DOCUMENT = 0x0022
+WORKSHEET_VB_BASE = "0{00020820-0000-0000-C000-000000000046}"
+
+
+def _documentmodule_bron(naam: str) -> str:
+    """Standaardbron van een lege werkblad-documentmodule (zoals Excel die schrijft)."""
+    return (f'Attribute VB_Name = "{naam}"\r\n'
+            f'Attribute VB_Base = "{WORKSHEET_VB_BASE}"\r\n'
+            "Attribute VB_GlobalNameSpace = False\r\n"
+            "Attribute VB_Creatable = False\r\n"
+            "Attribute VB_PredeclaredId = True\r\n"
+            "Attribute VB_Exposed = True\r\n"
+            "Attribute VB_TemplateDerived = False\r\n"
+            "Attribute VB_Customizable = True\r\n")
+
+
+def _voeg_documentmodule_toe(records: list, project: bytes, projectwm: bytes, naam: str, codepage: str, mods: list):
+    """Voegt een werkblad-documentmodule `naam` toe aan dir-records, PROJECT en PROJECTwm (MS-OVBA 2.3.4.2.3).
+
+    De MODULE-records zijn een kopie van de laatste bestaande documentmodule met de naam vervangen.
+    Geeft (records, project, projectwm, bronbytes) terug.
+    """
+    voorbeeld = next(m for m in reversed(mods) if any(r.rid == REC_MODULETYPE_DOCUMENT for r in m.records))
+    nieuw = []
+    for r in voorbeeld.records:
+        data = r.data
+        if r.rid in (REC_MODULENAME, REC_MODULESTREAMNAME):
+            data = naam.encode(codepage)
+        elif r.rid in (REC_MODULENAMEUNICODE, REC_MODULESTREAMNAMEUNICODE):
+            data = naam.encode("utf-16-le")
+        elif r.rid == REC_MODULEOFFSET:
+            data = struct.pack("<I", 0)
+        nieuw.append(DirRecord(r.rid, data))
+    # invoegen direct na de laatste record van de laatste module (vóór de afsluitende PROJECTTERMINATOR 0x0010)
+    laatste = max(i for i, r in enumerate(records) if r is mods[-1].records[-1])
+    records = records[:laatste + 1] + nieuw + records[laatste + 1:]
+    for r in records:
+        if r.rid == REC_PROJECTMODULES:
+            r.data = struct.pack("<H", struct.unpack("<H", r.data)[0] + 1)
+    # PROJECT-stream: Document=-regel na de laatste Document=-regel en een [Workspace]-regel
+    tekst = project.decode(codepage)
+    regels = tekst.split("\r\n")
+    i = max(i for i, l in enumerate(regels) if l.startswith("Document="))
+    regels.insert(i + 1, f"Document={naam}/&H00000000")
+    if "[Workspace]" in regels:
+        w = regels.index("[Workspace]")
+        j = w + 1
+        while j < len(regels) and regels[j].strip():
+            j += 1
+        regels.insert(j, f"{naam}=0, 0, 0, 0, C")
+    project = "\r\n".join(regels).encode(codepage)
+    # PROJECTwm: naam (MBCS) NUL naam (UTF-16) NUL NUL, vóór de afsluitende twee NUL-bytes
+    assert projectwm.endswith(b"\x00\x00")
+    projectwm = projectwm[:-2] + naam.encode(codepage) + b"\x00" + naam.encode("utf-16-le") + b"\x00\x00" + b"\x00\x00"
+    return records, project, projectwm, _documentmodule_bron(naam).encode(codepage)
+
+
+def build_vbaproject(template_bin: bytes, modules: dict[str, str], documentmodules: list[str] | None = None) -> bytes:
     """Nieuw vbaProject.bin: template met de broncode van `modules` ({modulenaam: brontekst}) vervangen.
 
+    `documentmodules`: codeNames van werkbladen die (nog) geen documentmodule in het template hebben; die
+    krijgen een lege werkbladmodule, zodat het project precies bij de werkbladen past.
     De bron wordt opgeslagen in de code page van het project (PROJECTCODEPAGE), met CRLF-regeleinden.
     """
     import olefile
@@ -470,6 +534,13 @@ def build_vbaproject(template_bin: bytes, modules: dict[str, str]) -> bytes:
         if onbekend:
             raise KeyError("module(s) niet in het template: %s" % ", ".join(sorted(onbekend)))
 
+        extra_streams = []
+        for naam in documentmodules or []:
+            if naam in known:
+                continue
+            records, project, projectwm, bron = _voeg_documentmodule_toe(records, project, projectwm, naam, codepage, mods)
+            extra_streams.append(CfbNode(naam, False, compress(bron)))
+
         vba = CfbNode("VBA", True)
         vba.children.append(CfbNode("_VBA_PROJECT", False, bytes.fromhex("cc61ffff000000")))
         for m in mods:
@@ -482,6 +553,7 @@ def build_vbaproject(template_bin: bytes, modules: dict[str, str]) -> bytes:
             for r in m.records:
                 if r.rid == REC_MODULEOFFSET:
                     r.data = struct.pack("<I", 0)
+        vba.children.extend(extra_streams)
         vba.children.append(CfbNode("dir", False, compress(serialize_dir(records))))
 
         root = CfbNode("Root Entry", True)

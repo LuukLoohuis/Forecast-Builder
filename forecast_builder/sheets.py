@@ -76,12 +76,13 @@ def bouw_woningtypes(wb, data):
         "Eerste termijn van de koopsom: de grondtermijn. Komt binnen in de periode van notarieel transport en schuift dus mee "
         "als je met het verkooptempo speelt.")
 
-    dv_kw4 = DataValidation(type="whole", operator="between", formula1="1", formula2="4", allow_blank=True)
-    dv_kw = DataValidation(type="whole", operator="between", formula1="1", formula2="60", allow_blank=True)
-    dv_pct = DataValidation(type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True)
-    ws.add_data_validation(dv_kw4)
-    ws.add_data_validation(dv_kw)
-    ws.add_data_validation(dv_pct)
+    dv_kw4 = DataValidation(type="whole", operator="between", formula1="1", formula2="4", allow_blank=True, error="Kwartaal 1 t/m 4.")
+    dv_kw = DataValidation(type="whole", operator="between", formula1="1", formula2="60", allow_blank=True, error="Bouwkwartaal: heel getal 1 t/m 60.")
+    dv_pct = DataValidation(type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True, error="Percentage tussen 0% en 100%.")
+    for dv in (dv_kw4, dv_kw, dv_pct):
+        dv.showErrorMessage = True
+        dv.errorTitle = "Ongeldige invoer"
+        ws.add_data_validation(dv)
 
     totaal_cellen = []
     for k in range(1, N_TYPES + 1):
@@ -221,8 +222,8 @@ def bouw_model(wb):
     ws.row_dimensions[7].height = 34
     NR, BRON, KW, KWT, KWV, IDX, FASE, KOS, OPB, STAND, CUM, VORIG = (FIX[k] for k in
         ("nr", "bron", "kw", "kwartaal", "kwartaal_vol", "idx", "fase", "kosten", "opbr", "stand", "cum_opbr", "vorig"))
-    inv_b = f"Invoer!$B${ROW1}:$B${LY.IN_ROWMAX}"
-    inv_j = f"Invoer!$J${ROW1}:$J${LY.IN_ROWMAX}"
+    inv_b = LY.in_rng("B")
+    inv_j = LY.in_rng("J")
 
     put(ws, "A1", "Model — rekenblad, niets invullen", f=F_TITLE)
     put(ws, "A2", "Rij i van dit blad is de i-de gevulde rij op tab Invoer (kolom Bronrij): lege rijen tellen niet mee en rijen invoegen of "
@@ -261,7 +262,7 @@ def bouw_model(wb):
         M["g_eind_basis"]: "Eind basis", M["g_verkocht"]: "Verkocht", M["g_getransporteerd"]: "Getransporteerd",
         M["g_verkocht_cum"]: "Verkocht cum", M["g_getransporteerd_cum"]: "Getransporteerd cum",
         M["g_verkocht_pct"]: "Verkocht pct", M["g_getransporteerd_pct"]: "Getransporteerd pct",
-        M["g_opbrengsten_pct"]: "Opbrengsten pct", M["g_kosten_pct"]: "Kosten pct",
+        M["g_opbrengsten_pct"]: "Opbrengsten pct", M["g_kosten_pct"]: "Kosten pct", M["stap_ok"]: "Stap ok (controle)",
     }
     for k in range(1, N_TYPES + 1):
         koppen[m_col("vcum", k)] = f"Verkocht cum {k}"
@@ -298,13 +299,16 @@ def bouw_model(wb):
         kw = LY.in_col_ref("C", r)
         f = {}
         # bronrij: de i-de gevulde rij op Invoer (matrixformule); daarna is alles positioneel
-        f[BRON] = ArrayFormula(f"{BRON}{r}", f'=IFERROR(SMALL(IF({inv_b}<>"",ROW({inv_b})-ROW(Invoer!$B${ROW1})+1),{i}),"")')
+        # koprij 'Jaar' is altijd de eerste gevulde cel van het bereik, dus periode i = de (i+1)-de gevulde cel;
+        # geen verwijzing naar één cel (die zou #REF! worden als de gebruiker die rij verwijdert)
+        f[BRON] = ArrayFormula(f"{BRON}{r}", f'=IFERROR(SMALL(IF({inv_b}<>"",ROW({inv_b})-MIN(ROW({inv_b}))+1),{i + 1}),"")')
         f[NR] = f'=IF(${BRON}{r}="","",{i})'
+        kwv = f'VALUE({kw}&"")'
         f[KW] = (f'=IF({leeg},"",IF(LEFT({kw}&"",1)="Q",IFERROR(VALUE(MID({kw},2,1)),0),'
-                 f'IF(AND(ISNUMBER({kw}),{kw}>=1,{kw}<=4),{kw},0)))')
+                 f'IFERROR(IF(AND({kwv}>=1,{kwv}<=4),{kwv},0),0)))')
         f[KWT] = f'=IF({leeg},"",IF({KW}{r}=0,{jaar}&"",IF({KW}{r}=1,"Q1 {APOS}"&RIGHT({jaar},2),"Q"&{KW}{r})))'
         f[KWV] = f'=IF({leeg},"",IF({KW}{r}=0,{jaar}&"","Q"&{KW}{r}&" {APOS}"&RIGHT({jaar},2)))'
-        f[IDX] = f'=IF({leeg},"",N({jaar})*4+IF({KW}{r}=0,4,{KW}{r}))'
+        f[IDX] = f'=IF({leeg},"",IFERROR(VALUE(TRIM({jaar}&"")),0)*4+IF({KW}{r}=0,4,{KW}{r}))'
         f[FASE] = f'=IF({leeg},"",IF({IDX}{r}<={h("idx_actuals")},"Realisatie","Prognose"))'
         f[KOS] = f'=IF({leeg},"",IFERROR(N({LY.in_col_ref("D", r)}),0))'
         f[OPB] = f'=IF({leeg},"",IFERROR(N({LY.in_col_ref("F", r)}),0))'
@@ -384,6 +388,10 @@ def bouw_model(wb):
         f[M["g_getransporteerd_pct"]] = f'{na}IF({h("woningen")}=0,0,{tcum}{r}/{h("woningen")}))'
         f[M["g_opbrengsten_pct"]] = f'{na}IF({h("opbr_totaal")}=0,0,{CUM}{r}/{h("opbr_totaal")}))'
         f[M["g_kosten_pct"]] = f'{na}IF({h("kosten_totaal")}=0,0,({CUM}{r}-{sb}{r})/{h("kosten_totaal")}))'
+        if r == ROW1:
+            f[M["stap_ok"]] = f'=IF({leeg},1,1)'
+        else:
+            f[M["stap_ok"]] = f'=IF(OR(${NR}{r}="",${NR}{p}=""),1,IF({IDX}{r}-{IDX}{p}=1+3*({KW}{r}=0),1,0))'
         for col, formule in f.items():
             put(ws, f"{col}{r}", formule, f=F_CALC, nf=FMT_INT)
         for col in (KWT, KWV, FASE):
@@ -650,11 +658,17 @@ def bouw_dashboard(wb, data):
     sectie(r, "CONTROLES")
     vcum1, vcumN = m_col("vcum", 1), m_col("vcum", N_TYPES)
     tcum1, tcumN = m_col("tcum", 1), m_col("tcum", N_TYPES)
+    b_rng = LY.in_rng("B")
     checks = [
         ("Periodes oplopend, zonder gaten",
-         f'=IF(SUMPRODUCT(--(Model!${FIX["idx"]}${ROW1 + 1}:${FIX["idx"]}${ROWN}<>""),--(Model!${FIX["idx"]}${ROW1}:${FIX["idx"]}${ROWN - 1}<>""),'
-         f'--(Model!${FIX["idx"]}${ROW1 + 1}:${FIX["idx"]}${ROWN}<=Model!${FIX["idx"]}${ROW1}:${FIX["idx"]}${ROWN - 1}))=0,'
-         f'"OK","LET OP: jaar/kwartaal loopt niet op")'),
+         f'=IF(COUNTIF(Model!${M["stap_ok"]}${ROW1}:${M["stap_ok"]}${ROWN},0)=0,"OK","LET OP: jaar/kwartaal loopt niet op of er ontbreekt een kwartaal")'),
+        ("Niet meer dan 60 periodes",
+         f'=IF(COUNTA({b_rng})-1<={LY.N_PERIODS},"OK","LET OP: "&(COUNTA({b_rng})-1)&" gevulde rijen, alleen de eerste {LY.N_PERIODS} tellen mee")'),
+        ("Elke gevulde rij heeft een jaar",
+         f'=IF(SUMPRODUCT(({b_rng}="")*({LY.in_rng("C", "AE")}<>""))=0,"OK","LET OP: rij met cijfers maar zonder jaar telt niet mee")'),
+        ("Jaar is een getal tussen 1990 en 2100",
+         f'=IF(SUMPRODUCT(({b_rng}<>"")*ISTEXT({b_rng}))-1+COUNTIF({b_rng},"<1990")+COUNTIF({b_rng},">2100")=0,"OK",'
+         f'"LET OP: jaar als tekst, datum of buiten 1990-2100 (tekst werkt, maar maak er een getal van)")'),
         ("Verkocht = aantal woningen",
          f'=IF({hm("verkocht_plan")}={hm("woningen")},"OK","LET OP: "&{hm("verkocht_plan")}&" verkocht tegen "&{hm("woningen")}&" woningen")'),
         ("Getransporteerd = aantal woningen",
@@ -695,13 +709,15 @@ def bouw_dashboard(wb, data):
 
     # ---- validaties -------------------------------------------------------------------
     for dv, cells in (
-        (DataValidation(type="list", formula1='"ja,nee"', allow_blank=False), ["W12", "W8"]),
-        (DataValidation(type="list", formula1='"start bouw,hele looptijd"', allow_blank=False), ["W7"]),
-        (DataValidation(type="whole", operator="between", formula1="1", formula2="4", allow_blank=True), ["X5"]),
-        (DataValidation(type="whole", operator="between", formula1="-20", formula2="20", allow_blank=True), ["W17:X17"]),
-        (DataValidation(type="whole", operator="between", formula1="0", formula2="40", allow_blank=True), ["W18:X18"]),
-        (DataValidation(type="decimal", operator="between", formula1="0", formula2="0.5", allow_blank=True), ["W6"]),
+        (DataValidation(type="list", formula1='"ja,nee"', allow_blank=False, error="Kies ja of nee."), ["W12", "W8"]),
+        (DataValidation(type="list", formula1='"start bouw,hele looptijd"', allow_blank=False, error="Kies 'start bouw' of 'hele looptijd'."), ["W7"]),
+        (DataValidation(type="whole", operator="between", formula1="1", formula2="4", allow_blank=True, error="Kwartaal 1 t/m 4."), ["X5"]),
+        (DataValidation(type="whole", operator="between", formula1="-20", formula2="20", allow_blank=True, error="Heel aantal kwartalen tussen -20 en 20."), ["W17:X17"]),
+        (DataValidation(type="whole", operator="between", formula1="0", formula2="40", allow_blank=True, error="Heel aantal kwartalen tussen 0 en 40."), ["W18:X18"]),
+        (DataValidation(type="decimal", operator="between", formula1="0", formula2="0.5", allow_blank=True, error="Jaarrente tussen 0% en 50%."), ["W6"]),
     ):
+        dv.showErrorMessage = True
+        dv.errorTitle = "Ongeldige invoer"
         ws.add_data_validation(dv)
         for c in cells:
             dv.add(c)

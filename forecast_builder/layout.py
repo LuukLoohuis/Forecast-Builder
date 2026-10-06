@@ -15,8 +15,10 @@ N_TYPES = 10          # aantal typeblokken (capaciteit)
 N_PERIODS = 60        # modelrijen 8 t/m 67 (maximaal 60 periodes)
 ROW1 = 8              # eerste periode-rij op Invoer en in het Model
 ROWN = ROW1 + N_PERIODS - 1   # 67
-IN_ROWMAX = 500       # Invoer-bereiken lopen tot rij 500: rijen invoegen/verwijderen kan ze niet breken;
-                      # het Model leest de i-de gevulde rij (kolom Bronrij), dus lege rijen worden overgeslagen
+IN_ROWMAX = 500       # Invoer-bereiken lopen van de koprij (7) tot rij 500: rijen invoegen/verwijderen kan ze niet
+IN_ANCHOR = ROW1 - 1  # breken (ook niet de eerste of de laatste datarij); het Model leest de i-de gevulde rij
+                      # (kolom Bronrij, positie binnen dat bereik; de koprij 'Jaar' is positie 1), dus lege rijen
+                      # worden overgeslagen
 N_TERMIJNEN = 10      # bouwtermijnen per type (naast de grondtermijn)
 
 # ---- Woningtypes -----------------------------------------------------------
@@ -72,12 +74,17 @@ def in_col(k, offset=0):
 
 def in_ref(row, k, offset=0):
     """Positionele verwijzing naar de invoercel van type k voor modelrij `row` (via de bronrij in kolom B)."""
-    return f"INDEX(Invoer!$A${ROW1}:${WT_RANGE_END}${IN_ROWMAX},${FIX['bron']}{row},{in_col(k, offset)})"
+    return f"INDEX(Invoer!$A${IN_ANCHOR}:${WT_RANGE_END}${IN_ROWMAX},${FIX['bron']}{row},{in_col(k, offset)})"
 
 
 def in_col_ref(col_letter, row):
     """Invoercel in kolom `col_letter` (B..J) voor modelrij `row`, via de bronrij."""
-    return f"INDEX(Invoer!${col_letter}${ROW1}:${col_letter}${IN_ROWMAX},${FIX['bron']}{row})"
+    return f"INDEX(Invoer!${col_letter}${IN_ANCHOR}:${col_letter}${IN_ROWMAX},${FIX['bron']}{row})"
+
+
+def in_rng(col_letter, col2=None):
+    """Invoerbereik van de koprij tot rij IN_ROWMAX, bv. Invoer!$B$7:$B$500."""
+    return f"Invoer!${col_letter}${IN_ANCHOR}:${col2 or col_letter}${IN_ROWMAX}"
 
 
 # ---- Model -------------------------------------------------------------------
@@ -99,6 +106,7 @@ for i, name in enumerate([
     "g_punt_nu", "g_punt_dal", "g_eind_upside", "g_eind_downside", "g_eind_basis",
     "g_verkocht", "g_getransporteerd", "g_verkocht_cum", "g_getransporteerd_cum",
     "g_verkocht_pct", "g_getransporteerd_pct", "g_opbrengsten_pct", "g_kosten_pct",
+    "stap_ok",                                          # controle: idx loopt met de juiste stap op
 ], start=13):
     M[name] = L(i)
 
@@ -166,7 +174,7 @@ D = {
 }
 D_ROW_POWERPOINT = 31      # knop staat op W32:X33 (vast: de VBA-macro zet hem daar)
 D_ROW_CONTROLES = 37
-D_ROW_TYPES = 45           # overzicht woningtypes
+D_ROW_TYPES = 48           # overzicht woningtypes
 D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B70"}
 D_ROW_UITLEG = 93
 

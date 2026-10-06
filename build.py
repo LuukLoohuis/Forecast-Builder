@@ -19,7 +19,7 @@ import tempfile
 from openpyxl import Workbook
 from openpyxl.workbook.defined_name import DefinedName
 
-from forecast_builder import charts, data as D, layout as LY, package, sheets
+from forecast_builder import cache, charts, data as D, layout as LY, package, sheets
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 VBA_BAS = os.path.join(HIER, "vba", "CashflowNaarPowerPoint_v10.bas")
@@ -38,7 +38,8 @@ def vba_bin_maken(template_pad=None, bas_pad=VBA_BAS):
             template = f.read()
     with open(bas_pad, encoding="utf-8", newline="") as f:
         bron = f.read().replace("\r\n", "\n").replace("\n", "\r\n")   # VBA-bron wordt met CRLF opgeslagen
-    return vbabuild.build_vbaproject(template, {VBA_MODULE: bron})
+    codenames = ["shDashboard", "shInvoer", "shWoningtypes", "shModel", "shPowerPoint"]   # werkbladen in het werkboek
+    return vbabuild.build_vbaproject(template, {VBA_MODULE: bron}, documentmodules=codenames)
 
 
 def bouw_werkboek(project):
@@ -60,8 +61,12 @@ def bouw_werkboek(project):
     return wb
 
 
-def bouw(project, pad_uit_basis, vba_bin=None):
-    """Schrijft <basis>.xlsx en, als vba_bin is meegegeven, <basis>.xlsm. Geeft de geschreven paden terug."""
+def bouw(project, pad_uit_basis, vba_bin=None, caches=True):
+    """Schrijft <basis>.xlsx en, als vba_bin is meegegeven, <basis>.xlsm. Geeft de geschreven paden terug.
+
+    Met caches=True (en LibreOffice aanwezig) worden de uitkomsten van alle formules en de grafiekreeksen als
+    cachewaarde in het bestand gezet, zodat Excel ook in de beveiligde weergave meteen cijfers toont.
+    """
     wb = bouw_werkboek(project)
     os.makedirs(os.path.dirname(os.path.abspath(pad_uit_basis)), exist_ok=True)
     paden = []
@@ -75,6 +80,9 @@ def bouw(project, pad_uit_basis, vba_bin=None):
             xlsm = pad_uit_basis + ".xlsm"
             package.nabewerken(ruw, xlsm, charts.chart_xmls(), vba_bin)
             paden.append(xlsm)
+        if caches:
+            if not cache.caches_vullen(paden, tmp):
+                print("let op: LibreOffice niet gevonden of mislukt; bestand zonder cachewaarden (Excel rekent bij openen)")
     return paden
 
 
@@ -84,12 +92,13 @@ def main():
     ap.add_argument("--vba", help="VBA-sjabloon: een .xlsm of vbaProject.bin waaruit de projectstructuur en document-modules komen "
                                   "(standaard vba/vbaProject_template.bin); de module zelf komt altijd uit vba/CashflowNaarPowerPoint_v10.bas")
     ap.add_argument("--geen-vba", action="store_true", help="alleen een .xlsx maken")
+    ap.add_argument("--geen-cache", action="store_true", help="niet doorrekenen met LibreOffice (geen cachewaarden)")
     ap.add_argument("--out", default="out/Cashflow_scenario", help="uitvoerpad zonder extensie (standaard out/Cashflow_scenario)")
     args = ap.parse_args()
 
     project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld()
     vba_bin = None if args.geen_vba else vba_bin_maken(args.vba)
-    for pad in bouw(project, args.out, vba_bin):
+    for pad in bouw(project, args.out, vba_bin, caches=not args.geen_cache):
         print("geschreven:", pad)
 
 

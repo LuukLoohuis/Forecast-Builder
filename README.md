@@ -16,6 +16,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v9.pptx`).
 | `forecast_builder/package.py` | nabewerking: grafieken en VBA in het bestand zetten |
 | `vba/CashflowNaarPowerPoint_v10.bas` | VBA-module: Naar PowerPoint, Sjabloon controleren, Type invoegen, Type verwijderen |
 | `forecast_builder/vbabuild.py` | schrijft de VBA-module in het .xlsm (vbaProject.bin: MS-CFB + MS-OVBA), zodat importeren niet nodig is |
+| `forecast_builder/cache.py` | rekent door met LibreOffice en zet cachewaarden in cellen en grafieken |
 | `tools/pptx_rente_card.py` | zet de vijfde KPI-kaart (rente) op dia 2 van het PowerPoint-sjabloon (v9 → v10) |
 
 ## Bouwen
@@ -36,13 +37,18 @@ de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cas
 `--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken), dus een
 bijgewerkt werkboek genereer je later opnieuw zonder gegevens over te typen.
 
+Als LibreOffice (`soffice`) aanwezig is, rekent de build het werkboek door en zet de uitkomsten als cachewaarden in
+cellen en grafieken (`forecast_builder/cache.py`), zodat Excel ook in de beveiligde weergave meteen cijfers toont.
+Zonder LibreOffice werkt het bestand ook; Excel rekent dan bij het openen (`--geen-cache` slaat de stap over).
+
 Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om formules door te rekenen).
 
 ## Indeling van het werkboek
 
 * **Dashboard** – kaarten, drie grafieken en in kolom V alle knoppen: actuals t/m, jaarrente, rente t/m (start bouw of
   hele looptijd), rente ook in de basis (ja/nee), verkooptempo-model aan/uit, per scenario: verschuiving verkoop/transport,
-  uitstel start bouw, opbrengsten %, kosten %; norm verkocht vóór start bouw; controles; overzicht woningtypes.
+  uitstel start bouw, opbrengsten %, kosten %; norm verkocht vóór start bouw; negen controles (oplopende kwartalen zonder
+  gaten, maximaal 60 periodes, rijen zonder jaar, jaar als getal, verkocht/transport = aantal, termijnen); overzicht types.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.

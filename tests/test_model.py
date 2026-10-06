@@ -120,7 +120,7 @@ def test_lege_rijen_tellen_niet_mee(tmp, basis):
     for r in range(8, 70):
         a, b = basis["Model"][f"BY{r}"].value, wb["Model"][f"BY{r}"].value
         assert a == b or (isinstance(a, float) and abs(a - b) < 1e-6), f"BY{r}: {a!r} != {b!r}"
-    assert [wb["Model"][f"B{r}"].value for r in range(8, 12)] == [6, 7, 8, 10]
+    assert [wb["Model"][f"B{r}"].value for r in range(8, 12)] == [7, 8, 9, 11]   # positie binnen Invoer!$B$7:$B$500 (koprij = 1)
 
 
 if __name__ == "__main__":
