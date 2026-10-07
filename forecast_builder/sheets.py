@@ -82,6 +82,14 @@ def bouw_woningtypes(wb, data):
         put(ws, f"B{LY.WT_R_X1 + i}", f"Extra opbrengst {i + 1}", f=F_NOTE, al=AL_VCENTER)
     put(ws, f"B{LY.WT_R_X_TOTAAL}", "Totaal extra per woning (€)", f=F_NOTE, al=AL_VCENTER)
     put(ws, f"B{LY.WT_R_X_TOTAAL2}", "Koopsom + extra per woning (€)", f=F_NOTE, al=AL_VCENTER)
+    put(ws, f"B{LY.WT_R_V_TITEL}", "4 · VORIGE PROGNOSE · start bouw volgens de vorige prognose: de rode blokjes in de bouwtermijnengrafiek "
+                                   "(Dashboard en dia 5) · leeg = geen rode blokjes", f=F_SECTION)
+    put(ws, f"B{LY.WT_R_VSTARTJAAR}", "Start bouw vorige prognose · jaar", f=F_NOTE, al=AL_VCENTER)
+    put(ws, f"B{LY.WT_R_VSTARTKW}", "Start bouw vorige prognose · kwartaal (1-4)", f=F_NOTE, al=AL_VCENTER)
+    put(ws, f"B{LY.WT_R_VSTARTTEKST}", "Vorige prognose (controle)", f=F_NOTE, al=AL_VCENTER)
+    ws[f"B{LY.WT_R_VSTARTJAAR}"].comment = _comment("Start bouw zoals die in de vorige prognose stond. De bouwtermijnen schuiven dan in de grafiek "
+                                                     "van rood (vorige prognose) naar blauw (huidige planning). Leeg laten als er geen vorige "
+                                                     "prognose is: dan staan er alleen blauwe blokjes.")
     put(ws, f"B{LY.WT_R_TERMIJNTITEL}", "2 · TERMIJNEN PER TYPE · % van de koopsom · kw = bouwkwartaal waarin de termijn vervalt "
                                         "(1 = kwartaal van start bouw van dat type) · naam vrij", f=F_SECTION)
     ws[f"B{LY.WT_R_TERMIJNKOP}"].comment = _comment(
@@ -154,6 +162,13 @@ def bouw_woningtypes(wb, data):
             dv_kwx.add(f"{c2}{r}")
         put(ws, f"{c1}{LY.WT_R_X_TOTAAL}", f"=SUM({c1}{LY.WT_R_X1}:{c1}{LY.WT_R_XN})", f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT)
         put(ws, f"{c1}{LY.WT_R_X_TOTAAL2}", f"=N({c0}{LY.WT_R_KOOPSOM})+{c1}{LY.WT_R_X_TOTAAL}", f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT)
+        # blok 4: vorige prognose
+        put(ws, f"{c0}{LY.WT_R_VSTARTJAAR}", t.vorig_start_jaar, f=F_INPUT, fl=FL_INPUT, nf="0", al=AL_LEFT_TOP)
+        put(ws, f"{c0}{LY.WT_R_VSTARTKW}", t.vorig_start_kw, f=F_INPUT, fl=FL_INPUT, nf="0", al=AL_LEFT_TOP)
+        dv_kw4.add(f"{c0}{LY.WT_R_VSTARTKW}")
+        put(ws, f"{c0}{LY.WT_R_VSTARTTEKST}",
+            f'=IF(OR(N({c0}{LY.WT_R_VSTARTJAAR})=0,N({c0}{LY.WT_R_VSTARTKW})=0),"–","Q"&N({c0}{LY.WT_R_VSTARTKW})&" "&N({c0}{LY.WT_R_VSTARTJAAR}))',
+            f=F_NOTE, al=AL_LEFT_TOP)
         put(ws, f"{c2}{LY.WT_R_TOTAAL}", f'=IF(COUNT({c2}{LY.WT_R_T1}:{c2}{LY.WT_R_TN})=0,"",MAX({c2}{LY.WT_R_T1}:{c2}{LY.WT_R_TN}))',
             f=F_BOLD9, nf="0", al=AL_RIGHT)
         totaal_cellen.append(f"{c1}{LY.WT_R_TOTAAL}")
@@ -492,6 +507,68 @@ def bouw_model(wb):
         for naam in ("g_verkocht_pct", "g_getransporteerd_pct", "g_opbrengsten_pct", "g_kosten_pct"):
             ws[f"{M[naam]}{r}"].number_format = FMT_PCT
 
+    # ---- bouwtermijnentabel: één rij per (type, termijn), gebruikte combinaties compact bovenaan; tijd in jaren ---------
+    BT = LY.BT
+    put(ws, f"{BT['j']}4", "bouwtermijnentabel (grafiek): raster van alle type × termijn-combinaties; vanaf 'nr' compact: label, kwartaalindex en "
+                           "tijd (jaren) van huidige (blauw) en vorige (rood) planning, en de stapelsegmenten voor de grafiek", f=F_NOTE8)
+    bt_koppen = {"j": "j", "k": "type", "i": "termijn", "gebruikt": "Gebruikt", "nr": "Nr (compact)", "label": "Type · termijn", "kk": "type",
+                 "ii": "termijn", "idx_blue": "Idx huidig", "idx_red": "Idx vorig", "t_blue": "Tijd huidig", "t_red": "Tijd vorig",
+                 "seg0": "·", "seg1": "Gerealiseerd", "seg2": "·", "seg3": "Vorige prognose", "seg4": "Gerealiseerd", "seg5": "·",
+                 "seg6": "·", "seg7": "Huidige planning", "seg8": "·"}
+    for naam, kop in bt_koppen.items():
+        put(ws, f"{BT[naam]}7", kop, f=F_HDR8, fl=FL_HDR, al=AL_RIGHT_WRAP)
+    ws.column_dimensions[L(LY.BT_COL1 - 1)].width = 3
+    ws.column_dimensions[BT["label"]].width = 30
+    for naam in BT:
+        if naam != "label":
+            ws.column_dimensions[BT[naam]].width = 11
+    T_RNG = f"Woningtypes!$A${LY.WT_R_T1}:${LY.WT_RANGE_END}${LY.WT_R_TN}"
+    gebruikt_rng = f"${BT['gebruikt']}${LY.BT_ROW1}:${BT['gebruikt']}${LY.BT_ROWN}"
+    verv6 = m_range_abs("verv", 6)
+    for r in range(LY.BT_ROW1, LY.BT_ROWN + 1):
+        j = r - LY.BT_ROW1 + 1
+        k = (j - 1) // LY.N_TERMIJNEN + 1
+        i = (j - 1) % LY.N_TERMIJNEN + 1
+        kw_ki = LY.wt_ref(LY.WT_R_T1 + i - 1, k, 2)
+        pct_ki = LY.wt_ref(LY.WT_R_T1 + i - 1, k, 1)
+        f = {}
+        f["j"], f["k"], f["i"] = j, k, i
+        f["gebruikt"] = (f'=IF(AND(N({LY.wt_ref(LY.WT_R_AANTAL, k)})>0,{m_col("verv", k)}$6<99999,ISNUMBER({kw_ki}),N({kw_ki})>=1,'
+                         f'N({pct_ki})<>0),1,0)')
+        f["nr"] = ArrayFormula(f"{BT['nr']}{r}", f'=IFERROR(SMALL(IF({gebruikt_rng}=1,ROW({gebruikt_rng})-{LY.BT_ROW1 - 1}),{j}),"")')
+        nr = f"${BT['nr']}{r}"
+        kk, ii = f"${BT['kk']}{r}", f"${BT['ii']}{r}"
+        leeg = f'{nr}=""'
+        f["kk"] = f'=IF({leeg},"",INT(({nr}-1)/{LY.N_TERMIJNEN})+1)'
+        f["ii"] = f'=IF({leeg},"",MOD({nr}-1,{LY.N_TERMIJNEN})+1)'
+        col0 = f"{LY.WT_COL1}+({kk}-1)*{LY.WT_W}"
+        naam = f"INDEX(Woningtypes!$A${LY.WT_R_NAAM}:${LY.WT_RANGE_END}${LY.WT_R_NAAM},1,{col0})"
+        tnaam = f"INDEX({T_RNG},{ii},{col0})"
+        kw = f"N(INDEX({T_RNG},{ii},{col0}+2))"
+        vj = f"N(INDEX(Woningtypes!$A${LY.WT_R_VSTARTJAAR}:${LY.WT_RANGE_END}${LY.WT_R_VSTARTJAAR},1,{col0}))"
+        vk = f"N(INDEX(Woningtypes!$A${LY.WT_R_VSTARTKW}:${LY.WT_RANGE_END}${LY.WT_R_VSTARTKW},1,{col0}))"
+        f["label"] = f'=IF({leeg},"",IF({naam}="","Type "&{kk},{naam})&" · "&IF({tnaam}="","termijn "&{ii},{tnaam}))'
+        f["idx_blue"] = f'=IF({leeg},"",INDEX({verv6},{kk})+{kw}-1)'
+        f["idx_red"] = f'=IF({leeg},"",IF(AND({vj}>0,{vk}>=1),{vj}*4+{vk}+{kw}-1,${BT["idx_blue"]}{r}))'
+        tijd = lambda ref: f"(INT(({ref}-1)/4)+MOD({ref}-1,4)/4)"  # noqa: E731  kwartaalindex -> jaar + (kw-1)/4
+        f["t_blue"] = f'=IF({leeg},NA(),{tijd("$" + BT["idx_blue"] + str(r))})'
+        f["t_red"] = f'=IF({leeg},NA(),{tijd("$" + BT["idx_red"] + str(r))})'
+        tb, tr = f"${BT['t_blue']}{r}", f"${BT['t_red']}{r}"
+        t_first, t_nu, t_end = h("t_first"), h("t_nu_end"), h("t_end")
+        s0, s1, s2, s3, s4 = (f"${BT[x]}{r}" for x in ("seg0", "seg1", "seg2", "seg3", "seg4"))
+        f["seg0"] = f'=IF({leeg},NA(),{t_first})'
+        f["seg1"] = f'=IF({leeg},NA(),MAX(0,MIN({tr},{t_nu})-{t_first}))'
+        f["seg2"] = f'=IF({leeg},NA(),MAX(0,{tr}-{t_nu}))'
+        f["seg3"] = f'=IF({leeg},NA(),0.25)'
+        f["seg4"] = f'=IF({leeg},NA(),MAX(0,{t_nu}-({tr}+0.25)))'
+        f["seg5"] = f'=IF({leeg},NA(),MAX(0,{t_end}-({s0}+{s1}+{s2}+{s3}+{s4})))'
+        f["seg6"] = f'=IF({leeg},NA(),{tb})'
+        f["seg7"] = f'=IF({leeg},NA(),0.25)'
+        f["seg8"] = f'=IF({leeg},NA(),MAX(0,{t_end}-{tb}-0.25))'
+        for naam_, formule in f.items():
+            nf = "0.00" if naam_.startswith(("t_", "seg")) else "0"
+            put(ws, f"{BT[naam_]}{r}", formule, f=F_CALC, nf=nf, al=AL_LEFT_TOP if naam_ == "label" else AL_RIGHT)
+
     # ---- hulpcellen -----------------------------------------------------------
     sb, su, sd, ss = M["stand_basis"], M["stand_up"], M["stand_down"], M["stand_scn"]
     pb, pu, pd, pv, ps = M["pos_basis"], M["pos_up"], M["pos_down"], M["pos_vorig"], M["pos_scn"]
@@ -600,6 +677,14 @@ def bouw_model(wb):
         "koopsom_down": ("Koopsom downside (%)", f'=N({dabs("koopsom_down")})'),
         "koopsom_up": ("Koopsom upside (%)", f'=N({dabs("koopsom_up")})'),
         "koopsom_scn": ("Koopsom scenariolijn (%)", f'=N({dabs("koopsom_scn")})'),
+        # bouwtermijnengrafiek: aantal rijen en de tijd-as in jaren (jaar + (kw-1)/4); de VBA leest bt_n, jaar_first en jaar_last
+        "bt_n": ("Bouwtermijnentabel: aantal rijen", f"=COUNT(${LY.BT['nr']}${LY.BT_ROW1}:${LY.BT['nr']}${LY.BT_ROWN})"),
+        "t_first": ("Tijd eerste periode (jaren)", f'=IF({h("n")}=0,0,INT(({IDX}{ROW1}-1)/4)+MOD({IDX}{ROW1}-1,4)/4)'),
+        "t_nu_end": ("Tijd einde laatste gerealiseerde kwartaal", f'=IF({h("pos_actuals")}=0,{h("t_first")},INT(({h("idx_actuals")}-1)/4)+MOD({h("idx_actuals")}-1,4)/4+0.25)'),
+        "t_end": ("Tijd einde laatste periode", f'=IF({h("n")}=0,0,INT((INDEX({rng(IDX)},{h("n")})-1)/4)+MOD(INDEX({rng(IDX)},{h("n")})-1,4)/4+0.25)'),
+        "jaar_first": ("Tijd-as: eerste jaar (as-ondergrens)", f'=INT({h("t_first")})'),
+        "jaar_last": ("Tijd-as: bovengrens (laatste jaar + 1)", f'=INT({h("t_end")})+IF({h("t_end")}>INT({h("t_end")}),1,0)'),
+        "lbl_realisatie": ("Legenda gerealiseerd", f'="Gerealiseerd t/m "&{h("kw_actuals")}'),
     }
     for naam, (label, formule) in hulp.items():
         r = H[naam]
@@ -688,6 +773,8 @@ def bouw_dashboard(wb, data):
     put(ws, "B43", "Cashflow per kwartaal · balken: opbrengsten en kosten · lijn: cumulatieve cashflow · stippellijn: vorige prognose · "
                    "gele lijn: scenariolijn (knoppen rechts, kolom Scenario) · grijs vlak = gerealiseerd · € mln", f=F_SECTION)
     put(ws, "B69", VERKOOP_TITEL, f=F_SECTION)
+    put(ws, f"B{LY.D_ROW_BT}", "Bouwtermijnen per woningtype · blauw = huidige planning (tab Woningtypes) · rood = vorige prognose (blok 4) · "
+                               "grijs = gerealiseerde kwartalen · per rij één termijn, blokje = kwartaal waarin de termijn vervalt", f=F_SECTION)
     # cel-legenda: één gekleurde chip per typeblok (zelfde kleur als in de grafiek), leeg en wit als het blok geen aantal heeft
     r = LY.D_ROW_LEGENDA
     ws.row_dimensions[r].height = 16
@@ -925,6 +1012,9 @@ def bouw_dashboard(wb, data):
                           "100% − grondtermijn, dus grondtermijn + bouwtermijnen = de koopsom"),
         ("Extra opbrengsten", "per type in € per woning (kopersmeerwerk, kadastrale kosten, overige) met een bouwkwartaal, of leeg = bij transport; "
                               "tellen mee in de modelopbrengst, niet in de koopsomknop"),
+        ("Bouwtermijnengrafiek", "per type en termijn het kwartaal waarin de termijn vervalt (start bouw + bouwkwartaal − 1); rode blokjes = dezelfde "
+                                 "termijnen bij de start bouw uit de vorige prognose (tab Woningtypes blok 4); de tijd-as begint bij het eerste jaar "
+                                 "van je periodes (vast bij het bouwen)"),
         ("Type toevoegen/verwijderen", "kolommen invoegen of verwijderen op tab Woningtypes (drie) en tab Invoer (twee), of de knoppen op tab Woningtypes (.xlsm); "
                                        "het model leest de blokken op positie, dus alles schuift mee"),
         ("Naar PowerPoint", "knop rechts (alleen in de .xlsm): opent het sjabloon, vult teksten, tabellen en grafieken en bewaart een nieuwe presentatie naast dit bestand"),
@@ -946,10 +1036,12 @@ def bouw_powerpoint(wb, data):
     ws.sheet_properties.codeName = "shPowerPoint"
     ws.sheet_view.showGridLines = False
     ws.freeze_panes = "B7"
-    widths = {"A": 2, "B": 5, "C": 30, "D": 70, "E": 11, "F": 20, "O": 3, "Z": 3, "AF": 3, "AL": 3, "AM": 30}
-    for c in range(7, 38):
+    c_t0 = ws[f"{''.join(ch for ch in LY.PP_TABEL_SC if ch.isalpha())}1"].column
+    widths = {"A": 2, "B": 5, "C": 30, "D": 70, "E": 11, "F": 20, "O": 3, "Z": 3, "BK": 3, "BQ": 3, L(c_t0): 30}
+    widths[LY.PP_BLOK["bt"]] = 30                       # label 'type · termijn'
+    for c in range(7, c_t0):
         widths.setdefault(L(c), 13)
-    for c in range(40, 47):
+    for c in range(c_t0 + 1, c_t0 + 8):
         widths[L(c)] = 14
     for col, w in widths.items():
         ws.column_dimensions[col].width = w
@@ -1015,12 +1107,16 @@ def bouw_powerpoint(wb, data):
         (4, "Ondertitel", f'="Basis = eigen cashflow"&IF({rb}=1," + rente","")&" · band = ruimte tussen downside en upside · "'
                           f'&IF({hm("model_aan")}=1,"verschuiving via grondtermijn en bouwtermijnen per woningtype","verschuiving van alle prognose-opbrengsten")'
                           f'&IF({hm("rente")}>0," · "&{hm("rente_tekst")},"")', None, "SC_SUBTITEL"),
-        (5, "Titel", f'={hm("verkocht_actuals")}&" van "&{hm("woningen")}&" woningen verkocht, "&{hm("transport_actuals")}&" getransporteerd"', None, "VT_TITEL"),
-        (5, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&" · uitverkocht in "&{hm("uitverkocht")}&" · alles getransporteerd in "&{hm("alles_transport")}', None, "VT_SUBTITEL"),
-        (6, "Titel", f'="Uitverkocht in "&{hm("uitverkocht")}&", alles getransporteerd in "&{hm("alles_transport")}', None, "VO_TITEL"),
-        (6, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
-        (6, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),
-        (6, "Laatste kwartaal", f"={hm('laatste_kw')}", None, "VO_STAT3_WAARDE"),
+        (5, "Titel", f'="Bouwtermijnen per woningtype · start bouw "&{hm("start_tekst")}&" (vroegste type)"', None, "BT_TITEL"),
+        (5, "Ondertitel", f'="Blauw = huidige planning · rood = vorige prognose · grijs = gerealiseerd t/m "&{hm("kw_actuals")}'
+                          f'&" · "&{hm("bt_n")}&" termijnen, "&{hm("aantal_types")}&" woningtypes"', None, "BT_SUBTITEL"),
+        (6, "Titel", f'={hm("verkocht_actuals")}&" van "&{hm("woningen")}&" woningen verkocht, "&{hm("transport_actuals")}&" getransporteerd"', None, "VP_TITEL"),
+        (6, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&" · per kwartaal en woningtype · uitverkocht in "&{hm("uitverkocht")}'
+                          f'&" · laatste transport in "&{hm("alles_transport")}', None, "VP_SUBTITEL"),
+        (7, "Titel", f'="Uitverkocht in "&{hm("uitverkocht")}&", alles getransporteerd in "&{hm("alles_transport")}', None, "VO_TITEL"),
+        (7, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
+        (7, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),
+        (7, "Laatste kwartaal", f"={hm('laatste_kw')}", None, "VO_STAT3_WAARDE"),
         # rente: vijfde kleine kaart op dia 2 (sjabloon v10)
         (2, "Rentelasten · label", f'=IF({hm("rente")}=0,"RENTE",IF({rb}=1,"RENTELASTEN (IN BASIS)","RENTELASTEN (BEREKEND)"))', None, "KPI8_LABEL"),
         (2, "Rentelasten", f'=IF({hm("rente")}=0,"geen",{eur_m(hm("rente_basis_tot"))})', None, "KPI8_WAARDE"),
@@ -1051,10 +1147,14 @@ def bouw_powerpoint(wb, data):
         (LY.PP_BLOK["sc"], "DIA 4 · SCENARIO'S · € mln", "grafiek scenario's · plakken: P7 t/m Y, laatste periode",
          ["Kwartaal", "Band onder", "Bandbreedte", "Downside", "Upside", "Basis", f"={hm('lbl_nu')}", f"={hm('lbl_dal')}", f"={hm('lbl_eind_up')}", f"={hm('lbl_eind_down')}"],
          [FIX["kwartaal"], M["g_band_onder"], M["g_bandbreedte"], M["g_downside"], M["g_upside"], M["g_stand"], M["g_punt_nu"], M["g_punt_dal"], M["g_eind_upside"], M["g_eind_downside"]], "0.0"),
-        (LY.PP_BLOK["vt"], "DIA 5 · VERKOOP EN TRANSPORT · aantal woningen", "grafiek verkoop en transport · plakken: AA7 t/m AE, laatste periode",
-         ["Kwartaal", "Verkocht", "Getransporteerd", "Verkocht cumulatief", "Getransporteerd cumulatief"],
-         [FIX["kwartaal"], M["g_verkocht"], M["g_getransporteerd"], M["g_verkocht_cum"], M["g_getransporteerd_cum"]], FMT_INT),
-        (LY.PP_BLOK["vo"], "DIA 6 · VAN VERKOOP NAAR OMZET · cumulatief %", "grafiek verkoop naar omzet · plakken: AG7 t/m AK, laatste periode",
+        (LY.PP_BLOK["bt"], "DIA 5 · BOUWTERMIJNEN · tijd in jaren", "grafiek bouwtermijnen · één rij per type × termijn · plakken: AA7 t/m AJ, laatste rij (Model!BY96 rijen)",
+         ["Termijn"] + LY.BT_SEG_NAMEN, [LY.BT["label"]] + [LY.BT[x] for x in LY.BT_SEGMENTEN], "0.00"),
+        (LY.PP_BLOK["vp"], "DIA 6 · VERKOOP EN TRANSPORT PER WONINGTYPE · aantal woningen", "twee grafieken (verkocht / getransporteerd) lezen dit blok · plakken: AK7 t/m BJ, laatste periode",
+         ["Kwartaal"] + [f"=Model!${m_col('gv', k)}$7" for k in range(1, N_TYPES + 1)] + [f"=Model!${m_col('gt', k)}$7" for k in range(1, N_TYPES + 1)]
+         + ["Verkocht", "Getransporteerd", f"={hm('lbl_uitverkocht')}", f"={hm('lbl_alles_transport')}", "Realisatie"],
+         [FIX["kwartaal"]] + [m_col("gv", k) for k in range(1, N_TYPES + 1)] + [m_col("gt", k) for k in range(1, N_TYPES + 1)]
+         + [M["g_verkocht"], M["g_getransporteerd"], M["g_punt_uitverkocht"], M["g_punt_alles_transport"], M["g_realisatie"]], FMT_INT),
+        (LY.PP_BLOK["vo"], "DIA 7 · VAN VERKOOP NAAR OMZET · cumulatief %", "grafiek verkoop naar omzet · plakken: BL7 t/m BP, laatste periode",
          ["Kwartaal", "Verkocht", "Getransporteerd", "Opbrengsten ontvangen", "Kosten gemaakt"],
          [FIX["kwartaal"], M["g_verkocht_pct"], M["g_getransporteerd_pct"], M["g_opbrengsten_pct"], M["g_kosten_pct"]], FMT_PCT0),
     ]
@@ -1064,26 +1164,30 @@ def bouw_powerpoint(wb, data):
         put(ws, f"{col0}4", titel, f=F_SECTION)
         put(ws, f"{col0}5", sub, f=F_NOTE8)
         n = len(koppen)
+        bt = col0 == LY.PP_BLOK["bt"]                                   # bouwtermijnenblok: BT_N rijen uit de bouwtermijnentabel
+        rijen = LY.BT_N if bt else LY.N_PERIODS
+        n_ref = hm("bt_n") if bt else hm("n")
+        r1, rN = (LY.BT_ROW1, LY.BT_ROWN) if bt else (ROW1, ROWN)
         for j, kop in enumerate(koppen):
             c = L(c0 + j)
             bd = Border(top=blauw, left=blauw if j == 0 else None, right=blauw if j == n - 1 else None)
-            put(ws, f"{c}7", kop, f=F_HDR, fl=FL_HDR, al=AL_LEFT_WRAP if j == 0 else AL_RIGHT_WRAP, bd=bd)
-        for i in range(LY.N_PERIODS):
+            put(ws, f"{c}7", kop or None, f=F_HDR, fl=FL_HDR, al=AL_LEFT_WRAP if j == 0 else AL_RIGHT_WRAP, bd=bd)
+        for i in range(rijen):
             r = LY.PP_KPI_ROW1 + i
             nr = i + 1
             for j, bron in enumerate(bronnen):
                 c = L(c0 + j)
                 if j == 0:
-                    formule = f'=IF({nr}>{hm("n")},"",INDEX(Model!${FIX["kwartaal"]}${ROW1}:${FIX["kwartaal"]}${ROWN},{nr}))'
+                    formule = f'=IF({nr}>{n_ref},"",INDEX(Model!${bron}${r1}:${bron}${rN},{nr}))'
                 else:
-                    formule = f'=IF({nr}>{hm("n")},NA(),INDEX(Model!${bron}${ROW1}:${bron}${ROWN},{nr}))'
-                bd = Border(left=blauw if j == 0 else None, right=blauw if j == n - 1 else None, bottom=blauw if i == LY.N_PERIODS - 1 else None)
+                    formule = f'=IF({nr}>{n_ref},NA(),INDEX(Model!${bron}${r1}:${bron}${rN},{nr}))'
+                bd = Border(left=blauw if j == 0 else None, right=blauw if j == n - 1 else None, bottom=blauw if i == rijen - 1 else None)
                 put(ws, f"{c}{r}", formule, f=F_CALC9, nf=None if j == 0 else nf, al=AL_LEFT_TOP if j == 0 else None, bd=bd)
-    ws.conditional_formatting.add(f"G{LY.PP_KPI_ROW1}:AM{ROWN}", FormulaRule(formula=[f"ISERROR(G{LY.PP_KPI_ROW1})"], font=Font(name=ARIAL, color="D0D3D8")))
+    ws.conditional_formatting.add(f"G{LY.PP_KPI_ROW1}:{L(c_t0 - 1)}{LY.PP_KPI_ROW1 + LY.BT_N - 1}",
+                                  FormulaRule(formula=[f"ISERROR(G{LY.PP_KPI_ROW1})"], font=Font(name=ARIAL, color="D0D3D8")))
 
     # ---- tabellen (kolom T0 = eerste tabelkolom) --------------------------------------------
     T0 = "".join(ch for ch in LY.PP_TABEL_SC if ch.isalpha())
-    c_t0 = ws[f"{T0}1"].column
     T1, T2, T3, T4 = (L(c_t0 + j) for j in (1, 2, 3, 4))
     put(ws, f"{T0}4", "DIA 4 · TABEL SCENARIO'S", f=F_SECTION)
     for col, t in ((T0, None), (T1, "Downside"), (T2, "Basis"), (T3, "Upside")):

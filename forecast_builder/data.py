@@ -51,6 +51,8 @@ class TypeData:
     grond_pct: object = None
     termijnen: list = field(default_factory=list)   # [(naam, pct, kw), ...]
     extras: list = field(default_factory=list)      # [(naam, euro per woning, kw of None = bij transport), ...]
+    vorig_start_jaar: object = None                 # start bouw volgens de vorige prognose (rode blokjes in de bouwtermijnengrafiek)
+    vorig_start_kw: object = None
 
 
 @dataclass
@@ -101,6 +103,7 @@ def voorbeeld():
         TypeData("Appartement", 24, 370000, 2027, 2, 0.22, [("Start bouw", 0.039, 1), ("Na het leggen van de fundering", 0.078, 2),
                                                              ("Casco gereed", 0.312, 5), ("Na gereedkomen buitenmetselwerk", 0.273, 8), ("Oplevering woning", 0.078, 10)]),
     ]
+    p.types[0].vorig_start_jaar, p.types[0].vorig_start_kw = 2026, 3   # vorige prognose: twee kwartalen eerder (rode blokjes)
     n = len(p.periodes)
     verkoop = {0: [(8, 10), (4, 5), (2, 4), (6, 4)]}   # type -> (per kwartaal, vanaf periode-index)
     tempo = [(8, 10), (4, 5), (2, 4), (6, 4)]
@@ -186,6 +189,7 @@ def _lees_v2(wb):
         p.transport.append([_num(_v(ws, f"{L(LY.in_col(k, 1))}{r}")) for k in range(1, LY.N_TYPES + 1)])
     wt = wb["Woningtypes"]
     heeft_extras = isinstance(_v(wt, f"B{LY.WT_R_X_TITEL}"), str) and _v(wt, f"B{LY.WT_R_X_TITEL}").startswith("3 ·")   # blok 3 bestaat sinds v6
+    heeft_vorig = isinstance(_v(wt, f"B{LY.WT_R_V_TITEL}"), str) and _v(wt, f"B{LY.WT_R_V_TITEL}").startswith("4 ·")     # blok 4 sinds v7
     for k in range(1, LY.N_TYPES + 1):
         c0, c1, c2 = (L(LY.wt_col(k, o)) for o in range(3))
         naam = _v(wt, f"{c0}{LY.WT_R_NAAM}")
@@ -198,6 +202,9 @@ def _lees_v2(wb):
             termijnen.append((tn, pct, kw))
         td = TypeData(naam or "", aantal, _v(wt, f"{c0}{LY.WT_R_KOOPSOM}"), _v(wt, f"{c0}{LY.WT_R_STARTJAAR}"),
                       _v(wt, f"{c0}{LY.WT_R_STARTKW}"), _v(wt, f"{c1}{LY.WT_R_GROND}"), termijnen)
+        if heeft_vorig:
+            td.vorig_start_jaar = _v(wt, f"{c0}{LY.WT_R_VSTARTJAAR}")
+            td.vorig_start_kw = _v(wt, f"{c0}{LY.WT_R_VSTARTKW}")
         if heeft_extras:
             for r in range(LY.WT_R_X1, LY.WT_R_XN + 1):
                 xn, eur, kw = _v(wt, f"{c0}{r}"), _v(wt, f"{c1}{r}"), _v(wt, f"{c2}{r}")

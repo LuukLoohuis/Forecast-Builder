@@ -4,6 +4,10 @@ Option Explicit
 ' =====================================================================================
 '  Cashflow_scenario -> PowerPoint                       (late binding, Windows en Mac)
 '  versie 10: typeblokken (maximaal MAX_TYPES woningtypes), knoppen Type invoegen / Type verwijderen
+'  v11: scenariolijn als reeks in de cashflowgrafiek (dia 3); reeks weg als de kop op '(uit)' eindigt
+'  v12: dia 5 bouwtermijnen-tijdlijn (BT_GRAFIEK, blok AA7, tot MAX_RIJEN_BT rijen, aantal uit Model!BY96,
+'       tijd-as vast op Model!BY100..BY101), dia 6 verkoop en transport per kwartaal (VP1_/VP2_GRAFIEK, blok AK7),
+'       dia 7 van verkoop naar omzet (VO_GRAFIEK, blok BL7); tabellen vanaf kolom BR; sjabloon v12
 '
 '  NaarPowerPoint        opent het sjabloon als kopie, vult teksten, tabellen en grafieken
 '                        vanaf tabblad "PowerPoint" en bewaart een nieuwe presentatie
@@ -12,7 +16,7 @@ Option Explicit
 '  TypeInvoegen          voegt een leeg typeblok in (drie kolommen op Woningtypes, twee op Invoer)
 '  TypeVerwijderen       haalt een typeblok weg (zelfde kolommen); alles rechts schuift mee
 '  SchikDia5             na het vullen van VT_TABEL (dia 5): bij meer dan 4 types rijen en letters
-'                        kleiner, zo nodig de grafiekkaart korter, en de tabelkaart sluit om de tabel
+'                        kleiner, zo nodig de kaart met BT_GRAFIEK korter, en de tabelkaart sluit om de tabel
 '
 '  Welke tekst naar welke vorm gaat staat op tabblad "PowerPoint", kolom F.
 ' =====================================================================================
@@ -24,10 +28,13 @@ Private Const SH_TYPES As String = "Woningtypes"
 Private Const SH_INVOER As String = "Invoer"
 Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
-Private Const CEL_SJABLOON As String = "D52"
-Private Const CEL_NAAM As String = "D53"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v11.pptx"
-Private Const MAX_RIJEN As Long = 60
+Private Const CEL_JAAR_FIRST As String = "BY100"   ' eerste jaar op de tijd-as van BT_GRAFIEK (tabblad Model, jaar_first)
+Private Const CEL_JAAR_LAST As String = "BY101"    ' bovengrens tijd-as = laatste jaar + 1 (tabblad Model, jaar_last)
+Private Const CEL_SJABLOON As String = "D56"
+Private Const CEL_NAAM As String = "D57"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v12.pptx"
+Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
+Private Const MAX_RIJEN_BT As Long = 100           ' rijen (woningtype x bouwtermijn) in het bouwtermijnenblok
 Private Const TITEL As String = "Naar PowerPoint"
 
 ' typeblokken (zelfde getallen als forecast_builder/layout.py)
@@ -47,15 +54,22 @@ Private Const INVOER_RIJ1 As Long = 8
 Private Const INVOER_RIJN As Long = 500        ' zelfde grens als de formules (layout.IN_ROWMAX)
 
 Private Function Grafieken() As Variant
-    ' vormnaam op de dia, kopcel van het blok op tabblad PowerPoint, aantal kolommen
-    ' het blok cashflow heeft acht kolommen; de achtste (kolom N) is de scenariolijn, die in sjabloon v11 als reeks op kolom H
-    ' van het gegevensblad staat (staat de lijn uit, dan eindigt de kop op '(uit)' en haalt VulGrafiek de reeks weg)
-    Grafieken = Array(Array("CF_GRAFIEK", "G7", 8), Array("SC_GRAFIEK", "P7", 10), Array("VT_GRAFIEK", "AA7", 5), Array("VO_GRAFIEK", "AG7", 5))
+    ' vormnaam op de dia, kopcel van het blok op tabblad PowerPoint, aantal kolommen,
+    ' cel op tabblad Model met het aantal rijen (leeg = aantal periodes uit CEL_N)
+    ' CF (dia 3): acht kolommen; de achtste (kolom N) is de scenariolijn, in het sjabloon als reeks op kolom H van het
+    '   gegevensblad (staat de lijn uit, dan eindigt de kop op '(uit)' en haalt VulGrafiek de reeks weg)
+    ' BT (dia 5): bouwtermijnen-tijdlijn, een rij per woningtype x termijn (categorie in kolom A, negen segmenten B..J
+    '   in jaren), aantal rijen in Model!BY96; na het vullen zet ZetTijdAs beide waarde-assen op jaar_first/jaar_last
+    ' VP1/VP2 (dia 6): verkocht en getransporteerd per kwartaal, beide panelen lezen hetzelfde blok van 26 kolommen
+    Grafieken = Array(Array("CF_GRAFIEK", "G7", 8, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
+                      Array("BT_GRAFIEK", "AA7", 10, "BY96"), _
+                      Array("VP1_GRAFIEK", "AK7", 26, ""), Array("VP2_GRAFIEK", "AK7", 26, ""), _
+                      Array("VO_GRAFIEK", "BL7", 5, ""))
 End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    Tabellen = Array(Array("SC_TABEL", "AM7", 9, 4, 0), Array("VT_TABEL", "AM18", MAX_TYPES + 1, 8, 1))
+    Tabellen = Array(Array("SC_TABEL", "BR7", 9, 4, 0), Array("VT_TABEL", "BR18", MAX_TYPES + 1, 8, 1))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -238,7 +252,7 @@ End Sub
 ' -------------------------------------------------------------------------------------
 Public Sub NaarPowerPoint()
     Dim pp As Object, pres As Object, wsP As Worksheet
-    Dim stap As String, n As Long, pad As String, mist As String, fouten As String
+    Dim stap As String, n As Long, nG As Long, pad As String, mist As String, fouten As String
     Dim g As Variant, t As Variant, i As Long, bericht As String
     On Error GoTo Fout
 
@@ -274,7 +288,15 @@ Public Sub NaarPowerPoint()
     stap = "grafieken vullen"
     g = Grafieken()
     For i = LBound(g) To UBound(g)
-        VulGrafiek pres, CStr(g(i)(0)), wsP.Range(CStr(g(i)(1))), n, CLng(g(i)(2)), mist, fouten
+        ' aantal rijen: uit de opgegeven Model-cel (bouwtermijnenblok), anders het aantal periodes;
+        ' geen rijen (bijvoorbeeld geen bouwtermijnen): een lege rij, zodat de voorbeeldgegevens uit het sjabloon verdwijnen
+        If Len(CStr(g(i)(3))) > 0 Then
+            nG = AantalRijen(CStr(g(i)(3)), MAX_RIJEN_BT)
+            If nG < 1 Then nG = 1
+        Else
+            nG = n
+        End If
+        VulGrafiek pres, CStr(g(i)(0)), wsP.Range(CStr(g(i)(1))), nG, CLng(g(i)(2)), mist, fouten
     Next i
 
     stap = "presentatie bewaren"
@@ -303,11 +325,17 @@ Fout:
 End Sub
 
 Private Function AantalPeriodes() As Long
+    AantalPeriodes = AantalRijen(CEL_N, MAX_RIJEN)
+End Function
+
+Private Function AantalRijen(cel As String, maxN As Long) As Long
+    ' getal uit een cel op tabblad Model, begrensd op maxN; 0 bij leeg, fout of geen getal
     Dim v As Variant
-    v = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_N).Value
+    v = ThisWorkbook.Worksheets(SH_MODEL).Range(cel).Value
     If IsError(v) Then Exit Function
-    If IsNumeric(v) Then AantalPeriodes = CLng(v)
-    If AantalPeriodes > MAX_RIJEN Then AantalPeriodes = MAX_RIJEN
+    If IsNumeric(v) Then AantalRijen = CLng(v)
+    If AantalRijen < 0 Then AantalRijen = 0
+    If AantalRijen > maxN Then AantalRijen = maxN
 End Function
 
 Private Function HaalPowerPoint() As Object
@@ -494,7 +522,8 @@ Mislukt:
 End Sub
 
 Private Sub SchikDia5(pres As Object, tbl As Object)
-    ' na het vullen van VT_TABEL: bij meer dan 4 typeregels de tabel binnen de kaart en boven het dianummer houden
+    ' na het vullen van VT_TABEL (dia 5, onder de bouwtermijnengrafiek BT_GRAFIEK in kaart VT_KAART):
+    ' bij meer dan 4 typeregels de tabel binnen de kaart en boven het dianummer houden
     '   a) rijen lager (tot 10 pt) en letters kleiner (tot 5,5 pt), celmarges boven en onder 1 pt
     '   b) past het dan nog niet: grafiekkaart en grafiek inkorten (grafiek minimaal 110 pt), tabelkaart en tabel omhoog
     '   c) tabelkaart eindigt 8 pt onder de tabel
@@ -516,7 +545,7 @@ Private Sub SchikDia5(pres As Object, tbl As Object)
     Set tabelVorm = ZoekVorm(pres, "VT_TABEL")
     Set tabelKaart = ZoekVorm(pres, "VT_TABELKAART")
     Set kaart = ZoekVorm(pres, "VT_KAART")
-    Set grafiek = ZoekVorm(pres, "VT_GRAFIEK")
+    Set grafiek = ZoekVorm(pres, "BT_GRAFIEK")
     If tabelVorm Is Nothing Then Exit Sub
 
     ' ondergrens: 30 pt boven de dia-rand, daar staat het dianummer
@@ -580,7 +609,9 @@ Private Sub SchikDia5(pres As Object, tbl As Object)
 End Sub
 
 Private Sub VulGrafiek(pres As Object, vorm As String, kop As Range, n As Long, nKol As Long, ByRef mist As String, ByRef fouten As String)
-    ' zet het blok (kop + n periodes) in het gegevensblad van de grafiek en past het bereik van elke reeks aan
+    ' zet het blok (kop + n rijen) in het gegevensblad van de grafiek en past het bereik van elke reeks aan:
+    ' X-bereik = kolom A, Y-bereik = de kolomletter uit de SERIES-formule van die reeks (KolomVanReeks). Reeksnamen die
+    ' naar rij 1 van het gegevensblad verwijzen volgen zo de koptekst; namen als tekst in de formule (BT_GRAFIEK) blijven.
     Dim shp As Object, ch As Object, wbE As Object, wsE As Object
     Dim arr() As Variant, r As Long, c As Long, v As Variant, i As Long, kol As String
     Set shp = ZoekVorm(pres, vorm)
@@ -607,13 +638,17 @@ Private Sub VulGrafiek(pres As Object, vorm As String, kop As Range, n As Long, 
     DoEvents
     Set wbE = ch.ChartData.Workbook
     Set wsE = wbE.Worksheets(1)
-    wsE.Range("A1").Resize(MAX_RIJEN + 1, nKol).ClearContents
+    ' wissen tot de grootste bloklengte (MAX_RIJEN_BT >= MAX_RIJEN): veilig voor alle grafieken, ook als het sjabloon
+    ' meer voorbeeldrijen bevat dan het blok nu heeft
+    wsE.Range("A1").Resize(MAX_RIJEN_BT + 1, nKol).ClearContents
     wsE.Range("A1").Resize(n + 1, nKol).Value = arr
     For i = 1 To ch.SeriesCollection.Count
         kol = KolomVanReeks(CStr(ch.SeriesCollection(i).Formula))
         If Len(kol) > 0 Then ZetBereik ch.SeriesCollection(i), wsE, kol, n
     Next i
-    VerwijderUitgezetteReeksen ch, wsE
+    ' alleen de cashflowgrafiek heeft een reeks die uit kan ('(uit)' in de kop); elders nooit reeksen weghalen
+    If vorm = "CF_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
+    If vorm = "BT_GRAFIEK" Then ZetTijdAs ch
     wbE.Close
     Set wbE = Nothing
     Exit Sub
@@ -645,6 +680,38 @@ Private Sub VerwijderUitgezetteReeksen(ch As Object, wsE As Object)
     On Error GoTo 0
 End Sub
 
+Private Sub ZetTijdAs(ch As Object)
+    ' BT_GRAFIEK: beide waarde-assen (tijd in jaren) vast op eerste jaar .. laatste jaar + 1 (Model!BY100 en BY101),
+    ' zodat de blokjes van vorige prognose (rood) en huidige planning (blauw) op dezelfde schaal staan.
+    ' Late binding: Axes(2 = xlValue, 1 = xlPrimary / 2 = xlSecondary). Eerst het maximum, dan het minimum en nog eens
+    ' het maximum: zo lukt het ook als het nieuwe bereik helemaal boven of onder de voorbeeldwaarden van het sjabloon
+    ' ligt (PowerPoint weigert een minimum boven het huidige maximum en andersom). Ontbreekt de tweede as, dan blijft
+    ' de rest staan: alles onder On Error.
+    Dim jaar1 As Variant, jaar2 As Variant, asNr As Long, ax As Object
+    On Error Resume Next
+    jaar1 = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_JAAR_FIRST).Value
+    jaar2 = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_JAAR_LAST).Value
+    If IsError(jaar1) Or IsError(jaar2) Then Exit Sub
+    If Not IsNumeric(jaar1) Or Not IsNumeric(jaar2) Then Exit Sub
+    If CDbl(jaar2) <= CDbl(jaar1) Then Exit Sub
+    For asNr = 1 To 2
+        Set ax = Nothing
+        Set ax = ch.Axes(2, asNr)
+        If Not ax Is Nothing Then
+            ax.MaximumScale = CDbl(jaar2)
+            Err.Clear
+            ax.MinimumScale = CDbl(jaar1)
+            Err.Clear
+            ax.MaximumScale = CDbl(jaar2)
+            Err.Clear
+            ax.MinimumScaleIsAuto = False
+            ax.MaximumScaleIsAuto = False
+            Err.Clear
+        End If
+    Next asNr
+    On Error GoTo 0
+End Sub
+
 Private Sub ZetBereik(reeks As Object, wsE As Object, kol As String, n As Long)
     ' eerst als verwijzing; lukt dat niet in deze Office-versie, dan als bereik
     Dim blad As String
@@ -665,6 +732,8 @@ End Sub
 
 Private Function KolomVanReeks(f As String) As String
     ' kolomletter uit het waardenbereik van =SERIES(naam,categorieen,waarden,volgorde)
+    ' werkt voor naam als verwijzing (Sheet1!$C$1), als tekst ("Gerealiseerd"), leeg (=SERIES(,...): delen(0) is dan
+    ' '=SERIES(' en delen(2) nog steeds de waarden) en met aanhalingstekens om de bladnaam ('Blad 1'!$C$2:$C$21)
     Dim delen() As String, s As String, p As Long, q As Long
     delen = Split(f, ",")
     If UBound(delen) < 2 Then Exit Function
@@ -680,8 +749,10 @@ End Function
 '  5. Sjabloon controleren: staan alle vormnamen erin?
 ' -------------------------------------------------------------------------------------
 Public Sub ControleerSjabloon()
+    ' vormnamen uit kolom F van de KPI-regels (o.a. BT_TITEL, BT_SUBTITEL, VP_TITEL, VP_SUBTITEL, VO_TITEL, CF_*, SC_*,
+    ' KPI*), uit Grafieken() en uit Tabellen(); daarnaast de hulpvormen van dia 5 die SchikDia5 gebruikt
     Dim pp As Object, pres As Object, wsP As Worksheet
-    Dim r As Long, vorm As String, mist As String, aantal As Long, i As Long, lijst As Variant
+    Dim r As Long, vorm As String, mist As String, aantal As Long, i As Long, lijst As Variant, hulp As String
     On Error GoTo Fout
     Set wsP = ThisWorkbook.Worksheets(SH_PP)
     Set pp = HaalPowerPoint()
@@ -710,15 +781,25 @@ Public Sub ControleerSjabloon()
         aantal = aantal + 1
         If ZoekVorm(pres, CStr(lijst(i)(0))) Is Nothing Then mist = mist & CStr(lijst(i)(0)) & vbCrLf
     Next i
+    ' hulpvormen van dia 5 (kaarten): zonder die vormen vult de knop wel, maar schikt SchikDia5 de dia niet
+    lijst = Array("VT_KAART", "VT_TABELKAART")
+    For i = LBound(lijst) To UBound(lijst)
+        If ZoekVorm(pres, CStr(lijst(i))) Is Nothing Then hulp = hulp & CStr(lijst(i)) & vbCrLf
+    Next i
     On Error Resume Next
     pres.Saved = -1
     pres.Close
     On Error GoTo 0
+    If Len(hulp) > 0 Then
+        hulp = vbCrLf & "Hulpvormen van dia 5 die niet gevonden zijn (de tabel wordt dan niet automatisch geschikt):" & vbCrLf & hulp
+    End If
     If Len(mist) = 0 Then
-        MsgBox "Alles compleet: alle " & aantal & " vormnamen staan in het sjabloon.", vbInformation, "Sjabloon controleren"
+        MsgBox "Alles compleet: alle " & aantal & " vormnamen staan in het sjabloon." & hulp, _
+               IIf(Len(hulp) > 0, vbExclamation, vbInformation), "Sjabloon controleren"
     Else
         MsgBox "Deze vormen ontbreken in het sjabloon (die slaat de knop over):" & vbCrLf & vbCrLf & mist & vbCrLf & _
-               "Hernoem de vormen in PowerPoint via Start > Selecteren > Selectiedeelvenster.", vbExclamation, "Sjabloon controleren"
+               "Hernoem de vormen in PowerPoint via Start > Selecteren > Selectiedeelvenster." & vbCrLf & hulp, _
+               vbExclamation, "Sjabloon controleren"
     End If
     Exit Sub
 Fout:

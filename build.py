@@ -42,6 +42,17 @@ def vba_bin_maken(template_pad=None, bas_pad=VBA_BAS):
     return vbabuild.build_vbaproject(template, {VBA_MODULE: bron}, documentmodules=codenames)
 
 
+def jaar_min_van(project):
+    """Eerste jaar van de periodes (vaste ondergrens van de tijd-as in de bouwtermijnengrafiek)."""
+    jaren = []
+    for rij in project.periodes:
+        try:
+            jaren.append(int(float(str(rij.get("jaar")).strip())))
+        except (TypeError, ValueError):
+            pass
+    return min(jaren) if jaren else 2020
+
+
 def bouw_werkboek(project):
     wb = Workbook()
     wb.remove(wb.active)
@@ -59,7 +70,10 @@ def bouw_werkboek(project):
     for k in range(1, LY.N_TYPES + 1):   # verkoopgrafiek: per typeblok verkocht (g_v<k>) en getransporteerd (g_t<k>) per kwartaal
         for naam, blok in ((f"g_v{k}", "gv"), (f"g_t{k}", "gt")):
             wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.m_col(blok, k)}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
-    charts.plaats_grafieken(ws_dash, wb)
+    for key in ["label"] + LY.BT_SEGMENTEN:   # bouwtermijnengrafiek: zo lang als de bouwtermijnentabel rijen heeft
+        naam = f"g_bt_{key}"
+        wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.BT[key]}${LY.BT_ROW1},0,0,MAX(1,Model!{LY.h('bt_n')}),1)")
+    charts.plaats_grafieken(ws_dash, wb, jaar_min_van(project))
     wb.calculation.fullCalcOnLoad = True
     return wb
 
@@ -71,17 +85,18 @@ def bouw(project, pad_uit_basis, vba_bin=None, caches=True):
     cachewaarde in het bestand gezet, zodat Excel ook in de beveiligde weergave meteen cijfers toont.
     """
     wb = bouw_werkboek(project)
+    xmls = charts.chart_xmls(jaar_min_van(project))
     os.makedirs(os.path.dirname(os.path.abspath(pad_uit_basis)), exist_ok=True)
     paden = []
     with tempfile.TemporaryDirectory() as tmp:
         ruw = os.path.join(tmp, "ruw.xlsx")
         wb.save(ruw)
         xlsx = pad_uit_basis + ".xlsx"
-        package.nabewerken(ruw, xlsx, charts.chart_xmls())
+        package.nabewerken(ruw, xlsx, xmls)
         paden.append(xlsx)
         if vba_bin is not None:
             xlsm = pad_uit_basis + ".xlsm"
-            package.nabewerken(ruw, xlsm, charts.chart_xmls(), vba_bin)
+            package.nabewerken(ruw, xlsm, xmls, vba_bin)
             paden.append(xlsm)
         if caches:
             if not cache.caches_vullen(paden, tmp):

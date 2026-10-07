@@ -45,6 +45,11 @@ WT_R_X1 = 33
 WT_R_XN = WT_R_X1 + N_EXTRA - 1          # 38
 WT_R_X_TOTAAL = 39                       # totaal extra per woning
 WT_R_X_TOTAAL2 = 40                      # koopsom + extra per woning
+# blok 4: vorige prognose (start bouw volgens de vorige prognose) voor de rode blokjes in de bouwtermijnengrafiek
+WT_R_V_TITEL = 42
+WT_R_VSTARTJAAR = 43
+WT_R_VSTARTKW = 44
+WT_R_VSTARTTEKST = 45
 WT_LASTCOL = WT_COL1 + N_TYPES * WT_W - 1  # AH bij 10 types
 WT_RANGE_END = "ZZ"   # positionele bereiken lopen tot ZZ: invoegen/verwijderen van kolommen kan ze niet breken
 
@@ -132,6 +137,25 @@ M_BLOK1 = 79          # kolom CA
 BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx"]
 
 
+# ---- bouwtermijnentabel in het Model: één rij per (type, termijn), compact (gebruikte combinaties bovenaan) ----
+# rijen BT_ROW1..BT_ROWN, kolommen vanaf BT_COL1 (na een spacer achter het laatste typeblok). Tijd in jaren: jaar + (kw-1)/4.
+BT_N = N_TYPES * N_TERMIJNEN            # 100
+BT_ROW1 = ROW1
+BT_ROWN = BT_ROW1 + BT_N - 1            # 107
+BT_COL1 = M_BLOK1 + len(BLOKKEN) * N_TYPES + 1
+BT = {}
+for _i, _name in enumerate([
+    "j", "k", "i", "gebruikt",                       # raster: alle (type k, termijn i)-combinaties, gebruikt = 1/0
+    "nr", "label", "kk", "ii",                        # compact: de r-de gebruikte combinatie (nr = j), label 'type · termijn'
+    "idx_blue", "idx_red", "t_blue", "t_red",         # kwartaalindex en tijd (jaren) van de huidige en de vorige planning
+    "seg0", "seg1", "seg2", "seg3", "seg4", "seg5",   # stapel 1 (eerste as): onzichtbaar, grijs, onzichtbaar, rood, grijs, onzichtbaar
+    "seg6", "seg7", "seg8",                           # stapel 2 (tweede as): onzichtbaar, blauw, onzichtbaar (rest, zodat beide assen gelijk schalen)
+]):
+    BT[_name] = L(BT_COL1 + _i)
+BT_SEGMENTEN = ["seg0", "seg1", "seg2", "seg3", "seg4", "seg5", "seg6", "seg7", "seg8"]
+BT_SEG_NAMEN = ["", "Gerealiseerd", "", "Vorige prognose", "Gerealiseerd", "", "", "Huidige planning", ""]   # reeksnamen (legenda)
+
+
 def m_col(blok, k):
     """Kolomletter in het Model van blok `blok` voor type k."""
     return L(M_BLOK1 + BLOKKEN.index(blok) * N_TYPES + (k - 1))
@@ -171,6 +195,8 @@ H = {
     "nog_verkopen": 88, "nog_transport": 89,
     # eigen jaarrente en koopsomknop per scenario
     "rente_pct_down": 90, "rente_pct_up": 91, "rente_pct_scn": 92, "koopsom_down": 93, "koopsom_up": 94, "koopsom_scn": 95,
+    # bouwtermijnengrafiek (de VBA leest bt_n, jaar_first en jaar_last voor het aantal rijen en de tijd-as)
+    "bt_n": 96, "t_first": 97, "t_nu_end": 98, "t_end": 99, "jaar_first": 100, "jaar_last": 101, "lbl_realisatie": 102,
 }
 
 
@@ -215,9 +241,10 @@ D_ROW_POWERPOINT = 34      # knop staat op W35:X36 (vast: de VBA-macro zet hem d
 D_ROW_CONTROLES = 40
 D_ROW_TYPES = 52           # overzicht woningtypes
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
-D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83"}   # verkoop/transport: twee panelen van twaalf rijen
+D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; grafiek op B96 (17 rijen)
+D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83", "bouwtermijnen": "B96"}
 D_LEGENDA_CELLEN = ["B", "C", "D", "E", "G", "H", "I", "J", "L", "M"]   # chip per typeblok 1..N_TYPES
-D_ROW_UITLEG = 96
+D_ROW_UITLEG = 114
 
 
 def d(name):
@@ -234,8 +261,11 @@ def dabs(name):
 
 # ---- PowerPoint ----------------------------------------------------------------
 PP_KPI_ROW1 = 8
-PP_BLOK = {"cf": "G", "sc": "P", "vt": "AA", "vo": "AG"}    # kopcellen rij 7 (VBA leest G7, P7, AA7, AG7); cf heeft 8 kolommen (+ scenariolijn)
-PP_TABEL_SC = "AM7"            # 9 rijen x 4 kolommen
-PP_TABEL_VT_ROW = 18           # kop in AM18, daaronder N_TYPES rijen
-PP_CEL_SJABLOON = "D52"
-PP_CEL_NAAM = "D53"
+# grafiekblokken (kop in rij 7; de VBA leest dezelfde kopcellen): cf dia 3 (8 kolommen), sc dia 4 (10), bt dia 5 bouwtermijnen
+# (9 kolommen, BT_N rijen), vp dia 6 verkoop/transport per type (26 kolommen: kwartaal, 10x verkocht, 10x transport, totalen,
+# mijlpalen, realisatie; twee grafieken lezen hetzelfde blok), vo dia 7 (5)
+PP_BLOK = {"cf": "G", "sc": "P", "bt": "AA", "vp": "AK", "vo": "BL"}
+PP_TABEL_SC = "BR7"            # 9 rijen x 4 kolommen
+PP_TABEL_VT_ROW = 18           # kop in BR18, daaronder N_TYPES rijen
+PP_CEL_SJABLOON = "D56"        # (de VBA leest dezelfde cellen: CEL_SJABLOON / CEL_NAAM)
+PP_CEL_NAAM = "D57"

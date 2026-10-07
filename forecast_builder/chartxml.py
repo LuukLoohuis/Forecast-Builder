@@ -352,3 +352,88 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
     catax = cat_ax(AX1, AX2) if cat_labels else cat_ax(AX1, AX2).replace('<c:tickLblPos val="low"/>', '<c:tickLblPos val="none"/>')
     assen = [catax, val_ax(AX2, AX1, "0", vmin=0)] + assen_waas()
     return chart_space_paneel(groepen, assen, titel(tt), layout)
+
+
+# ---------------------------------------------------------------------------------------------
+#  Bouwtermijnen per woningtype: tijdlijn (horizontale gestapelde balken), één rij per type × termijn
+# ---------------------------------------------------------------------------------------------
+VORIGE = "F3A6A0"      # vorige prognose (zacht rood)
+BT_GAP = 15            # bijna aaneengesloten rijen, zoals een tabel met gekleurde cellen
+
+
+def ser_bar_onzichtbaar(idx, naam, cat, val):
+    """Offset-reeks: geen vulling, geen lijn; schuift het gestapelde blokje naar het juiste beginpunt."""
+    return (f'<c:ser><c:idx val="{idx}"/><c:order val="{idx}"/>{_tx(naam)}<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
+            f'<c:invertIfNegative val="0"/>{_cat(cat)}{_val(val)}</c:ser>')
+
+
+def met_order(ser_xml, order):
+    """Geef een reeks een eigen stapelvolgorde (c:order) los van c:idx (legenda-index)."""
+    i = ser_xml.index('<c:idx val="') + len('<c:idx val="')
+    idx = ser_xml[i:ser_xml.index('"', i)]
+    return ser_xml.replace(f'<c:order val="{idx}"/>', f'<c:order val="{order}"/>', 1)
+
+
+def grp_hbar(sers, ax=(AX1, AX2), gap=BT_GAP):
+    """Horizontale gestapelde balken (barDir=bar)."""
+    return (f'<c:barChart><c:barDir val="bar"/><c:grouping val="stacked"/><c:varyColors val="0"/>{"".join(sers)}{_no_dlbls()}'
+            f'<c:gapWidth val="{gap}"/><c:overlap val="100"/><c:axId val="{ax[0]}"/><c:axId val="{ax[1]}"/></c:barChart>')
+
+
+def cat_ax_rijen(ax_id, cross_id, deleted=False):
+    """Verticale categorie-as (rijen), eerste rij bovenaan (maxMin); de tijd-as blijft onder (crosses=max)."""
+    if deleted:
+        return (f'<c:catAx><c:axId val="{ax_id}"/><c:scaling><c:orientation val="maxMin"/></c:scaling><c:delete val="1"/>'
+                f'<c:axPos val="l"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
+                f'<c:crossAx val="{cross_id}"/><c:crosses val="max"/><c:auto val="1"/><c:lblAlgn val="ctr"/>'
+                f'<c:lblOffset val="100"/><c:noMultiLvlLbl val="1"/></c:catAx>')
+    return (f'<c:catAx><c:axId val="{ax_id}"/><c:scaling><c:orientation val="maxMin"/></c:scaling><c:delete val="0"/>'
+            f'<c:axPos val="l"/><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/>'
+            f'<c:minorTickMark val="none"/><c:tickLblPos val="low"/><c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
+            f'{_txpr(750, False, TXT)}<c:crossAx val="{cross_id}"/><c:crosses val="max"/><c:auto val="1"/>'
+            f'<c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="1"/></c:catAx>')
+
+
+def val_ax_tijd(ax_id, cross_id, vmin, vmax=None, zichtbaar=True, grid=True):
+    """Horizontale tijd-as in jaren (waarde = jaar + (kw-1)/4): vaste min, stap 1 jaar met lichte rasterlijn, kwartaalraster
+    nog lichter; max automatisch (alle stapels lopen tot het einde van de laatste periode) of vast."""
+    g = ""
+    if grid:
+        g = (f'<c:majorGridlines><c:spPr><a:ln w="{int(0.75 * PT)}">{_solid(AXIS)}</a:ln></c:spPr></c:majorGridlines>'
+             f'<c:minorGridlines><c:spPr><a:ln w="{int(0.5 * PT)}">{_solid(GRID)}</a:ln></c:spPr></c:minorGridlines>')
+    lbl = "nextTo" if zichtbaar else "none"
+    mx = f'<c:max val="{vmax}"/>' if vmax is not None else ""
+    return (f'<c:valAx><c:axId val="{ax_id}"/><c:scaling><c:orientation val="minMax"/>{mx}<c:min val="{vmin}"/></c:scaling>'
+            f'<c:delete val="0"/><c:axPos val="b"/>{g}<c:numFmt formatCode="0" sourceLinked="0"/>'
+            f'<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="{lbl}"/>'
+            f'<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>{_txpr(800, False, TXT_LIGHT)}'
+            f'<c:crossAx val="{cross_id}"/><c:crosses val="autoZero"/><c:crossBetween val="between"/>'
+            f'<c:majorUnit val="1"/><c:minorUnit val="0.25"/></c:valAx>')
+
+
+def bouwtermijnen(r, jaar_min, jaar_max=None):
+    """Tijdlijn van de bouwtermijnen: per rij (woningtype · termijn) een blauw blokje van één kwartaal in de huidige planning,
+    een rood blokje in de vorige prognose (zelfde plek als blauw als er geen vorige prognose is: dan onzichtbaar) en een
+    grijze waas over de gerealiseerde kwartalen. Twee gestapelde balkgroepen: stapel 1 (eerste as) onzichtbaar tot de
+    eerste periode, grijs, onzichtbaar, rood, grijs, onzichtbaar tot het einde; stapel 2 (tweede as, bovenop) onzichtbaar,
+    blauw, onzichtbaar tot het einde. Alle stapels zijn even lang, zodat beide assen gelijk schalen.
+
+    r: dict met bereikverwijzingen 'label' (categorie) en 'seg0' … 'seg8' (waarden in jaren). jaar_min: eerste jaar
+    (vaste as-ondergrens; balken beginnen op 0); jaar_max: vaste bovengrens of None (automatisch).
+    Reeksnummering: XML-positie p = stapelvolgorde (c:order), c:idx = 8 − p. Excel koppelt legendEntry-idx aan c:idx,
+    LibreOffice legt de legenda van gestapelde balken in omgekeerde XML-volgorde aan; met idx = 8 − p verbergen beide
+    dezelfde reeksen. Zichtbaar in de legenda: huidige planning (idx 1), vorige prognose (idx 5), gerealiseerd (idx 7)."""
+    cat = r["label"]
+    stapel1 = [met_order(ser_bar_onzichtbaar(8, "·", cat, r["seg0"]), 0),
+               met_order(ser_bar(7, "Gerealiseerd", cat, r["seg1"], REALISATIE, alpha=60), 1),
+               met_order(ser_bar_onzichtbaar(6, "·", cat, r["seg2"]), 2),
+               met_order(ser_bar(5, "Vorige prognose", cat, r["seg3"], VORIGE), 3),
+               met_order(ser_bar(4, "Gerealiseerd", cat, r["seg4"], REALISATIE, alpha=60), 4),
+               met_order(ser_bar_onzichtbaar(3, "·", cat, r["seg5"]), 5)]
+    stapel2 = [met_order(ser_bar_onzichtbaar(2, "·", cat, r["seg6"]), 6),
+               met_order(ser_bar(1, "Huidige planning", cat, r["seg7"], BLUE), 7),
+               met_order(ser_bar_onzichtbaar(0, "·", cat, r["seg8"]), 8)]
+    assen = [cat_ax_rijen(AX1, AX2), val_ax_tijd(AX2, AX1, jaar_min, jaar_max),
+             cat_ax_rijen(AX3, AX4, deleted=True), val_ax_tijd(AX4, AX3, jaar_min, jaar_max, zichtbaar=False, grid=False)]
+    groepen = [grp_hbar(stapel1), grp_hbar(stapel2, ax=(AX3, AX4))]
+    return chart_space(groepen, assen, legend([0, 2, 3, 4, 6, 8]), na_als_leeg=True)

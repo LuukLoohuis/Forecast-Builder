@@ -22,7 +22,7 @@ def _lbl(**namen):
     return {k: f"Model!{LY.h(v)}" for k, v in namen.items()}
 
 
-def _xml():
+def _xml(jaar_min):
     r = _Namen()
     cashflow = cx.cashflow(r, _lbl(scenario_naam="lbl_scenario", nu="lbl_nu_cf", dal="lbl_dal", eind_basis="lbl_eind_basis_cf",
                                    eind_scenario="lbl_eind_scn"))
@@ -30,7 +30,9 @@ def _xml():
     lbl_vt = _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport")
     verkoop = cx.verkoop_paneel(r, lbl_vt, _type_namen(), "verkocht")
     transport = cx.verkoop_paneel(r, lbl_vt, _type_namen(), "transport")
-    return cashflow, band, verkoop, transport
+    r_bt = {naam: f"[0]!g_bt_{naam}" for naam in ["label"] + LY.BT_SEGMENTEN}
+    bouwtermijnen = cx.bouwtermijnen(r_bt, jaar_min)
+    return cashflow, band, verkoop, transport, bouwtermijnen
 
 
 def _type_namen():
@@ -38,18 +40,23 @@ def _type_namen():
     return [(f"Model!${LY.m_col('gv', k)}$7", f"[0]!g_v{k}", f"[0]!g_t{k}") for k in range(1, LY.N_TYPES + 1)]
 
 
-def grafieken():
-    """[(naam, anker, breedte cm, hoogte cm, xml)] in de volgorde chart1.xml … chart4.xml."""
-    cashflow, band, verkoop, transport = _xml()
+BT_H_CM = 9.0   # bouwtermijnengrafiek: 17 Dashboard-rijen
+
+
+def grafieken(jaar_min=2020):
+    """[(naam, anker, breedte cm, hoogte cm, xml)] in de volgorde chart1.xml … chart5.xml.
+    jaar_min = eerste jaar van de periodes: vaste ondergrens van de tijd-as in de bouwtermijnengrafiek."""
+    cashflow, band, verkoop, transport, bouwtermijnen = _xml(jaar_min)
     A = LY.D_CHART_ANCHORS
     return [("scenario", A["scenario"], 30.3, 13.0, band), ("cashflow", A["cashflow"], 30.3, 11.5, cashflow),
-            ("verkoop", A["verkoop"], 30.3, cx.PANEEL_H_CM, verkoop), ("transport", A["transport"], 30.3, cx.PANEEL_H_CM, transport)]
+            ("verkoop", A["verkoop"], 30.3, cx.PANEEL_H_CM, verkoop), ("transport", A["transport"], 30.3, cx.PANEEL_H_CM, transport),
+            ("bouwtermijnen", A["bouwtermijnen"], 30.3, BT_H_CM, bouwtermijnen)]
 
 
-def plaats_grafieken(ws_dashboard, wb):
-    """Zet drie plaatsvervangende grafieken op het Dashboard (zelfde plek en maat als de echte)."""
+def plaats_grafieken(ws_dashboard, wb, jaar_min=2020):
+    """Zet plaatsvervangende grafieken op het Dashboard (zelfde plek en maat als de echte)."""
     ws_model = wb["Model"]
-    for naam, anker, w, h, _ in grafieken():
+    for naam, anker, w, h, _ in grafieken(jaar_min):
         ch = LineChart()
         ch.add_data(Reference(ws_model, min_col=3, min_row=8, max_row=9), titles_from_data=False)
         ch.width, ch.height = w, h
@@ -57,5 +64,5 @@ def plaats_grafieken(ws_dashboard, wb):
         ws_dashboard.add_chart(ch)
 
 
-def chart_xmls():
-    return [g[4] for g in grafieken()]
+def chart_xmls(jaar_min=2020):
+    return [g[4] for g in grafieken(jaar_min)]

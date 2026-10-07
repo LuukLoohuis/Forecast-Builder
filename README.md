@@ -56,8 +56,10 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   kwartaal* (opbrengsten, kosten, cumulatieve cashflow, vorige prognose en de gele scenariolijn vanaf het punt 'nu') en
   *verkoop en transport per woningtype* (twee panelen boven elkaar: verkocht en getransporteerd per kwartaal, gestapeld
   per type in een vaste kleur per typeblok, totaal per kwartaal boven de stapel, cel-legenda boven het eerste paneel,
-  het aantal in elk blokje, mijlpalen 'uitverkocht' en 'laatste transport'). Een grijs vlak markeert de gerealiseerde
-  kwartalen.
+  het aantal in elk blokje, mijlpalen 'uitverkocht' en 'laatste transport') en *bouwtermijnen per woningtype* (tijdlijn:
+  per type en termijn een blauw blokje in het kwartaal waarin de termijn vervalt, een rood blokje op de plek volgens de
+  vorige prognose en grijs over de gerealiseerde kwartalen; de tijd-as begint bij het eerste jaar van de periodes, vast bij
+  het bouwen). Een grijs vlak markeert de gerealiseerde kwartalen.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
@@ -67,14 +69,19 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   schaalt ze naar 100% − grondtermijn (Model, blok `tup` rij 5), zodat grondtermijn + bouwtermijnen altijd de koopsom
   vormen. Elk type kan andere termijnen hebben. Blok 3 per type: extra opbrengsten per woning in euro's (kopersmeerwerk,
   kadastrale kosten/rentes, overige) met een bouwkwartaal, of leeg = bij notarieel transport; het model telt ze mee in de
-  opbrengst per woning (Model, blok `vx`), buiten de koopsomknop om.
+  opbrengst per woning (Model, blok `vx`), buiten de koopsomknop om. Blok 4: start bouw volgens de vorige prognose (jaar,
+  kwartaal) voor de rode blokjes in de bouwtermijnengrafiek.
 * **Model** – rekenblad. Kolommen A:L uit de invoer (B = bronrij op Invoer), M:BU model, scenario's, scenariolijn, rente en
   grafiekkolommen, BX:BY hulpcellen (BY8 = aantal periodes, de VBA leest die cel), vanaf CA de typeblokken (verkocht cum,
   transport cum, transport cum up/down/scenariolijn, termijnen, en per type verkocht en getransporteerd per kwartaal voor
   de grafiek, benoemde bereiken `g_v<k>`/`g_t<k>`).
-* **PowerPoint** – teksten, tabellen en grafiekblokken voor de dia's; kolom F = vormnaam op de dia. Het cashflowblok heeft
-  acht kolommen; de achtste (N) is de scenariolijn, die in sjabloon v11 als reeks op kolom H van het gegevensblad van de
-  grafiek op dia 3 staat. Staat de lijn uit, dan luidt de kop '… (uit)' en haalt de macro die reeks uit de grafiek.
+* **PowerPoint** – teksten, tabellen en grafiekblokken voor de dia's; kolom F = vormnaam op de dia. Blokken (kop in rij 7):
+  cashflow (G, dia 3, acht kolommen; de achtste (N) is de scenariolijn, in het sjabloon een reeks op kolom H van het
+  gegevensblad; staat de lijn uit, dan luidt de kop '… (uit)' en haalt de macro die reeks uit de grafiek), scenario's (P,
+  dia 4), bouwtermijnen (AA, dia 5: één rij per type × termijn, tot 100 rijen, Model!BY96 = aantal rijen, waarden in jaren),
+  verkoop en transport per type (AK, dia 6: 26 kolommen, twee grafieken lezen hetzelfde blok), van verkoop naar omzet (BL,
+  dia 7); tabellen vanaf BR. De bouwtermijnentabel staat in het Model (kolommen vanaf FN: raster van alle type ×
+  termijn-combinaties, compact gemaakt, met de stapelsegmenten voor de grafiek).
 
 ### Type toevoegen of verwijderen
 

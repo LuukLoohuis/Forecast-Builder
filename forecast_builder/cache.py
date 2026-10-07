@@ -130,12 +130,18 @@ def _patch_chart(xml, model, n):
     for k in range(1, LY.N_TYPES + 1):
         kolom[f"g_v{k}"] = LY.m_col("gv", k)
         kolom[f"g_t{k}"] = LY.m_col("gt", k)
+    lengte = {}
+    bt_n = model.get(f"{LY.M_HULP}{LY.H['bt_n']}")
+    bt_n = int(bt_n) if isinstance(bt_n, (int, float)) else 0
+    for key in ["label"] + LY.BT_SEGMENTEN:
+        kolom[f"g_bt_{key}"] = LY.BT[key]
+        lengte[f"g_bt_{key}"] = max(1, bt_n)
 
     def reeks(naam):
         col = kolom.get(naam)
         if col is None:
             return None
-        return [model.get(f"{col}{r}") for r in range(LY.ROW1, LY.ROW1 + n)]
+        return [model.get(f"{col}{r}") for r in range(LY.ROW1, LY.ROW1 + lengte.get(naam, n))]
 
     def cat(m):
         naam = m.group(1)
@@ -152,7 +158,7 @@ def _patch_chart(xml, model, n):
         w = model.get(ref)
         return m.group(0) if w is None else f"<c:f>Model!{m.group(2)}</c:f>{_str_cache([w])}</c:strRef>"
 
-    xml = re.sub(r"<c:f>\[0\]!(g_kwartaal)</c:f></c:strRef>", cat, xml)
+    xml = re.sub(r"<c:f>\[0\]!(g_[a-z_0-9]+)</c:f></c:strRef>", cat, xml)
     xml = re.sub(r"<c:f>\[0\]!(g_[a-z_0-9]+)</c:f></c:numRef>", val, xml)
     xml = re.sub(r"<c:f>Model!(\$([A-Z]+\$[0-9]+))</c:f></c:strRef>", lambda m: tx(_M(m)), xml)
     return xml
