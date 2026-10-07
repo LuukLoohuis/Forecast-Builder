@@ -61,8 +61,13 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
-* **Woningtypes** – per type één blok van drie kolommen (vanaf kolom C): naam, aantal, koopsom, start bouw en een eigen
-  lijst termijnen (naam, % van de koopsom, bouwkwartaal). Elk type kan dus andere termijnen hebben.
+* **Woningtypes** – per type één blok van drie kolommen (vanaf kolom C): naam, aantal, koopsom, start bouw, grondtermijn
+  (% van de koopsom, bij transport) en een eigen lijst bouwtermijnen (naam, %, bouwkwartaal). Bouwtermijnen mogen als
+  % van de aanneemsom (samen 100%) of als % van de koopsom (samen 100% − grondtermijn) worden ingevuld: het model
+  schaalt ze naar 100% − grondtermijn (Model, blok `tup` rij 5), zodat grondtermijn + bouwtermijnen altijd de koopsom
+  vormen. Elk type kan andere termijnen hebben. Blok 3 per type: extra opbrengsten per woning in euro's (kopersmeerwerk,
+  kadastrale kosten/rentes, overige) met een bouwkwartaal, of leeg = bij notarieel transport; het model telt ze mee in de
+  opbrengst per woning (Model, blok `vx`), buiten de koopsomknop om.
 * **Model** – rekenblad. Kolommen A:L uit de invoer (B = bronrij op Invoer), M:BU model, scenario's, scenariolijn, rente en
   grafiekkolommen, BX:BY hulpcellen (BY8 = aantal periodes, de VBA leest die cel), vanaf CA de typeblokken (verkocht cum,
   transport cum, transport cum up/down/scenariolijn, termijnen, en per type verkocht en getransporteerd per kwartaal voor

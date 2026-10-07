@@ -127,3 +127,45 @@ def test_lege_rijen_tellen_niet_mee(tmp, basis):
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_bouwtermijnen_als_pct_van_aanneemsom(tmp, basis):
+    """Bouwtermijnen die samen 100% zijn (van de aanneemsom) geven hetzelfde model als termijnen die samen 100% − grond zijn."""
+    p = D.voorbeeld()
+    for t in p.types:
+        som = sum(float(pct or 0) for _, pct, _ in t.termijnen)
+        if som:
+            t.termijnen = [(naam, (float(pct or 0) / som) if pct is not None else None, kw) for naam, pct, kw in t.termijnen]
+    wb = bouw_en_bereken(p, tmp, "aanneemsom")
+    m, mb = wb["Model"], basis["Model"]
+    n = basis["Model"]["BY8"].value
+    for naam in ("model_basis", "model_up", "stand_basis", "stand_up", "stand_down"):
+        for r in range(LY.ROW1, LY.ROW1 + n):
+            a, b = m[f"{LY.M[naam]}{r}"].value, mb[f"{LY.M[naam]}{r}"].value
+            assert abs(float(a) - float(b)) < 1e-3, (naam, r, a, b)
+    assert wb["Dashboard"][f"W{LY.D_ROW_CONTROLES + 9}"].value == "OK"
+    assert all(abs(float(wb["Woningtypes"].cell(LY.WT_R_TOTAAL, LY.wt_col(k, 1)).value) - 1) < 1e-9
+               for k in range(1, len(p.types) + 1) if p.types[k - 1].termijnen)
+
+
+def test_extra_opbrengsten_per_woning(tmp, basis):
+    """Extra's (€ per woning): bij transport en per bouwkwartaal tellen ze op bij de modelopbrengst, de koopsomknop niet."""
+    p = D.voorbeeld()
+    t = p.types[0]
+    t.extras = [("Kadastrale kosten", 1000, None), ("Kopersmeerwerk", 2000, 3)]
+    wb = bouw_en_bereken(p, tmp, "extras")
+    m, mb = wb["Model"], basis["Model"]
+    n = basis["Model"]["BY8"].value
+    laatste = LY.ROW1 + n - 1
+    extra = float(t.aantal) * 3000
+    assert abs(float(m[f"{LY.M['model_basis']}{laatste}"].value) - float(mb[f"{LY.M['model_basis']}{laatste}"].value) - extra) < 1e-3
+    assert abs(float(m[f"BY{LY.H['model_opbr']}"].value) - float(mb[f"BY{LY.H['model_opbr']}"].value) - extra) < 1e-3
+    # de koopsomknop upside (+2 % opbrengsten staat al aan in het voorbeeld) schaalt de extra's niet mee
+    assert abs(float(m[f"{LY.M['model_up']}{laatste}"].value) - float(mb[f"{LY.M['model_up']}{laatste}"].value) - extra) < 1e-3
+    # tussentijds: in elke rij ligt de extra tussen 0 en aantal × 3000 en loopt hij op
+    vorige = 0.0
+    for r in range(LY.ROW1, laatste + 1):
+        d = float(m[f"{LY.M['model_basis']}{r}"].value) - float(mb[f"{LY.M['model_basis']}{r}"].value)
+        assert -1e-6 <= d <= extra + 1e-6 and d >= vorige - 1e-6, (r, d)
+        vorige = d
+    assert wb["Woningtypes"].cell(LY.WT_R_X_TOTAAL, LY.wt_col(1, 1)).value == 3000

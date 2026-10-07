@@ -81,12 +81,22 @@ def ser_area(idx, naam, cat, val, fill, alpha=None):
             f'{_cat(cat)}{_val(val)}</c:ser>')
 
 
+def _lichte_kleur(kleur):
+    """Relatieve luminantie (sRGB) boven 0,4: donkere tekst leest beter dan witte (bv. op het amber van type 4)."""
+    def lin(c):
+        c = int(kleur[c:c + 2], 16) / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4) > 0.4
+
+
 def ser_bar(idx, naam, cat, val, fill, alpha=None, labels=False):
-    """Balkreeks; labels=True zet de waarde als klein wit cijfer midden in elk blokje (0 en 1 blijven leeg: te smal)."""
+    """Balkreeks; labels=True zet de waarde als klein cijfer midden in elk blokje (0 en 1 blijven leeg: te smal);
+    wit op donkere kleuren, donker op lichte."""
     dl = ""
     if labels:
+        kleur = "1F2937" if _lichte_kleur(fill) else "FFFFFF"
         dl = (f'<c:dLbls><c:numFmt formatCode="[&lt;2]&quot;&quot;;0" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
-              f'{_txpr(700, True, "FFFFFF")}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/>'
+              f'{_txpr(700, True, kleur)}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/>'
               f'<c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     return (f'<c:ser><c:idx val="{idx}"/><c:order val="{idx}"/>{_tx(naam)}<c:spPr>{_solid(fill, alpha)}<a:ln><a:noFill/></a:ln></c:spPr>'
             f'<c:invertIfNegative val="0"/>{dl}{_cat(cat)}{_val(val)}</c:ser>')
@@ -183,11 +193,18 @@ def legend(verborgen=()):
     return f'<c:legend><c:legendPos val="t"/>{entries}<c:overlay val="0"/>{_txpr(800, False, TXT)}</c:legend>'
 
 
-def chart_space(groepen, assen, legenda=""):
+# Excel 2016+: #N/A als lege cel tonen, anders zet Excel bij ingeschakelde datalabels de tekst '#N/A' bij elk #N/A-punt
+# (lege typeblokken). LibreOffice negeert de extensie.
+NA_ALS_LEEG = ('<c:extLst><c:ext uri="{56B9EC1D-385E-4148-901F-78D8002777C0}" '
+               'xmlns:c16r3="http://schemas.microsoft.com/office/drawing/2017/03/chart">'
+               '<c16r3:dataDisplayOptions16><c16r3:dispNaAsBlank val="1"/></c16r3:dataDisplayOptions16></c:ext></c:extLst>')
+
+
+def chart_space(groepen, assen, legenda="", na_als_leeg=False):
     return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<c:chartSpace {NS}><c:date1904 val="0"/><c:lang val="nl-NL"/>'
             f'<c:roundedCorners val="0"/><c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>{"".join(groepen)}{"".join(assen)}'
             f'<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>{legenda}<c:plotVisOnly val="0"/>'
-            f'<c:dispBlanksAs val="gap"/></c:chart><c:spPr>{_solid("FFFFFF")}<a:ln><a:noFill/></a:ln></c:spPr>'
+            f'<c:dispBlanksAs val="gap"/>{NA_ALS_LEEG if na_als_leeg else ""}</c:chart><c:spPr>{_solid("FFFFFF")}<a:ln><a:noFill/></a:ln></c:spPr>'
             f'<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr><a:latin typeface="{FONT}"/></a:defRPr></a:pPr>'
             f'<a:endParaRPr lang="nl-NL"/></a:p></c:txPr></c:chartSpace>')
 
@@ -301,8 +318,8 @@ def ser_totaal(idx, naam, cat, val, sz=700, color=TXT):
 
 
 def chart_space_paneel(groepen, assen, titel_xml, layout_xml):
-    """chart_space zonder legenda, met titel en handmatig plotgebied."""
-    xml = chart_space(groepen, assen, legenda="")
+    """chart_space zonder legenda, met titel en handmatig plotgebied; #N/A (lege typeblokken) zonder label."""
+    xml = chart_space(groepen, assen, legenda="", na_als_leeg=True)
     oud = '<c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>'
     assert oud in xml
     return xml.replace(oud, f'<c:chart>{titel_xml}<c:autoTitleDeleted val="0"/><c:plotArea>{layout_xml}')
@@ -325,7 +342,7 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
     else:
         bars = [ser_bar(k, "=" + naam, kw, t, TYPEKLEUREN[k % len(TYPEKLEUREN)], labels=True) for k, (naam, _, t) in enumerate(types)]
         totaal, punt, ptxt, tt = r["getransporteerd"], r["punt_alles_transport"], lbl["alles_transport"], TITEL_TRANSPORT
-    mijlpaal = ser_punt(n + 1, "=" + ptxt, kw, punt, NAVY, "t", size=6)
+    mijlpaal = ser_punt(n + 1, "=" + ptxt, kw, punt, NAVY, "t", size=5)
     mijlpaal = mijlpaal.replace('<c:txPr><a:bodyPr/>', '<c:txPr><a:bodyPr wrap="none"/>')   # label op één regel
     lines = [ser_totaal(n, "Totaal", kw, totaal), mijlpaal]
     groepen = [grp_bar(bars, grouping="stacked", gap=gap, overlap=100), grp_line(lines), grp_waas(n + 2, kw, r["realisatie"])]

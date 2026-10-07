@@ -37,6 +37,14 @@ WT_R_GROND = 15
 WT_R_T1 = 16                              # eerste bouwtermijn
 WT_R_TN = WT_R_T1 + N_TERMIJNEN - 1       # 25
 WT_R_TOTAAL = 26
+# blok 3: extra opbrengsten per woning in euro's (kopersmeerwerk, kadastrale kosten, overige); kw leeg of 0 = bij transport
+N_EXTRA = 6
+WT_R_X_TITEL = 31
+WT_R_X_KOP = 32
+WT_R_X1 = 33
+WT_R_XN = WT_R_X1 + N_EXTRA - 1          # 38
+WT_R_X_TOTAAL = 39                       # totaal extra per woning
+WT_R_X_TOTAAL2 = 40                      # koopsom + extra per woning
 WT_LASTCOL = WT_COL1 + N_TYPES * WT_W - 1  # AH bij 10 types
 WT_RANGE_END = "ZZ"   # positionele bereiken lopen tot ZZ: invoegen/verwijderen van kolommen kan ze niet breken
 
@@ -120,7 +128,8 @@ M_SPACER = "BW"
 M_BLOK1 = 79          # kolom CA
 # verkocht cum, transport cum, transport cum up/down, termijnen vervallen, transport cum scenariolijn,
 # grafiek: verkocht per kwartaal (gv) en getransporteerd per kwartaal als negatief getal (gt); benoemde bereiken g_v<k>, g_t<k>
-BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt"]
+# vx: extra opbrengsten per woning (€) vervallen per bouwkwartaal; rij 6 = extra's bij transport
+BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx"]
 
 
 def m_col(blok, k):

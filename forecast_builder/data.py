@@ -22,6 +22,8 @@ STANDAARD_TERMIJNEN = [
     "Oplevering woning",
 ]
 
+STANDAARD_EXTRA = ["Kopersmeerwerk 25%", "Kopersmeerwerk 75%", "Kadastrale kosten / rentes", "Overige opbrengsten", "Verschillen", ""]
+
 PARAM_STANDAARD = {
     "actuals_jaar": 2026, "actuals_kw": 3,
     "rente": 0.03, "rente_tm": "start bouw", "rente_basis": "nee",
@@ -48,6 +50,7 @@ class TypeData:
     start_kw: object = None
     grond_pct: object = None
     termijnen: list = field(default_factory=list)   # [(naam, pct, kw), ...]
+    extras: list = field(default_factory=list)      # [(naam, euro per woning, kw of None = bij transport), ...]
 
 
 @dataclass
@@ -58,6 +61,7 @@ class ProjectData:
     types: list = field(default_factory=list)       # TypeData
     params: dict = field(default_factory=lambda: dict(PARAM_STANDAARD))
     termijn_namen: list = field(default_factory=lambda: list(STANDAARD_TERMIJNEN))
+    extra_namen: list = field(default_factory=lambda: list(STANDAARD_EXTRA))
 
     def type_(self, k):
         """TypeData van blok k (1-based); leeg type als het blok niet gevuld is."""
@@ -181,6 +185,7 @@ def _lees_v2(wb):
         p.verkocht.append([_num(_v(ws, f"{L(LY.in_col(k, 0))}{r}")) for k in range(1, LY.N_TYPES + 1)])
         p.transport.append([_num(_v(ws, f"{L(LY.in_col(k, 1))}{r}")) for k in range(1, LY.N_TYPES + 1)])
     wt = wb["Woningtypes"]
+    heeft_extras = isinstance(_v(wt, f"B{LY.WT_R_X_TITEL}"), str) and _v(wt, f"B{LY.WT_R_X_TITEL}").startswith("3 ·")   # blok 3 bestaat sinds v6
     for k in range(1, LY.N_TYPES + 1):
         c0, c1, c2 = (L(LY.wt_col(k, o)) for o in range(3))
         naam = _v(wt, f"{c0}{LY.WT_R_NAAM}")
@@ -193,6 +198,12 @@ def _lees_v2(wb):
             termijnen.append((tn, pct, kw))
         td = TypeData(naam or "", aantal, _v(wt, f"{c0}{LY.WT_R_KOOPSOM}"), _v(wt, f"{c0}{LY.WT_R_STARTJAAR}"),
                       _v(wt, f"{c0}{LY.WT_R_STARTKW}"), _v(wt, f"{c1}{LY.WT_R_GROND}"), termijnen)
+        if heeft_extras:
+            for r in range(LY.WT_R_X1, LY.WT_R_XN + 1):
+                xn, eur, kw = _v(wt, f"{c0}{r}"), _v(wt, f"{c1}{r}"), _v(wt, f"{c2}{r}")
+                if xn is None and eur is None and kw is None:
+                    continue
+                td.extras.append((xn, eur, kw))
         p.types.append(td)
     # lege blokken aan het eind weglaten
     while p.types and not p.types[-1].naam and p.types[-1].aantal is None:
@@ -200,6 +211,9 @@ def _lees_v2(wb):
     namen = [t.termijnen[i][0] for t in p.types for i in range(len(t.termijnen)) if t.termijnen[i][0]]
     if namen:
         p.termijn_namen = list(dict.fromkeys(namen))[:LY.N_TERMIJNEN]
+    xnamen = [x[0] for t in p.types for x in t.extras if x[0]]
+    if xnamen:
+        p.extra_namen = list(dict.fromkeys(xnamen))[:LY.N_EXTRA]
     d = wb["Dashboard"]
     # knoppen worden op het label in kolom V gezocht (de rijnummers verschilden per versie); de kolom (W/X/Y) komt uit LY.D.
     # Een knop die het bestand nog niet heeft (oudere versie), houdt de standaardwaarde.
