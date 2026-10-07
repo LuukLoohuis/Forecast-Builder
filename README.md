@@ -48,14 +48,16 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
 
 * **Dashboard** – kaarten, drie grafieken en in kolom V alle knoppen: actuals t/m, jaarrente, rente t/m (start bouw of
   hele looptijd), rente ook in de basis (ja/nee), verkooptempo-model aan/uit, per scenario (downside, upside én de
-  scenariolijn): verschuiving verkoop/transport, uitstel start bouw, opbrengsten %, kosten %; scenariolijn aan/uit en naam;
+  scenariolijn): verschuiving verkoop/transport, uitstel start bouw, opbrengsten %, kosten %, eigen jaarrente (leeg =
+  algemeen) en koopsom % (VON-prijs via het verkooptempo-model); scenariolijn aan/uit en naam;
   norm verkocht vóór start bouw; tien controles (oplopende kwartalen zonder gaten, maximaal 60 periodes, rijen zonder jaar,
   jaar als getal, koprij, verkocht/transport = aantal, termijnen); overzicht types.
   De grafieken (`forecast_builder/chartxml.py`): *scenario's* (basis met de band tussen downside en upside), *cashflow per
   kwartaal* (opbrengsten, kosten, cumulatieve cashflow, vorige prognose en de gele scenariolijn vanaf het punt 'nu') en
   *verkoop en transport per woningtype* (twee panelen boven elkaar: verkocht en getransporteerd per kwartaal, gestapeld
   per type in een vaste kleur per typeblok, totaal per kwartaal boven de stapel, cel-legenda boven het eerste paneel,
-  mijlpalen 'uitverkocht' en 'laatste transport'). Een grijs vlak markeert de gerealiseerde kwartalen.
+  het aantal in elk blokje, mijlpalen 'uitverkocht' en 'laatste transport'). Een grijs vlak markeert de gerealiseerde
+  kwartalen.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
@@ -88,6 +90,14 @@ bouw van het project (vroegste type) plus het uitstel van dat scenario, of over 
 * *Rente ook in de basis = nee* (standaard): de basis blijft je eigen cashflow; downside en upside krijgen alleen het
   verschil in rente ten opzichte van de basis. Met alle knoppen op nul zijn de scenario's dan gelijk aan de basis.
 * *ja*: basis en scenario's krijgen rente; kaarten, kosten en dia's rekenen daarmee.
+* Elk scenario kan een eigen jaarrente krijgen (rij *Jaarrente per scenario*); leeg betekent de algemene jaarrente.
+
+### Koopsom per scenario
+
+De knop *Koopsom (VON-prijs)* zet per scenario de koopsom van alle woningen zoveel procent hoger of lager. Grondtermijn
+en bouwtermijnen schalen mee, op de momenten van het verkooptempo-model (`model_up` … `model_scn` × (1 + %)); de knop
+werkt dus alleen met *Woningtypes en termijnen gebruiken = ja* (een controle op het Dashboard waarschuwt anders). De knop
+*Opbrengsten* werkt daarentegen op alle prognose-opbrengsten, ook buiten het model.
 
 ### Scenariolijn
 

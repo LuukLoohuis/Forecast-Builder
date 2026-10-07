@@ -81,9 +81,15 @@ def ser_area(idx, naam, cat, val, fill, alpha=None):
             f'{_cat(cat)}{_val(val)}</c:ser>')
 
 
-def ser_bar(idx, naam, cat, val, fill, alpha=None):
+def ser_bar(idx, naam, cat, val, fill, alpha=None, labels=False):
+    """Balkreeks; labels=True zet de waarde als klein wit cijfer midden in elk blokje (0 en 1 blijven leeg: te smal)."""
+    dl = ""
+    if labels:
+        dl = (f'<c:dLbls><c:numFmt formatCode="[&lt;2]&quot;&quot;;0" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
+              f'{_txpr(700, True, "FFFFFF")}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/>'
+              f'<c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     return (f'<c:ser><c:idx val="{idx}"/><c:order val="{idx}"/>{_tx(naam)}<c:spPr>{_solid(fill, alpha)}<a:ln><a:noFill/></a:ln></c:spPr>'
-            f'<c:invertIfNegative val="0"/>{_cat(cat)}{_val(val)}</c:ser>')
+            f'<c:invertIfNegative val="0"/>{dl}{_cat(cat)}{_val(val)}</c:ser>')
 
 
 def ser_line(idx, naam, cat, val, color, w_pt, dash="solid"):
@@ -265,7 +271,7 @@ TXT_TITEL = "5B6169"       # zelfde grijs als de sectiekoppen op het Dashboard
 PANEEL_PLOT_X = 0.030      # linkermarge van het plotgebied (fractie van de breedte): ruimte voor aslabels
 PANEEL_PLOT_W = 0.962      # identiek in beide panelen, zodat de kwartalen exact onder elkaar staven
 PANEEL_TOP_CM = 0.75       # ruimte voor de titel boven het plotgebied
-PANEEL_H_CM = 5.29         # hoogte van één paneel (tien Dashboard-rijen van 15 pt)
+PANEEL_H_CM = 6.35         # hoogte van één paneel (twaalf Dashboard-rijen van 15 pt)
 
 
 def titel(tekst, sz=900, color=TXT_TITEL):
@@ -303,8 +309,8 @@ def chart_space_paneel(groepen, assen, titel_xml, layout_xml):
 
 
 def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True, gap=45):
-    """Eén paneel van de verkoopgrafiek: gestapelde kolommen per woningtype (vaste kleur per blok), totaal per kwartaal
-    als klein cijfer boven de stapel, één mijlpaalpunt en de grijze waas over de gerealiseerde kwartalen. Geen legenda:
+    """Eén paneel van de verkoopgrafiek: gestapelde kolommen per woningtype (vaste kleur per blok) met het aantal in elk
+    blokje, totaal per kwartaal als klein cijfer boven de stapel, één mijlpaalpunt en de grijze waas over de gerealiseerde kwartalen. Geen legenda:
     de kleur per type staat als chip-cellen boven het eerste paneel (lege typeblokken zouden spookvermeldingen geven).
     soort = 'verkocht' (mijlpaal 'uitverkocht') of 'transport' (mijlpaal 'laatste transport'; getallen positief).
     `types` = [(naamcel, verkocht-bereik, getransporteerd-bereik)] per typeblok.
@@ -314,10 +320,10 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
     kw = r["kwartaal"]
     n = len(types)
     if soort == "verkocht":
-        bars = [ser_bar(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)]) for k, (naam, v, _) in enumerate(types)]
+        bars = [ser_bar(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)], labels=True) for k, (naam, v, _) in enumerate(types)]
         totaal, punt, ptxt, tt = r["verkocht"], r["punt_uitverkocht"], lbl["uitverkocht"], TITEL_VERKOCHT
     else:
-        bars = [ser_bar(k, "=" + naam, kw, t, TYPEKLEUREN[k % len(TYPEKLEUREN)]) for k, (naam, _, t) in enumerate(types)]
+        bars = [ser_bar(k, "=" + naam, kw, t, TYPEKLEUREN[k % len(TYPEKLEUREN)], labels=True) for k, (naam, _, t) in enumerate(types)]
         totaal, punt, ptxt, tt = r["getransporteerd"], r["punt_alles_transport"], lbl["alles_transport"], TITEL_TRANSPORT
     mijlpaal = ser_punt(n + 1, "=" + ptxt, kw, punt, NAVY, "t", size=6)
     mijlpaal = mijlpaal.replace('<c:txPr><a:bodyPr/>', '<c:txPr><a:bodyPr wrap="none"/>')   # label op één regel

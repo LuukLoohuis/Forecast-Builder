@@ -65,7 +65,7 @@ Public Sub KnoppenControleren()
     On Error Resume Next
     Set ws = ThisWorkbook.Worksheets(SH_DASH)
     If Not BestaatVorm(ws, "btnNaarPowerPoint") Then
-        MaakKnop ws, ws.Range("W33:X34"), "btnNaarPowerPoint", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 0, 0, 2
+        MaakKnop ws, ws.Range("W35:X36"), "btnNaarPowerPoint", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 0, 0, 2
     End If
     Set ws = ThisWorkbook.Worksheets(SH_PP)
     If Not BestaatVorm(ws, "btnNaarPowerPoint2") Then

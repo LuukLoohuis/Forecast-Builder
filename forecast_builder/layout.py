@@ -160,6 +160,8 @@ H = {
     # verkoopgrafiek
     "uitverkocht_pos": 84, "alles_transport_pos": 85, "lbl_uitverkocht": 86, "lbl_alles_transport": 87,
     "nog_verkopen": 88, "nog_transport": 89,
+    # eigen jaarrente en koopsomknop per scenario
+    "rente_pct_down": 90, "rente_pct_up": 91, "rente_pct_scn": 92, "koopsom_down": 93, "koopsom_up": 94, "koopsom_scn": 95,
 }
 
 
@@ -182,21 +184,31 @@ D = {
     "uitstel_down": "W18", "uitstel_up": "X18",
     "opbr_down": "W19", "opbr_up": "X19",
     "kosten_down": "W20", "kosten_up": "X20",
-    "rente_down": "W21", "rente_up": "X21",
+    "rente_pct_down": "W21", "rente_pct_up": "X21",          # eigen jaarrente per scenario (leeg = algemene jaarrente)
+    "koopsom_down": "W22", "koopsom_up": "X22",              # koopsom (VON-prijs) in % via het verkooptempo-model
+    "rente_down": "W23", "rente_up": "X23",                  # info: rente totaal
     # scenariolijn (derde kolom Y; de koptekst 'Scenario' in Y16 laat data.py zien dat deze kolom bestaat)
-    "shift_scn": "Y17", "uitstel_scn": "Y18", "opbr_scn": "Y19", "kosten_scn": "Y20", "rente_scn": "Y21",
-    "scn_aan": "Y23", "scn_naam": "Y24",
-    "norm": "W27",
+    "shift_scn": "Y17", "uitstel_scn": "Y18", "opbr_scn": "Y19", "kosten_scn": "Y20", "rente_pct_scn": "Y21", "koopsom_scn": "Y22",
+    "rente_scn": "Y23", "scn_aan": "Y25", "scn_naam": "Y26",
+    "norm": "W29",
+}
+# data.py leest de knoppen op het label in kolom V (zo blijven oudere bestanden met andere rijnummers leesbaar)
+D_LABELS = {
+    "actuals_jaar": "Actuals t/m (jaar · kwartaal)", "rente": "Jaarrente", "rente_tm": "Rente t/m", "rente_basis": "Rente ook in de basis",
+    "model_aan": "Woningtypes en termijnen gebruiken",
+    "shift_down": "Verkoop en transport verschuiven (kw)", "uitstel_down": "Uitstel start bouw (kw)", "opbr_down": "Opbrengsten",
+    "kosten_down": "Kosten", "rente_pct_down": "Jaarrente per scenario", "koopsom_down": "Koopsom (VON-prijs)",
+    "scn_aan": "Scenariolijn tonen in de cashflowgrafiek", "scn_naam": "Naam van de scenariolijn", "norm": "Norm verkocht vóór start bouw",
 }
 D_ROW_SCENARIO = 15        # sectie SCENARIO'S (kop Downside/Upside/Scenario in rij 16)
-D_ROW_VERKOOP = 26
-D_ROW_POWERPOINT = 32      # knop staat op W33:X34 (vast: de VBA-macro zet hem daar)
-D_ROW_CONTROLES = 38
-D_ROW_TYPES = 49           # overzicht woningtypes
+D_ROW_VERKOOP = 28
+D_ROW_POWERPOINT = 34      # knop staat op W35:X36 (vast: de VBA-macro zet hem daar)
+D_ROW_CONTROLES = 40
+D_ROW_TYPES = 52           # overzicht woningtypes
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
-D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B81"}   # verkoop/transport: twee panelen van tien rijen
+D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83"}   # verkoop/transport: twee panelen van twaalf rijen
 D_LEGENDA_CELLEN = ["B", "C", "D", "E", "G", "H", "I", "J", "L", "M"]   # chip per typeblok 1..N_TYPES
-D_ROW_UITLEG = 93
+D_ROW_UITLEG = 96
 
 
 def d(name):

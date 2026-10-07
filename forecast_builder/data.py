@@ -32,6 +32,8 @@ PARAM_STANDAARD = {
     "kosten_down": 0.03, "kosten_up": 0.0,
     # scenariolijn (gele lijn in de cashflowgrafiek): standaard verkoop en transport twee kwartalen eerder
     "shift_scn": -2, "uitstel_scn": 0, "opbr_scn": 0.0, "kosten_scn": 0.0, "scn_aan": "ja", "scn_naam": "Scenario",
+    # eigen jaarrente per scenario (None = algemene jaarrente) en koopsom (VON-prijs) in %
+    "rente_pct_down": None, "rente_pct_up": None, "rente_pct_scn": None, "koopsom_down": 0.0, "koopsom_up": 0.0, "koopsom_scn": 0.0,
     "norm": 0.7,
     "sjabloon": None,
 }
@@ -199,17 +201,29 @@ def _lees_v2(wb):
     if namen:
         p.termijn_namen = list(dict.fromkeys(namen))[:LY.N_TERMIJNEN]
     d = wb["Dashboard"]
+    # knoppen worden op het label in kolom V gezocht (de rijnummers verschilden per versie); de kolom (W/X/Y) komt uit LY.D.
+    # Een knop die het bestand nog niet heeft (oudere versie), houdt de standaardwaarde.
+    rijen = {}
+    for r in range(1, LY.D_ROW_CONTROLES + 1):
+        t = _v(d, f"V{r}")
+        if isinstance(t, str) and t.strip() and t.strip() not in rijen:
+            rijen[t.strip()] = r
     scn_kolom = _v(d, f"Y{LY.D_ROW_SCENARIO + 1}") == "Scenario"       # oudere v2-bestanden hebben de kolom Scenario nog niet
-    scn_keys = ("shift_scn", "uitstel_scn", "opbr_scn", "kosten_scn", "scn_aan", "scn_naam")
-    norm_cel = LY.D["norm"] if scn_kolom else "W24"                     # de norm stond vóór de kolom Scenario in W24
+    paren = {"shift_up": "shift_down", "uitstel_up": "uitstel_down", "opbr_up": "opbr_down", "kosten_up": "kosten_down",
+             "rente_pct_up": "rente_pct_down", "koopsom_up": "koopsom_down", "shift_scn": "shift_down", "uitstel_scn": "uitstel_down",
+             "opbr_scn": "opbr_down", "kosten_scn": "kosten_down", "rente_pct_scn": "rente_pct_down", "koopsom_scn": "koopsom_down",
+             "actuals_kw": "actuals_jaar"}
     for naam, cel in LY.D.items():
         if naam in ("start_project", "dekking", "rente_down", "rente_up", "rente_scn"):
             continue
-        if naam in scn_keys and not scn_kolom:
+        if naam.endswith("_scn") and not scn_kolom or naam in ("scn_aan", "scn_naam") and not scn_kolom:
             continue
-        if naam == "norm":
-            cel = norm_cel
-        p.params[naam] = _v(d, cel)
+        label = LY.D_LABELS.get(paren.get(naam, naam))
+        rij = rijen.get(label)
+        if rij is None:
+            continue
+        kol = "".join(ch for ch in cel if ch.isalpha())
+        p.params[naam] = _v(d, f"{kol}{rij}")
     if "PowerPoint" in wb.sheetnames:
         p.params["sjabloon"] = _v(wb["PowerPoint"], LY.PP_CEL_SJABLOON)
     return p

@@ -351,9 +351,12 @@ def bouw_model(wb):
         koopsom = m_range_abs("tcum", 6)
         grond = m_range_abs("tup", 6)
         verv = f"{m_col('verv', 1)}{r}:{m_col('verv', N_TYPES)}{r}"
-        for naam, blok in (("model_basis", "tcum"), ("model_up", "tup"), ("model_down", "tdown"), ("model_scn", "tscn")):
+        # koopsomknop per scenario: hogere/lagere VON-prijs (dus grondtermijn en bouwtermijnen) op de modelopbrengst
+        for naam, blok, ks in (("model_basis", "tcum", None), ("model_up", "tup", "koopsom_up"), ("model_down", "tdown", "koopsom_down"),
+                               ("model_scn", "tscn", "koopsom_scn")):
             rng = f"{m_col(blok, 1)}{r}:{m_col(blok, N_TYPES)}{r}"
-            f[M[naam]] = f'=IF({leeg},"",SUMPRODUCT({rng}*{koopsom}*({grond}+{verv})))'
+            factor = f"*(1+{h(ks)})" if ks else ""
+            f[M[naam]] = f'=IF({leeg},"",SUMPRODUCT({rng}*{koopsom}*({grond}+{verv})){factor})'
         cum_rng = f"${CUM}${ROW1}:${CUM}${ROWN}"
         for naam, model, shift in (("cum_opbr_up", "model_up", up_shift), ("cum_opbr_down", "model_down", down_shift),
                                    ("cum_opbr_scn", "model_scn", scn_shift)):
@@ -368,16 +371,16 @@ def bouw_model(wb):
         f[M["kosten_scn"]] = f'=IF({leeg},"",IF({FASE}{r}="Prognose",{KOS}{r}*(1+N({dabs("kosten_scn")})),{KOS}{r}))'
 
         # rente: over de negatieve stand van het vorige kwartaal, alleen in prognosekwartalen, t/m de rente-eindindex
-        def rente(stand_col, eind):
-            return (f'=IF({leeg},"",IF(AND({FASE}{r}="Prognose",{h("rente")}>0,{IDX}{r}<{eind}),'
-                    f'MAX(0,-N({stand_col}{p}))*{h("rente")}/4,0))')
-        f[M["rente_basis"]] = rente(M["stand_basis_rente"], h("rente_eind_basis"))
+        def rente(stand_col, eind, pct):
+            return (f'=IF({leeg},"",IF(AND({FASE}{r}="Prognose",{pct}>0,{IDX}{r}<{eind}),'
+                    f'MAX(0,-N({stand_col}{p}))*{pct}/4,0))')
+        f[M["rente_basis"]] = rente(M["stand_basis_rente"], h("rente_eind_basis"), h("rente"))
         f[M["stand_basis_rente"]] = f'=IF({leeg},"",N({M["stand_basis_rente"]}{p})+{OPB}{r}-{KOS}{r}-{M["rente_basis"]}{r})'
-        f[M["rente_up"]] = rente(M["stand_up_raw"], h("rente_eind_up"))
+        f[M["rente_up"]] = rente(M["stand_up_raw"], h("rente_eind_up"), h("rente_pct_up"))
         f[M["stand_up_raw"]] = f'=IF({leeg},"",N({M["stand_up_raw"]}{p})+{M["opbr_up"]}{r}-{M["kosten_up"]}{r}-{M["rente_up"]}{r})'
-        f[M["rente_down"]] = rente(M["stand_down_raw"], h("rente_eind_down"))
+        f[M["rente_down"]] = rente(M["stand_down_raw"], h("rente_eind_down"), h("rente_pct_down"))
         f[M["stand_down_raw"]] = f'=IF({leeg},"",N({M["stand_down_raw"]}{p})+{M["opbr_down"]}{r}-{M["kosten_down"]}{r}-{M["rente_down"]}{r})'
-        f[M["rente_scn"]] = rente(M["stand_scn_raw"], h("rente_eind_scn"))
+        f[M["rente_scn"]] = rente(M["stand_scn_raw"], h("rente_eind_scn"), h("rente_pct_scn"))
         f[M["stand_scn_raw"]] = f'=IF({leeg},"",N({M["stand_scn_raw"]}{p})+{M["opbr_scn"]}{r}-{M["kosten_scn"]}{r}-{M["rente_scn"]}{r})'
         # getoond: met rente in de basis (ja) of alleen het verschil in rente in de scenario's (nee)
         rb = h("rente_in_basis")
@@ -538,12 +541,19 @@ def bouw_model(wb):
         "lbl_alles_transport": ("Label laatste transport", f'="Laatste transport "&{h("alles_transport")}'),
         "nog_verkopen": ("Nog te verkopen (prognose)", f'=MAX(0,{h("woningen")}-{h("verkocht_actuals")})'),
         "nog_transport": ("Nog te transporteren (prognose)", f'=MAX(0,{h("woningen")}-{h("transport_actuals")})'),
+        # eigen jaarrente per scenario (lege knop = de algemene jaarrente) en koopsomknop (VON-prijs) per scenario
+        "rente_pct_down": ("Jaarrente downside", f'=IF({dabs("rente_pct_down")}="",{h("rente")},N({dabs("rente_pct_down")}))'),
+        "rente_pct_up": ("Jaarrente upside", f'=IF({dabs("rente_pct_up")}="",{h("rente")},N({dabs("rente_pct_up")}))'),
+        "rente_pct_scn": ("Jaarrente scenariolijn", f'=IF({dabs("rente_pct_scn")}="",{h("rente")},N({dabs("rente_pct_scn")}))'),
+        "koopsom_down": ("Koopsom downside (%)", f'=N({dabs("koopsom_down")})'),
+        "koopsom_up": ("Koopsom upside (%)", f'=N({dabs("koopsom_up")})'),
+        "koopsom_scn": ("Koopsom scenariolijn (%)", f'=N({dabs("koopsom_scn")})'),
     }
     for naam, (label, formule) in hulp.items():
         r = H[naam]
         put(ws, f"{LY.M_HULP_LABEL}{r}", label, f=F_NOTE8)
         put(ws, f"{LY.M_HULP}{r}", formule, f=F_CALC, al=AL_LEFT_TOP)
-    for naam in ("verk_voor_start_pct", "rente"):
+    for naam in ("verk_voor_start_pct", "rente", "rente_pct_down", "rente_pct_up", "rente_pct_scn", "koopsom_down", "koopsom_up", "koopsom_scn"):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = FMT_PCT
     for naam in ("stand_nu", "opbr_totaal", "kosten_totaal", "cum_opbr_actuals", "dal_basis", "eind_basis", "dal_up", "eind_up",
                  "dal_down", "eind_down", "dal_vorig", "eind_vorig", "vorig_nu", "model_opbr", "rente_basis_tot", "rente_up_tot",
@@ -659,16 +669,16 @@ def bouw_dashboard(wb, data):
         put(ws, ref, v, f=font(10, True, kleur), nf=nf, al=AL_CENTER)
 
     sectie(4, "ALGEMEEN")
-    label(5, "Actuals t/m (jaar · kwartaal)", "t/m dit kwartaal veranderen de scenario's niets")
+    label(5, LY.D_LABELS["actuals_jaar"], "t/m dit kwartaal veranderen de scenario's niets")
     geel("W5", P["actuals_jaar"], "0")
     geel("X5", P["actuals_kw"], "0")
-    label(6, "Jaarrente", "over de negatieve stand van het vorige kwartaal, alleen in prognosekwartalen · 0% = geen rente")
+    label(6, LY.D_LABELS["rente"], "over de negatieve stand van het vorige kwartaal, alleen in prognosekwartalen · 0% = geen rente")
     geel("W6", P["rente"], FMT_PCT)
     ws["W6"].comment = _comment("Rente per jaar over de negatieve stand (voorfinanciering) van het vorige kwartaal, gedeeld door 4. "
                                 "Alleen in prognosekwartalen. 0% = geen rente.")
-    label(7, "Rente t/m", "start bouw = t/m het kwartaal vóór start bouw van het project (+ uitstel) · hele looptijd = alle prognosekwartalen")
+    label(7, LY.D_LABELS["rente_tm"], "start bouw = t/m het kwartaal vóór start bouw van het project (+ uitstel) · hele looptijd = alle prognosekwartalen")
     geel("W7", P["rente_tm"])
-    label(8, "Rente ook in de basis", "nee = je eigen cashflow bevat al rente; scenario's tellen alleen de extra rente · ja = basis en scenario's krijgen rente")
+    label(8, LY.D_LABELS["rente_basis"], "nee = je eigen cashflow bevat al rente; scenario's tellen alleen de extra rente · ja = basis en scenario's krijgen rente")
     geel("W8", P["rente_basis"])
     ws["W8"].comment = _comment("nee: de basis blijft je eigen cashflow; downside en upside krijgen alleen het verschil in rente ten opzichte "
                                 "van de basis (door verschuiven, uitstel of andere kosten). ja: ook de basis krijgt rente over de negatieve stand; "
@@ -677,7 +687,7 @@ def bouw_dashboard(wb, data):
     info("W9", f"={hm('start_tekst')}")
 
     sectie(11, "VERKOOPTEMPO-MODEL")
-    label(12, "Woningtypes en termijnen gebruiken", "ja = grondtermijn schuift mee met transport · nee = alle prognose-opbrengsten schuiven")
+    label(12, LY.D_LABELS["model_aan"], "ja = grondtermijn schuift mee met transport · nee = alle prognose-opbrengsten schuiven")
     geel("W12", P["model_aan"])
     ws["W12"].comment = _comment("ja: het model gebruikt je woningtypes, grondtermijn en bouwtermijnen om alleen het verschil door een ander "
                                  "verkooptempo uit te rekenen. nee: de verschuiving verplaatst al je prognose-opbrengsten.")
@@ -691,47 +701,60 @@ def bouw_dashboard(wb, data):
     put(ws, f"Y{r + 1}", "Scenario", f=font(9, True, AMBER_TXT), al=AL_CENTER)   # data.py herkent deze kop
     put(ws, f"Z{r + 1}", "Scenario = de gele lijn in de cashflowgrafiek, met eigen knoppen; downside en upside vormen de band in de scenariografiek",
         f=F_NOTE8, al=AL_VCENTER)
-    label(17, "Verkoop en transport verschuiven (kw)", "+ = later, − = eerder")
+    label(17, LY.D_LABELS["shift_down"], "+ = later, − = eerder")
     geel("W17", P["shift_down"], FMT_KW)
     geel("X17", P["shift_up"], FMT_KW)
     geel("Y17", P["shift_scn"], FMT_KW)
     ws["W17"].comment = _comment("Aantal kwartalen dat verkoop en notarieel transport later (+) of eerder (−) vallen dan in de basis. "
                                  "Geldt alleen voor prognosekwartalen.")
-    label(18, "Uitstel start bouw (kw)", "verlengt alleen de renteperiode (bij rente t/m start bouw); kosten en termijnen schuiven niet")
+    label(18, LY.D_LABELS["uitstel_down"], "verlengt alleen de renteperiode (bij rente t/m start bouw); kosten en termijnen schuiven niet")
     geel("W18", P["uitstel_down"], FMT_KW)
     geel("X18", P["uitstel_up"], FMT_KW)
     geel("Y18", P["uitstel_scn"], FMT_KW)
     ws["W18"].comment = _comment("Start bouw zoveel kwartalen later dan gepland. Net als in het oude template verlengt dit alleen de periode "
                                  "waarover rente loopt: de kosten in je eigen cashflow en de bouwtermijnen blijven staan.")
-    label(19, "Opbrengsten", "op alle prognose-opbrengsten (indexatie VON-prijs)")
+    label(19, LY.D_LABELS["opbr_down"], "op alle prognose-opbrengsten (indexatie), ook buiten het verkooptempo-model")
     geel("W19", P["opbr_down"], FMT_PCT_SIGN)
     geel("X19", P["opbr_up"], FMT_PCT_SIGN)
     geel("Y19", P["opbr_scn"], FMT_PCT_SIGN)
-    label(20, "Kosten", "op alle prognosekosten (kostenindexatie)")
+    label(20, LY.D_LABELS["kosten_down"], "op alle prognosekosten (kostenindexatie)")
     geel("W20", P["kosten_down"], FMT_PCT_SIGN)
     geel("X20", P["kosten_up"], FMT_PCT_SIGN)
     geel("Y20", P["kosten_scn"], FMT_PCT_SIGN)
-    label(21, "Rente in de scenario's (totaal)")
-    info("W21", f'={hm("rente_down_tot")}/1000000', FMT_MLN, RED)
-    info("X21", f'={hm("rente_up_tot")}/1000000', FMT_MLN, GREEN)
-    info("Y21", f'={hm("rente_scn_tot")}/1000000', FMT_MLN, AMBER_TXT)
-    put(ws, "Z21", f'=IF({hm("rente")}=0,"zet een jaarrente om rente mee te rekenen",'
+    label(21, LY.D_LABELS["rente_pct_down"], "leeg = de algemene jaarrente hierboven · zelfde regels: negatieve stand × rente / 4, alleen prognose")
+    geel("W21", P["rente_pct_down"], FMT_PCT)
+    geel("X21", P["rente_pct_up"], FMT_PCT)
+    geel("Y21", P["rente_pct_scn"], FMT_PCT)
+    ws["W21"].comment = _comment("Eigen jaarrente voor dit scenario. Leeg = de algemene jaarrente (knop Jaarrente bovenaan). "
+                                 "De renteperiode (t/m start bouw + uitstel, of hele looptijd) blijft gelijk.")
+    label(22, LY.D_LABELS["koopsom_down"], "hogere of lagere VON-prijs, dus grondtermijn én bouwtermijnen · werkt via het verkooptempo-model (knop 'ja')")
+    geel("W22", P["koopsom_down"], FMT_PCT_SIGN)
+    geel("X22", P["koopsom_up"], FMT_PCT_SIGN)
+    geel("Y22", P["koopsom_scn"], FMT_PCT_SIGN)
+    ws["W22"].comment = _comment("Koopsom (VON-prijs) van alle woningen zoveel procent hoger (+) of lager (−) dan op tab Woningtypes. "
+                                 "Grondtermijn en bouwtermijnen schalen mee, op de momenten van het verkooptempo-model. Alleen met "
+                                 "'Woningtypes en termijnen gebruiken = ja'; de knop Opbrengsten hieronder werkt op alle prognose-opbrengsten.")
+    label(23, "Rente in de scenario's (totaal)")
+    info("W23", f'={hm("rente_down_tot")}/1000000', FMT_MLN, RED)
+    info("X23", f'={hm("rente_up_tot")}/1000000', FMT_MLN, GREEN)
+    info("Y23", f'={hm("rente_scn_tot")}/1000000', FMT_MLN, AMBER_TXT)
+    put(ws, "Z23", f'=IF(AND({hm("rente")}=0,{hm("rente_pct_down")}=0,{hm("rente_pct_up")}=0,{hm("rente_pct_scn")}=0),"zet een jaarrente om rente mee te rekenen",'
                    f'"rente over de basis zou €"&FIXED({hm("rente_basis_tot")}/1000000,2)&" mln zijn"&'
                    f'IF({rb}=1," (zit in de basis)"," (niet in de basis: scenario\'s tellen alleen het verschil)"))', f=F_NOTE8, al=AL_VCENTER)
-    label(22, "Eindsaldo")
-    info("W22", f'={hm("eind_down")}/1000000', FMT_MLN, RED)
-    info("X22", f'={hm("eind_up")}/1000000', FMT_MLN, GREEN)
-    info("Y22", f'={hm("eind_scn")}/1000000', FMT_MLN, AMBER_TXT)
-    put(ws, "Z22", f'="basis "&{eur_m(hm("eind_basis"))}&" · scenario: dieptepunt "&{eur_m(hm("dal_scn"))}&" in "&{hm("dal_scn_kw")}'
+    label(24, "Eindsaldo")
+    info("W24", f'={hm("eind_down")}/1000000', FMT_MLN, RED)
+    info("X24", f'={hm("eind_up")}/1000000', FMT_MLN, GREEN)
+    info("Y24", f'={hm("eind_scn")}/1000000', FMT_MLN, AMBER_TXT)
+    put(ws, "Z24", f'="basis "&{eur_m(hm("eind_basis"))}&" · scenario: dieptepunt "&{eur_m(hm("dal_scn"))}&" in "&{hm("dal_scn_kw")}'
                    f'&", break-even "&IF({hm("be_scn")}="","niet bereikt",{hm("be_scn")})', f=F_NOTE8, al=AL_VCENTER)
-    label(23, "Scenariolijn tonen in de cashflowgrafiek", "nee = de gele lijn verdwijnt uit de grafiek (de knoppen blijven staan)")
-    geel("Y23", P["scn_aan"])
-    label(24, "Naam van de scenariolijn", "staat in de legenda en bij het eindpunt, bv. 'Versnelde verkoop' · leeg = Scenario")
-    geel("Y24", P["scn_naam"])
+    label(25, LY.D_LABELS["scn_aan"], "nee = de gele lijn verdwijnt uit de grafiek (de knoppen blijven staan)")
+    geel(LY.D["scn_aan"], P["scn_aan"])
+    label(26, LY.D_LABELS["scn_naam"], "staat in de legenda en bij het eindpunt, bv. 'Versnelde verkoop' · leeg = Scenario")
+    geel(LY.D["scn_naam"], P["scn_naam"])
 
     r = LY.D_ROW_VERKOOP
     sectie(r, "VERKOOP")
-    label(r + 1, "Norm verkocht vóór start bouw")
+    label(r + 1, LY.D_LABELS["norm"])
     geel(LY.D["norm"], P["norm"], FMT_PCT0)
     label(r + 2, "Verkocht vóór start bouw")
     info(f"W{r + 2}", f'={hm("verk_voor_start_pct")}', FMT_PCT0)
@@ -787,6 +810,9 @@ def bouw_dashboard(wb, data):
                    f'=IF({hm("model_aan")}=0,"n.v.t. (model staat uit)",IF(AND({",".join(tot)}),"OK","LET OP: bij minstens één type is de som geen 100%"))'))
     checks.append(("Elke bouwtermijn heeft een bouwkwartaal",
                    f'=IF({hm("model_aan")}=0,"n.v.t. (model staat uit)",IF(AND({",".join(kwc)}),"OK","LET OP: percentage zonder bouwkwartaal"))'))
+    checks.append(("Koopsomknop werkt alleen met het verkooptempo-model",
+                   f'=IF(AND({hm("model_aan")}=0,OR({hm("koopsom_down")}<>0,{hm("koopsom_up")}<>0,{hm("koopsom_scn")}<>0)),'
+                   f'"LET OP: zet \'Woningtypes en termijnen gebruiken\' op ja, anders doet de koopsomknop niets","OK")'))
     for i, (t, formule) in enumerate(checks):
         label(r + 1 + i, t)
         put(ws, f"W{r + 1 + i}", formule, f=font(9, True, GREEN), al=AL_LEFT)
@@ -811,7 +837,8 @@ def bouw_dashboard(wb, data):
         (DataValidation(type="whole", operator="between", formula1="1", formula2="4", allow_blank=True, error="Kwartaal 1 t/m 4."), ["X5"]),
         (DataValidation(type="whole", operator="between", formula1="-20", formula2="20", allow_blank=True, error="Heel aantal kwartalen tussen -20 en 20."), ["W17:Y17"]),
         (DataValidation(type="whole", operator="between", formula1="0", formula2="40", allow_blank=True, error="Heel aantal kwartalen tussen 0 en 40."), ["W18:Y18"]),
-        (DataValidation(type="decimal", operator="between", formula1="0", formula2="0.5", allow_blank=True, error="Jaarrente tussen 0% en 50%."), ["W6"]),
+        (DataValidation(type="decimal", operator="between", formula1="0", formula2="0.5", allow_blank=True, error="Jaarrente tussen 0% en 50%."), ["W6", "W21:Y21"]),
+        (DataValidation(type="decimal", operator="between", formula1="-0.5", formula2="0.5", allow_blank=True, error="Koopsom tussen −50% en +50%."), ["W22:Y22"]),
     ):
         dv.showErrorMessage = True
         dv.errorTitle = "Ongeldige invoer"
@@ -836,6 +863,8 @@ def bouw_dashboard(wb, data):
         ("Rente", "rente = negatieve stand van het vorige kwartaal × jaarrente / 4, t/m het kwartaal vóór start bouw van het project (of de hele looptijd). "
                   "'Rente ook in de basis' = nee: de scenario's tellen alleen de extra rente ten opzichte van de basis"),
         ("Uitstel start bouw", "verlengt alleen de renteperiode van dat scenario; kosten en bouwtermijnen blijven staan (zoals in het oude template)"),
+        ("Jaarrente per scenario", "elk scenario kan een eigen jaarrente krijgen; leeg = de algemene jaarrente"),
+        ("Koopsom", "per scenario de VON-prijs hoger of lager: grondtermijn en bouwtermijnen schalen mee via het verkooptempo-model (alleen met 'ja')"),
         ("Woningtypes", f"maximaal {N_TYPES} types; elk type heeft op tab Woningtypes een eigen blok van drie kolommen met koopsom, start bouw en eigen termijnen, "
                         "en op tab Invoer twee kolommen (verkocht | transport)"),
         ("Type toevoegen/verwijderen", "kolommen invoegen of verwijderen op tab Woningtypes (drie) en tab Invoer (twee), of de knoppen op tab Woningtypes (.xlsm); "
@@ -1034,6 +1063,9 @@ def bouw_powerpoint(wb, data):
         ("Uitstel start bouw", knop(dabs("uitstel_down"), True), "–", knop(dabs("uitstel_up"), True), knop(dabs("uitstel_scn"), True)),
         ("Opbrengsten", knop(dabs("opbr_down")), "–", knop(dabs("opbr_up")), knop(dabs("opbr_scn"))),
         ("Kosten", knop(dabs("kosten_down")), "–", knop(dabs("kosten_up")), knop(dabs("kosten_scn"))),
+        ("Koopsom (VON)", knop(dabs("koopsom_down")), "–", knop(dabs("koopsom_up")), knop(dabs("koopsom_scn"))),
+        ("Jaarrente", f'=FIXED({hm("rente_pct_down")}*100,1)&"%"', f'=FIXED({hm("rente")}*100,1)&"%"', f'=FIXED({hm("rente_pct_up")}*100,1)&"%"',
+         f'=FIXED({hm("rente_pct_scn")}*100,1)&"%"'),
         ("Rente", f'={eur_m(hm("rente_down_tot"), 2)}', f'=IF({rb}=1,{eur_m(hm("rente_basis_tot"), 2)},"–")', f'={eur_m(hm("rente_up_tot"), 2)}',
          f'={eur_m(hm("rente_scn_tot"), 2)}'),
         ("Eindsaldo", f"={eur_m(hm('eind_down'))}", f"={eur_m(eind)}", f"={eur_m(hm('eind_up'))}", f"={eur_m(hm('eind_scn'))}"),
