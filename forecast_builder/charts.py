@@ -40,7 +40,7 @@ def _type_namen():
     return [(f"Model!${LY.m_col('gv', k)}$7", f"[0]!g_v{k}", f"[0]!g_t{k}") for k in range(1, LY.N_TYPES + 1)]
 
 
-BT_H_CM = 9.0   # bouwtermijnengrafiek: 17 Dashboard-rijen
+BT_H_CM = 7.4   # bouwtermijnengrafiek: 14 Dashboard-rijen (één rij per bouwtermijn, dus meestal 5 tot 15 rijen)
 
 
 def grafieken(jaar_min=2020):
