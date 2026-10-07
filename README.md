@@ -2,7 +2,7 @@
 
 Bouwt het werkboek **Cashflow_scenario** (Dashboard · Invoer · Woningtypes · Model · PowerPoint) met Python/openpyxl.
 Het werkboek rekent scenario's (downside/upside) uit bovenop je eigen projectcashflow en vult met één knop
-het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v9.pptx`).
+het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v11.pptx`).
 
 ## Wat zit erin
 
@@ -18,6 +18,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v9.pptx`).
 | `forecast_builder/vbabuild.py` | schrijft de VBA-module in het .xlsm (vbaProject.bin: MS-CFB + MS-OVBA), zodat importeren niet nodig is |
 | `forecast_builder/cache.py` | rekent door met LibreOffice en zet cachewaarden in cellen en grafieken |
 | `tools/pptx_rente_card.py` | zet de vijfde KPI-kaart (rente) op dia 2 van het PowerPoint-sjabloon (v9 → v10) |
+| `tools/pptx_scenario_line.py` | zet de scenariolijn als zevende reeks (kolom H, amber) in de cashflowgrafiek op dia 3 (v10 → v11) |
 
 ## Bouwen
 
@@ -31,7 +32,7 @@ python build.py --geen-vba                           # alleen .xlsx
 Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`
 geschreven (`forecast_builder/vbabuild.py`, op basis van `vba/vbaProject_template.bin` met de documentmodules en
 projectinstellingen). Importeren in de VBA-editor is dus niet nodig. Bij het openen zet `KnoppenControleren`
-de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v10.pptx` naast het werkboek
+de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v11.pptx` naast het werkboek
 (of vul het pad in op tab PowerPoint).
 
 `--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken), dus een
@@ -65,7 +66,8 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   transport cum, transport cum up/down/scenariolijn, termijnen, en per type verkocht en getransporteerd per kwartaal voor
   de grafiek, benoemde bereiken `g_v<k>`/`g_t<k>`).
 * **PowerPoint** – teksten, tabellen en grafiekblokken voor de dia's; kolom F = vormnaam op de dia. Het cashflowblok heeft
-  acht kolommen (de achtste is de scenariolijn; de grafiek op dia 3 gebruikt alleen de reeksen die hij al heeft).
+  acht kolommen; de achtste (N) is de scenariolijn, die in sjabloon v11 als reeks op kolom H van het gegevensblad van de
+  grafiek op dia 3 staat. Staat de lijn uit, dan luidt de kop '… (uit)' en haalt de macro die reeks uit de grafiek.
 
 ### Type toevoegen of verwijderen
 
@@ -94,6 +96,9 @@ verschuiving, uitstel start bouw, opbrengsten %, kosten %. Hij staat los van de 
 het punt 'nu' en is met *Scenariolijn tonen = nee* uit te zetten; de naam staat in de legenda en bij het eindpunt. Het
 Model rekent hem in de kolommen `model_scn` … `stand_scn` en het typeblok `tscn`; eindsaldo, dieptepunt, break-even en
 rente staan in de hulpcellen en op tab PowerPoint (blok *extra knoppen en scenariolijn*).
+
+In het PowerPoint-sjabloon (v11, gemaakt met `tools/pptx_scenario_line.py`) staat de lijn ook in de cashflowgrafiek op
+dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam uit het werkboek.
 
 ## Controle
 

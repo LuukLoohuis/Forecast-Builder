@@ -26,7 +26,7 @@ Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
 Private Const CEL_SJABLOON As String = "D52"
 Private Const CEL_NAAM As String = "D53"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v10.pptx"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v11.pptx"
 Private Const MAX_RIJEN As Long = 60
 Private Const TITEL As String = "Naar PowerPoint"
 
@@ -46,7 +46,8 @@ Private Const INVOER_RIJN As Long = 500        ' zelfde grens als de formules (l
 
 Private Function Grafieken() As Variant
     ' vormnaam op de dia, kopcel van het blok op tabblad PowerPoint, aantal kolommen
-    ' het blok cashflow heeft acht kolommen (de achtste is de scenariolijn); de grafiek op dia 3 gebruikt de reeksen die hij heeft
+    ' het blok cashflow heeft acht kolommen; de achtste (kolom N) is de scenariolijn, die in sjabloon v11 als reeks op kolom H
+    ' van het gegevensblad staat (staat de lijn uit, dan eindigt de kop op '(uit)' en haalt VulGrafiek de reeks weg)
     Grafieken = Array(Array("CF_GRAFIEK", "G7", 8), Array("SC_GRAFIEK", "P7", 10), Array("VT_GRAFIEK", "AA7", 5), Array("VO_GRAFIEK", "AG7", 5))
 End Function
 
@@ -608,6 +609,7 @@ Private Sub VulGrafiek(pres As Object, vorm As String, kop As Range, n As Long, 
         kol = KolomVanReeks(CStr(ch.SeriesCollection(i).Formula))
         If Len(kol) > 0 Then ZetBereik ch.SeriesCollection(i), wsE, kol, n
     Next i
+    VerwijderUitgezetteReeksen ch, wsE
     wbE.Close
     Set wbE = Nothing
     Exit Sub
@@ -615,6 +617,27 @@ Mislukt:
     fouten = fouten & vorm & ": " & Err.Description & vbCrLf
     On Error Resume Next
     If Not wbE Is Nothing Then wbE.Close
+    On Error GoTo 0
+End Sub
+
+Private Sub VerwijderUitgezetteReeksen(ch As Object, wsE As Object)
+    ' Een reeks waarvan de kop in het gegevensblad eindigt op '(uit)' (de scenariolijn bij 'Scenariolijn tonen = nee',
+    ' tab PowerPoint kolom N) wordt uit de grafiek verwijderd, zodat hij niet als lege lijn in de legenda staat.
+    ' Gekozen voor verwijderen in plaats van Legend.LegendEntries(k).Delete: LegendEntries telt alleen zichtbare entries
+    ' (in sjabloon v11 zijn de entries van reeks 0 en 1, de vlakken voorfinanciering/positief saldo, verborgen, dus de
+    ' scenariolijn zou entry 5 zijn) en die telling verschuift zodra iemand het sjabloon aanpast. Verwijderen hangt niet
+    ' van een index af en is veilig: het sjabloon wordt per run opnieuw geopend, alleen de nieuwe presentatie verandert.
+    ' Van achteren naar voren, omdat de nummering van SeriesCollection verschuift na een Delete.
+    Dim i As Long, kol As String, kopTekst As String
+    On Error Resume Next
+    For i = ch.SeriesCollection.Count To 1 Step -1
+        kol = KolomVanReeks(CStr(ch.SeriesCollection(i).Formula))
+        If Len(kol) > 0 Then
+            kopTekst = ""
+            kopTekst = Trim$(CStr(wsE.Range(kol & "1").Value))
+            If Right$(kopTekst, 5) = "(uit)" Then ch.SeriesCollection(i).Delete
+        End If
+    Next i
     On Error GoTo 0
 End Sub
 
