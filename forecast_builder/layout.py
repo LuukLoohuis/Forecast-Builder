@@ -137,26 +137,40 @@ M_BLOK1 = 79          # kolom CA
 BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx"]
 
 
-# ---- bouwtermijnentabel in het Model: één rij per (type, termijn), compact (gebruikte combinaties bovenaan) ----
-# rijen BT_ROW1..BT_ROWN, kolommen vanaf BT_COL1 (na een spacer achter het laatste typeblok). Tijd in jaren: jaar + (kw-1)/4.
-BT_N = N_TYPES * N_TERMIJNEN            # 100
+# ---- bouwtermijnentabel in het Model: tijdlijn met per bouwtermijn een baan (lane) per woningtype ----
+# Raster (rijen BT_ROW1..): alle (type k, termijn i)-combinaties met hun kwartaalindex (huidig en vorige prognose), de rang van de
+# termijnnaam (volgorde van eerste voorkomen; dezelfde naam bij meerdere typen = één groep) en de positie in de compacte lijst.
+# Compacte lijst (zelfde rijen, kolommen vanaf 'nr'): rij 1 = koprij jaartallen, rij 2 = koprij kwartaalnummers, daarna per termijn
+# de banen van de typen die hem hebben (in typevolgorde) en een lege scheidingsrij tussen de termijnen. Tijd = kwartaalindex
+# (jaar × 4 + kwartaal), dus één eenheid per kwartaal; de as loopt van 1 januari van het eerste jaar tot het einde van het laatste.
+BT_KOP = 2                              # koprijen (jaar, kwartaal)
+BT_LANES = N_TYPES * N_TERMIJNEN        # 100 banen maximaal
+BT_N = BT_KOP + BT_LANES + 30           # 132 rijen: koprijen, banen en tot 30 scheidingsrijen
 BT_ROW1 = ROW1
-BT_ROWN = BT_ROW1 + BT_N - 1            # 107
+BT_ROWN = BT_ROW1 + BT_N - 1            # 139
 BT_COL1 = M_BLOK1 + len(BLOKKEN) * N_TYPES + 1
+BT_NJ = 16                              # jaarreeksen (koprij 1): blokjes van vier kwartaalen met het jaartal als label
+BT_NK = 4 * BT_NJ                       # kwartaalreeksen (koprij 2): blokjes van één kwartaal met '1'..'4' als label
+BT_PREV = [f"prev{k}" for k in range(1, N_TYPES + 1)]     # vorige prognose per type (lichte tint)
+BT_CUR = [f"cur{k}" for k in range(1, N_TYPES + 1)]       # huidige planning per type (typekleur)
+BT_JR = [f"jr{y}" for y in range(1, BT_NJ + 1)]
+BT_KW = [f"kw{q}" for q in range(1, BT_NK + 1)]
+# reeksen in stapelvolgorde: stapel 1 (eerste as) en stapel 2 (tweede as, bovenop)
+BT_STAPEL1 = ["s0", "s1", "s2"] + BT_PREV + ["s4", "s5"] + BT_JR
+BT_STAPEL2 = ["s6"] + BT_CUR + ["s8"] + BT_KW
+BT_REEKSEN = BT_STAPEL1 + BT_STAPEL2    # kolommen van het PowerPoint-blok (na 'label') en de benoemde bereiken g_bt_*
 BT = {}
 for _i, _name in enumerate([
-    "j", "k", "i", "gebruikt",                       # raster: alle (type k, termijn i)-combinaties, gebruikt = 1/0
-    "knaam", "tnaam", "idxb", "idxr", "uniek",        # raster: typenaam, termijnnaam, kwartaalindex huidig/vorig; uniek = eerste
-                                                      # gebruikte rij met die termijnnaam (dezelfde termijn bij meerdere typen = één rij)
-    "nr", "label", "n_typen",                         # compact: de r-de unieke termijn (nr = j), label 'termijn' of 'termijn · typen'
-    "idx_blue", "idx_blue_max", "idx_red", "idx_red_max",   # vroegste/laatste kwartaalindex over de typen met deze termijn (huidig, vorig)
-    "t_blue", "t_blue_end", "t_red", "t_red_end",     # tijd (jaren): begin en einde van het blauwe en het rode blokje
-    "seg0", "seg1", "seg2", "seg3", "seg4", "seg5",   # stapel 1 (eerste as): onzichtbaar, grijs, onzichtbaar, rood, grijs, onzichtbaar
-    "seg6", "seg7", "seg8",                           # stapel 2 (tweede as): onzichtbaar, blauw, onzichtbaar (rest, zodat beide assen gelijk schalen)
-]):
+    "j", "k", "i", "gebruikt",                        # raster: alle (type k, termijn i)-combinaties, gebruikt = 1/0
+    "knaam", "tnaam", "idxb", "idxr",                 # raster: typenaam, termijnnaam, kwartaalindex huidig/vorig
+    "uniek", "rang", "pos", "eerste",                 # raster: eerste gebruikte rij per naam; rang van de naam; positie in de lijst;
+                                                      # eerste = 1 bij de eerste baan van de groep (die krijgt het label)
+    "nr", "bron", "soort", "label",                   # compact: nr = j van de r-de unieke termijn; bron = rasterrij van de baan;
+                                                      # soort 1 jaar / 2 kwartaal / 3 baan / 4 scheiding / 0 leeg
+    "kb", "ib", "ir",                                 # compact: type, kwartaalindex huidig en vorig van de baan
+] + BT_REEKSEN):
     BT[_name] = L(BT_COL1 + _i)
-BT_SEGMENTEN = ["seg0", "seg1", "seg2", "seg3", "seg4", "seg5", "seg6", "seg7", "seg8"]
-BT_SEG_NAMEN = ["", "Gerealiseerd", "", "Vorige prognose", "Gerealiseerd", "", "", "Huidige planning", ""]   # reeksnamen (legenda)
+BT_SEG_NAMEN = {"s0": "·", "s1": "Gerealiseerd", "s2": "·", "s4": "Gerealiseerd", "s5": "·", "s6": "·", "s8": "·"}   # vaste reeksnamen
 
 
 def m_col(blok, k):
@@ -198,9 +212,9 @@ H = {
     "nog_verkopen": 88, "nog_transport": 89,
     # eigen jaarrente en koopsomknop per scenario
     "rente_pct_down": 90, "rente_pct_up": 91, "rente_pct_scn": 92, "koopsom_down": 93, "koopsom_up": 94, "koopsom_scn": 95,
-    # bouwtermijnengrafiek (de VBA leest bt_n, jaar_first en jaar_last voor het aantal rijen en de tijd-as)
+    # bouwtermijnengrafiek (de VBA leest bt_n voor het aantal rijen en t_first/t_end voor de tijd-as): tijd = kwartaalindex
     "bt_n": 96, "t_first": 97, "t_nu_end": 98, "t_end": 99, "jaar_first": 100, "jaar_last": 101, "lbl_realisatie": 102,
-    "bt_types": 103,
+    "bt_types": 103, "bt_jaren": 104, "bt_lanes": 105, "bt_uniek": 106,
 }
 
 
@@ -245,10 +259,11 @@ D_ROW_POWERPOINT = 34      # knop staat op W35:X36 (vast: de VBA-macro zet hem d
 D_ROW_CONTROLES = 40
 D_ROW_TYPES = 53           # overzicht woningtypes (na twaalf controles)
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
-D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; grafiek op B96 (17 rijen)
-D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83", "bouwtermijnen": "B96"}
+D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; chips (typekleuren) in rij 96, grafiek op B97 (19 rijen)
+D_ROW_LEGENDA_BT = 96
+D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83", "bouwtermijnen": "B97"}
 D_LEGENDA_CELLEN = ["B", "C", "D", "E", "G", "H", "I", "J", "L", "M"]   # chip per typeblok 1..N_TYPES
-D_ROW_UITLEG = 114
+D_ROW_UITLEG = 118
 
 
 def d(name):
@@ -266,10 +281,11 @@ def dabs(name):
 # ---- PowerPoint ----------------------------------------------------------------
 PP_KPI_ROW1 = 8
 # grafiekblokken (kop in rij 7; de VBA leest dezelfde kopcellen): cf dia 3 (8 kolommen), sc dia 4 (10), bt dia 5 bouwtermijnen
-# (10 kolommen: label + 9 segmenten, BT_N rijen), vp dia 6 verkoop/transport per type (26 kolommen: kwartaal, 10x verkocht, 10x transport, totalen,
-# mijlpalen, realisatie; twee grafieken lezen hetzelfde blok), vo dia 7 (5)
-PP_BLOK = {"cf": "G", "sc": "P", "bt": "AA", "vp": "AK", "vo": "BL"}
-PP_TABEL_SC = "BR7"            # 9 rijen x 4 kolommen
+# (PP_BT_KOL kolommen: label + alle reeksen van BT_REEKSEN, BT_N rijen), vp dia 6 verkoop/transport per type (26 kolommen: kwartaal,
+# 10x verkocht, 10x transport, totalen, mijlpalen, realisatie; twee grafieken lezen hetzelfde blok), vo dia 7 (5)
+PP_BT_KOL = 1 + len(BT_REEKSEN)        # 109
+PP_BLOK = {"cf": "G", "sc": "P", "bt": "AA", "vp": L(27 + PP_BT_KOL + 1), "vo": L(27 + PP_BT_KOL + 1 + 27)}   # vp EG, vo FH
+PP_TABEL_SC = f"{L(27 + PP_BT_KOL + 1 + 27 + 6)}7"            # FN7: 9 rijen x 4 kolommen
 PP_TABEL_VT_ROW = 18           # kop in BR18, daaronder N_TYPES rijen
 PP_CEL_SJABLOON = "D56"        # (de VBA leest dezelfde cellen: CEL_SJABLOON / CEL_NAAM)
 PP_CEL_NAAM = "D57"

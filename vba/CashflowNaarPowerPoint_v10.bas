@@ -5,9 +5,11 @@ Option Explicit
 '  Cashflow_scenario -> PowerPoint                       (late binding, Windows en Mac)
 '  versie 10: typeblokken (maximaal MAX_TYPES woningtypes), knoppen Type invoegen / Type verwijderen
 '  v11: scenariolijn als reeks in de cashflowgrafiek (dia 3); reeks weg als de kop op '(uit)' eindigt
-'  v12: dia 5 bouwtermijnen-tijdlijn (BT_GRAFIEK, blok AA7, tot MAX_RIJEN_BT rijen, aantal uit Model!BY96,
-'       tijd-as vast op Model!BY100..BY101), dia 6 verkoop en transport per kwartaal (VP1_/VP2_GRAFIEK, blok AK7),
-'       dia 7 van verkoop naar omzet (VO_GRAFIEK, blok BL7); tabellen vanaf kolom BR; sjabloon v12
+'  v12: dia 5 bouwtermijnen-tijdlijn (BT_GRAFIEK), dia 6 verkoop en transport per kwartaal (VP1_/VP2_GRAFIEK),
+'       dia 7 van verkoop naar omzet (VO_GRAFIEK)
+'  v13: bouwtermijnen per woningtype: per termijn een baan per type (blok AA7, 108 kolommen, tot MAX_RIJEN_BT rijen,
+'       aantal uit Model!BY96; tijd-as in kwartaalindex vast op Model!BY97..BY99; reeksen met kop '(uit)' gaan weg),
+'       VP-blok vanaf EF7, VO-blok vanaf FG7, tabellen vanaf kolom FM; sjabloon v13
 '
 '  NaarPowerPoint        opent het sjabloon als kopie, vult teksten, tabellen en grafieken
 '                        vanaf tabblad "PowerPoint" en bewaart een nieuwe presentatie
@@ -28,13 +30,14 @@ Private Const SH_TYPES As String = "Woningtypes"
 Private Const SH_INVOER As String = "Invoer"
 Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
-Private Const CEL_JAAR_FIRST As String = "BY100"   ' eerste jaar op de tijd-as van BT_GRAFIEK (tabblad Model, jaar_first)
-Private Const CEL_JAAR_LAST As String = "BY101"    ' bovengrens tijd-as = laatste jaar + 1 (tabblad Model, jaar_last)
+Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFIEK: kwartaalindex 1 jan eerste jaar (Model, t_first)
+Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
 Private Const CEL_SJABLOON As String = "D56"
 Private Const CEL_NAAM As String = "D57"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v12.pptx"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v13.pptx"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
-Private Const MAX_RIJEN_BT As Long = 100           ' rijen (woningtype x bouwtermijn) in het bouwtermijnenblok
+Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
+Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijnenblok (label + 107 reeksen; layout.PP_BT_KOL)
 Private Const TITEL As String = "Naar PowerPoint"
 
 ' typeblokken (zelfde getallen als forecast_builder/layout.py)
@@ -60,18 +63,21 @@ Private Function Grafieken() As Variant
     ' cel op tabblad Model met het aantal rijen (leeg = aantal periodes uit CEL_N)
     ' CF (dia 3): acht kolommen; de achtste (kolom N) is de scenariolijn, in het sjabloon als reeks op kolom H van het
     '   gegevensblad (staat de lijn uit, dan eindigt de kop op '(uit)' en haalt VulGrafiek de reeks weg)
-    ' BT (dia 5): bouwtermijnen-tijdlijn, een rij per woningtype x termijn (categorie in kolom A, negen segmenten B..J
-    '   in jaren), aantal rijen in Model!BY96; na het vullen zet ZetTijdAs beide waarde-assen op jaar_first/jaar_last
+    ' BT (dia 5): bouwtermijnen-tijdlijn: koprij jaartallen, koprij kwartaalnummers, dan per termijn een baan per type
+    '   (categorie in kolom A, daarna de reeksen: stapel 1 = onzichtbaar, grijs, onzichtbaar, vorige prognose per type (10),
+    '   grijs, onzichtbaar, jaarblokjes (16); stapel 2 = onzichtbaar, huidige planning per type (10), onzichtbaar,
+    '   kwartaalblokjes (64)); tijd in kwartaalindex; aantal rijen in Model!BY96; reeksen met kop '(uit)' (typen zonder
+    '   termijnen, jaren buiten het bereik) gaan weg; na het vullen zet ZetTijdAs beide waarde-assen op BY97..BY99
     ' VP1/VP2 (dia 6): verkocht en getransporteerd per kwartaal, beide panelen lezen hetzelfde blok van 26 kolommen
     Grafieken = Array(Array("CF_GRAFIEK", "G7", 8, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
-                      Array("BT_GRAFIEK", "AA7", 10, "BY96"), _
-                      Array("VP1_GRAFIEK", "AK7", 26, ""), Array("VP2_GRAFIEK", "AK7", 26, ""), _
-                      Array("VO_GRAFIEK", "BL7", 5, ""))
+                      Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
+                      Array("VP1_GRAFIEK", "EF7", 26, ""), Array("VP2_GRAFIEK", "EF7", 26, ""), _
+                      Array("VO_GRAFIEK", "FG7", 5, ""))
 End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    Tabellen = Array(Array("SC_TABEL", "BR7", 9, 4, 0), Array("VT_TABEL", "BR18", MAX_TYPES + 1, 8, 1))
+    Tabellen = Array(Array("SC_TABEL", "FM7", 9, 4, 0), Array("VT_TABEL", "FM18", MAX_TYPES + 1, 8, 1))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -650,8 +656,9 @@ Private Sub VulGrafiek(pres As Object, vorm As String, kop As Range, n As Long, 
         kol = KolomVanReeks(CStr(ch.SeriesCollection(i).Formula))
         If Len(kol) > 0 Then ZetBereik ch.SeriesCollection(i), wsE, kol, n
     Next i
-    ' alleen de cashflowgrafiek heeft een reeks die uit kan ('(uit)' in de kop); elders nooit reeksen weghalen
-    If vorm = "CF_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
+    ' reeksen met '(uit)' in de kop gaan weg: de scenariolijn in de cashflowgrafiek, en in de bouwtermijnengrafiek de
+    ' typen zonder termijnen en de jaren buiten het bereik (anders staan ze als lege vermelding in de legenda)
+    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
     If vorm = "BT_GRAFIEK" Then ZetTijdAs ch
     wbE.Close
     Set wbE = Nothing
@@ -665,7 +672,8 @@ End Sub
 
 Private Sub VerwijderUitgezetteReeksen(ch As Object, wsE As Object)
     ' Een reeks waarvan de kop in het gegevensblad eindigt op '(uit)' (de scenariolijn bij 'Scenariolijn tonen = nee',
-    ' tab PowerPoint kolom N) wordt uit de grafiek verwijderd, zodat hij niet als lege lijn in de legenda staat.
+    ' tab PowerPoint kolom N; in de bouwtermijnengrafiek typen zonder termijnen en jaren buiten het bereik) wordt uit de
+    ' grafiek verwijderd, zodat hij niet als lege vermelding in de legenda staat.
     ' Gekozen voor verwijderen in plaats van Legend.LegendEntries(k).Delete: LegendEntries telt alleen zichtbare entries
     ' (in sjabloon v11 zijn de entries van reeks 0 en 1, de vlakken voorfinanciering/positief saldo, verborgen, dus de
     ' scenariolijn zou entry 5 zijn) en die telling verschuift zodra iemand het sjabloon aanpast. Verwijderen hangt niet
@@ -685,16 +693,16 @@ Private Sub VerwijderUitgezetteReeksen(ch As Object, wsE As Object)
 End Sub
 
 Private Sub ZetTijdAs(ch As Object)
-    ' BT_GRAFIEK: beide waarde-assen (tijd in jaren) vast op eerste jaar .. laatste jaar + 1 (Model!BY100 en BY101),
-    ' zodat de blokjes van vorige prognose (rood) en huidige planning (blauw) op dezelfde schaal staan.
+    ' BT_GRAFIEK: beide waarde-assen (tijd in kwartaalindex) vast op Model!BY97 (1 januari eerste jaar) .. BY99 (einde laatste
+    ' jaar), zodat de blokjes van vorige prognose en huidige planning op dezelfde schaal staan als de koprijen.
     ' Late binding: Axes(2 = xlValue, 1 = xlPrimary / 2 = xlSecondary). Eerst het maximum, dan het minimum en nog eens
     ' het maximum: zo lukt het ook als het nieuwe bereik helemaal boven of onder de voorbeeldwaarden van het sjabloon
     ' ligt (PowerPoint weigert een minimum boven het huidige maximum en andersom). Ontbreekt de tweede as, dan blijft
     ' de rest staan: alles onder On Error.
     Dim jaar1 As Variant, jaar2 As Variant, asNr As Long, ax As Object
     On Error Resume Next
-    jaar1 = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_JAAR_FIRST).Value
-    jaar2 = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_JAAR_LAST).Value
+    jaar1 = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_AS_MIN).Value
+    jaar2 = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_AS_MAX).Value
     If IsError(jaar1) Or IsError(jaar2) Then Exit Sub
     If Not IsNumeric(jaar1) Or Not IsNumeric(jaar2) Then Exit Sub
     If CDbl(jaar2) <= CDbl(jaar1) Then Exit Sub

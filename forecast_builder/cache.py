@@ -133,7 +133,7 @@ def _patch_chart(xml, model, n):
     lengte = {}
     bt_n = model.get(f"{LY.M_HULP}{LY.H['bt_n']}")
     bt_n = int(bt_n) if isinstance(bt_n, (int, float)) else 0
-    for key in ["label"] + LY.BT_SEGMENTEN:
+    for key in ["label"] + LY.BT_REEKSEN:
         kolom[f"g_bt_{key}"] = LY.BT[key]
         lengte[f"g_bt_{key}"] = max(1, bt_n)
 

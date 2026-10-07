@@ -30,8 +30,9 @@ def _xml(jaar_min):
     lbl_vt = _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport")
     verkoop = cx.verkoop_paneel(r, lbl_vt, _type_namen(), "verkocht")
     transport = cx.verkoop_paneel(r, lbl_vt, _type_namen(), "transport")
-    r_bt = {naam: f"[0]!g_bt_{naam}" for naam in ["label"] + LY.BT_SEGMENTEN}
-    bouwtermijnen = cx.bouwtermijnen(r_bt, jaar_min)
+    r_bt = {naam: f"[0]!g_bt_{naam}" for naam in ["label"] + LY.BT_REEKSEN}
+    r_bt.update({f"naam_{naam}": f"Model!${LY.BT[naam]}$7" for naam in LY.BT_PREV + LY.BT_CUR + LY.BT_JR})
+    bouwtermijnen = cx.bouwtermijnen(r_bt, jaar_min * 4 + 1)
     return cashflow, band, verkoop, transport, bouwtermijnen
 
 
@@ -40,12 +41,12 @@ def _type_namen():
     return [(f"Model!${LY.m_col('gv', k)}$7", f"[0]!g_v{k}", f"[0]!g_t{k}") for k in range(1, LY.N_TYPES + 1)]
 
 
-BT_H_CM = 7.4   # bouwtermijnengrafiek: 14 Dashboard-rijen (één rij per bouwtermijn, dus meestal 5 tot 15 rijen)
+BT_H_CM = 10.05   # bouwtermijnengrafiek: 19 Dashboard-rijen (koprijen + per termijn een baan per type)
 
 
 def grafieken(jaar_min=2020):
     """[(naam, anker, breedte cm, hoogte cm, xml)] in de volgorde chart1.xml … chart5.xml.
-    jaar_min = eerste jaar van de periodes: vaste ondergrens van de tijd-as in de bouwtermijnengrafiek."""
+    jaar_min = eerste jaar van de periodes: vaste ondergrens van de tijd-as in de bouwtermijnengrafiek (kwartaalindex jaar × 4 + 1)."""
     cashflow, band, verkoop, transport, bouwtermijnen = _xml(jaar_min)
     A = LY.D_CHART_ANCHORS
     return [("scenario", A["scenario"], 30.3, 13.0, band), ("cashflow", A["cashflow"], 30.3, 11.5, cashflow),

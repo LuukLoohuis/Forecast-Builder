@@ -355,10 +355,9 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
 
 
 # ---------------------------------------------------------------------------------------------
-#  Bouwtermijnen per woningtype: tijdlijn (horizontale gestapelde balken), één rij per type × termijn
+#  Bouwtermijnen per woningtype: tijdlijn (horizontale gestapelde balken), per termijn een baan per type
 # ---------------------------------------------------------------------------------------------
-VORIGE = "F3A6A0"      # vorige prognose (zacht rood)
-BT_GAP = 15            # bijna aaneengesloten rijen, zoals een tabel met gekleurde cellen
+BT_GAP = 0             # aaneengesloten rijen, zoals een tabel met gekleurde cellen
 
 
 def ser_bar_onzichtbaar(idx, naam, cat, val):
@@ -394,49 +393,89 @@ def cat_ax_rijen(ax_id, cross_id, deleted=False):
             f'<c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="1"/></c:catAx>')
 
 
-def val_ax_tijd(ax_id, cross_id, vmin, vmax=None, zichtbaar=True, grid=True):
-    """Horizontale tijd-as in jaren (waarde = jaar + (kw-1)/4): vaste min, stap 1 jaar met lichte rasterlijn, kwartaalraster
-    nog lichter; max automatisch (alle stapels lopen tot het einde van de laatste periode) of vast."""
+def val_ax_kwartaal(ax_id, cross_id, vmin, vmax=None, grid=True):
+    """Horizontale tijd-as in kwartaalindex (jaar × 4 + kwartaal): één eenheid per kwartaal, vaste ondergrens (1 januari van het
+    eerste jaar), rasterlijn per jaar (donker, stap 4) en per kwartaal (licht, stap 1); geen aslabels: de jaartallen en de
+    kwartaalnummers staan als koprijen in de grafiek zelf. Max vast of automatisch (alle stapels lopen tot t_end)."""
     g = ""
     if grid:
         g = (f'<c:majorGridlines><c:spPr><a:ln w="{int(0.75 * PT)}">{_solid(AXIS)}</a:ln></c:spPr></c:majorGridlines>'
              f'<c:minorGridlines><c:spPr><a:ln w="{int(0.5 * PT)}">{_solid(GRID)}</a:ln></c:spPr></c:minorGridlines>')
-    lbl = "nextTo" if zichtbaar else "none"
     mx = f'<c:max val="{vmax}"/>' if vmax is not None else ""
     return (f'<c:valAx><c:axId val="{ax_id}"/><c:scaling><c:orientation val="minMax"/>{mx}<c:min val="{vmin}"/></c:scaling>'
-            f'<c:delete val="0"/><c:axPos val="b"/>{g}<c:numFmt formatCode="0" sourceLinked="0"/>'
-            f'<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="{lbl}"/>'
+            f'<c:delete val="0"/><c:axPos val="b"/>{g}<c:numFmt formatCode="General" sourceLinked="0"/>'
+            f'<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="none"/>'
             f'<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>{_txpr(800, False, TXT_LIGHT)}'
             f'<c:crossAx val="{cross_id}"/><c:crosses val="autoZero"/><c:crossBetween val="between"/>'
-            f'<c:majorUnit val="1"/><c:minorUnit val="0.25"/></c:valAx>')
+            f'<c:majorUnit val="4"/><c:minorUnit val="1"/></c:valAx>')
 
 
-def bouwtermijnen(r, jaar_min, jaar_max=None):
-    """Tijdlijn van de bouwtermijnen: per rij (één bouwtermijn, gedeeld door de typen die hem hebben) een blauw blokje van het
-    vroegste tot het laatste kwartaal waarin de termijn in de huidige planning vervalt (één kwartaal als alle typen gelijk
-    lopen), een rood blokje voor de vorige prognose (zelfde plek als blauw zonder vorige prognose: dan onzichtbaar) en een
-    grijze waas over de gerealiseerde kwartalen. Twee gestapelde balkgroepen: stapel 1 (eerste as) onzichtbaar tot de
-    eerste periode, grijs, onzichtbaar, rood, grijs, onzichtbaar tot het einde; stapel 2 (tweede as, bovenop) onzichtbaar,
-    blauw, onzichtbaar tot het einde. Alle stapels zijn even lang, zodat beide assen gelijk schalen. De jaartallen staan
-    bovenaan als koprij (zoals in een planningstabel): de categorie-as loopt van boven naar beneden (maxMin) en de tijd-as
-    kruist bij de eerste rij.
+def ser_kop(idx, naam, cat, val, sz, bold, kleur, vul=None):
+    """Koprij-reeks: blokje (vulling of onzichtbaar) met de reeksnaam als label in het midden (jaartal of kwartaalnummer)."""
+    f = _solid(vul) if vul else "<a:noFill/>"
+    dl = (f'<c:dLbls><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{_txpr(sz, bold, kleur)}<c:dLblPos val="ctr"/>'
+          f'<c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/><c:showSerName val="1"/>'
+          f'<c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
+    return (f'<c:ser><c:idx val="{idx}"/><c:order val="{idx}"/>{_tx(naam)}<c:spPr>{f}<a:ln><a:noFill/></a:ln></c:spPr>'
+            f'<c:invertIfNegative val="0"/>{dl}{_cat(cat)}{_val(val)}</c:ser>')
 
-    r: dict met bereikverwijzingen 'label' (categorie) en 'seg0' … 'seg8' (waarden in jaren). jaar_min: eerste jaar
-    (vaste as-ondergrens; balken beginnen op 0); jaar_max: vaste bovengrens of None (automatisch).
-    Reeksnummering: XML-positie p = stapelvolgorde (c:order), c:idx = 8 − p. Excel koppelt legendEntry-idx aan c:idx,
-    LibreOffice legt de legenda van gestapelde balken in omgekeerde XML-volgorde aan; met idx = 8 − p verbergen beide
-    dezelfde reeksen. Zichtbaar in de legenda: huidige planning (idx 1), vorige prognose (idx 5), gerealiseerd (idx 7)."""
+
+KOPRIJ_VUL = "F4F6F8"   # lichte band achter de jaartallen
+PREV_ALPHA = 38         # lichte tint van de typekleur voor de vorige prognose
+
+
+def bouwtermijnen(r, t_first, t_end=None, legenda=False):
+    """Tijdlijn van de bouwtermijnen per woningtype (horizontale gestapelde balken). Rijen: koprij jaartallen, koprij
+    kwartaalnummers 1-4, daarna per bouwtermijn een baan per type dat hem heeft (blokje van één kwartaal in de typekleur =
+    huidige planning; lichte tint = vorige prognose; grijze waas = gerealiseerde kwartalen) en een lege rij tussen de termijnen.
+    Twee gestapelde balkgroepen op twee assen met dezelfde schaal (tweede groep bovenop): stapel 1 = s0 (onzichtbaar tot de
+    as-ondergrens), s1 grijs, s2 onzichtbaar, prev1..N (per type), s4 grijs, s5 onzichtbaar tot het einde, jr1..16 (jaarblokjes,
+    alleen in koprij 1); stapel 2 = s6 onzichtbaar, cur1..N, s8, kw1..64 (kwartaalblokjes, alleen in koprij 2).
+    Tijd = kwartaalindex; as van t_first (1 januari eerste jaar) tot t_end (vast) of automatisch.
+
+    r: dict reeksnaam -> bereikverwijzing ('label', en alle namen uit layout.BT_REEKSEN) en 'naam_<reeks>' -> celverwijzing
+    met de reeksnaam (prev/cur/jr; kw-reeksen heten vast '1'..'4'). legenda: toon de typen (cur-reeksen) en 'Gerealiseerd'
+    (PowerPoint; op het Dashboard staan chip-cellen).
+    Reeksnummering: XML-positie p = stapelvolgorde (c:order), c:idx = N − 1 − p. Excel koppelt legendEntry-idx aan c:idx,
+    LibreOffice legt de legenda van gestapelde balken in omgekeerde XML-volgorde aan; met idx = N − 1 − p verbergen beide
+    dezelfde reeksen."""
+    from . import layout as LY
     cat = r["label"]
-    stapel1 = [met_order(ser_bar_onzichtbaar(8, "·", cat, r["seg0"]), 0),
-               met_order(ser_bar(7, "Gerealiseerd", cat, r["seg1"], REALISATIE, alpha=60), 1),
-               met_order(ser_bar_onzichtbaar(6, "·", cat, r["seg2"]), 2),
-               met_order(ser_bar(5, "Vorige prognose", cat, r["seg3"], VORIGE), 3),
-               met_order(ser_bar(4, "Gerealiseerd", cat, r["seg4"], REALISATIE, alpha=60), 4),
-               met_order(ser_bar_onzichtbaar(3, "·", cat, r["seg5"]), 5)]
-    stapel2 = [met_order(ser_bar_onzichtbaar(2, "·", cat, r["seg6"]), 6),
-               met_order(ser_bar(1, "Huidige planning", cat, r["seg7"], BLUE), 7),
-               met_order(ser_bar_onzichtbaar(0, "·", cat, r["seg8"]), 8)]
-    assen = [cat_ax_rijen(AX1, AX2), val_ax_tijd(AX2, AX1, jaar_min, jaar_max),
-             cat_ax_rijen(AX3, AX4, deleted=True), val_ax_tijd(AX4, AX3, jaar_min, jaar_max, zichtbaar=False, grid=False)]
-    groepen = [grp_hbar(stapel1), grp_hbar(stapel2, ax=(AX3, AX4))]
-    return chart_space(groepen, assen, legend([0, 2, 3, 4, 6, 8]), na_als_leeg=True)
+    n_t = LY.N_TYPES
+    N = len(LY.BT_REEKSEN)
+    p = 0
+    sers1, sers2 = [], []
+    zichtbaar = []   # legenda-idx die zichtbaar blijven
+
+    def voeg(lst, ser):
+        nonlocal p
+        lst.append(met_order(ser, p))
+        p += 1
+
+    voeg(sers1, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["s0"]))
+    voeg(sers1, ser_bar(N - 1 - p, "Gerealiseerd", cat, r["s1"], REALISATIE, alpha=60))
+    voeg(sers1, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["s2"]))
+    for k in range(1, n_t + 1):
+        voeg(sers1, ser_bar(N - 1 - p, "=" + r[f"naam_prev{k}"], cat, r[f"prev{k}"], TYPEKLEUREN[(k - 1) % len(TYPEKLEUREN)], alpha=PREV_ALPHA))
+    zichtbaar.append(N - 1 - p)
+    voeg(sers1, ser_bar(N - 1 - p, "Gerealiseerd", cat, r["s4"], REALISATIE, alpha=60))
+    voeg(sers1, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["s5"]))
+    for y in range(1, LY.BT_NJ + 1):
+        voeg(sers1, ser_kop(N - 1 - p, "=" + r[f"naam_jr{y}"], cat, r[f"jr{y}"], 800, True, TXT, vul=KOPRIJ_VUL))
+    voeg(sers2, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["s6"]))
+    for k in range(1, n_t + 1):
+        zichtbaar.append(N - 1 - p)
+        voeg(sers2, ser_bar(N - 1 - p, "=" + r[f"naam_cur{k}"], cat, r[f"cur{k}"], TYPEKLEUREN[(k - 1) % len(TYPEKLEUREN)]))
+    voeg(sers2, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["s8"]))
+    for q_ in range(1, LY.BT_NK + 1):
+        voeg(sers2, ser_kop(N - 1 - p, str((q_ - 1) % 4 + 1), cat, r[f"kw{q_}"], 650, False, TXT_LIGHT))
+    cat1 = (cat_ax_rijen(AX1, AX2).replace('<c:noMultiLvlLbl', '<c:tickLblSkip val="1"/><c:tickMarkSkip val="1"/><c:noMultiLvlLbl')
+            .replace('sz="750"', 'sz="700"'))
+    assen = [cat1, val_ax_kwartaal(AX2, AX1, t_first, t_end), cat_ax_rijen(AX3, AX4, deleted=True),
+             val_ax_kwartaal(AX4, AX3, t_first, t_end, grid=False)]
+    groepen = [grp_hbar(sers1, gap=0), grp_hbar(sers2, ax=(AX3, AX4), gap=0)]
+    leg = ""
+    if legenda:
+        verborgen = [i for i in range(N) if i not in zichtbaar]
+        leg = legend(verborgen).replace('<c:legendPos val="t"/>', '<c:legendPos val="b"/>').replace('sz="800"', 'sz="700"')
+    return chart_space(groepen, assen, leg, na_als_leeg=True)
