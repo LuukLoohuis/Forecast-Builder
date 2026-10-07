@@ -12,7 +12,8 @@ from .styles import *  # noqa: F401,F403
 
 MINUS = "−"       # typografisch minteken, zoals in het bestaande werkboek
 AMBER_TXT = "B87400"   # tekstkleur van de scenariolijn (donkerder dan de lijn zelf, leesbaar op wit)
-VERKOOP_TITEL = "Verkoop en transport per woningtype en per kwartaal · aantal woningen · grijs vlak = gerealiseerde kwartalen"
+VERKOOP_TITEL = ("Verkoop en transport per woningtype en per kwartaal · aantal woningen · cijfer boven de stapel = totaal per kwartaal · "
+                 "grijs vlak = gerealiseerde kwartalen")
 APOS = "’"
 AUTEUR = "Claude"
 
@@ -243,7 +244,7 @@ def bouw_model(wb):
         "verv": "rij 6: index start bouw (jaar × 4 + kwartaal; 99999 = geen)",
         "tscn": "transport cumulatief in de scenariolijn (verschuiving uit de derde knoppenkolom)",
         "gv": "grafiek: verkocht per kwartaal per type (rij 7 = typenaam)",
-        "gt": "grafiek: getransporteerd per kwartaal per type, als negatief getal (omlaag in de grafiek)",
+        "gt": "grafiek: getransporteerd per kwartaal per type",
     }
     for blok, t in bloklabels.items():
         put(ws, f"{m_col(blok, 1)}4", t, f=font(8, True, TXT2))
@@ -339,7 +340,7 @@ def bouw_model(wb):
             f[vc] = f'=IF({leeg},"",N({vc}{p})+IFERROR(N({LY.in_ref(r, k, 0)}),0))'
             f[tc] = f'=IF({leeg},"",N({tc}{p})+IFERROR(N({LY.in_ref(r, k, 1)}),0))'
             f[gv] = f'=IF(OR({leeg},{vc}$6=0),NA(),{vc}{r}-N({vc}{p}))'
-            f[gt] = f'=IF(OR({leeg},{vc}$6=0),NA(),-({tc}{r}-N({tc}{p})))'
+            f[gt] = f'=IF(OR({leeg},{vc}$6=0),NA(),{tc}{r}-N({tc}{p}))'
             for col, shift in ((tu, up_shift), (td, down_shift), (ts, scn_shift)):
                 f[col] = (f'=IF({leeg},"",IF(OR({FASE}{r}="Realisatie",${NR}{r}={h("n")}),{tc}{r},'
                           f'MAX({td}$6,N(INDEX({tc}${ROW1}:{tc}${ROWN},MAX(1,MIN({h("n")},${NR}{r}-N({shift}))))))))')
@@ -421,7 +422,7 @@ def bouw_model(wb):
         f[M["g_opbrengsten_pct"]] = f'{na}IF({h("opbr_totaal")}=0,0,{CUM}{r}/{h("opbr_totaal")}))'
         f[M["g_kosten_pct"]] = f'{na}IF({h("kosten_totaal")}=0,0,({CUM}{r}-{sb}{r})/{h("kosten_totaal")}))'
         f[M["g_punt_uitverkocht"]] = f'{na}IF(${NR}{r}={h("uitverkocht_pos")},{M["g_verkocht"]}{r},NA()))'
-        f[M["g_punt_alles_transport"]] = f'{na}IF(${NR}{r}={h("alles_transport_pos")},-{M["g_getransporteerd"]}{r},NA()))'
+        f[M["g_punt_alles_transport"]] = f'{na}IF(${NR}{r}={h("alles_transport_pos")},{M["g_getransporteerd"]}{r},NA()))'
         if r == ROW1:
             f[M["stap_ok"]] = f'=IF({leeg},1,1)'
         else:
@@ -635,7 +636,7 @@ def bouw_dashboard(wb, data):
             fl=fill(CX.TYPEKLEUREN[k - 1]), al=Alignment(horizontal="center", vertical="center", shrink_to_fit=True))
         ws.conditional_formatting.add(cel, FormulaRule(formula=[f'{cel}=""'], fill=PatternFill(fill_type="solid", bgColor="FFFFFF", fgColor="FFFFFF")))
     ws.merge_cells(f"O{r}:T{r}")
-    put(ws, f"O{r}", "▲ verkocht per kwartaal      ▼ getransporteerd (notarieel)", f=F_NOTE, al=AL_RIGHT)
+    put(ws, f"O{r}", "zelfde kleuren in beide panelen · ● = mijlpaal", f=F_NOTE, al=AL_RIGHT)
 
     # ---- parameters (kolom V/W/X/Y, toelichting in Z) --------------------------------
     put(ws, "V1", "KNOPPEN", f=F_TITLE)

@@ -53,9 +53,9 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   jaar als getal, koprij, verkocht/transport = aantal, termijnen); overzicht types.
   De grafieken (`forecast_builder/chartxml.py`): *scenario's* (basis met de band tussen downside en upside), *cashflow per
   kwartaal* (opbrengsten, kosten, cumulatieve cashflow, vorige prognose en de gele scenariolijn vanaf het punt 'nu') en
-  *verkoop en transport per woningtype* (per kwartaal verkocht omhoog en getransporteerd omlaag, vaste kleur per typeblok,
-  cel-legenda boven de grafiek, labels 'uitverkocht' en 'laatste transport'). Een grijs vlak markeert de gerealiseerde
-  kwartalen.
+  *verkoop en transport per woningtype* (twee panelen boven elkaar: verkocht en getransporteerd per kwartaal, gestapeld
+  per type in een vaste kleur per typeblok, totaal per kwartaal boven de stapel, cel-legenda boven het eerste paneel,
+  mijlpalen 'uitverkocht' en 'laatste transport'). Een grijs vlak markeert de gerealiseerde kwartalen.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
