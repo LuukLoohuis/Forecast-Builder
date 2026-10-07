@@ -194,7 +194,7 @@ D_ROW_POWERPOINT = 32      # knop staat op W33:X34 (vast: de VBA-macro zet hem d
 D_ROW_CONTROLES = 38
 D_ROW_TYPES = 49           # overzicht woningtypes
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
-D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71"}
+D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B81"}   # verkoop/transport: twee panelen van tien rijen
 D_LEGENDA_CELLEN = ["B", "C", "D", "E", "G", "H", "I", "J", "L", "M"]   # chip per typeblok 1..N_TYPES
 D_ROW_UITLEG = 93
 

@@ -256,19 +256,76 @@ def verkoop_cumulatief(r, lbl):
     return chart_space(groepen, [cat_ax(AX1, AX2), val_ax(AX2, AX1, "0")] + assen_waas(), legend([0, 4, 5]))
 
 
-def verkoop_types(r, lbl, types):
-    """Vlinder per woningtype: verkocht per kwartaal als gestapelde kolommen omhoog, getransporteerd (negatief in het
-    Model) als gestapelde kolommen omlaag in een donkerder tint van dezelfde typekleur. Geen legenda in de grafiek
-    (lege typeblokken zouden spookvermeldingen geven): de legenda staat als gekleurde cellen boven de grafiek.
-    `types` = [(naamcel, verkocht-bereik, transport-bereik)] per typeblok, vaste kleur per blok.
+# ---------------------------------------------------------------------------------------------
+#  Verkoop en transport per woningtype: twee panelen (verkocht / getransporteerd), zelfde kwartaal-as en typekleuren
+# ---------------------------------------------------------------------------------------------
+TITEL_VERKOCHT = "Verkocht per kwartaal"
+TITEL_TRANSPORT = "Getransporteerd per kwartaal (notarieel)"
+TXT_TITEL = "5B6169"       # zelfde grijs als de sectiekoppen op het Dashboard
+PANEEL_PLOT_X = 0.030      # linkermarge van het plotgebied (fractie van de breedte): ruimte voor aslabels
+PANEEL_PLOT_W = 0.962      # identiek in beide panelen, zodat de kwartalen exact onder elkaar staven
+PANEEL_TOP_CM = 0.75       # ruimte voor de titel boven het plotgebied
+PANEEL_H_CM = 5.29         # hoogte van één paneel (tien Dashboard-rijen van 15 pt)
 
-    Groepsvolgorde balken -> punten -> waas: LibreOffice tekent de categorie-as en de rasterlijnen verkeerd als een
+
+def titel(tekst, sz=900, color=TXT_TITEL):
+    """Grafiektitel linksboven in de grafiek, vaste tekst, Arial vet, zonder overlay."""
+    rpr = (f'<a:rPr lang="nl-NL" sz="{sz}" b="1"><a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
+           f'<a:latin typeface="{FONT}"/><a:cs typeface="{FONT}"/></a:rPr>')
+    return (f'<c:title><c:tx><c:rich><a:bodyPr wrap="none" anchor="t"/><a:lstStyle/><a:p><a:pPr algn="l">'
+            f'<a:defRPr sz="{sz}" b="1"><a:solidFill><a:srgbClr val="{color}"/></a:solidFill><a:latin typeface="{FONT}"/></a:defRPr></a:pPr>'
+            f'<a:r>{rpr}<a:t>{tekst}</a:t></a:r></a:p></c:rich></c:tx>'
+            f'<c:layout><c:manualLayout><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0.006"/><c:y val="0.02"/></c:manualLayout></c:layout>'
+            f'<c:overlay val="0"/></c:title>')
+
+
+def plot_layout(x, y, w, h):
+    """Handmatige lay-out van het (binnen)plotgebied als fractie van de grafiek."""
+    return (f'<c:layout><c:manualLayout><c:layoutTarget val="inner"/><c:xMode val="edge"/><c:yMode val="edge"/>'
+            f'<c:x val="{x:.4f}"/><c:y val="{y:.4f}"/><c:w val="{w:.4f}"/><c:h val="{h:.4f}"/></c:manualLayout></c:layout>')
+
+
+def ser_totaal(idx, naam, cat, val, sz=700, color=TXT):
+    """Onzichtbare lijnreeks met de waarde als klein cijfer boven elk punt (= boven de stapel); nullen verborgen."""
+    dlbls = (f'<c:dLbls><c:numFmt formatCode="0;;" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
+             f'{_txpr(sz, False, color)}<c:dLblPos val="t"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
+             f'<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
+    return (f'<c:ser><c:idx val="{idx}"/><c:order val="{idx}"/>{_tx(naam)}<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
+            f'<c:marker><c:symbol val="none"/></c:marker>{dlbls}{_cat(cat)}{_val(val)}<c:smooth val="0"/></c:ser>')
+
+
+def chart_space_paneel(groepen, assen, titel_xml, layout_xml):
+    """chart_space zonder legenda, met titel en handmatig plotgebied."""
+    xml = chart_space(groepen, assen, legenda="")
+    oud = '<c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>'
+    assert oud in xml
+    return xml.replace(oud, f'<c:chart>{titel_xml}<c:autoTitleDeleted val="0"/><c:plotArea>{layout_xml}')
+
+
+def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True, gap=45):
+    """Eén paneel van de verkoopgrafiek: gestapelde kolommen per woningtype (vaste kleur per blok), totaal per kwartaal
+    als klein cijfer boven de stapel, één mijlpaalpunt en de grijze waas over de gerealiseerde kwartalen. Geen legenda:
+    de kleur per type staat als chip-cellen boven het eerste paneel (lege typeblokken zouden spookvermeldingen geven).
+    soort = 'verkocht' (mijlpaal 'uitverkocht') of 'transport' (mijlpaal 'laatste transport'; getallen positief).
+    `types` = [(naamcel, verkocht-bereik, getransporteerd-bereik)] per typeblok.
+
+    Groepsvolgorde balken -> lijnen -> waas: LibreOffice tekent de categorie-as en de rasterlijnen verkeerd als een
     lijngroep op de primaire as na een vlakgroep op de tweede as staat."""
     kw = r["kwartaal"]
     n = len(types)
-    bars = [ser_bar(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)]) for k, (naam, v, _) in enumerate(types)]
-    bars += [ser_bar(n + k, "=" + naam, kw, t, donker(TYPEKLEUREN[k % len(TYPEKLEUREN)])) for k, (naam, _, t) in enumerate(types)]
-    punten = [ser_punt(2 * n, "=" + lbl["uitverkocht"], kw, r["punt_uitverkocht"], NAVY, "t"),
-              ser_punt(2 * n + 1, "=" + lbl["alles_transport"], kw, r["punt_alles_transport"], NAVY, "b")]
-    groepen = [grp_bar(bars, grouping="stacked", gap=55, overlap=100), grp_line(punten), grp_waas(2 * n + 2, kw, r["realisatie"])]
-    return chart_space(groepen, [cat_ax_nul(AX1, AX2), val_ax(AX2, AX1, FMT_ABS)] + assen_waas())
+    if soort == "verkocht":
+        bars = [ser_bar(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)]) for k, (naam, v, _) in enumerate(types)]
+        totaal, punt, ptxt, tt = r["verkocht"], r["punt_uitverkocht"], lbl["uitverkocht"], TITEL_VERKOCHT
+    else:
+        bars = [ser_bar(k, "=" + naam, kw, t, TYPEKLEUREN[k % len(TYPEKLEUREN)]) for k, (naam, _, t) in enumerate(types)]
+        totaal, punt, ptxt, tt = r["getransporteerd"], r["punt_alles_transport"], lbl["alles_transport"], TITEL_TRANSPORT
+    mijlpaal = ser_punt(n + 1, "=" + ptxt, kw, punt, NAVY, "t", size=6)
+    mijlpaal = mijlpaal.replace('<c:txPr><a:bodyPr/>', '<c:txPr><a:bodyPr wrap="none"/>')   # label op één regel
+    lines = [ser_totaal(n, "Totaal", kw, totaal), mijlpaal]
+    groepen = [grp_bar(bars, grouping="stacked", gap=gap, overlap=100), grp_line(lines), grp_waas(n + 2, kw, r["realisatie"])]
+    top = PANEEL_TOP_CM / hoogte_cm
+    bottom = (0.45 if cat_labels else 0.12) / hoogte_cm
+    layout = plot_layout(PANEEL_PLOT_X, top, PANEEL_PLOT_W, 1 - top - bottom)
+    catax = cat_ax(AX1, AX2) if cat_labels else cat_ax(AX1, AX2).replace('<c:tickLblPos val="low"/>', '<c:tickLblPos val="none"/>')
+    assen = [catax, val_ax(AX2, AX1, "0", vmin=0)] + assen_waas()
+    return chart_space_paneel(groepen, assen, titel(tt), layout)

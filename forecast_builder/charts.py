@@ -27,8 +27,10 @@ def _xml():
     cashflow = cx.cashflow(r, _lbl(scenario_naam="lbl_scenario", nu="lbl_nu_cf", dal="lbl_dal", eind_basis="lbl_eind_basis_cf",
                                    eind_scenario="lbl_eind_scn"))
     band = cx.band(r, _lbl(nu="lbl_nu", dal="lbl_dal", eind_up="lbl_eind_up", eind_down="lbl_eind_down"))
-    verkoop = cx.verkoop_types(r, _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport"), _type_namen())
-    return cashflow, band, verkoop
+    lbl_vt = _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport")
+    verkoop = cx.verkoop_paneel(r, lbl_vt, _type_namen(), "verkocht")
+    transport = cx.verkoop_paneel(r, lbl_vt, _type_namen(), "transport")
+    return cashflow, band, verkoop, transport
 
 
 def _type_namen():
@@ -37,11 +39,11 @@ def _type_namen():
 
 
 def grafieken():
-    """[(naam, anker, breedte cm, hoogte cm, xml)] in de volgorde chart1.xml, chart2.xml, chart3.xml."""
-    cashflow, band, verkoop = _xml()
+    """[(naam, anker, breedte cm, hoogte cm, xml)] in de volgorde chart1.xml … chart4.xml."""
+    cashflow, band, verkoop, transport = _xml()
     A = LY.D_CHART_ANCHORS
     return [("scenario", A["scenario"], 30.3, 13.0, band), ("cashflow", A["cashflow"], 30.3, 11.5, cashflow),
-            ("verkoop", A["verkoop"], 30.3, 10.0, verkoop)]
+            ("verkoop", A["verkoop"], 30.3, cx.PANEEL_H_CM, verkoop), ("transport", A["transport"], 30.3, cx.PANEEL_H_CM, transport)]
 
 
 def plaats_grafieken(ws_dashboard, wb):
