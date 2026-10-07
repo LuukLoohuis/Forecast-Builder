@@ -2,7 +2,7 @@
 
 Bouwt het werkboek **Cashflow_scenario** (Dashboard · Invoer · Woningtypes · Model · PowerPoint) met Python/openpyxl.
 Het werkboek rekent scenario's (downside/upside) uit bovenop je eigen projectcashflow en vult met één knop
-het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v11.pptx`).
+het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v12.pptx`).
 
 ## Wat zit erin
 
@@ -19,6 +19,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v11.pptx`).
 | `forecast_builder/cache.py` | rekent door met LibreOffice en zet cachewaarden in cellen en grafieken |
 | `tools/pptx_rente_card.py` | zet de vijfde KPI-kaart (rente) op dia 2 van het PowerPoint-sjabloon (v9 → v10) |
 | `tools/pptx_scenario_line.py` | zet de scenariolijn als zevende reeks (kolom H, amber) in de cashflowgrafiek op dia 3 (v10 → v11) |
+| `tools/pptx_v12_bouwtermijnen.py` | dia 5: bouwtermijnen-tijdlijn (BT_GRAFIEK) naast de tabel; nieuwe dia 6 met de twee verkoop/transport-panelen (v11 → v12) |
 
 ## Bouwen
 
@@ -32,7 +33,7 @@ python build.py --geen-vba                           # alleen .xlsx
 Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`
 geschreven (`forecast_builder/vbabuild.py`, op basis van `vba/vbaProject_template.bin` met de documentmodules en
 projectinstellingen). Importeren in de VBA-editor is dus niet nodig. Bij het openen zet `KnoppenControleren`
-de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v11.pptx` naast het werkboek
+de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v12.pptx` naast het werkboek
 (of vul het pad in op tab PowerPoint).
 
 `--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken), dus een
@@ -119,8 +120,17 @@ het punt 'nu' en is met *Scenariolijn tonen = nee* uit te zetten; de naam staat 
 Model rekent hem in de kolommen `model_scn` … `stand_scn` en het typeblok `tscn`; eindsaldo, dieptepunt, break-even en
 rente staan in de hulpcellen en op tab PowerPoint (blok *extra knoppen en scenariolijn*).
 
-In het PowerPoint-sjabloon (v11, gemaakt met `tools/pptx_scenario_line.py`) staat de lijn ook in de cashflowgrafiek op
+In het PowerPoint-sjabloon (sinds v11, `tools/pptx_scenario_line.py`) staat de lijn ook in de cashflowgrafiek op
 dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam uit het werkboek.
+
+### Dia's en sjabloon v12
+
+Dia 1 titel · 2 kerncijfers · 3 cashflow per kwartaal (met scenariolijn) · 4 scenario's · 5 bouwtermijnen per woningtype
+(tijdlijn) met de tabel woningtypes · 6 verkoop en transport per kwartaal (twee panelen) · 7 van verkoop naar omzet.
+De macro *Naar PowerPoint* vult alle teksten, tabellen en grafieken: per grafiek schrijft hij het blok van tab PowerPoint
+in het gegevensblad van de grafiek op de dia en zet de reeksen op de juiste kolommen; voor de bouwtermijnengrafiek zet hij
+ook de tijd-as (eerste jaar t/m laatste jaar + 1, Model!BY100:BY101). Sjabloon v12 is gemaakt met
+`tools/pptx_v12_bouwtermijnen.py` (v11 → v12).
 
 ## Controle
 
