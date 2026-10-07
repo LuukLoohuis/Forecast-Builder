@@ -412,8 +412,9 @@ def val_ax_tijd(ax_id, cross_id, vmin, vmax=None, zichtbaar=True, grid=True):
 
 
 def bouwtermijnen(r, jaar_min, jaar_max=None):
-    """Tijdlijn van de bouwtermijnen: per rij (woningtype · termijn) een blauw blokje van één kwartaal in de huidige planning,
-    een rood blokje in de vorige prognose (zelfde plek als blauw als er geen vorige prognose is: dan onzichtbaar) en een
+    """Tijdlijn van de bouwtermijnen: per rij (één bouwtermijn, gedeeld door de typen die hem hebben) een blauw blokje van het
+    vroegste tot het laatste kwartaal waarin de termijn in de huidige planning vervalt (één kwartaal als alle typen gelijk
+    lopen), een rood blokje voor de vorige prognose (zelfde plek als blauw zonder vorige prognose: dan onzichtbaar) en een
     grijze waas over de gerealiseerde kwartalen. Twee gestapelde balkgroepen: stapel 1 (eerste as) onzichtbaar tot de
     eerste periode, grijs, onzichtbaar, rood, grijs, onzichtbaar tot het einde; stapel 2 (tweede as, bovenop) onzichtbaar,
     blauw, onzichtbaar tot het einde. Alle stapels zijn even lang, zodat beide assen gelijk schalen. De jaartallen staan

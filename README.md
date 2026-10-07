@@ -58,8 +58,9 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   *verkoop en transport per woningtype* (twee panelen boven elkaar: verkocht en getransporteerd per kwartaal, gestapeld
   per type in een vaste kleur per typeblok, totaal per kwartaal boven de stapel, cel-legenda boven het eerste paneel,
   het aantal in elk blokje, mijlpalen 'uitverkocht' en 'laatste transport') en *bouwtermijnen per woningtype* (tijdlijn:
-  per type en termijn een blauw blokje in het kwartaal waarin de termijn vervalt, een rood blokje op de plek volgens de
-  vorige prognose en grijs over de gerealiseerde kwartalen; de tijd-as begint bij het eerste jaar van de periodes, vast bij
+  één rij per bouwtermijn, met een blauw blokje van het vroegste tot het laatste kwartaal waarin die termijn bij de
+  woningtypes vervalt (één kwartaal als alle typen gelijk lopen; staat de termijn niet bij alle typen, dan staan de typen
+  in het label), een rood blokje op de plek volgens de vorige prognose en grijs over de gerealiseerde kwartalen; de tijd-as begint bij het eerste jaar van de periodes, vast bij
   het bouwen). Een grijs vlak markeert de gerealiseerde kwartalen.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet

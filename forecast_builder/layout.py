@@ -146,8 +146,11 @@ BT_COL1 = M_BLOK1 + len(BLOKKEN) * N_TYPES + 1
 BT = {}
 for _i, _name in enumerate([
     "j", "k", "i", "gebruikt",                       # raster: alle (type k, termijn i)-combinaties, gebruikt = 1/0
-    "nr", "label", "kk", "ii",                        # compact: de r-de gebruikte combinatie (nr = j), label 'type · termijn'
-    "idx_blue", "idx_red", "t_blue", "t_red",         # kwartaalindex en tijd (jaren) van de huidige en de vorige planning
+    "knaam", "tnaam", "idxb", "idxr", "uniek",        # raster: typenaam, termijnnaam, kwartaalindex huidig/vorig; uniek = eerste
+                                                      # gebruikte rij met die termijnnaam (dezelfde termijn bij meerdere typen = één rij)
+    "nr", "label", "n_typen",                         # compact: de r-de unieke termijn (nr = j), label 'termijn' of 'termijn · typen'
+    "idx_blue", "idx_blue_max", "idx_red", "idx_red_max",   # vroegste/laatste kwartaalindex over de typen met deze termijn (huidig, vorig)
+    "t_blue", "t_blue_end", "t_red", "t_red_end",     # tijd (jaren): begin en einde van het blauwe en het rode blokje
     "seg0", "seg1", "seg2", "seg3", "seg4", "seg5",   # stapel 1 (eerste as): onzichtbaar, grijs, onzichtbaar, rood, grijs, onzichtbaar
     "seg6", "seg7", "seg8",                           # stapel 2 (tweede as): onzichtbaar, blauw, onzichtbaar (rest, zodat beide assen gelijk schalen)
 ]):
@@ -197,6 +200,7 @@ H = {
     "rente_pct_down": 90, "rente_pct_up": 91, "rente_pct_scn": 92, "koopsom_down": 93, "koopsom_up": 94, "koopsom_scn": 95,
     # bouwtermijnengrafiek (de VBA leest bt_n, jaar_first en jaar_last voor het aantal rijen en de tijd-as)
     "bt_n": 96, "t_first": 97, "t_nu_end": 98, "t_end": 99, "jaar_first": 100, "jaar_last": 101, "lbl_realisatie": 102,
+    "bt_types": 103,
 }
 
 
