@@ -48,6 +48,8 @@ Private Const TYPE_RIJ_T1 As Long = 16
 Private Const TYPE_RIJ_TN As Long = 25
 Private Const TYPE_RIJ_X1 As Long = 33        ' extra opbrengsten per woning (blok 3 op tabblad Woningtypes)
 Private Const TYPE_RIJ_XN As Long = 38
+Private Const TYPE_RIJ_VJAAR As Long = 43     ' start bouw vorige prognose (blok 4): jaar / kwartaal
+Private Const TYPE_RIJ_VKW As Long = 44
 Private Const INVOER_COL1 As Long = 12        ' kolom L: eerste paar (verkocht, transport) op tabblad Invoer
 Private Const INVOER_BREEDTE As Long = 2
 Private Const INVOER_RIJ1 As Long = 8
@@ -209,6 +211,7 @@ Private Function BlokLeeg(wsT As Worksheet, wsI As Worksheet, pos As Long) As Bo
     If Application.WorksheetFunction.CountA(wsT.Range(wsT.Cells(TYPE_RIJ_NAAM + 1, c), wsT.Cells(TYPE_RIJ_STARTKW, c))) > 0 Then Exit Function
     If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_GROND, c + 1), wsT.Cells(TYPE_RIJ_TN, c + 2))) > 0 Then Exit Function
     If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_X1, c + 1), wsT.Cells(TYPE_RIJ_XN, c + 2))) > 0 Then Exit Function
+    If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_VJAAR, c), wsT.Cells(TYPE_RIJ_VKW, c))) > 0 Then Exit Function
     c = INVOER_COL1 + (pos - 1) * INVOER_BREEDTE
     If Application.WorksheetFunction.Count(wsI.Range(wsI.Cells(INVOER_RIJ1, c), wsI.Cells(INVOER_RIJN, c + INVOER_BREEDTE - 1))) > 0 Then Exit Function
     BlokLeeg = True
@@ -242,6 +245,7 @@ Private Sub InvoerLeegmaken(ws As Worksheet, col As Long, breedte As Long)
         ws.Cells(TYPE_RIJ_GROND, col + 1).ClearContents
         ws.Range(ws.Cells(TYPE_RIJ_T1, col + 1), ws.Cells(TYPE_RIJ_TN, col + 2)).ClearContents
         ws.Range(ws.Cells(TYPE_RIJ_X1, col + 1), ws.Cells(TYPE_RIJ_XN, col + 2)).ClearContents
+        ws.Range(ws.Cells(TYPE_RIJ_VJAAR, col), ws.Cells(TYPE_RIJ_VKW, col)).ClearContents
     Else
         ws.Range(ws.Cells(INVOER_RIJ1, col), ws.Cells(INVOER_RIJN, col + breedte - 1)).ClearContents
     End If

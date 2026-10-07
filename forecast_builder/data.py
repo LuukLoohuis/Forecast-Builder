@@ -100,8 +100,8 @@ def voorbeeld():
                                                             ("Casco gereed", 0.272, 4), ("Na gereedkomen buitenmetselwerk", 0.238, 5), ("Oplevering woning", 0.068, 7)]),
         TypeData("Vrijstaand", 8, 685000, 2027, 3, 0.38, [("Start bouw", 0.031, 1), ("Na het leggen van de fundering", 0.062, 2),
                                                            ("Casco gereed", 0.248, 3), ("Na gereedkomen buitenmetselwerk", 0.217, 4), ("Oplevering woning", 0.062, 6)]),
-        TypeData("Appartement", 24, 370000, 2027, 2, 0.22, [("Start bouw", 0.039, 1), ("Na het leggen van de fundering", 0.078, 2),
-                                                             ("Casco gereed", 0.312, 5), ("Na gereedkomen buitenmetselwerk", 0.273, 8), ("Oplevering woning", 0.078, 10)]),
+        TypeData("Appartement", 24, 370000, 2027, 1, 0.22, [("Start bouw", 0.039, 1), ("Na het leggen van de fundering", 0.078, 2),
+                                                             ("Casco gereed", 0.312, 4), ("Na gereedkomen buitenmetselwerk", 0.273, 6), ("Oplevering woning", 0.078, 7)]),
     ]
     p.types[0].vorig_start_jaar, p.types[0].vorig_start_kw = 2026, 3   # vorige prognose: twee kwartalen eerder (rode blokjes)
     n = len(p.periodes)

@@ -554,17 +554,24 @@ def bouw_model(wb):
         f["t_blue"] = f'=IF({leeg},NA(),{tijd("$" + BT["idx_blue"] + str(r))})'
         f["t_red"] = f'=IF({leeg},NA(),{tijd("$" + BT["idx_red"] + str(r))})'
         tb, tr = f"${BT['t_blue']}{r}", f"${BT['t_red']}{r}"
-        t_first, t_nu, t_end = h("t_first"), h("t_nu_end"), h("t_end")
+        t_first, t_end = h("t_first"), h("t_end")
+        # binnen het periodebereik houden: beide stapels lopen altijd exact tot t_end (anders schalen de twee assen verschillend);
+        # een blokje buiten [t_first, t_end) wordt niet getekend (breedte 0), de waas stopt uiterlijk bij t_end
+        t_nu = f"MIN({h('t_nu_end')},{t_end})"
+        trc = f"MIN(MAX({tr},{t_first}),{t_end}-0.25)"
+        tbc = f"MIN(MAX({tb},{t_first}),{t_end}-0.25)"
+        rood = f"IF(OR({tr}<{t_first},{tr}>{t_end}-0.25),0,0.25)"
+        blauw = f"IF(OR({tb}<{t_first},{tb}>{t_end}-0.25),0,0.25)"
         s0, s1, s2, s3, s4 = (f"${BT[x]}{r}" for x in ("seg0", "seg1", "seg2", "seg3", "seg4"))
         f["seg0"] = f'=IF({leeg},NA(),{t_first})'
-        f["seg1"] = f'=IF({leeg},NA(),MAX(0,MIN({tr},{t_nu})-{t_first}))'
-        f["seg2"] = f'=IF({leeg},NA(),MAX(0,{tr}-{t_nu}))'
-        f["seg3"] = f'=IF({leeg},NA(),0.25)'
-        f["seg4"] = f'=IF({leeg},NA(),MAX(0,{t_nu}-({tr}+0.25)))'
+        f["seg1"] = f'=IF({leeg},NA(),MAX(0,MIN({trc},{t_nu})-{t_first}))'
+        f["seg2"] = f'=IF({leeg},NA(),MAX(0,{trc}-{t_nu}))'
+        f["seg3"] = f'=IF({leeg},NA(),{rood})'
+        f["seg4"] = f'=IF({leeg},NA(),MAX(0,{t_nu}-({trc}+{s3})))'
         f["seg5"] = f'=IF({leeg},NA(),MAX(0,{t_end}-({s0}+{s1}+{s2}+{s3}+{s4})))'
-        f["seg6"] = f'=IF({leeg},NA(),{tb})'
-        f["seg7"] = f'=IF({leeg},NA(),0.25)'
-        f["seg8"] = f'=IF({leeg},NA(),MAX(0,{t_end}-{tb}-0.25))'
+        f["seg6"] = f'=IF({leeg},NA(),{tbc})'
+        f["seg7"] = f'=IF({leeg},NA(),{blauw})'
+        f["seg8"] = f'=IF({leeg},NA(),MAX(0,{t_end}-{tbc}-${BT["seg7"]}{r}))'
         for naam_, formule in f.items():
             nf = "0.00" if naam_.startswith(("t_", "seg")) else "0"
             put(ws, f"{BT[naam_]}{r}", formule, f=F_CALC, nf=nf, al=AL_LEFT_TOP if naam_ == "label" else AL_RIGHT)
@@ -951,6 +958,10 @@ def bouw_dashboard(wb, data):
                    f'"LET OP: bouwtermijnen tellen bij minstens één type niet op tot 100% of tot 100% − grondtermijn"))'))
     checks.append(("Elke bouwtermijn heeft een bouwkwartaal",
                    f'=IF({hm("model_aan")}=0,"n.v.t. (model staat uit)",IF(AND({",".join(kwc)}),"OK","LET OP: percentage zonder bouwkwartaal"))'))
+    bt_tb = f"Model!${LY.BT['t_blue']}${LY.BT_ROW1}:${LY.BT['t_blue']}${LY.BT_ROWN}"
+    buiten = f'(COUNTIF({bt_tb},">"&({hm("t_end")}-0.25))+COUNTIF({bt_tb},"<"&{hm("t_first")}))'
+    checks.append(("Bouwtermijnen vallen binnen de periodes",
+                   f'=IF({buiten}=0,"OK","LET OP: "&{buiten}&" bouwtermijn(en) vallen buiten de periodes op tab Invoer en staan niet in de grafiek")'))
     checks.append(("Koopsomknop: verkooptempo-model op ja",
                    f'=IF(AND({hm("model_aan")}=0,OR({hm("koopsom_down")}<>0,{hm("koopsom_up")}<>0,{hm("koopsom_scn")}<>0)),'
                    f'"LET OP: zet \'Woningtypes en termijnen gebruiken\' op ja, anders doet de koopsomknop niets","OK")'))

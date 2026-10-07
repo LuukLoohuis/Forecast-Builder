@@ -239,7 +239,7 @@ D_ROW_SCENARIO = 15        # sectie SCENARIO'S (kop Downside/Upside/Scenario in 
 D_ROW_VERKOOP = 28
 D_ROW_POWERPOINT = 34      # knop staat op W35:X36 (vast: de VBA-macro zet hem daar)
 D_ROW_CONTROLES = 40
-D_ROW_TYPES = 52           # overzicht woningtypes
+D_ROW_TYPES = 53           # overzicht woningtypes (na twaalf controles)
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
 D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; grafiek op B96 (17 rijen)
 D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83", "bouwtermijnen": "B96"}
@@ -262,7 +262,7 @@ def dabs(name):
 # ---- PowerPoint ----------------------------------------------------------------
 PP_KPI_ROW1 = 8
 # grafiekblokken (kop in rij 7; de VBA leest dezelfde kopcellen): cf dia 3 (8 kolommen), sc dia 4 (10), bt dia 5 bouwtermijnen
-# (9 kolommen, BT_N rijen), vp dia 6 verkoop/transport per type (26 kolommen: kwartaal, 10x verkocht, 10x transport, totalen,
+# (10 kolommen: label + 9 segmenten, BT_N rijen), vp dia 6 verkoop/transport per type (26 kolommen: kwartaal, 10x verkocht, 10x transport, totalen,
 # mijlpalen, realisatie; twee grafieken lezen hetzelfde blok), vo dia 7 (5)
 PP_BLOK = {"cf": "G", "sc": "P", "bt": "AA", "vp": "AK", "vo": "BL"}
 PP_TABEL_SC = "BR7"            # 9 rijen x 4 kolommen

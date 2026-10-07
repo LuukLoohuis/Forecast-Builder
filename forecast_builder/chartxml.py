@@ -381,7 +381,7 @@ def grp_hbar(sers, ax=(AX1, AX2), gap=BT_GAP):
 
 
 def cat_ax_rijen(ax_id, cross_id, deleted=False):
-    """Verticale categorie-as (rijen), eerste rij bovenaan (maxMin); de tijd-as blijft onder (crosses=max)."""
+    """Verticale categorie-as (rijen), eerste rij bovenaan (maxMin); de tijd-as (jaartallen) staat als koprij bovenaan."""
     if deleted:
         return (f'<c:catAx><c:axId val="{ax_id}"/><c:scaling><c:orientation val="maxMin"/></c:scaling><c:delete val="1"/>'
                 f'<c:axPos val="l"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
@@ -416,7 +416,9 @@ def bouwtermijnen(r, jaar_min, jaar_max=None):
     een rood blokje in de vorige prognose (zelfde plek als blauw als er geen vorige prognose is: dan onzichtbaar) en een
     grijze waas over de gerealiseerde kwartalen. Twee gestapelde balkgroepen: stapel 1 (eerste as) onzichtbaar tot de
     eerste periode, grijs, onzichtbaar, rood, grijs, onzichtbaar tot het einde; stapel 2 (tweede as, bovenop) onzichtbaar,
-    blauw, onzichtbaar tot het einde. Alle stapels zijn even lang, zodat beide assen gelijk schalen.
+    blauw, onzichtbaar tot het einde. Alle stapels zijn even lang, zodat beide assen gelijk schalen. De jaartallen staan
+    bovenaan als koprij (zoals in een planningstabel): de categorie-as loopt van boven naar beneden (maxMin) en de tijd-as
+    kruist bij de eerste rij.
 
     r: dict met bereikverwijzingen 'label' (categorie) en 'seg0' … 'seg8' (waarden in jaren). jaar_min: eerste jaar
     (vaste as-ondergrens; balken beginnen op 0); jaar_max: vaste bovengrens of None (automatisch).
