@@ -250,6 +250,7 @@ def lees_fo(pad):
                     rijen += rijen_c
                 t.fee_termijnen = rijen
             t._transport = transport
+        t._blok = k                                   # positie van het blok in het FO (ook lege blokken tellen mee in het verkooptempo)
         p.types.append(t)
     p.types = [t for t in p.types if (t.aantal or 0) > 0]
     # verkoop per kwartaal per type (blok Verkooptempo: rijen in dezelfde volgorde als de typen) en transport
@@ -275,7 +276,7 @@ def lees_fo(pad):
             matrix[i][k] = (matrix[i][k] or 0) + int(round(v))
 
     for k, t in enumerate(p.types):
-        for jj, q, v in verkocht.get(k, []):
+        for jj, q, v in verkocht.get(getattr(t, "_blok", k), []):
             i = pos_act if jj is None else periode_van.get(_idx(jj, q))
             if i is not None:
                 zet(p.verkocht, k, i, v)
@@ -283,7 +284,8 @@ def lees_fo(pad):
             i = pos_act if jj is None else periode_van.get(_idx(jj, q))
             if i is not None:
                 zet(p.transport, k, i, v)
-        if hasattr(t, "_transport"):
-            del t._transport
+        for attr in ("_transport", "_blok"):
+            if hasattr(t, attr):
+                delattr(t, attr)
     p.fo["typen"] = typen_namen
     return p
