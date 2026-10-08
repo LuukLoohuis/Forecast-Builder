@@ -23,6 +23,10 @@ STANDAARD_TERMIJNEN = [
 ]
 
 STANDAARD_EXTRA = ["Kopersmeerwerk 25%", "Kopersmeerwerk 75%", "Kadastrale kosten / rentes", "Overige opbrengsten", "Verschillen", ""]
+# DAEB (blok 5): twee fee-componenten met elk vijf termijnen (mijlpalen uit het fee-overzicht van de gebruiker)
+STANDAARD_FEE_COMP = ["AK fee", "Bijkomende kosten (excl. AK)"]
+STANDAARD_FEE_MIJLPALEN = ["na akkoord SO", "na akkoord VO", "na akkoord DO", "na omgevingsvergunning", "",
+                           "na tekenen TKO", "bij start bouw", "bij gevelsluiting", "bij oplevering", ""]
 
 PARAM_STANDAARD = {
     "actuals_jaar": 2026, "actuals_kw": 3,
@@ -51,8 +55,11 @@ class TypeData:
     grond_pct: object = None
     termijnen: list = field(default_factory=list)   # [(naam, pct, kw), ...]
     extras: list = field(default_factory=list)      # [(naam, euro per woning, kw of None = bij transport), ...]
-    vorig_start_jaar: object = None                 # start bouw volgens de vorige prognose (rode blokjes in de bouwtermijnengrafiek)
+    vorig_start_jaar: object = None                 # start bouw volgens de vorige prognose (lichtrode blokjes in de bouwtermijnengrafiek)
     vorig_start_kw: object = None
+    soort: object = None                            # None/'niet-DAEB' = koopwoningen; 'DAEB' = alleen fees (blok 5)
+    fee_comp: list = field(default_factory=list)    # [(componentnaam, totaal €)] (maximaal N_FEE_COMP)
+    fee_termijnen: list = field(default_factory=list)   # [(mijlpaal, bedrag € (> 1) of % (<= 1), kwartaal)] per rij (N_TERMIJNEN rijen, None = leeg)
 
 
 @dataclass
@@ -64,6 +71,8 @@ class ProjectData:
     params: dict = field(default_factory=lambda: dict(PARAM_STANDAARD))
     termijn_namen: list = field(default_factory=lambda: list(STANDAARD_TERMIJNEN))
     extra_namen: list = field(default_factory=lambda: list(STANDAARD_EXTRA))
+    fee_comp_namen: list = field(default_factory=lambda: list(STANDAARD_FEE_COMP))
+    fee_mijlpalen: list = field(default_factory=lambda: list(STANDAARD_FEE_MIJLPALEN))
 
     def type_(self, k):
         """TypeData van blok k (1-based); leeg type als het blok niet gevuld is."""
@@ -103,11 +112,19 @@ def voorbeeld():
         TypeData("Appartement", 24, 370000, 2027, 1, 0.22, [("Start bouw", 0.039, 1), ("Na het leggen van de fundering", 0.078, 2),
                                                              ("Casco gereed", 0.312, 4), ("Na gereedkomen buitenmetselwerk", 0.273, 6), ("Oplevering woning", 0.078, 7)]),
     ]
-    p.types[0].vorig_start_jaar, p.types[0].vorig_start_kw = 2026, 3   # vorige prognose: twee kwartalen eerder (rode blokjes)
+    p.types[0].vorig_start_jaar, p.types[0].vorig_start_kw = 2026, 3   # vorige prognose: twee kwartalen eerder (lichtrode blokjes)
+    # vijfde type: DAEB (sociale huur aan een corporatie): geen koopsom en bouwtermijnen, wel fees (blok 5)
+    daeb = TypeData("DAEB", 30, None, 2027, 3, None, [])
+    daeb.soort = "DAEB"
+    daeb.fee_comp = [("AK fee", 1192252), ("Bijkomende kosten (excl. AK)", 1636540)]
+    daeb.fee_termijnen = [("na akkoord SO", 0.30, "actuals"), ("na akkoord VO", 0.30, "actuals"), ("na akkoord DO", 0.38, "actuals"),
+                          ("na omgevingsvergunning", 0.02, "2027 Q1"), ("", None, None),
+                          ("na tekenen TKO", 0.40, "2027 Q1"), ("bij start bouw", 0.40, 1), ("bij gevelsluiting", 0.20, 5), ("bij oplevering", None, None),
+                          ("", None, None)]
+    p.types.append(daeb)
     n = len(p.periodes)
-    verkoop = {0: [(8, 10), (4, 5), (2, 4), (6, 4)]}   # type -> (per kwartaal, vanaf periode-index)
-    tempo = [(8, 10), (4, 5), (2, 4), (6, 4)]
-    cum = [0, 0, 0, 0]
+    tempo = [(8, 10), (4, 5), (2, 4), (6, 4), (30, 12)]   # type -> (per kwartaal, vanaf periode-index); DAEB: alles in één kwartaal
+    cum = [0, 0, 0, 0, 0]
     for i in range(n):
         rij_v, rij_t = [], []
         for t, (per, vanaf) in enumerate(tempo):
@@ -116,10 +133,9 @@ def voorbeeld():
             cum[t] += v
             rij_v.append(v or None)
         p.verkocht.append(rij_v)
-    cum_t = [0, 0, 0, 0]
     for i in range(n):
         rij_t = []
-        for t in range(4):
+        for t in range(len(tempo)):
             v = p.verkocht[i - 2][t] if i >= 2 else None
             rij_t.append(v)
         p.transport.append(rij_t)
@@ -190,6 +206,7 @@ def _lees_v2(wb):
     wt = wb["Woningtypes"]
     heeft_extras = isinstance(_v(wt, f"B{LY.WT_R_X_TITEL}"), str) and _v(wt, f"B{LY.WT_R_X_TITEL}").startswith("3 ·")   # blok 3 bestaat sinds v6
     heeft_vorig = isinstance(_v(wt, f"B{LY.WT_R_V_TITEL}"), str) and _v(wt, f"B{LY.WT_R_V_TITEL}").startswith("4 ·")     # blok 4 sinds v7
+    heeft_fees = isinstance(_v(wt, f"B{LY.WT_R_D_TITEL}"), str) and _v(wt, f"B{LY.WT_R_D_TITEL}").startswith("5 ·")      # blok 5 sinds v8
     for k in range(1, LY.N_TYPES + 1):
         c0, c1, c2 = (L(LY.wt_col(k, o)) for o in range(3))
         naam = _v(wt, f"{c0}{LY.WT_R_NAAM}")
@@ -211,6 +228,10 @@ def _lees_v2(wb):
                 if xn is None and eur is None and kw is None:
                     continue
                 td.extras.append((xn, eur, kw))
+        if heeft_fees:
+            td.soort = _v(wt, f"{c0}{LY.WT_R_SOORT}")
+            td.fee_comp = [(_v(wt, f"{c0}{r}"), _v(wt, f"{c1}{r}")) for r in range(LY.WT_R_FC1, LY.WT_R_FCN + 1)]
+            td.fee_termijnen = [(_v(wt, f"{c0}{r}"), _v(wt, f"{c1}{r}"), _v(wt, f"{c2}{r}")) for r in range(LY.WT_R_FT1, LY.WT_R_FTN + 1)]
         p.types.append(td)
     # lege blokken aan het eind weglaten
     while p.types and not p.types[-1].naam and p.types[-1].aantal is None:
@@ -221,6 +242,15 @@ def _lees_v2(wb):
     xnamen = [x[0] for t in p.types for x in t.extras if x[0]]
     if xnamen:
         p.extra_namen = list(dict.fromkeys(xnamen))[:LY.N_EXTRA]
+    # fee-componentnamen en mijlpalen: per rij de eerste niet-lege naam over de typen (de rijen zijn vast per component)
+    for i in range(LY.N_FEE_COMP):
+        namen_i = [t.fee_comp[i][0] for t in p.types if i < len(t.fee_comp) and t.fee_comp[i][0]]
+        if namen_i:
+            p.fee_comp_namen[i] = namen_i[0]
+    for i in range(LY.N_TERMIJNEN):
+        namen_i = [t.fee_termijnen[i][0] for t in p.types if i < len(t.fee_termijnen) and t.fee_termijnen[i][0]]
+        if namen_i:
+            p.fee_mijlpalen[i] = namen_i[0]
     d = wb["Dashboard"]
     # knoppen worden op het label in kolom V gezocht (de rijnummers verschilden per versie); de kolom (W/X/Y) komt uit LY.D.
     # Een knop die het bestand nog niet heeft (oudere versie), houdt de standaardwaarde.

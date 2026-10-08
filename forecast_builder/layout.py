@@ -50,6 +50,22 @@ WT_R_V_TITEL = 42
 WT_R_VSTARTJAAR = 43
 WT_R_VSTARTKW = 44
 WT_R_VSTARTTEKST = 45
+# blok 5: soort en fees (DAEB = sociale huur aan een corporatie met gescheiden koop-/aannemingsovereenkomst: geen koopsom en geen
+# bouwtermijnen, maar fees). Twee componenten (AK fee, bijkomende kosten) met een totaalbedrag en elk vijf termijnen; per termijn
+# een bedrag in € (> 1) óf een percentage van het componenttotaal (<= 1), en een kwartaal: 'jaar Qk', een bouwkwartaal (getal,
+# 1 = start bouw) of 'actuals' (zit al in de eigen cashflow). De tien fee-termijnen nemen in de tijdlijn de plek van de bouwtermijnen in.
+N_FEE_COMP = 2
+N_FEE_PER_COMP = N_TERMIJNEN // N_FEE_COMP     # 5
+WT_R_D_TITEL = 47
+WT_R_SOORT = 48
+WT_R_D_NOTE = 49
+WT_R_F_KOP = 50
+WT_R_FC1 = 51                                  # component 1: naam, totaal €, gepland
+WT_R_FCN = WT_R_FC1 + N_FEE_COMP - 1           # 52
+WT_R_FT_KOP = 53
+WT_R_FT1 = 54                                  # tien fee-termijnen: rijen 54-58 component 1, 59-63 component 2
+WT_R_FTN = WT_R_FT1 + N_TERMIJNEN - 1          # 63
+WT_R_F_TOTAAL = 64
 WT_LASTCOL = WT_COL1 + N_TYPES * WT_W - 1  # AH bij 10 types
 WT_RANGE_END = "ZZ"   # positionele bereiken lopen tot ZZ: invoegen/verwijderen van kolommen kan ze niet breken
 
@@ -134,7 +150,8 @@ M_BLOK1 = 79          # kolom CA
 # verkocht cum, transport cum, transport cum up/down, termijnen vervallen, transport cum scenariolijn,
 # grafiek: verkocht per kwartaal (gv) en getransporteerd per kwartaal als negatief getal (gt); benoemde bereiken g_v<k>, g_t<k>
 # vx: extra opbrengsten per woning (€) vervallen per bouwkwartaal; rij 6 = extra's bij transport
-BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx"]
+# fee: rij 5 = DAEB (1/0), rij 6 = totaal fees (gepland, €), rijen = fees vervallen t/m de periode (cumulatief, €)
+BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx", "fee"]
 
 
 # ---- bouwtermijnentabel in het Model: tijdlijn met per bouwtermijn een baan (lane) per woningtype ----
@@ -151,7 +168,7 @@ BT_ROWN = BT_ROW1 + BT_N - 1            # 139
 BT_COL1 = M_BLOK1 + len(BLOKKEN) * N_TYPES + 1
 BT_NJ = 16                              # jaarreeksen (koprij 1): blokjes van vier kwartaalen met het jaartal als label
 BT_NK = 4 * BT_NJ                       # kwartaalreeksen (koprij 2): blokjes van één kwartaal met '1'..'4' als label
-BT_PREV = [f"prev{k}" for k in range(1, N_TYPES + 1)]     # vorige prognose per type (lichte tint)
+BT_PREV = [f"prev{k}" for k in range(1, N_TYPES + 1)]     # vorige prognose per type (lichtrood)
 BT_CUR = [f"cur{k}" for k in range(1, N_TYPES + 1)]       # huidige planning per type (typekleur)
 BT_JR = [f"jr{y}" for y in range(1, BT_NJ + 1)]
 BT_KW = [f"kw{q}" for q in range(1, BT_NK + 1)]
@@ -162,8 +179,10 @@ BT_REEKSEN = BT_STAPEL1 + BT_STAPEL2    # kolommen van het PowerPoint-blok (na '
 BT = {}
 for _i, _name in enumerate([
     "j", "k", "i", "gebruikt",                        # raster: alle (type k, termijn i)-combinaties, gebruikt = 1/0
-    "knaam", "tnaam", "idxb", "idxr",                 # raster: typenaam, termijnnaam, kwartaalindex huidig/vorig
-    "uniek", "rang", "pos", "eerste",                 # raster: eerste gebruikte rij per naam; rang van de naam; positie in de lijst;
+    "knaam", "tnaam", "mnaam",                        # raster: typenaam, groepsnaam (termijn, of fee-component bij DAEB), baannaam
+    "comp", "bedrag", "waarde", "kw", "fout",         # raster: fee-component (0 = bouwtermijn), € van de baan (fee), invoer, kwartaalcel, fout
+    "idxb", "idxr",                                   # raster: kwartaalindex huidig/vorig (99999 = geen)
+    "uniek", "rang", "pos", "eerste",                 # raster: eerste gebruikte rij per groepsnaam; rang; positie in de lijst;
                                                       # eerste = 1 bij de eerste baan van de groep (die krijgt het label)
     "nr", "bron", "soort", "label",                   # compact: nr = j van de r-de unieke termijn; bron = rasterrij van de baan;
                                                       # soort 1 jaar / 2 kwartaal / 3 baan / 4 scheiding / 0 leeg
@@ -171,6 +190,14 @@ for _i, _name in enumerate([
 ] + BT_REEKSEN):
     BT[_name] = L(BT_COL1 + _i)
 BT_SEG_NAMEN = {"s0": "·", "s1": "Gerealiseerd", "s2": "·", "s4": "Gerealiseerd", "s5": "·", "s6": "·", "s8": "·"}   # vaste reeksnamen
+
+# ---- grafiek per woningtype: selectieblok (het type uit de keuzecel op het Dashboard), € mln per kwartaal ----
+PT_COL1 = BT_COL1 + len(BT) + 1
+PT = {}
+for _i, _name in enumerate(["grond", "bouw", "extra", "fee1", "fee2", "cum"]):
+    PT[_name] = L(PT_COL1 + _i)
+PT_REEKSEN = ["grond", "bouw", "extra", "fee1", "fee2", "cum"]
+PT_KLEUREN = {"grond": "002060", "bouw": "2A78D6", "extra": "EDA100", "fee1": "4A3AA7", "fee2": "1F8A8A"}
 
 
 def m_col(blok, k):
@@ -215,6 +242,10 @@ H = {
     # bouwtermijnengrafiek (de VBA leest bt_n voor het aantal rijen en t_first/t_end voor de tijd-as): tijd = kwartaalindex
     "bt_n": 96, "t_first": 97, "t_nu_end": 98, "t_end": 99, "jaar_first": 100, "jaar_last": 101, "lbl_realisatie": 102,
     "bt_types": 103, "bt_jaren": 104, "bt_lanes": 105, "bt_uniek": 106,
+    # fees (DAEB) en de grafiek per woningtype (keuzecel op het Dashboard)
+    "fee_fout_gepland": 107, "fee_fout_termijn": 108, "daeb_types": 109,
+    "pt_keuze": 110, "pt_naam": 111, "pt_daeb": 112, "pt_aantal": 113, "pt_totaal": 114, "pt_nu": 115, "pt_titel": 116, "pt_subtitel": 117,
+    "pt_lbl_grond": 118, "pt_lbl_bouw": 119, "pt_lbl_extra": 120, "pt_lbl_fee1": 121, "pt_lbl_fee2": 122, "pt_lbl_cum": 123,
 }
 
 
@@ -244,6 +275,7 @@ D = {
     "shift_scn": "Y17", "uitstel_scn": "Y18", "opbr_scn": "Y19", "kosten_scn": "Y20", "rente_pct_scn": "Y21", "koopsom_scn": "Y22",
     "rente_scn": "Y23", "scn_aan": "Y25", "scn_naam": "Y26",
     "norm": "W29",
+    "pt_keuze": "B120",                                     # grafiek per woningtype: gekozen type (naam; keuzelijst uit Model rij 7)
 }
 # data.py leest de knoppen op het label in kolom V (zo blijven oudere bestanden met andere rijnummers leesbaar)
 D_LABELS = {
@@ -257,13 +289,16 @@ D_ROW_SCENARIO = 15        # sectie SCENARIO'S (kop Downside/Upside/Scenario in 
 D_ROW_VERKOOP = 28
 D_ROW_POWERPOINT = 34      # knop staat op W35:X36 (vast: de VBA-macro zet hem daar)
 D_ROW_CONTROLES = 40
-D_ROW_TYPES = 53           # overzicht woningtypes (na twaalf controles)
+D_ROW_TYPES = 55           # overzicht woningtypes (na veertien controles)
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
 D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; chips (typekleuren) in rij 96, grafiek op B97 (19 rijen)
 D_ROW_LEGENDA_BT = 96
-D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83", "bouwtermijnen": "B97"}
+D_ROW_PT = 118             # sectiekop grafiek per woningtype; keuzecel en chips in rij 120, grafiek op B121 (12 rijen)
+D_ROW_LEGENDA_PT = 120
+D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83", "bouwtermijnen": "B97", "pertype": "B121"}
 D_LEGENDA_CELLEN = ["B", "C", "D", "E", "G", "H", "I", "J", "L", "M"]   # chip per typeblok 1..N_TYPES
-D_ROW_UITLEG = 118
+D_LEGENDA_PT_CELLEN = ["G", "H", "I", "J", "L"]                          # chips van de grafiek per type (PT_REEKSEN zonder cum)
+D_ROW_UITLEG = 136
 
 
 def d(name):
@@ -283,9 +318,13 @@ PP_KPI_ROW1 = 8
 # grafiekblokken (kop in rij 7; de VBA leest dezelfde kopcellen): cf dia 3 (8 kolommen), sc dia 4 (10), bt dia 5 bouwtermijnen
 # (PP_BT_KOL kolommen: label + alle reeksen van BT_REEKSEN, BT_N rijen), vp dia 6 verkoop/transport per type (26 kolommen: kwartaal,
 # 10x verkocht, 10x transport, totalen, mijlpalen, realisatie; twee grafieken lezen hetzelfde blok), vo dia 7 (5)
-PP_BT_KOL = 1 + len(BT_REEKSEN)        # 109
-PP_BLOK = {"cf": "G", "sc": "P", "bt": "AA", "vp": L(27 + PP_BT_KOL + 1), "vo": L(27 + PP_BT_KOL + 1 + 27)}   # vp EG, vo FH
-PP_TABEL_SC = f"{L(27 + PP_BT_KOL + 1 + 27 + 6)}7"            # FN7: 9 rijen x 4 kolommen
+PP_BT_KOL = 1 + len(BT_REEKSEN)        # 108
+PP_PT_KOL = 2 + len(PT_REEKSEN)        # 8: kwartaal, zes reeksen, realisatie
+_vp = 27 + PP_BT_KOL + 1               # 136 (EF)
+_vo = _vp + 27                         # 163 (FG)
+_pt = _vo + 6                          # 169 (FM): dia 8, grafiek per woningtype (de macro vult per type een kopie van de dia)
+PP_BLOK = {"cf": "G", "sc": "P", "bt": "AA", "vp": L(_vp), "vo": L(_vo), "pt": L(_pt)}
+PP_TABEL_SC = f"{L(_pt + PP_PT_KOL + 1)}7"                      # FV7: 9 rijen x 4 kolommen
 PP_TABEL_VT_ROW = 18           # kop in BR18, daaronder N_TYPES rijen
 PP_CEL_SJABLOON = "D56"        # (de VBA leest dezelfde cellen: CEL_SJABLOON / CEL_NAAM)
 PP_CEL_NAAM = "D57"

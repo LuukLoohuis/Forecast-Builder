@@ -9,7 +9,11 @@ Option Explicit
 '       dia 7 van verkoop naar omzet (VO_GRAFIEK)
 '  v13: bouwtermijnen per woningtype: per termijn een baan per type (blok AA7, 108 kolommen, tot MAX_RIJEN_BT rijen,
 '       aantal uit Model!BY96; tijd-as in kwartaalindex vast op Model!BY97..BY99; reeksen met kop '(uit)' gaan weg),
-'       VP-blok vanaf EF7, VO-blok vanaf FG7, tabellen vanaf kolom FM; sjabloon v13
+'       VP-blok vanaf EF7, VO-blok vanaf FG7
+'  v14: dia 8 'Opbrengsten per woningtype' (PT_GRAFIEK, blok FM7, 8 kolommen): de macro maakt per woningtype met aantal > 0
+'       een kopie van dia 8, zet het type in de keuzecel op het Dashboard (CEL_PT_KEUZE), rekent door en vult de kopie;
+'       dia 8 zelf gaat daarna weg. Blok 5 op Woningtypes (soort DAEB en fees, rijen 48-63) bij Type invoegen/verwijderen.
+'       Tabellen vanaf kolom FV; sjabloon v14
 '
 '  NaarPowerPoint        opent het sjabloon als kopie, vult teksten, tabellen en grafieken
 '                        vanaf tabblad "PowerPoint" en bewaart een nieuwe presentatie
@@ -34,10 +38,13 @@ Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFI
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
 Private Const CEL_SJABLOON As String = "D56"
 Private Const CEL_NAAM As String = "D57"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v13.pptx"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v14.pptx"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
 Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
 Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijnenblok (label + 107 reeksen; layout.PP_BT_KOL)
+Private Const BLOK_PT As String = "FM7"            ' blok grafiek per woningtype (dia 8): kwartaal, zes reeksen, realisatie
+Private Const KOL_PT As Long = 8
+Private Const CEL_PT_KEUZE As String = "B120"      ' keuzecel op het Dashboard: naam van het type in de grafiek per woningtype
 Private Const TITEL As String = "Naar PowerPoint"
 
 ' typeblokken (zelfde getallen als forecast_builder/layout.py)
@@ -53,6 +60,12 @@ Private Const TYPE_RIJ_X1 As Long = 33        ' extra opbrengsten per woning (bl
 Private Const TYPE_RIJ_XN As Long = 38
 Private Const TYPE_RIJ_VJAAR As Long = 43     ' start bouw vorige prognose (blok 4): jaar / kwartaal
 Private Const TYPE_RIJ_VKW As Long = 44
+Private Const TYPE_RIJ_SOORT As Long = 48     ' blok 5: soort (niet-DAEB / DAEB)
+Private Const TYPE_RIJ_FC1 As Long = 51       ' fee-componenten: naam (kolom 1), totaal (kolom 2)
+Private Const TYPE_RIJ_FCN As Long = 52
+Private Const TYPE_RIJ_F1 As Long = 54        ' fee-termijnen: mijlpaal (1), bedrag of % (2), kwartaal (3)
+Private Const TYPE_RIJ_FN As Long = 63
+Private Const TYPE_RIJ_AANTAL As Long = 8
 Private Const INVOER_COL1 As Long = 12        ' kolom L: eerste paar (verkocht, transport) op tabblad Invoer
 Private Const INVOER_BREEDTE As Long = 2
 Private Const INVOER_RIJ1 As Long = 8
@@ -77,7 +90,7 @@ End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    Tabellen = Array(Array("SC_TABEL", "FM7", 9, 4, 0), Array("VT_TABEL", "FM18", MAX_TYPES + 1, 8, 1))
+    Tabellen = Array(Array("SC_TABEL", "FV7", 9, 4, 0), Array("VT_TABEL", "FV18", MAX_TYPES + 1, 8, 1))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -218,6 +231,9 @@ Private Function BlokLeeg(wsT As Worksheet, wsI As Worksheet, pos As Long) As Bo
     If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_GROND, c + 1), wsT.Cells(TYPE_RIJ_TN, c + 2))) > 0 Then Exit Function
     If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_X1, c + 1), wsT.Cells(TYPE_RIJ_XN, c + 2))) > 0 Then Exit Function
     If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_VJAAR, c), wsT.Cells(TYPE_RIJ_VKW, c))) > 0 Then Exit Function
+    If Len(CStr(wsT.Cells(TYPE_RIJ_SOORT, c).Value)) > 0 Then Exit Function
+    If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_FC1, c + 1), wsT.Cells(TYPE_RIJ_FCN, c + 1))) > 0 Then Exit Function
+    If Application.WorksheetFunction.CountA(wsT.Range(wsT.Cells(TYPE_RIJ_F1, c + 1), wsT.Cells(TYPE_RIJ_FN, c + 2))) > 0 Then Exit Function
     c = INVOER_COL1 + (pos - 1) * INVOER_BREEDTE
     If Application.WorksheetFunction.Count(wsI.Range(wsI.Cells(INVOER_RIJ1, c), wsI.Cells(INVOER_RIJN, c + INVOER_BREEDTE - 1))) > 0 Then Exit Function
     BlokLeeg = True
@@ -252,6 +268,9 @@ Private Sub InvoerLeegmaken(ws As Worksheet, col As Long, breedte As Long)
         ws.Range(ws.Cells(TYPE_RIJ_T1, col + 1), ws.Cells(TYPE_RIJ_TN, col + 2)).ClearContents
         ws.Range(ws.Cells(TYPE_RIJ_X1, col + 1), ws.Cells(TYPE_RIJ_XN, col + 2)).ClearContents
         ws.Range(ws.Cells(TYPE_RIJ_VJAAR, col), ws.Cells(TYPE_RIJ_VKW, col)).ClearContents
+        ws.Cells(TYPE_RIJ_SOORT, col).ClearContents
+        ws.Range(ws.Cells(TYPE_RIJ_FC1, col + 1), ws.Cells(TYPE_RIJ_FCN, col + 1)).ClearContents
+        ws.Range(ws.Cells(TYPE_RIJ_F1, col + 1), ws.Cells(TYPE_RIJ_FN, col + 2)).ClearContents
     Else
         ws.Range(ws.Cells(INVOER_RIJ1, col), ws.Cells(INVOER_RIJN, col + breedte - 1)).ClearContents
     End If
@@ -308,6 +327,9 @@ Public Sub NaarPowerPoint()
         End If
         VulGrafiek pres, CStr(g(i)(0)), wsP.Range(CStr(g(i)(1))), nG, CLng(g(i)(2)), mist, fouten
     Next i
+
+    stap = "dia per woningtype"
+    VulDiasPerType pres, wsP, n, mist, fouten
 
     stap = "presentatie bewaren"
     pad = Bewaar(pres, wsP)
@@ -619,16 +641,22 @@ Private Sub SchikDia5(pres As Object, tbl As Object)
 End Sub
 
 Private Sub VulGrafiek(pres As Object, vorm As String, kop As Range, n As Long, nKol As Long, ByRef mist As String, ByRef fouten As String)
-    ' zet het blok (kop + n rijen) in het gegevensblad van de grafiek en past het bereik van elke reeks aan:
-    ' X-bereik = kolom A, Y-bereik = de kolomletter uit de SERIES-formule van die reeks (KolomVanReeks). Reeksnamen die
-    ' naar rij 1 van het gegevensblad verwijzen volgen zo de koptekst; namen als tekst in de formule (BT_GRAFIEK) blijven.
-    Dim shp As Object, ch As Object, wbE As Object, wsE As Object
-    Dim arr() As Variant, r As Long, c As Long, v As Variant, i As Long, kol As String
+    ' zoekt het grafiekvak op naam (eerste dia waarop het staat) en vult het
+    Dim shp As Object
     Set shp = ZoekVorm(pres, vorm)
     If shp Is Nothing Then
         mist = mist & vorm & vbCrLf
         Exit Sub
     End If
+    VulGrafiekVorm shp, vorm, kop, n, nKol, fouten
+End Sub
+
+Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Long, nKol As Long, ByRef fouten As String)
+    ' zet het blok (kop + n rijen) in het gegevensblad van de grafiek en past het bereik van elke reeks aan:
+    ' X-bereik = kolom A, Y-bereik = de kolomletter uit de SERIES-formule van die reeks (KolomVanReeks). Reeksnamen die
+    ' naar rij 1 van het gegevensblad verwijzen volgen zo de koptekst; namen als tekst in de formule (BT_GRAFIEK) blijven.
+    Dim ch As Object, wbE As Object, wsE As Object
+    Dim arr() As Variant, r As Long, c As Long, v As Variant, i As Long, kol As String
     On Error GoTo Mislukt
     Set ch = shp.Chart
     ReDim arr(0 To n, 0 To nKol - 1)
@@ -656,9 +684,9 @@ Private Sub VulGrafiek(pres As Object, vorm As String, kop As Range, n As Long, 
         kol = KolomVanReeks(CStr(ch.SeriesCollection(i).Formula))
         If Len(kol) > 0 Then ZetBereik ch.SeriesCollection(i), wsE, kol, n
     Next i
-    ' reeksen met '(uit)' in de kop gaan weg: de scenariolijn in de cashflowgrafiek, en in de bouwtermijnengrafiek de
-    ' typen zonder termijnen en de jaren buiten het bereik (anders staan ze als lege vermelding in de legenda)
-    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
+    ' reeksen met '(uit)' in de kop gaan weg: de scenariolijn in de cashflowgrafiek, in de bouwtermijnengrafiek de typen
+    ' zonder termijnen en de jaren buiten het bereik, in de grafiek per type de onderdelen die het type niet heeft
+    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
     If vorm = "BT_GRAFIEK" Then ZetTijdAs ch
     wbE.Close
     Set wbE = Nothing
@@ -721,6 +749,64 @@ Private Sub ZetTijdAs(ch As Object)
             Err.Clear
         End If
     Next asNr
+    On Error GoTo 0
+End Sub
+
+Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mist As String, ByRef fouten As String)
+    ' Dia 8 (PT_GRAFIEK): per woningtype met aantal > 0 een kopie van de dia, gevuld met dat type. Het Dashboard heeft een
+    ' keuzecel met de typenaam; het Model rekent het selectieblok (tab PowerPoint vanaf BLOK_PT) voor dat type uit. De macro
+    ' zet per type de keuzecel, rekent door, kopieert de dia (achter de vorige kopie) en vult titel, ondertitel en grafiek
+    ' op de kopie zelf (niet via ZoekVorm, dat de eerste dia met die vormnaam zou pakken). Daarna gaat dia 8 zelf weg en
+    ' krijgt de keuzecel zijn oude waarde terug. Geen type: alleen dia 8 verwijderen.
+    Dim wsT As Worksheet, wsD As Worksheet, shp As Object, sjabloon As Object, kopie As Object, rngK As Object
+    Dim oud As Variant, pos As Long, c As Long, naam As String, aantal As Variant, idx As Long, nKopie As Long
+    Dim rTitel As Long, rSub As Long, r As Long
+    Set shp = ZoekVorm(pres, "PT_GRAFIEK")
+    If shp Is Nothing Then
+        mist = mist & "PT_GRAFIEK" & vbCrLf
+        Exit Sub
+    End If
+    On Error GoTo Mislukt
+    Set sjabloon = shp.Parent
+    idx = sjabloon.SlideIndex
+    Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
+    Set wsD = ThisWorkbook.Worksheets(SH_DASH)
+    oud = wsD.Range(CEL_PT_KEUZE).Value
+    ' regels op tab PowerPoint met de titel en ondertitel van dia 8 (kolom F = vormnaam)
+    For r = KPI_ROW1 To KPI_ROW1 + 300
+        If Len(CelTekst(wsP.Range("C" & r))) = 0 Then Exit For
+        If Trim$(CelTekst(wsP.Range("F" & r))) = "PT_TITEL" Then rTitel = r
+        If Trim$(CelTekst(wsP.Range("F" & r))) = "PT_SUBTITEL" Then rSub = r
+    Next r
+    nKopie = 0
+    For pos = 1 To MAX_TYPES
+        c = TYPE_COL1 + (pos - 1) * TYPE_BREEDTE
+        aantal = wsT.Cells(TYPE_RIJ_AANTAL, c).Value
+        If IsNumeric(aantal) And Not IsEmpty(aantal) Then
+            If CDbl(aantal) > 0 Then
+                naam = CStr(wsT.Cells(TYPE_RIJ_NAAM, c).Value)
+                If Len(naam) = 0 Then naam = "Type " & pos
+                wsD.Range(CEL_PT_KEUZE).Value = naam
+                Application.Calculate
+                Set rngK = sjabloon.Duplicate
+                Set kopie = rngK.Item(1)
+                nKopie = nKopie + 1
+                kopie.MoveTo idx + nKopie
+                If rTitel > 0 Then kopie.Shapes("PT_TITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rTitel))
+                If rSub > 0 Then kopie.Shapes("PT_SUBTITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rSub))
+                VulGrafiekVorm kopie.Shapes("PT_GRAFIEK"), "PT_GRAFIEK", wsP.Range(BLOK_PT), n, KOL_PT, fouten
+            End If
+        End If
+    Next pos
+    sjabloon.Delete
+    wsD.Range(CEL_PT_KEUZE).Value = oud
+    Application.Calculate
+    Exit Sub
+Mislukt:
+    fouten = fouten & "dia per woningtype: " & Err.Description & vbCrLf
+    On Error Resume Next
+    wsD.Range(CEL_PT_KEUZE).Value = oud
+    Application.Calculate
     On Error GoTo 0
 End Sub
 

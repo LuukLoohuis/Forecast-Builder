@@ -29,11 +29,12 @@ TXT_LIGHT = "7A7A7A"
 LABEL_BORDER = "E3E6EA"
 
 # vaste kleuren per woningtype (blok 1..10), ook gebruikt voor de cel-legenda op het Dashboard
-TYPEKLEUREN = ["2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "008300", "4A3AA7", "E34948", "1F8A8A", "8C6D3F"]
+TYPEKLEUREN = ["2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "008300", "4A3AA7", "8A9A1B", "1F8A8A", "8C6D3F"]   # 8: olijf (rood = vorige prognose)
 
 PT = 12700             # EMU per punt
 FMT_ABS = "0;0"        # geen minteken onder de as (vlindergrafiek)
 FMT_MLN = '&quot;€&quot;0&quot;M&quot;;&quot;−€&quot;0&quot;M&quot;;&quot;€&quot;0&quot;M&quot;'
+FMT_MLN_KORT = '&quot;€&quot;0.0&quot;M&quot;'
 AX1, AX2, AX3, AX4 = 111111111, 222222222, 333333333, 444444444
 
 
@@ -421,13 +422,13 @@ def ser_kop(idx, naam, cat, val, sz, bold, kleur, vul=None):
 
 
 KOPRIJ_VUL = "F4F6F8"   # lichte band achter de jaartallen
-PREV_ALPHA = 38         # lichte tint van de typekleur voor de vorige prognose
+PREV_KLEUR = "F28B8B"   # lichtrood: vorige prognose (zelfde kleur voor alle typen)
 
 
 def bouwtermijnen(r, t_first, t_end=None, legenda=False):
     """Tijdlijn van de bouwtermijnen per woningtype (horizontale gestapelde balken). Rijen: koprij jaartallen, koprij
     kwartaalnummers 1-4, daarna per bouwtermijn een baan per type dat hem heeft (blokje van één kwartaal in de typekleur =
-    huidige planning; lichte tint = vorige prognose; grijze waas = gerealiseerde kwartalen) en een lege rij tussen de termijnen.
+    huidige planning; lichtrood = vorige prognose; grijze waas = gerealiseerde kwartalen) en een lege rij tussen de termijnen.
     Twee gestapelde balkgroepen op twee assen met dezelfde schaal (tweede groep bovenop): stapel 1 = s0 (onzichtbaar tot de
     as-ondergrens), s1 grijs, s2 onzichtbaar, prev1..N (per type), s4 grijs, s5 onzichtbaar tot het einde, jr1..16 (jaarblokjes,
     alleen in koprij 1); stapel 2 = s6 onzichtbaar, cur1..N, s8, kw1..64 (kwartaalblokjes, alleen in koprij 2).
@@ -456,7 +457,7 @@ def bouwtermijnen(r, t_first, t_end=None, legenda=False):
     voeg(sers1, ser_bar(N - 1 - p, "Gerealiseerd", cat, r["s1"], REALISATIE, alpha=60))
     voeg(sers1, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["s2"]))
     for k in range(1, n_t + 1):
-        voeg(sers1, ser_bar(N - 1 - p, "=" + r[f"naam_prev{k}"], cat, r[f"prev{k}"], TYPEKLEUREN[(k - 1) % len(TYPEKLEUREN)], alpha=PREV_ALPHA))
+        voeg(sers1, ser_bar(N - 1 - p, "=" + r[f"naam_prev{k}"], cat, r[f"prev{k}"], PREV_KLEUR))
     zichtbaar.append(N - 1 - p)
     voeg(sers1, ser_bar(N - 1 - p, "Gerealiseerd", cat, r["s4"], REALISATIE, alpha=60))
     voeg(sers1, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["s5"]))
@@ -479,3 +480,34 @@ def bouwtermijnen(r, t_first, t_end=None, legenda=False):
         verborgen = [i for i in range(N) if i not in zichtbaar]
         leg = legend(verborgen).replace('<c:legendPos val="t"/>', '<c:legendPos val="b"/>').replace('sz="800"', 'sz="700"')
     return chart_space(groepen, assen, leg, na_als_leeg=True)
+
+
+# ---------------------------------------------------------------------------------------------
+#  Opbrengsten per woningtype: gestapelde kolommen per kwartaal (grondtermijn, bouwtermijnen, extra's, fee 1, fee 2) met
+#  de cumulatieve lijn en de grijze waas; het type komt uit de keuzecel op het Dashboard (selectieblok in het Model)
+# ---------------------------------------------------------------------------------------------
+PT_KLEUREN = {"grond": "002060", "bouw": "2A78D6", "extra": "EDA100", "fee1": "4A3AA7", "fee2": "1F8A8A"}
+PT_H_CM = 6.35
+
+
+def type_paneel(r, hoogte_cm=PT_H_CM, legenda=False):
+    """r: dict met bereikverwijzingen 'kwartaal', 'grond', 'bouw', 'extra', 'fee1', 'fee2', 'cum', 'realisatie' en 'naam_<reeks>'
+    (celverwijzing met de reeksnaam; leeg of '(uit)' = reeks niet in gebruik). Legenda onderaan (PowerPoint) of uit (Dashboard: chips).
+    Groepsvolgorde balken -> lijn -> waas (zie verkoop_paneel)."""
+    kw = r["kwartaal"]
+    reeksen = ["grond", "bouw", "extra", "fee1", "fee2"]
+    bars = [ser_bar(i, "=" + r[f"naam_{naam}"], kw, r[naam], PT_KLEUREN[naam]) for i, naam in enumerate(reeksen)]
+    lijn = ser_line(len(reeksen), "=" + r["naam_cum"], kw, r["cum"], NAVY, 1.75)
+    groepen = [grp_bar(bars, grouping="stacked", gap=45, overlap=100), grp_line([lijn]), grp_waas(len(reeksen) + 1, kw, r["realisatie"])]
+    top = 0.12 / hoogte_cm
+    bottom = (1.2 if legenda else 0.45) / hoogte_cm
+    layout = plot_layout(0.045, top, 0.945, 1 - top - bottom)
+    assen = [cat_ax(AX1, AX2), val_ax(AX2, AX1, FMT_MLN_KORT, vmin=0)] + assen_waas()
+    xml = chart_space(groepen, assen, legenda="", na_als_leeg=True)
+    oud = '<c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>'
+    assert oud in xml
+    xml = xml.replace(oud, f'<c:chart><c:autoTitleDeleted val="1"/><c:plotArea>{layout}')
+    if legenda:
+        leg = legend([len(reeksen) + 1]).replace('<c:legendPos val="t"/>', '<c:legendPos val="b"/>').replace('sz="800"', 'sz="700"')
+        xml = xml.replace('<c:plotVisOnly val="0"/>', f'{leg}<c:plotVisOnly val="0"/>')
+    return xml

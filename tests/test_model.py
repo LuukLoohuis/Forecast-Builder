@@ -56,6 +56,7 @@ def foutcellen(wb):
              LY.M["g_realisatie"], LY.M["g_scenario"], LY.M["g_eind_scenario"], LY.M["g_punt_uitverkocht"], LY.M["g_punt_alles_transport"]}
     na_ok |= {LY.m_col(blok, k) for blok in ("gv", "gt") for k in range(1, LY.N_TYPES + 1)}   # lege typeblokken: NA()
     na_ok |= set(LY.BT.values())                                                            # bouwtermijnentabel: NA() buiten de gebruikte rijen
+    na_ok |= set(LY.PT.values())                                                            # grafiek per type: NA() voorbij de laatste periode
     fouten = []
     for ws in wb.worksheets:
         for row in ws.iter_rows():
@@ -171,3 +172,66 @@ def test_extra_opbrengsten_per_woning(tmp, basis):
         assert -1e-6 <= d <= extra + 1e-6 and d >= vorige - 1e-6, (r, d)
         vorige = d
     assert wb["Woningtypes"].cell(LY.WT_R_X_TOTAAL, LY.wt_col(1, 1)).value == 3000
+
+
+def test_daeb_fees(tmp, basis):
+    """DAEB-type (voorbeeldtype 5): fees tellen als bedragen voor het hele type (bedrag of % van het componenttotaal), met het kwartaal
+    uit 'jaar Qk', een bouwkwartaal of 'actuals'; koopsom en bouwtermijnen tellen niet; de knoppen raken de fees niet."""
+    mb = basis["Model"]
+    n = mb["BY8"].value
+    laatste = LY.ROW1 + n - 1
+    daeb = D.voorbeeld().types[4]
+    assert daeb.soort == "DAEB"
+    fee = LY.m_col("fee", 5)
+    assert mb[f"{fee}5"].value == 1
+    totaal = 1192252 * (0.30 + 0.30 + 0.38 + 0.02) + 1636540 * (0.40 + 0.40 + 0.20)
+    assert abs(float(mb[f"{fee}6"].value) - totaal) < 1e-3
+    assert abs(float(mb[f"{fee}{laatste}"].value) - totaal) < 1e-3
+    # 'actuals' valt in het laatste gerealiseerde kwartaal (Q4 '26 = rij van idx 8108), '2027 Q1' een kwartaal later,
+    # bouwkwartaal 1 = start bouw (2027 Q3), 5 = vier kwartalen later
+    idx = {r: mb[f"{LY.FIX['idx']}{r}"].value for r in range(LY.ROW1, laatste + 1)}
+    rij = {v: r for r, v in idx.items()}
+    ak = 1192252
+    assert abs(float(mb[f"{fee}{rij[8108]}"].value) - ak * 0.98) < 1e-3
+    assert abs(float(mb[f"{fee}{rij[8109]}"].value) - (ak + 1636540 * 0.40)) < 1e-3
+    assert abs(float(mb[f"{fee}{rij[8111]}"].value) - (ak + 1636540 * 0.80)) < 1e-3
+    assert abs(float(mb[f"{fee}{rij[8115]}"].value) - totaal) < 1e-3
+    # de fees zitten in model_basis en in alle scenario-kolommen: scenario's verschillen niet door de fees
+    p = D.voorbeeld()
+    p.types[4].fee_termijnen = []
+    p.types[4].fee_comp = []
+    wb = bouw_en_bereken(p, tmp, "daeb_zonder_fees")
+    m = wb["Model"]
+    for r in range(LY.ROW1, laatste + 1):
+        d = float(mb[f"{LY.M['model_basis']}{r}"].value) - float(m[f"{LY.M['model_basis']}{r}"].value)
+        assert abs(d - float(mb[f"{fee}{r}"].value)) < 1e-3, (r, d)
+        for naam in ("model_up", "model_down", "model_scn"):
+            a = float(mb[f"{LY.M[naam]}{r}"].value) - float(mb[f"{LY.M['model_basis']}{r}"].value)
+            b = float(m[f"{LY.M[naam]}{r}"].value) - float(m[f"{LY.M['model_basis']}{r}"].value)
+            assert abs(a - b) < 1e-3, (naam, r, a, b)
+        for naam in ("stand_up", "stand_down", "stand_scn"):
+            assert abs(float(mb[f"{LY.M[naam]}{r}"].value) - float(m[f"{LY.M[naam]}{r}"].value)) < 1e-3, (naam, r)
+    # controles en labels
+    d = basis["Dashboard"]
+    assert d[f"W{LY.D_ROW_CONTROLES + 12}"].value == "OK" and d[f"W{LY.D_ROW_CONTROLES + 13}"].value == "OK"
+    assert mb[f"BY{LY.H['daeb_types']}"].value == 1
+    assert mb[f"BY{LY.H['verk_voor_start']}"].value == sum(float(mb[f"{LY.m_col('vcum', k)}5"].value) for k in range(1, 5))
+    assert mb[f"BY{LY.H['won_met_start']}"].value == 40 + 20 + 8 + 24
+    # fee-component zonder volledige planning: controle slaat aan
+    p = D.voorbeeld()
+    p.types[4].fee_termijnen[3] = ("na omgevingsvergunning", None, None)         # 98% gepland
+    wb = bouw_en_bereken(p, tmp, "daeb_98pct")
+    assert str(wb["Dashboard"][f"W{LY.D_ROW_CONTROLES + 12}"].value).startswith("LET OP")
+    assert abs(float(wb["Model"][f"{fee}6"].value) - (totaal - ak * 0.02)) < 1e-3
+
+
+def test_grafiek_per_type(basis):
+    """Selectieblok van de grafiek per woningtype: type 1 (keuzecel), som van de onderdelen = koopsom x aantal."""
+    m = basis["Model"]
+    n = m["BY8"].value
+    laatste = LY.ROW1 + n - 1
+    assert m[f"BY{LY.H['pt_keuze']}"].value == 1 and m[f"BY{LY.H['pt_naam']}"].value == "Rijwoning"
+    assert abs(float(m[f"{LY.PT['cum']}{laatste}"].value) - 40 * 385000 / 1e6) < 1e-6
+    som = sum(float(m[f"{LY.PT[x]}{r}"].value) for x in ("grond", "bouw", "extra", "fee1", "fee2") for r in range(LY.ROW1, laatste + 1))
+    assert abs(som - 40 * 385000 / 1e6) < 1e-6
+    assert m[f"BY{LY.H['pt_lbl_grond']}"].value == "Grondtermijn" and (m[f"BY{LY.H['pt_lbl_fee1']}"].value in (None, ""))
