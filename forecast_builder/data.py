@@ -73,6 +73,7 @@ class ProjectData:
     extra_namen: list = field(default_factory=lambda: list(STANDAARD_EXTRA))
     fee_comp_namen: list = field(default_factory=lambda: list(STANDAARD_FEE_COMP))
     fee_mijlpalen: list = field(default_factory=lambda: list(STANDAARD_FEE_MIJLPALEN))
+    fo: dict = field(default_factory=dict)          # koppeling met een FO-werkboek: bestand, actuals, opbrengsten, kosten (fo.py)
 
     def type_(self, k):
         """TypeData van blok k (1-based); leeg type als het blok niet gevuld is."""
@@ -113,7 +114,7 @@ def voorbeeld():
                                                              ("Casco gereed", 0.312, 4), ("Na gereedkomen buitenmetselwerk", 0.273, 6), ("Oplevering woning", 0.078, 7)]),
     ]
     p.types[0].vorig_start_jaar, p.types[0].vorig_start_kw = 2026, 3   # vorige prognose: twee kwartalen eerder (lichtrode blokjes)
-    # vijfde type: DAEB (sociale huur aan een corporatie): geen koopsom en bouwtermijnen, wel fees (blok 5)
+    # vijfde type: DAEB (sociale huur, gescheiden koop-/aannemingsovereenkomst): geen koopsom en bouwtermijnen, wel fees (blok 5)
     daeb = TypeData("DAEB", 30, None, 2027, 3, None, [])
     daeb.soort = "DAEB"
     daeb.fee_comp = [("AK fee", 1192252), ("Bijkomende kosten (excl. AK)", 1636540)]
@@ -192,6 +193,11 @@ def _lees_v1(wb):
     })
     if "PowerPoint" in wb.sheetnames:
         p.params["sjabloon"] = _v(wb["PowerPoint"], LY.PP_CEL_SJABLOON)
+    for naam in ("fo_bestand", "fo_actuals", "fo_opbr", "fo_kosten", "fo_datum"):       # FO-koppeling (sinds v8), op label
+        label = LY.D_LABELS.get(naam)
+        rij = next((r for r in range(1, 120) if _v(d, f"V{r}") == label), None)
+        if rij is not None and _v(d, f"W{rij}") not in (None, ""):
+            p.fo[naam[3:]] = _v(d, f"W{rij}")
     return p
 
 
@@ -277,4 +283,9 @@ def _lees_v2(wb):
         p.params[naam] = _v(d, f"{kol}{rij}")
     if "PowerPoint" in wb.sheetnames:
         p.params["sjabloon"] = _v(wb["PowerPoint"], LY.PP_CEL_SJABLOON)
+    for naam in ("fo_bestand", "fo_actuals", "fo_opbr", "fo_kosten", "fo_datum"):       # FO-koppeling (sinds v8), op label
+        label = LY.D_LABELS.get(naam)
+        rij = next((r for r in range(1, 120) if _v(d, f"V{r}") == label), None)
+        if rij is not None and _v(d, f"W{rij}") not in (None, ""):
+            p.fo[naam[3:]] = _v(d, f"W{rij}")
     return p

@@ -110,6 +110,7 @@ def bouw(project, pad_uit_basis, vba_bin=None, caches=True):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from", dest="bron", help="bestaand werkboek waaruit invoer en knoppen worden overgenomen")
+    ap.add_argument("--fo", help="FO-werkboek (Financieel Overzicht) waaruit cashflow, woningtypes, termijnen en verkoop worden gelezen (forecast_builder/fo.py)")
     ap.add_argument("--vba", help="VBA-sjabloon: een .xlsm of vbaProject.bin waaruit de projectstructuur en document-modules komen "
                                   "(standaard vba/vbaProject_template.bin); de module zelf komt altijd uit vba/CashflowNaarPowerPoint_v10.bas")
     ap.add_argument("--geen-vba", action="store_true", help="alleen een .xlsx maken")
@@ -117,7 +118,13 @@ def main():
     ap.add_argument("--out", default="out/Cashflow_scenario", help="uitvoerpad zonder extensie (standaard out/Cashflow_scenario)")
     args = ap.parse_args()
 
-    project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld()
+    if args.fo:
+        from forecast_builder import fo
+        project = fo.lees_fo(args.fo)
+        if args.bron:                                   # knoppen (Dashboard) uit een bestaand werkboek overnemen
+            project.params.update({k: v for k, v in D.lees_werkboek(args.bron).params.items() if k not in ("actuals_jaar", "actuals_kw")})
+    else:
+        project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld()
     vba_bin = None if args.geen_vba else vba_bin_maken(args.vba)
     for pad in bouw(project, args.out, vba_bin, caches=not args.geen_cache):
         print("geschreven:", pad)

@@ -21,6 +21,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v14.pptx`).
 | `tools/pptx_scenario_line.py` | zet de scenariolijn als zevende reeks (kolom H, amber) in de cashflowgrafiek op dia 3 (v10 → v11) |
 | `tools/pptx_v12_bouwtermijnen.py` | dia 5: bouwtermijnen-tijdlijn (BT_GRAFIEK) naast de tabel; nieuwe dia 6 met de twee verkoop/transport-panelen (v11 → v12) |
 | `tools/pptx_v13_banen.py` | dia 5: bouwtermijnen per woningtype als banen (koprijen jaar/kwartaal, per termijn een baan per type), grafiek hoger (v12 → v13) |
+| `forecast_builder/fo.py` | lezer voor een FO-werkboek (`build.py --fo`); zelfde logica als de macro `UitFOOphalen` |
 | `tools/pptx_v14_daeb.py` | dia 8 'Opbrengsten per woningtype' (PT_GRAFIEK; de macro maakt per type een kopie) en herkleurde dia 5/6: vorige prognose lichtrood (v13 → v14) |
 
 ## Bouwen
@@ -80,7 +81,7 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   kadastrale kosten/rentes, overige) met een bouwkwartaal, of leeg = bij notarieel transport; het model telt ze mee in de
   opbrengst per woning (Model, blok `vx`), buiten de koopsomknop om. Blok 4: start bouw volgens de vorige prognose (jaar,
   kwartaal) voor de lichtrode blokjes in de bouwtermijnengrafiek. Blok 5: soort (niet-DAEB/DAEB) en fees: bij DAEB (sociale
-  huur aan een corporatie, gescheiden koop-/aannemingsovereenkomst) telt het type geen koopsom, grondtermijn, bouwtermijnen of
+  huur, gescheiden koop-/aannemingsovereenkomst) telt het type geen koopsom, grondtermijn, bouwtermijnen of
   extra's, maar fees voor het hele type: twee componenten (AK fee, bijkomende kosten) met een totaalbedrag en elk vijf termijnen
   (mijlpaal, bedrag in € of percentage ≤ 1 van het totaal, kwartaal als '2026 Q4', bouwkwartaal of 'actuals'). Percentages worden
   niet opgeschaald; de kolom 'gepland' en twee Dashboard-controles melden componenten die niet volledig zijn ingepland en
@@ -101,9 +102,25 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   reeks niet in de presentatie), verkoop en transport per type (EF, dia 6: 26 kolommen, twee grafieken lezen hetzelfde
   blok), van verkoop naar omzet (FG, dia 7), opbrengsten per woningtype (FM, dia 8: 8 kolommen, het type uit de keuzecel;
   de macro zet per type de keuzecel, rekent door en vult een kopie van dia 8); tabellen vanaf FV. De bouwtermijnentabel
-  staat in het Model (kolommen vanaf GW: raster van alle type × termijn-combinaties (bij DAEB de fee-termijnen) met
+  staat in het Model (kolommen vanaf FX: raster van alle type × termijn-combinaties (bij DAEB de fee-termijnen) met
   groepsnaam, bedrag, kwartaalindex, rang en positie, daarna de compacte lijst met de koprijen, de banen en de
   stapelsegmenten voor de grafiek), gevolgd door het selectieblok van de grafiek per type.
+
+### Koppeling met het FO (Financieel Overzicht)
+
+Een FO-werkboek van Heijmans Vastgoed heeft per project dezelfde tabbladen. De knop **Ophalen uit FO** (tab Invoer, .xlsm;
+macro `UitFOOphalen`) en `python3 build.py --fo FO.xlsx` (module `forecast_builder/fo.py`) lezen hetzelfde, op labels:
+
+| FO-tabblad | Wat | Naar |
+|---|---|---|
+| `1. Cashflow` | koprij 'Jaar' in kolom B; daaronder jaar, Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig; 'Totaal:' | tab Invoer B:J; Dashboard FO-cellen (totalen) |
+| `FO - actuals` | laatste boekjaar/kwartaal met een boeking (kolommen Boekjaar, Q, Waarde/TrVal) | Dashboard 'Actuals t/m' |
+| `CF - opbrengsten` | per type: blok 'Termijnen k - naam' met '# won' erboven (bouwplanning: aantal woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom = grond + ontwikkeling per woning; termijnen in %, € en € per woning; kopersmeerwerk, kadastrale kosten, overige) en blok 'Verkooptempo' (verkocht per kwartaal, kolom 'actuals' = al verkocht) | tab Woningtypes: naam, aantal, koopsom per woning (grond + termijnen, excl. btw, incl. KAO-opties), grondtermijn %, start bouw, bouwtermijnen (naam, %, bouwkwartaal; een termijn die het FO over meer kwartalen verdeelt wordt gesplitst in '(1/2)', '(2/2)'), extra's per woning (kwartaal uit de planning, of bij transport); tab Invoer: verkocht en transport per kwartaal (transport = de tellingen op de rij Koopsom) |
+| idem, DAEB | rijen 'AK fee …' / 'Bijkomende kosten …' in het omzetblok van een type: componentrij met het totaal, termijnrijen met % of € in een kwartaal of in de kolom 'actuals' | blok 5 (soort DAEB, componenten, termijnen) — op basis van het fee-overzicht van de gebruiker; nog niet getoetst op een echt DAEB-FO |
+
+De Dashboard-controle 'Invoer sluit aan op het FO' vergelijkt de totalen van tab Invoer met de totalen uit '1. Cashflow';
+de dekking (W13) laat zien hoeveel van de opbrengsten het verkooptempo-model verklaart. De knoppen op het Dashboard blijven bij
+ophalen staan; alleen 'Actuals t/m' wordt gezet.
 
 ### Type toevoegen of verwijderen
 

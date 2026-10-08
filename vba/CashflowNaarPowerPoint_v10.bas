@@ -14,6 +14,9 @@ Option Explicit
 '       een kopie van dia 8, zet het type in de keuzecel op het Dashboard (CEL_PT_KEUZE), rekent door en vult de kopie;
 '       dia 8 zelf gaat daarna weg. Blok 5 op Woningtypes (soort DAEB en fees, rijen 48-63) bij Type invoegen/verwijderen.
 '       Tabellen vanaf kolom FV; sjabloon v14
+'  v14: UitFOOphalen (knop 'Ophalen uit FO' op tab Invoer): leest een FO-werkboek ('1. Cashflow', 'FO - actuals',
+'       'CF - opbrengsten') en vult tab Invoer (cashflow, verkocht, transport), tab Woningtypes (typen, koopsom, grondtermijn,
+'       start bouw, bouwtermijnen, extra's, DAEB-fees) en de FO-cellen op het Dashboard (zelfde logica als forecast_builder/fo.py)
 '
 '  NaarPowerPoint        opent het sjabloon als kopie, vult teksten, tabellen en grafieken
 '                        vanaf tabblad "PowerPoint" en bewaart een nieuwe presentatie
@@ -23,6 +26,8 @@ Option Explicit
 '  TypeVerwijderen       haalt een typeblok weg (zelfde kolommen); alles rechts schuift mee
 '  SchikDia5             na het vullen van VT_TABEL (dia 5): bij meer dan 4 types rijen en letters
 '                        kleiner, zo nodig de kaart met BT_GRAFIEK korter, en de tabelkaart sluit om de tabel
+'
+'  UitFOOphalen         vult Invoer en Woningtypes vanuit een FO-werkboek (zie v14 hierboven)
 '
 '  Welke tekst naar welke vorm gaat staat op tabblad "PowerPoint", kolom F.
 ' =====================================================================================
@@ -45,6 +50,17 @@ Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijn
 Private Const BLOK_PT As String = "FM7"            ' blok grafiek per woningtype (dia 8): kwartaal, zes reeksen, realisatie
 Private Const KOL_PT As Long = 8
 Private Const CEL_PT_KEUZE As String = "B120"      ' keuzecel op het Dashboard: naam van het type in de grafiek per woningtype
+' FO-koppeling (Dashboard): bestand, actuals t/m, opbrengsten en kosten totaal uit '1. Cashflow', datum; actuals-knop W5/X5
+Private Const CEL_FO_BESTAND As String = "W69"
+Private Const CEL_FO_ACTUALS As String = "W70"
+Private Const CEL_FO_OPBR As String = "W71"
+Private Const CEL_FO_KOSTEN As String = "W72"
+Private Const CEL_FO_DATUM As String = "W73"
+Private Const CEL_ACTUALS_JAAR As String = "W5"
+Private Const CEL_ACTUALS_KW As String = "X5"
+Private Const TYPE_RIJ_KOOPSOM As Long = 9
+Private Const TYPE_RIJ_STARTJAAR As Long = 10
+Private Const MAX_PERIODES As Long = 60
 Private Const TITEL As String = "Naar PowerPoint"
 
 ' typeblokken (zelfde getallen als forecast_builder/layout.py)
@@ -110,6 +126,13 @@ Public Sub KnoppenControleren()
     End If
     If Not BestaatVorm(ws, "btnControle") Then
         MaakKnop ws, ws.Range("D4:D5"), "btnControle", "Sjabloon controleren", "ControleerSjabloon", RGB(91, 97, 105), 150, 0, 2
+    End If
+    Set ws = Nothing
+    Set ws = ThisWorkbook.Worksheets(SH_INVOER)
+    If Not ws Is Nothing Then
+        If Not BestaatVorm(ws, "btnUitFO") Then
+            MaakKnop ws, ws.Range("L2:N3"), "btnUitFO", "Ophalen uit FO", "UitFOOphalen", RGB(23, 54, 93), 150, 0, 2
+        End If
     End If
     Set ws = Nothing
     Set ws = ThisWorkbook.Worksheets(SH_TYPES)
@@ -760,7 +783,7 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
     ' krijgt de keuzecel zijn oude waarde terug. Geen type: alleen dia 8 verwijderen.
     Dim wsT As Worksheet, wsD As Worksheet, shp As Object, sjabloon As Object, kopie As Object, rngK As Object
     Dim oud As Variant, pos As Long, c As Long, naam As String, aantal As Variant, idx As Long, nKopie As Long
-    Dim rTitel As Long, rSub As Long, r As Long
+    Dim rTitel As Long, rSub As Long, r As Long, fouten2 As String
     Set shp = ZoekVorm(pres, "PT_GRAFIEK")
     If shp Is Nothing Then
         mist = mist & "PT_GRAFIEK" & vbCrLf
@@ -771,7 +794,7 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
     idx = sjabloon.SlideIndex
     Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
     Set wsD = ThisWorkbook.Worksheets(SH_DASH)
-    oud = wsD.Range(CEL_PT_KEUZE).Value
+    oud = wsD.Range(CEL_PT_KEUZE).Formula
     ' regels op tab PowerPoint met de titel en ondertitel van dia 8 (kolom F = vormnaam)
     For r = KPI_ROW1 To KPI_ROW1 + 300
         If Len(CelTekst(wsP.Range("C" & r))) = 0 Then Exit For
@@ -786,26 +809,30 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
             If CDbl(aantal) > 0 Then
                 naam = CStr(wsT.Cells(TYPE_RIJ_NAAM, c).Value)
                 If Len(naam) = 0 Then naam = "Type " & pos
-                wsD.Range(CEL_PT_KEUZE).Value = naam
+                wsD.Range(CEL_PT_KEUZE).Value = pos          ' typenummer: het Model kiest op nummer, dus ook bij dubbele namen goed
                 Application.Calculate
                 Set rngK = sjabloon.Duplicate
                 Set kopie = rngK.Item(1)
                 nKopie = nKopie + 1
                 kopie.MoveTo idx + nKopie
+                On Error Resume Next                           ' titel en ondertitel: alleen als de vorm op de dia staat
                 If rTitel > 0 Then kopie.Shapes("PT_TITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rTitel))
                 If rSub > 0 Then kopie.Shapes("PT_SUBTITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rSub))
-                VulGrafiekVorm kopie.Shapes("PT_GRAFIEK"), "PT_GRAFIEK", wsP.Range(BLOK_PT), n, KOL_PT, fouten
+                On Error GoTo Mislukt
+                fouten2 = ""
+                VulGrafiekVorm kopie.Shapes("PT_GRAFIEK"), "PT_GRAFIEK", wsP.Range(BLOK_PT), n, KOL_PT, fouten2
+                If Len(fouten2) > 0 Then fouten = fouten & naam & " · " & fouten2
             End If
         End If
     Next pos
     sjabloon.Delete
-    wsD.Range(CEL_PT_KEUZE).Value = oud
+    wsD.Range(CEL_PT_KEUZE).Formula = oud
     Application.Calculate
     Exit Sub
 Mislukt:
-    fouten = fouten & "dia per woningtype: " & Err.Description & vbCrLf
+    fouten = fouten & "dia per woningtype (" & naam & "): " & Err.Description & vbCrLf
     On Error Resume Next
-    wsD.Range(CEL_PT_KEUZE).Value = oud
+    wsD.Range(CEL_PT_KEUZE).Formula = oud
     Application.Calculate
     On Error GoTo 0
 End Sub
@@ -841,6 +868,475 @@ Private Function KolomVanReeks(f As String) As String
     q = InStr(p + 2, s, "$")
     If q = 0 Then Exit Function
     KolomVanReeks = Mid$(s, p + 2, q - p - 2)
+End Function
+
+' -------------------------------------------------------------------------------------
+'  4b. Ophalen uit FO: tab Invoer en tab Woningtypes vullen vanuit een FO-werkboek
+'      Alles wordt op labels gezocht (zelfde regels als forecast_builder/fo.py):
+'      '1. Cashflow'     koprij 'Jaar' in kolom B; daaronder jaar, Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig
+'      'FO - actuals'    laatste boekjaar/kwartaal met boekingen -> Dashboard 'Actuals t/m'
+'      'CF - opbrengsten' per type: blok 'Termijnen k - naam' (rij erboven '# won' en het aantal), bouwplanning (aantal
+'                        woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom, termijnen %/€/€ per wn,
+'                        extra's), blok 'Verkooptempo' (verkocht per kwartaal; 'actuals' = al verkocht)
+' -------------------------------------------------------------------------------------
+Public Sub UitFOOphalen()
+    Dim pad As Variant, wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet
+    Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
+    Dim stap As String, bericht As String, nPer As Long, nTyp As Long, k As Long, waarschuwing As String
+    Dim idxAct As Long, rijVan As Object, aJaar As Long, aKw As Long
+    On Error GoTo Fout
+    pad = Application.GetOpenFilename("Excel-werkboeken (*.xlsx;*.xlsm;*.xlsb),*.xlsx;*.xlsm;*.xlsb", , "FO-werkboek kiezen")
+    If VarType(pad) = vbBoolean Then Exit Sub
+    If MsgBox("Tab Invoer (cashflow, verkocht, transport) en tab Woningtypes worden overschreven met de gegevens uit:" & vbCrLf & pad & _
+              vbCrLf & vbCrLf & "De knoppen op het Dashboard blijven staan. Doorgaan?", vbQuestion + vbYesNo, "Ophalen uit FO") <> vbYes Then Exit Sub
+    Set wsI = ThisWorkbook.Worksheets(SH_INVOER)
+    Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
+    Set wsD = ThisWorkbook.Worksheets(SH_DASH)
+    Application.ScreenUpdating = False
+    stap = "FO openen"
+    Set wbF = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
+    Set wsCF = ZoekBlad(wbF, "1. Cashflow")
+    If wsCF Is Nothing Then Set wsCF = ZoekBlad(wbF, "Cashflow")
+    Set wsO = ZoekBlad(wbF, "CF - opbrengsten")
+    Set wsA = ZoekBlad(wbF, "FO - actuals")
+    If wsCF Is Nothing Or wsO Is Nothing Then
+        wbF.Close SaveChanges:=False
+        Application.ScreenUpdating = True
+        MsgBox "Dit lijkt geen FO-werkboek: tabblad '1. Cashflow' of 'CF - opbrengsten' ontbreekt.", vbExclamation, "Ophalen uit FO"
+        Exit Sub
+    End If
+
+    stap = "cashflow (1. Cashflow)"
+    Set rijVan = CreateObject("Scripting.Dictionary")
+    nPer = FOCashflow(wsCF, wsI, wsD, rijVan, waarschuwing)
+    If nPer = 0 Then Err.Raise 1000, , "Geen periodes gevonden onder de koprij 'Jaar' op '1. Cashflow'."
+
+    stap = "actuals (FO - actuals)"
+    idxAct = 0
+    If Not wsA Is Nothing Then idxAct = FOActuals(wsA)
+    If idxAct > 0 Then
+        aJaar = (idxAct - 1) \ 4
+        aKw = idxAct - aJaar * 4
+        wsD.Range(CEL_ACTUALS_JAAR).Value = aJaar
+        wsD.Range(CEL_ACTUALS_KW).Value = aKw
+        wsD.Range(CEL_FO_ACTUALS).Value = "Q" & aKw & " " & aJaar
+    Else
+        wsD.Range(CEL_FO_ACTUALS).Value = ""
+        idxAct = CLng(Val(wsD.Range(CEL_ACTUALS_JAAR).Value)) * 4 + CLng(Val(wsD.Range(CEL_ACTUALS_KW).Value))
+    End If
+
+    stap = "woningtypes (CF - opbrengsten)"
+    For k = 1 To MAX_TYPES
+        InvoerLeegmaken wsT, TYPE_COL1 + (k - 1) * TYPE_BREEDTE, TYPE_BREEDTE
+        InvoerLeegmaken wsI, INVOER_COL1 + (k - 1) * INVOER_BREEDTE, INVOER_BREEDTE
+    Next k
+    nTyp = FOTypen(wsO, wsT, wsI, rijVan, idxAct, waarschuwing)
+
+    stap = "afronden"
+    wsD.Range(CEL_FO_BESTAND).Value = wbF.Name
+    wsD.Range(CEL_FO_DATUM).Value = Format$(Now, "dd-mm-yyyy hh:nn")
+    wbF.Close SaveChanges:=False
+    Set wbF = Nothing
+    Application.Calculate
+    Application.ScreenUpdating = True
+    bericht = "Klaar: " & nPer & " periodes op tab Invoer en " & nTyp & " woningtype(n) op tab Woningtypes uit " & CStr(pad) & "."
+    If idxAct > 0 Then bericht = bericht & vbCrLf & "Actuals t/m Q" & aKw & " " & aJaar & " (uit 'FO - actuals')."
+    bericht = bericht & vbCrLf & vbCrLf & "Controleer op het Dashboard de controle 'Invoer sluit aan op het FO' en de dekking van het verkooptempo-model."
+    If Len(waarschuwing) > 0 Then bericht = bericht & vbCrLf & vbCrLf & "Let op:" & vbCrLf & waarschuwing
+    MsgBox bericht, IIf(Len(waarschuwing) > 0, vbExclamation, vbInformation), "Ophalen uit FO"
+    Exit Sub
+Fout:
+    Application.ScreenUpdating = True
+    On Error Resume Next
+    If Not wbF Is Nothing Then wbF.Close SaveChanges:=False
+    MsgBox "Het ging mis bij: " & stap & vbCrLf & vbCrLf & "Fout " & Err.Number & ": " & Err.Description, vbExclamation, "Ophalen uit FO"
+End Sub
+
+Private Function ZoekBlad(wb As Workbook, naam As String) As Worksheet
+    ' werkblad op naam, hoofdletters en spaties genegeerd
+    Dim ws As Worksheet
+    For Each ws In wb.Worksheets
+        If Replace(LCase$(ws.Name), " ", "") = Replace(LCase$(naam), " ", "") Then
+            Set ZoekBlad = ws
+            Exit Function
+        End If
+    Next ws
+End Function
+
+Private Function IsJaar(v As Variant) As Boolean
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    If Not IsNumeric(v) Then Exit Function
+    IsJaar = (Val(v) >= 1990 And Val(v) <= 2100)
+End Function
+
+Private Function KwNummer(v As Variant) As Long
+    ' 'Q1'..'Q4' of 1..4 -> 1..4; anders 0
+    Dim t As String
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    t = UCase$(Replace(CStr(v), " ", ""))
+    If Left$(t, 1) = "Q" Then t = Mid$(t, 2)
+    If t = "1" Or t = "2" Or t = "3" Or t = "4" Then KwNummer = CLng(t)
+End Function
+
+Private Function Getal(v As Variant) As Double
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    If IsNumeric(v) Then Getal = CDbl(v)
+End Function
+
+Private Function FOCashflow(wsCF As Worksheet, wsI As Worksheet, wsD As Worksheet, rijVan As Object, ByRef waarschuwing As String) As Long
+    ' '1. Cashflow' -> Invoer B8:J..; rijVan(jaar*4+kw) = rij op Invoer; totalen -> Dashboard FO-cellen
+    Dim kop As Long, r As Long, i As Long, c As Long, q As Long
+    For r = 1 To 15
+        If LCase$(Trim$(CStr(wsCF.Cells(r, 2).Value))) = "jaar" Then
+            kop = r
+            Exit For
+        End If
+    Next r
+    If kop = 0 Then Err.Raise 1001, , "Koprij 'Jaar' niet gevonden op '1. Cashflow'."
+    wsI.Range(wsI.Cells(INVOER_RIJ1, 2), wsI.Cells(INVOER_RIJN, 10)).ClearContents
+    r = kop + 1
+    i = 0
+    Do While IsJaar(wsCF.Cells(r, 2).Value)
+        If i >= MAX_PERIODES Then
+            waarschuwing = waarschuwing & "- '1. Cashflow' heeft meer dan " & MAX_PERIODES & " periodes; alleen de eerste " & MAX_PERIODES & " zijn overgenomen." & vbCrLf
+            Exit Do
+        End If
+        For c = 2 To 10
+            If c = 3 Then
+                q = KwNummer(wsCF.Cells(r, 3).Value)
+                If q > 0 Then wsI.Cells(INVOER_RIJ1 + i, 3).Value = "Q" & q Else wsI.Cells(INVOER_RIJ1 + i, 3).ClearContents
+            ElseIf IsNumeric(wsCF.Cells(r, c).Value) And Not IsEmpty(wsCF.Cells(r, c).Value) Then
+                wsI.Cells(INVOER_RIJ1 + i, c).Value = CDbl(wsCF.Cells(r, c).Value)
+            End If
+        Next c
+        If q > 0 Then rijVan(CLng(Val(wsCF.Cells(r, 2).Value)) * 4 + q) = INVOER_RIJ1 + i
+        i = i + 1
+        r = r + 1
+    Loop
+    ' totalen onder de tabel ('Totaal:' in kolom C)
+    wsD.Range(CEL_FO_OPBR).ClearContents
+    wsD.Range(CEL_FO_KOSTEN).ClearContents
+    For c = r To r + 6
+        If LCase$(Left$(Trim$(CStr(wsCF.Cells(c, 3).Value)), 6)) = "totaal" Then
+            wsD.Range(CEL_FO_KOSTEN).Value = Getal(wsCF.Cells(c, 4).Value)
+            wsD.Range(CEL_FO_OPBR).Value = Getal(wsCF.Cells(c, 6).Value)
+            Exit For
+        End If
+    Next c
+    FOCashflow = i
+End Function
+
+Private Function FOActuals(wsA As Worksheet) As Long
+    ' laatste boekjaar x 4 + kwartaal met een boeking (kolommen op koptekst: Boekjaar, Q, Waarde/TrVal)
+    Dim c As Long, cj As Long, cq As Long, cw As Long, r As Long, laatste As Long, idx As Long, kop As String, rMax As Long
+    For c = 1 To wsA.UsedRange.Columns.Count + wsA.UsedRange.Column
+        kop = LCase$(Trim$(CStr(wsA.Cells(1, c).Value)))
+        If kop = "boekjaar" Then cj = c
+        If kop = "q" Then cq = c
+        If kop = "waarde/trval" Then cw = c
+    Next c
+    If cj = 0 Or cq = 0 Then Exit Function
+    rMax = wsA.Cells(wsA.Rows.Count, cj).End(xlUp).Row
+    For r = 2 To rMax
+        If IsJaar(wsA.Cells(r, cj).Value) And KwNummer(wsA.Cells(r, cq).Value) > 0 Then
+            If cw = 0 Or Not IsEmpty(wsA.Cells(r, cw).Value) Then
+                idx = CLng(Val(wsA.Cells(r, cj).Value)) * 4 + KwNummer(wsA.Cells(r, cq).Value)
+                If idx > laatste Then laatste = idx
+            End If
+        End If
+    Next r
+    FOActuals = laatste
+End Function
+
+Private Sub KolomKaart(ws As Worksheet, rijQ As Long, ByRef idxKol() As Long, ByRef cAct As Long)
+    ' idxKol(c) = jaar*4+kw van kolom c (0 = geen kwartaalkolom), uit de rij met Q1..Q4 en de jaartallen in de rij erboven;
+    ' cAct = kolom 'actuals' (0 = geen)
+    Dim c As Long, jaar As Long, q As Long, nKol As Long
+    nKol = ws.UsedRange.Columns.Count + ws.UsedRange.Column
+    ReDim idxKol(1 To nKol)
+    cAct = 0
+    jaar = 0
+    For c = 1 To nKol
+        If IsJaar(ws.Cells(rijQ - 1, c).Value) Then jaar = CLng(Val(ws.Cells(rijQ - 1, c).Value))
+        If LCase$(Left$(Trim$(CStr(ws.Cells(rijQ, c).Value)), 6)) = "actual" Then cAct = c
+        q = KwNummer(ws.Cells(rijQ, c).Value)
+        If q > 0 And jaar > 0 Then idxKol(c) = jaar * 4 + q Else idxKol(c) = 0
+    Next c
+End Sub
+
+Private Function EersteIdx(ws As Worksheet, r As Long, idxKol() As Long) As Long
+    ' kwartaalindex van de eerste kwartaalcel in rij r met een getal <> 0 (0 = geen)
+    Dim c As Long
+    For c = LBound(idxKol) To UBound(idxKol)
+        If idxKol(c) > 0 Then
+            If Getal(ws.Cells(r, c).Value) <> 0 Then
+                EersteIdx = idxKol(c)
+                Exit Function
+            End If
+        End If
+    Next c
+End Function
+
+Private Function SomRij(ws As Worksheet, r As Long, idxKol() As Long) As Double
+    Dim c As Long
+    For c = LBound(idxKol) To UBound(idxKol)
+        If idxKol(c) > 0 Then SomRij = SomRij + Getal(ws.Cells(r, c).Value)
+    Next c
+End Function
+
+Private Function ZoekPlanningRij(ws As Worksheet, r1 As Long, r2 As Long, naam As String, idxKol() As Long) As Long
+    ' rij r1..r2 in de bouwplanning met dezelfde naam en minstens één kwartaalcel; 0 = geen
+    Dim r As Long
+    For r = r1 To r2
+        If LCase$(Trim$(CStr(ws.Cells(r, 2).Value))) = LCase$(Trim$(naam)) Then
+            If SomRij(ws, r, idxKol) <> 0 Then
+                ZoekPlanningRij = r
+                Exit Function
+            End If
+        End If
+    Next r
+End Function
+
+Private Sub SchrijfVerdeeld(wsT As Worksheet, ws As Worksheet, rBron As Long, idxKol() As Long, idxStart As Long, naam As String, _
+                            waarde As Double, col As Long, ByRef rij As Long, rMax As Long, nf As String, ByRef waarschuwing As String)
+    ' schrijft naam / waarde / bouwkwartaal in rij 'rij' van het typeblok (kolommen col, col+1, col+2); staat de termijn in het FO
+    ' over meer kwartalen verdeeld, dan evenredig gesplitst in meer rijen (naam (1/2), (2/2) ...)
+    Dim c As Long, som As Double, n As Long, i As Long, deel As Double
+    som = SomRij(ws, rBron, idxKol)
+    If som = 0 Or idxStart = 0 Then
+        If rij > rMax Then
+            waarschuwing = waarschuwing & "- te veel termijnen voor '" & naam & "': niet alles overgenomen." & vbCrLf
+            Exit Sub
+        End If
+        wsT.Cells(rij, col).Value = naam
+        wsT.Cells(rij, col + 1).Value = waarde
+        wsT.Cells(rij, col + 1).NumberFormat = nf
+        rij = rij + 1
+        Exit Sub
+    End If
+    For c = LBound(idxKol) To UBound(idxKol)
+        If idxKol(c) > 0 Then
+            If Getal(ws.Cells(rBron, c).Value) <> 0 Then n = n + 1
+        End If
+    Next c
+    For c = LBound(idxKol) To UBound(idxKol)
+        If idxKol(c) > 0 Then
+            If Getal(ws.Cells(rBron, c).Value) <> 0 Then
+                If rij > rMax Then
+                    waarschuwing = waarschuwing & "- te veel termijnen voor '" & naam & "': niet alles overgenomen." & vbCrLf
+                    Exit Sub
+                End If
+                i = i + 1
+                deel = Getal(ws.Cells(rBron, c).Value) / som
+                wsT.Cells(rij, col).Value = naam & IIf(n > 1, " (" & i & "/" & n & ")", "")
+                wsT.Cells(rij, col + 1).Value = waarde * deel
+                wsT.Cells(rij, col + 1).NumberFormat = nf
+                wsT.Cells(rij, col + 2).Value = idxKol(c) - idxStart + 1
+                rij = rij + 1
+            End If
+        End If
+    Next c
+End Sub
+
+Private Sub SchrijfAantallen(ws As Worksheet, r As Long, idxKol() As Long, cAct As Long, wsI As Worksheet, colI As Long, rijVan As Object, idxAct As Long)
+    ' kwartaalcellen (en de kolom 'actuals' in het actuals-kwartaal) van rij r naar de kolom colI op tab Invoer, opgeteld bij wat er staat
+    Dim c As Long, v As Double, rI As Variant
+    If cAct > 0 Then
+        v = Getal(ws.Cells(r, cAct).Value)
+        If v <> 0 Then
+            rI = RijVoor(rijVan, idxAct)
+            If Not IsEmpty(rI) Then wsI.Cells(rI, colI).Value = Getal(wsI.Cells(rI, colI).Value) + v
+        End If
+    End If
+    For c = LBound(idxKol) To UBound(idxKol)
+        If idxKol(c) > 0 Then
+            v = Getal(ws.Cells(r, c).Value)
+            If v <> 0 And rijVan.Exists(idxKol(c)) Then
+                wsI.Cells(rijVan(idxKol(c)), colI).Value = Getal(wsI.Cells(rijVan(idxKol(c)), colI).Value) + v
+            End If
+        End If
+    Next c
+End Sub
+
+Private Function RijVoor(rijVan As Object, idx As Long) As Variant
+    ' rij op Invoer van kwartaalindex idx; bestaat die niet, de eerste periode met een kwartaal
+    Dim sleutel As Variant, kleinste As Long
+    If rijVan.Exists(idx) Then
+        RijVoor = rijVan(idx)
+        Exit Function
+    End If
+    kleinste = 0
+    For Each sleutel In rijVan.Keys
+        If kleinste = 0 Or CLng(sleutel) < kleinste Then kleinste = CLng(sleutel)
+    Next sleutel
+    If kleinste > 0 Then RijVoor = rijVan(kleinste) Else RijVoor = Empty
+End Function
+
+Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, rijVan As Object, idxAct As Long, ByRef waarschuwing As String) As Long
+    ' blokken op 'CF - opbrengsten' -> typeblokken op Woningtypes en verkocht/transport op Invoer
+    Dim rMax As Long, r As Long, b As String, nBlok As Long, nOmzet As Long, rVerkoop As Long
+    Dim blok() As Long, omzet() As Long, k As Long, kT As Long, col As Long, naam As String, aantal As Double
+    Dim idxKol() As Long, cAct As Long, idxKolO() As Long, cActO As Long, idxStart As Long, rPlan1 As Long, rPlan2 As Long
+    Dim ro As Long, lab As String, ll As String, pct As Variant, eur As Variant, pw As Variant, koopPw As Double, koopsom As Double
+    Dim rTermijn As Long, rExtra As Long, rp As Long, rFee As Long, nComp As Long, feeComp As Long, isDaeb As Boolean
+    Dim termNaam(1 To 20) As String, termPct(1 To 20) As Double, termPw(1 To 20) As Double, termRij(1 To 20) As Long, nTerm As Long, i As Long
+    ReDim blok(1 To MAX_TYPES)
+    ReDim omzet(1 To MAX_TYPES)
+    rMax = wsO.Cells(wsO.Rows.Count, 2).End(xlUp).Row
+    For r = 2 To rMax
+        b = LCase$(Trim$(CStr(wsO.Cells(r, 2).Value)))
+        If Left$(b, 10) = "termijnen " And InStr(b, " in ") = 0 And LCase$(Left$(Trim$(CStr(wsO.Cells(r - 1, 6).Value)), 5)) = "# won" Then
+            If nBlok < MAX_TYPES Then
+                nBlok = nBlok + 1
+                blok(nBlok) = r
+            End If
+        ElseIf Left$(b, 9) = "omzet hvg" Or Left$(b, 15) = "omzet termijnen" Then
+            If nOmzet < MAX_TYPES Then
+                nOmzet = nOmzet + 1
+                omzet(nOmzet) = r
+            End If
+        ElseIf b = "verkooptempo" And rVerkoop = 0 Then
+            rVerkoop = r
+        End If
+    Next r
+    kT = 0
+    For k = 1 To nBlok
+        aantal = Getal(wsO.Cells(blok(k) - 1, 7).Value)
+        If aantal <= 0 Then GoTo Volgende
+        kT = kT + 1
+        col = TYPE_COL1 + (kT - 1) * TYPE_BREEDTE
+        naam = Trim$(CStr(wsO.Cells(blok(k), 2).Value))
+        If InStr(naam, " - ") > 0 Then naam = Trim$(Mid$(naam, InStr(naam, " - ") + 3)) Else naam = "Type " & kT
+        wsT.Cells(TYPE_RIJ_NAAM, col).Value = naam
+        wsT.Cells(TYPE_RIJ_AANTAL, col).Value = aantal
+        ' bouwplanning: eerste rij met een telling = start bouw
+        KolomKaart wsO, blok(k), idxKol, cAct
+        rPlan1 = blok(k) + 1
+        rPlan2 = rPlan1
+        Do While Len(Trim$(CStr(wsO.Cells(rPlan2 + 1, 2).Value))) > 0
+            rPlan2 = rPlan2 + 1
+        Loop
+        idxStart = 0
+        For r = rPlan1 To rPlan2
+            idxStart = EersteIdx(wsO, r, idxKol)
+            If idxStart > 0 Then Exit For
+        Next r
+        If idxStart > 0 Then
+            wsT.Cells(TYPE_RIJ_STARTJAAR, col).Value = (idxStart - 1) \ 4
+            wsT.Cells(TYPE_RIJ_STARTKW, col).Value = idxStart - ((idxStart - 1) \ 4) * 4
+        End If
+        ' termijnnamen en extra-namen van het sjabloon leegmaken (het FO levert zijn eigen namen)
+        wsT.Range(wsT.Cells(TYPE_RIJ_T1, col), wsT.Cells(TYPE_RIJ_TN, col + 2)).ClearContents
+        wsT.Range(wsT.Cells(TYPE_RIJ_X1, col), wsT.Cells(TYPE_RIJ_XN, col + 2)).ClearContents
+        If k > nOmzet Then GoTo Volgende
+        ' omzetblok: koopsom, termijnen, extra's, fees
+        ro = omzet(k)
+        KolomKaart wsO, ro, idxKolO, cActO
+        koopPw = 0
+        nTerm = 0
+        rTermijn = TYPE_RIJ_T1
+        rExtra = TYPE_RIJ_X1
+        isDaeb = False
+        nComp = 0
+        rFee = 0
+        r = ro + 1
+        Do While Len(Trim$(CStr(wsO.Cells(r, 2).Value))) > 0
+            lab = Trim$(CStr(wsO.Cells(r, 2).Value))
+            ll = LCase$(lab)
+            pct = wsO.Cells(r, 3).Value
+            eur = wsO.Cells(r, 4).Value
+            pw = wsO.Cells(r, 5).Value
+            If ll = "koopsom" Then
+                koopPw = Getal(pw)
+                SchrijfAantallen wsO, r, idxKolO, cActO, wsI, INVOER_COL1 + (kT - 1) * INVOER_BREEDTE + 1, rijVan, idxAct
+            ElseIf Left$(ll, 6) = "ak fee" Or Left$(ll, 6) = "ak-fee" Or Left$(ll, 17) = "bijkomende kosten" Or Left$(ll, 10) = "onvoorzien" Then
+                ' DAEB: componentrij (totaal in €, zonder kwartalen) of termijnrij (% of € in een kwartaal / actuals)
+                If SomRij(wsO, r, idxKolO) = 0 And Getal(IIf(cActO > 0, wsO.Cells(r, IIf(cActO > 0, cActO, 1)).Value, 0)) = 0 And Getal(eur) <> 0 And Not IsNumeric(pct) Then
+                    If nComp < 2 Then
+                        nComp = nComp + 1
+                        isDaeb = True
+                        wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col).Value = lab
+                        wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col + 1).Value = Getal(eur)
+                        rFee = TYPE_RIJ_F1 + (nComp - 1) * 5
+                    End If
+                ElseIf nComp > 0 And rFee > 0 And rFee < TYPE_RIJ_F1 + nComp * 5 Then
+                    wsT.Cells(rFee, col).Value = lab
+                    If IsNumeric(pct) And Not IsEmpty(pct) Then wsT.Cells(rFee, col + 1).Value = CDbl(pct) Else wsT.Cells(rFee, col + 1).Value = Getal(eur)
+                    If EersteIdx(wsO, r, idxKolO) > 0 Then
+                        wsT.Cells(rFee, col + 2).Value = ((EersteIdx(wsO, r, idxKolO) - 1) \ 4) & " Q" & (EersteIdx(wsO, r, idxKolO) - ((EersteIdx(wsO, r, idxKolO) - 1) \ 4) * 4)
+                    ElseIf cActO > 0 Then
+                        If Getal(wsO.Cells(r, cActO).Value) <> 0 Then wsT.Cells(rFee, col + 2).Value = "actuals"
+                    End If
+                    rFee = rFee + 1
+                End If
+            ElseIf IsNumeric(pct) And Not IsEmpty(pct) Then
+                If CDbl(pct) <> 0 And nTerm < 20 Then
+                    nTerm = nTerm + 1
+                    termNaam(nTerm) = lab
+                    termPct(nTerm) = CDbl(pct)
+                    termPw(nTerm) = Getal(pw)
+                    termRij(nTerm) = r
+                End If
+            ElseIf Getal(pw) <> 0 Then
+                ' extra per woning (kopersmeerwerk, kadastrale kosten, overige): bij transport als het FO de telling in 'actuals' zet
+                rp = ZoekPlanningRij(wsO, rPlan1, rPlan2, lab, idxKol)
+                If rp = 0 And SomRij(wsO, r, idxKolO) <> 0 Then rp = r
+                If rp = 0 Or (cActO > 0 And Getal(wsO.Cells(r, IIf(cActO > 0, cActO, 1)).Value) <> 0) Then
+                    If rExtra <= TYPE_RIJ_XN Then
+                        wsT.Cells(rExtra, col).Value = lab
+                        wsT.Cells(rExtra, col + 1).Value = Getal(pw)
+                        rExtra = rExtra + 1
+                    End If
+                ElseIf rp = r Then
+                    SchrijfVerdeeld wsT, wsO, rp, idxKolO, idxStart, lab, Getal(pw), col, rExtra, TYPE_RIJ_XN, "#,##0", waarschuwing
+                Else
+                    SchrijfVerdeeld wsT, wsO, rp, idxKol, idxStart, lab, Getal(pw), col, rExtra, TYPE_RIJ_XN, "#,##0", waarschuwing
+                End If
+            End If
+            r = r + 1
+        Loop
+        If isDaeb Then
+            wsT.Cells(TYPE_RIJ_SOORT, col).Value = "DAEB"
+            wsT.Cells(TYPE_RIJ_KOOPSOM, col).ClearContents
+            wsT.Cells(TYPE_RIJ_GROND, col + 1).ClearContents
+        Else
+            koopsom = koopPw
+            For i = 1 To nTerm
+                koopsom = koopsom + termPw(i)
+            Next i
+            If koopsom > 0 Then
+                wsT.Cells(TYPE_RIJ_KOOPSOM, col).Value = Round(koopsom, 2)
+                wsT.Cells(TYPE_RIJ_GROND, col + 1).Value = koopPw / koopsom
+            End If
+            For i = 1 To nTerm
+                rp = ZoekPlanningRij(wsO, rPlan1, rPlan2, termNaam(i), idxKol)
+                If rp > 0 Then
+                    SchrijfVerdeeld wsT, wsO, rp, idxKol, idxStart, termNaam(i), termPct(i), col, rTermijn, TYPE_RIJ_TN, "0.0%", waarschuwing
+                Else
+                    SchrijfVerdeeld wsT, wsO, termRij(i), idxKolO, idxStart, termNaam(i), termPct(i), col, rTermijn, TYPE_RIJ_TN, "0.0%", waarschuwing
+                End If
+            Next i
+        End If
+Volgende:
+    Next k
+    ' verkooptempo: rijen in dezelfde volgorde als de blokken (ook blokken zonder woningen tellen als rij)
+    If rVerkoop > 0 Then
+        KolomKaart wsO, rVerkoop, idxKol, cAct
+        kT = 0
+        r = rVerkoop + 1
+        k = 0
+        Do While Len(Trim$(CStr(wsO.Cells(r, 2).Value))) > 0 And k < nBlok
+            k = k + 1
+            If Getal(wsO.Cells(blok(k) - 1, 7).Value) > 0 Then
+                kT = kT + 1
+                SchrijfAantallen wsO, r, idxKol, cAct, wsI, INVOER_COL1 + (kT - 1) * INVOER_BREEDTE, rijVan, idxAct
+            End If
+            r = r + 1
+        Loop
+    Else
+        waarschuwing = waarschuwing & "- blok 'Verkooptempo' niet gevonden op 'CF - opbrengsten': verkocht per kwartaal is leeg gebleven." & vbCrLf
+    End If
+    FOTypen = kT
 End Function
 
 ' -------------------------------------------------------------------------------------

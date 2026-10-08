@@ -50,7 +50,7 @@ WT_R_V_TITEL = 42
 WT_R_VSTARTJAAR = 43
 WT_R_VSTARTKW = 44
 WT_R_VSTARTTEKST = 45
-# blok 5: soort en fees (DAEB = sociale huur aan een corporatie met gescheiden koop-/aannemingsovereenkomst: geen koopsom en geen
+# blok 5: soort en fees (DAEB = sociale huur met gescheiden koop-/aannemingsovereenkomst: geen koopsom en geen
 # bouwtermijnen, maar fees). Twee componenten (AK fee, bijkomende kosten) met een totaalbedrag en elk vijf termijnen; per termijn
 # een bedrag in € (> 1) óf een percentage van het componenttotaal (<= 1), en een kwartaal: 'jaar Qk', een bouwkwartaal (getal,
 # 1 = start bouw) of 'actuals' (zit al in de eigen cashflow). De tien fee-termijnen nemen in de tijdlijn de plek van de bouwtermijnen in.
@@ -276,6 +276,8 @@ D = {
     "rente_scn": "Y23", "scn_aan": "Y25", "scn_naam": "Y26",
     "norm": "W29",
     "pt_keuze": "B120",                                     # grafiek per woningtype: gekozen type (naam; keuzelijst uit Model rij 7)
+    # FO-koppeling (macro 'Ophalen uit FO' op tab Invoer, of build.py --fo): bestand, actuals t/m, totalen uit '1. Cashflow', datum
+    "fo_bestand": "W69", "fo_actuals": "W70", "fo_opbr": "W71", "fo_kosten": "W72", "fo_datum": "W73",
 }
 # data.py leest de knoppen op het label in kolom V (zo blijven oudere bestanden met andere rijnummers leesbaar)
 D_LABELS = {
@@ -284,12 +286,15 @@ D_LABELS = {
     "shift_down": "Verkoop en transport verschuiven (kw)", "uitstel_down": "Uitstel start bouw (kw)", "opbr_down": "Opbrengsten",
     "kosten_down": "Kosten", "rente_pct_down": "Jaarrente per scenario", "koopsom_down": "Koopsom (VON-prijs)",
     "scn_aan": "Scenariolijn tonen in de cashflowgrafiek", "scn_naam": "Naam van de scenariolijn", "norm": "Norm verkocht vóór start bouw",
+    "fo_bestand": "FO-bestand", "fo_actuals": "Actuals in het FO t/m", "fo_opbr": "Opbrengsten totaal volgens het FO",
+    "fo_kosten": "Kosten totaal volgens het FO", "fo_datum": "Opgehaald op",
 }
 D_ROW_SCENARIO = 15        # sectie SCENARIO'S (kop Downside/Upside/Scenario in rij 16)
 D_ROW_VERKOOP = 28
 D_ROW_POWERPOINT = 34      # knop staat op W35:X36 (vast: de VBA-macro zet hem daar)
 D_ROW_CONTROLES = 40
-D_ROW_TYPES = 55           # overzicht woningtypes (na veertien controles)
+D_ROW_TYPES = 56           # overzicht woningtypes (na vijftien controles)
+D_ROW_FO = 68              # FO-koppeling: bestand, actuals, totalen (cellen in LY.D fo_*)
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
 D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; chips (typekleuren) in rij 96, grafiek op B97 (19 rijen)
 D_ROW_LEGENDA_BT = 96
