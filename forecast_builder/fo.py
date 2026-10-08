@@ -10,11 +10,16 @@ labels gezocht, niet op vaste celadressen, zodat kleine verschillen tussen proje
     kosten, overige) en het verkooptempo (verkocht per kwartaal; 'actuals' = al verkocht). Daaruit: naam, aantal, koopsom
     per woning (grond + termijnen, excl. btw), grondtermijn %, start bouw, bouwtermijnen (naam, %, bouwkwartaal; een termijn
     die over meer kwartalen is verdeeld wordt gesplitst), extra's per woning en verkocht/transport per kwartaal.
-  * DAEB-fees (AK fee, bijkomende kosten) worden herkend aan de labels als het FO ze in het blok van een type heeft.
+  * DAEB-fees: een rij 'AK fee' of 'Bijkomende kosten' met alleen een totaal in € (geen %, geen kwartalen) is een
+    fee-component; elke rij daarna met een % of € én een kwartaal of 'actuals' is een termijn van die component, wat het
+    label ook is ('na akkoord SO', 'bij start bouw', ...). 'Onvoorzien' wordt overgeslagen. Zo'n type wordt DAEB: alleen
+    de fees, geen koopsom, bouwtermijnen of extra's.
+Meldingen (ontbrekend tabblad, samengevoegde termijnen, overgeslagen rijen) staan in p.fo['waarschuwingen'].
 De macro 'Ophalen uit FO' in het werkboek doet hetzelfde (zie vba/CashflowNaarPowerPoint_v10.bas, UitFOOphalen).
 """
 import os
 import re
+from datetime import datetime
 
 from openpyxl import load_workbook
 
@@ -91,6 +96,43 @@ def _tellingen(ws, r, kaart, c_act=None):
     return uit
 
 
+def _is_fee_label(ll):
+    return bool(re.search(r"\bfees?\b", ll)) or ll.startswith("ak-fee") or ll.startswith("bijkomende kosten") or ll.startswith("onvoorzien")
+
+
+def _binnen_limiet(rijen, n_max, naam, wat, waarschuwingen):
+    """[(label, waarde, bouwkwartaal)] terugbrengen tot n_max rijen: gesplitste delen (label 'x (i/n)') van dezelfde termijn worden
+    samengevoegd bij het grootste deel (kleinste deel eerst), met een melding. Zonder splitsingen om samen te voegen: foutmelding."""
+    rijen = list(rijen)
+    samengevoegd = []
+    while len(rijen) > n_max:
+        basis = lambda lab: re.sub(r" \(\d+/\d+\)$", "", lab)
+        groepen = {}
+        for i, (lab, w, kw) in enumerate(rijen):
+            if re.search(r" \(\d+/\d+\)$", lab):
+                groepen.setdefault(basis(lab), []).append(i)
+        groepen = {b: ix for b, ix in groepen.items() if len(ix) > 1}
+        if not groepen:
+            raise ValueError(f"{naam}: {len(rijen)} {wat} in het FO, het werkboek heeft ruimte voor {n_max}.")
+        b, ix = max(groepen.items(), key=lambda kv: len(kv[1]))
+        klein = min(ix, key=lambda i: abs(rijen[i][1] or 0))
+        groot = max((i for i in ix if i != klein), key=lambda i: abs(rijen[i][1] or 0))
+        lab_g, w_g, kw_g = rijen[groot]
+        rijen[groot] = (lab_g, round((w_g or 0) + (rijen[klein][1] or 0), 6), kw_g)
+        del rijen[klein]
+        samengevoegd.append(b)
+        n = len([i for i, (lab, _, _) in enumerate(rijen) if basis(lab) == b and re.search(r" \(\d+/\d+\)$", lab)])
+        k = 0
+        for i, (lab, w, kw) in enumerate(rijen):
+            if basis(lab) == b and re.search(r" \(\d+/\d+\)$", lab):
+                k += 1
+                rijen[i] = (b if n == 1 else f"{b} ({k}/{n})", w, kw)
+    if samengevoegd:
+        waarschuwingen.append(f"{naam}: meer dan {n_max} {wat} na het splitsen over kwartalen; kleinste delen samengevoegd bij het "
+                              f"grootste deel van {', '.join(sorted(set(samengevoegd)))}.")
+    return rijen
+
+
 def _idx(j, q):
     return j * 4 + q
 
@@ -99,7 +141,8 @@ def lees_fo(pad):
     wb = load_workbook(pad, data_only=True)
     p = ProjectData()
     p.params = dict(PARAM_STANDAARD)
-    p.fo = {"bestand": os.path.basename(pad)}
+    p.fo = {"bestand": os.path.basename(pad), "datum": datetime.now().strftime("%d-%m-%Y %H:%M"), "waarschuwingen": []}
+    waarschuwingen = p.fo["waarschuwingen"]
 
     # ---- 1. Cashflow -> periodes ----------------------------------------------------------------------------------
     ws = _zoek_blad(wb, "1. Cashflow", "Cashflow")
@@ -145,6 +188,10 @@ def lees_fo(pad):
         if laatste:
             p.params["actuals_jaar"], p.params["actuals_kw"] = laatste
             p.fo["actuals"] = f"Q{laatste[1]} {laatste[0]}"
+        else:
+            waarschuwingen.append("'FO - actuals' heeft geen rij met boekjaar en kwartaal: 'Actuals t/m' is niet uit het FO gehaald.")
+    else:
+        waarschuwingen.append("tabblad 'FO - actuals' ontbreekt: 'Actuals t/m' is niet uit het FO gehaald.")
     idx_act = _idx(p.params["actuals_jaar"], p.params["actuals_kw"])
 
     # ---- CF - opbrengsten -> woningtypes ----------------------------------------------------------------------------
@@ -197,17 +244,24 @@ def lees_fo(pad):
                 pct, eur, pw = _num(wo.cell(r, 3).value), _num(wo.cell(r, 4).value), _num(wo.cell(r, 5).value)
                 tel = _tellingen(wo, r, kaart_o)
                 act = _num(wo.cell(r, c_act_o).value) if c_act_o else None
+                comp_rij = bool(eur) and not pct and not tel and not act      # alleen een totaal in €: fee-component
                 if ll == "koopsom":
                     koop_pw, koop_tot = pw or 0.0, eur or 0.0
                     transport = _tellingen(wo, r, kaart_o, c_act_o)
-                elif ll.startswith("ak fee") or ll.startswith("ak-fee") or ll.startswith("bijkomende kosten") or ll.startswith("onvoorzien"):
-                    # DAEB: componentrij (totaal in €, geen kwartalen) of termijnrij (% of € in een kwartaal / actuals)
-                    if not tel and not act and eur and pct is None:
-                        comp = (lab, eur)
+                elif (comp_rij and _is_fee_label(ll)) or (comp is not None and comp_rij):
+                    # DAEB: componentrij (totaal in €, geen % en geen kwartalen); 'onvoorzien' doet niet mee
+                    comp = (lab, eur)
+                    if ll.startswith("onvoorzien"):
+                        comp = (None, None)
+                    else:
                         fees.append((comp, []))
-                    elif fees:
-                        kw = "actuals" if (act and not tel) else (f"{tel[0][0]} Q{tel[0][1]}" if tel else None)
-                        fees[-1][1].append((lab, pct if pct is not None else eur, kw))
+                elif comp is not None and (pct or eur) and (tel or act):
+                    # termijn van de laatste component (label vrij: 'na akkoord SO', 'bij start bouw', ...)
+                    if comp[0] is not None:
+                        kw = "actuals" if (act and not tel) else f"{tel[0][0]} Q{tel[0][1]}"
+                        fees[-1][1].append((lab, pct if pct else eur, kw))
+                elif comp is not None and _is_fee_label(ll):
+                    waarschuwingen.append(f"{naam}: rij '{lab}' in het fee-blok heeft geen bedrag met kwartaal en is overgeslagen.")
                 elif pct is not None and pct != 0:
                     termijnen.append((lab, pct, pw or 0.0, tel))
                 elif pw:
@@ -239,12 +293,20 @@ def lees_fo(pad):
                         t.extras.append((lab + suffix, round(pw * deel, 2), _idx(j, q) - idx_start + 1))
                 else:
                     t.extras.append((lab, round(pw, 2), None))        # bij transport
+            t.termijnen = _binnen_limiet(t.termijnen, LY.N_TERMIJNEN, naam, "bouwtermijnen", waarschuwingen)
+            t.extras = _binnen_limiet(t.extras, LY.N_EXTRA, naam, "extra's", waarschuwingen)
             if fees:
                 t.soort = "DAEB"
                 t.koopsom, t.grond_pct, t.termijnen, t.extras = None, None, [], []
+                if len(fees) > LY.N_FEE_COMP:
+                    waarschuwingen.append(f"{naam}: {len(fees)} fee-componenten in het FO, alleen de eerste {LY.N_FEE_COMP} zijn overgenomen "
+                                          f"({', '.join(c[0] for c, _ in fees[LY.N_FEE_COMP:])} niet).")
                 t.fee_comp = [(c[0], c[1]) for c, _ in fees][:LY.N_FEE_COMP]
                 rijen = []
-                for i, (_, termijnen_c) in enumerate(fees[:LY.N_FEE_COMP]):
+                for i, (c, termijnen_c) in enumerate(fees[:LY.N_FEE_COMP]):
+                    if len(termijnen_c) > LY.N_FEE_PER_COMP:
+                        waarschuwingen.append(f"{naam}: {c[0]} heeft {len(termijnen_c)} termijnen in het FO, alleen de eerste "
+                                              f"{LY.N_FEE_PER_COMP} zijn overgenomen.")
                     rijen_c = [(lab, w, kw) for lab, w, kw in termijnen_c][:LY.N_FEE_PER_COMP]
                     rijen_c += [("", None, None)] * (LY.N_FEE_PER_COMP - len(rijen_c))
                     rijen += rijen_c

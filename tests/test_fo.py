@@ -87,11 +87,16 @@ def maak_fo(pad):
     wo["B38"] = "Koopsom"
     wo["B41"] = "Omzet HVG Termijnen"
     kd = _kopregels(wo, 41)
-    wo["B42"], wo["D42"] = "AK fee", 1000000
-    wo["B43"], wo["C43"] = "AK fee na akkoord SO", 0.30; wo.cell(43, 10).value = 300000
-    wo["B44"], wo["C44"] = "AK fee na omgevingsvergunning", 0.70; wo.cell(44, kd[(2026, 4)]).value = 700000
+    # zoals het fee-overzicht van de gebruiker: componentrij met alleen een totaal (hier met een 0 in de %-kolom), daaronder
+    # termijnrijen zonder prefix; 'Onvoorzien' (met termijn) doet niet mee; een fee-rij zonder bedrag geeft een melding
+    wo["B42"], wo["C42"], wo["D42"] = "AK fee", 0, 1000000
+    wo["B43"], wo["C43"] = "na akkoord SO", 0.30; wo.cell(43, 10).value = 300000
+    wo["B44"], wo["C44"] = "na omgevingsvergunning", 0.70; wo.cell(44, kd[(2026, 4)]).value = 700000
     wo["B45"], wo["D45"] = "Bijkomende kosten (excl. AK)", 500000
-    wo["B46"], wo["C46"] = "Bijkomende kosten bij start bouw", 1.0; wo.cell(46, kd[(2027, 2)]).value = 500000
+    wo["B46"], wo["D46"] = "na tekenen TKO", 500000; wo.cell(46, kd[(2027, 2)]).value = 500000
+    wo["B47"], wo["D47"] = "Onvoorzien", 50000
+    wo["B48"], wo["C48"] = "bij start bouw", 1.0; wo.cell(48, kd[(2027, 2)]).value = 50000
+    wo["B49"] = "AK fee (toelichting)"
     wb.save(pad)
 
 
@@ -111,10 +116,29 @@ def test_lees_fo():
     daeb = p.types[1]
     assert daeb.soort == "DAEB" and daeb.koopsom is None and daeb.termijnen == []
     assert daeb.fee_comp == [("AK fee", 1000000), ("Bijkomende kosten (excl. AK)", 500000)]
-    assert daeb.fee_termijnen[0] == ("AK fee na akkoord SO", 0.3, "actuals")
-    assert daeb.fee_termijnen[1] == ("AK fee na omgevingsvergunning", 0.7, "2026 Q4")
-    assert daeb.fee_termijnen[5] == ("Bijkomende kosten bij start bouw", 1.0, "2027 Q2")
+    assert daeb.fee_termijnen[0] == ("na akkoord SO", 0.3, "actuals")
+    assert daeb.fee_termijnen[1] == ("na omgevingsvergunning", 0.7, "2026 Q4")
+    assert daeb.fee_termijnen[2] == ("", None, None)
+    assert daeb.fee_termijnen[5] == ("na tekenen TKO", 500000, "2027 Q2") and daeb.fee_termijnen[6] == ("", None, None)
+    assert daeb.extras == [] and len(daeb.fee_termijnen) == 10
+    assert p.fo["bestand"] == "fo.xlsx" and p.fo["datum"] and p.fo["actuals"] == "Q3 2026"
+    assert [w for w in p.fo["waarschuwingen"] if "AK fee (toelichting)" in w and "overgeslagen" in w]
+    assert not [w for w in p.fo["waarschuwingen"] if "FO - actuals" in w]
     # verkocht: actuals (3) in het actuals-kwartaal Q3 '26 (periode-index 3), 7 in Q4 '26; DAEB 20 in Q1 '27 (tweede kolom)
     assert p.verkocht[3] == [3, None] and p.verkocht[4] == [7, None] and p.verkocht[5] == [None, 20]
     # transport van de rij Koopsom: 7 in Q4 '26, 3 in Q1 '27
     assert p.transport[4] == [7, None] and p.transport[5] == [3, None]
+
+
+def test_binnen_limiet():
+    rijen = [("A (1/3)", 0.1, 1), ("A (2/3)", 0.05, 2), ("A (3/3)", 0.15, 3)] + [(f"T{i}", 0.07, i + 4) for i in range(9)]
+    meldingen = []
+    uit = fo._binnen_limiet(rijen, 10, "Rijwoning", "bouwtermijnen", meldingen)
+    assert len(uit) == 10 and uit[0] == ("A", 0.3, 3) and uit[1:] == rijen[3:]       # kleinste delen bij het grootste deel
+    assert abs(sum(w for _, w, _ in uit) - sum(w for _, w, _ in rijen)) < 1e-9 and len(meldingen) == 1 and "samengevoegd" in meldingen[0]
+    assert fo._binnen_limiet(rijen[3:], 10, "x", "bouwtermijnen", []) == rijen[3:]
+    try:
+        fo._binnen_limiet([(f"T{i}", 0.05, i + 1) for i in range(11)], 10, "Rijwoning", "bouwtermijnen", [])
+        assert False, "ValueError verwacht"
+    except ValueError as e:
+        assert "11 bouwtermijnen" in str(e)

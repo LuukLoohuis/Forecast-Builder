@@ -116,11 +116,15 @@ macro `UitFOOphalen`) en `python3 build.py --fo FO.xlsx` (module `forecast_build
 | `1. Cashflow` | koprij 'Jaar' in kolom B; daaronder jaar, Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig; 'Totaal:' | tab Invoer B:J; Dashboard FO-cellen (totalen) |
 | `FO - actuals` | laatste boekjaar/kwartaal met een boeking (kolommen Boekjaar, Q, Waarde/TrVal) | Dashboard 'Actuals t/m' |
 | `CF - opbrengsten` | per type: blok 'Termijnen k - naam' met '# won' erboven (bouwplanning: aantal woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom = grond + ontwikkeling per woning; termijnen in %, € en € per woning; kopersmeerwerk, kadastrale kosten, overige) en blok 'Verkooptempo' (verkocht per kwartaal, kolom 'actuals' = al verkocht) | tab Woningtypes: naam, aantal, koopsom per woning (grond + termijnen, excl. btw, incl. KAO-opties), grondtermijn %, start bouw, bouwtermijnen (naam, %, bouwkwartaal; een termijn die het FO over meer kwartalen verdeelt wordt gesplitst in '(1/2)', '(2/2)'), extra's per woning (kwartaal uit de planning, of bij transport); tab Invoer: verkocht en transport per kwartaal (transport = de tellingen op de rij Koopsom) |
-| idem, DAEB | rijen 'AK fee …' / 'Bijkomende kosten …' in het omzetblok van een type: componentrij met het totaal, termijnrijen met % of € in een kwartaal of in de kolom 'actuals' | blok 5 (soort DAEB, componenten, termijnen) — op basis van het fee-overzicht van de gebruiker; nog niet getoetst op een echt DAEB-FO |
+| idem, DAEB | in het omzetblok van een type: een rij met een fee-label ('AK fee', 'Bijkomende kosten'; 'Onvoorzien' wordt overgeslagen) en alleen een totaal in € (geen %, geen kwartalen) is een fee-component; elke rij daarna met een % of € én een kwartaal of 'actuals' is een termijn van die component, wat het label ook is ('na akkoord SO', 'bij start bouw', …) | blok 5 (soort DAEB, componenten, termijnen; koopsom, bouwtermijnen en extra's leeg) — op basis van het fee-overzicht van de gebruiker; nog niet getoetst op een echt DAEB-FO |
 
 De Dashboard-controle 'Invoer sluit aan op het FO' vergelijkt de totalen van tab Invoer met de totalen uit '1. Cashflow';
 de dekking (W13) laat zien hoeveel van de opbrengsten het verkooptempo-model verklaart. De knoppen op het Dashboard blijven bij
-ophalen staan; alleen 'Actuals t/m' wordt gezet.
+ophalen staan; alleen 'Actuals t/m' wordt gezet (en alleen als het FO een tabblad 'FO - actuals' heeft). Meldingen (tabblad
+ontbreekt, meer termijnen dan er ruimte is, overgeslagen rijen) komen in de afsluitende melding van de macro en in
+`p.fo['waarschuwingen']` (build.py drukt ze af); de Python-lezer voegt gesplitste delen samen als een type na het splitsen
+meer dan 10 bouwtermijnen zou krijgen, de macro laat de rest weg met een melding. Staat het FO al open, dan gebruikt de macro
+dat werkboek (en sluit het niet); de macro werkt ook op Excel voor Mac (geen Scripting.Dictionary, bestandskeuze zonder filter).
 
 ### Type toevoegen of verwijderen
 

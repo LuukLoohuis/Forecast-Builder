@@ -60,6 +60,8 @@ Private Const CEL_ACTUALS_JAAR As String = "W5"
 Private Const CEL_ACTUALS_KW As String = "X5"
 Private Const TYPE_RIJ_KOOPSOM As Long = 9
 Private Const TYPE_RIJ_STARTJAAR As Long = 10
+Private Const IDX_MIN As Long = 7961                 ' 1990*4+1: kleinste kwartaalindex die IsJaar toelaat
+Private Const IDX_MAX As Long = 8404                 ' 2100*4+4
 Private Const MAX_PERIODES As Long = 60
 Private Const TITEL As String = "Naar PowerPoint"
 
@@ -131,7 +133,8 @@ Public Sub KnoppenControleren()
     Set ws = ThisWorkbook.Worksheets(SH_INVOER)
     If Not ws Is Nothing Then
         If Not BestaatVorm(ws, "btnUitFO") Then
-            MaakKnop ws, ws.Range("L2:N3"), "btnUitFO", "Ophalen uit FO", "UitFOOphalen", RGB(23, 54, 93), 150, 0, 2
+            ' los van de cellen (plaatsing 3): type-kolommen invoegen of verwijderen schuift de knop niet weg
+            MaakKnop ws, ws.Range("L2:N3"), "btnUitFO", "Ophalen uit FO", "UitFOOphalen", RGB(23, 54, 93), 150, 0, 3
         End If
     End If
     Set ws = Nothing
@@ -876,16 +879,22 @@ End Function
 '      '1. Cashflow'     koprij 'Jaar' in kolom B; daaronder jaar, Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig
 '      'FO - actuals'    laatste boekjaar/kwartaal met boekingen -> Dashboard 'Actuals t/m'
 '      'CF - opbrengsten' per type: blok 'Termijnen k - naam' (rij erboven '# won' en het aantal), bouwplanning (aantal
-'                        woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom, termijnen %/€/€ per wn,
-'                        extra's), blok 'Verkooptempo' (verkocht per kwartaal; 'actuals' = al verkocht)
+'                        woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom, termijnen %/EUR/EUR per wn,
+'                        extra's; DAEB: fee-componenten met alleen een totaal en daaronder de termijnen), blok 'Verkooptempo'
+'                        (verkocht per kwartaal; 'actuals' = al verkocht)
 ' -------------------------------------------------------------------------------------
 Public Sub UitFOOphalen()
     Dim pad As Variant, wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet
     Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
     Dim stap As String, bericht As String, nPer As Long, nTyp As Long, k As Long, waarschuwing As String
-    Dim idxAct As Long, rijVan As Object, aJaar As Long, aKw As Long
+    Dim idxAct As Long, aJaar As Long, aKw As Long, wb As Workbook, zelfGeopend As Boolean
+    Dim rijVan(IDX_MIN To IDX_MAX) As Long                        ' rijVan(jaar*4+kw) = rij op Invoer (0 = geen)
     On Error GoTo Fout
+#If Mac Then
+    pad = Application.GetOpenFilename()
+#Else
     pad = Application.GetOpenFilename("Excel-werkboeken (*.xlsx;*.xlsm;*.xlsb),*.xlsx;*.xlsm;*.xlsb", , "FO-werkboek kiezen")
+#End If
     If VarType(pad) = vbBoolean Then Exit Sub
     If MsgBox("Tab Invoer (cashflow, verkocht, transport) en tab Woningtypes worden overschreven met de gegevens uit:" & vbCrLf & pad & _
               vbCrLf & vbCrLf & "De knoppen op het Dashboard blijven staan. Doorgaan?", vbQuestion + vbYesNo, "Ophalen uit FO") <> vbYes Then Exit Sub
@@ -894,20 +903,31 @@ Public Sub UitFOOphalen()
     Set wsD = ThisWorkbook.Worksheets(SH_DASH)
     Application.ScreenUpdating = False
     stap = "FO openen"
-    Set wbF = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
+    For Each wb In Workbooks                                      ' staat het FO al open, dan dat gebruiken (en open laten)
+        If LCase$(wb.FullName) = LCase$(CStr(pad)) Then Set wbF = wb
+    Next wb
+    If wbF Is Nothing Then
+        Set wbF = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
+        zelfGeopend = True
+    End If
     Set wsCF = ZoekBlad(wbF, "1. Cashflow")
     If wsCF Is Nothing Then Set wsCF = ZoekBlad(wbF, "Cashflow")
     Set wsO = ZoekBlad(wbF, "CF - opbrengsten")
+    If wsO Is Nothing Then Set wsO = ZoekBlad(wbF, "CF-opbrengsten")
+    If wsO Is Nothing Then Set wsO = ZoekBlad(wbF, "Opbrengsten")
     Set wsA = ZoekBlad(wbF, "FO - actuals")
+    If wsA Is Nothing Then Set wsA = ZoekBlad(wbF, "actuals")
     If wsCF Is Nothing Or wsO Is Nothing Then
-        wbF.Close SaveChanges:=False
+        If zelfGeopend Then wbF.Close SaveChanges:=False
         Application.ScreenUpdating = True
         MsgBox "Dit lijkt geen FO-werkboek: tabblad '1. Cashflow' of 'CF - opbrengsten' ontbreekt.", vbExclamation, "Ophalen uit FO"
         Exit Sub
     End If
 
     stap = "cashflow (1. Cashflow)"
-    Set rijVan = CreateObject("Scripting.Dictionary")
+    For k = IDX_MIN To IDX_MAX
+        rijVan(k) = 0
+    Next k
     nPer = FOCashflow(wsCF, wsI, wsD, rijVan, waarschuwing)
     If nPer = 0 Then Err.Raise 1000, , "Geen periodes gevonden onder de koprij 'Jaar' op '1. Cashflow'."
 
@@ -923,6 +943,11 @@ Public Sub UitFOOphalen()
     Else
         wsD.Range(CEL_FO_ACTUALS).Value = ""
         idxAct = CLng(Val(wsD.Range(CEL_ACTUALS_JAAR).Value)) * 4 + CLng(Val(wsD.Range(CEL_ACTUALS_KW).Value))
+        If wsA Is Nothing Then
+            waarschuwing = waarschuwing & "- tabblad 'FO - actuals' ontbreekt: 'Actuals t/m' op het Dashboard is niet uit het FO gehaald." & vbCrLf
+        Else
+            waarschuwing = waarschuwing & "- 'FO - actuals' heeft geen rij met boekjaar en kwartaal: 'Actuals t/m' is niet uit het FO gehaald." & vbCrLf
+        End If
     End If
 
     stap = "woningtypes (CF - opbrengsten)"
@@ -935,7 +960,7 @@ Public Sub UitFOOphalen()
     stap = "afronden"
     wsD.Range(CEL_FO_BESTAND).Value = wbF.Name
     wsD.Range(CEL_FO_DATUM).Value = Format$(Now, "dd-mm-yyyy hh:nn")
-    wbF.Close SaveChanges:=False
+    If zelfGeopend Then wbF.Close SaveChanges:=False
     Set wbF = Nothing
     Application.Calculate
     Application.ScreenUpdating = True
@@ -948,7 +973,7 @@ Public Sub UitFOOphalen()
 Fout:
     Application.ScreenUpdating = True
     On Error Resume Next
-    If Not wbF Is Nothing Then wbF.Close SaveChanges:=False
+    If zelfGeopend And Not wbF Is Nothing Then wbF.Close SaveChanges:=False
     MsgBox "Het ging mis bij: " & stap & vbCrLf & vbCrLf & "Fout " & Err.Number & ": " & Err.Description, vbExclamation, "Ophalen uit FO"
 End Sub
 
@@ -983,11 +1008,24 @@ Private Function Getal(v As Variant) As Double
     If IsNumeric(v) Then Getal = CDbl(v)
 End Function
 
-Private Function FOCashflow(wsCF As Worksheet, wsI As Worksheet, wsD As Worksheet, rijVan As Object, ByRef waarschuwing As String) As Long
+Private Function Tekst(v As Variant) As String
+    ' celwaarde als tekst zonder spaties eromheen; foutwaarden (#N/A, #REF!) en lege cellen geven ""
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    Tekst = Tekst(v)
+End Function
+
+Private Function IsFeeLabel(ll As String) As Boolean
+    ' label (kleine letters) van een DAEB-fee: het woord 'fee'/'fees', 'bijkomende kosten' of 'onvoorzien'
+    Dim t As String
+    t = " " & Replace(Replace(Replace(Replace(Replace(ll, "-", " "), "(", " "), ")", " "), "/", " "), ":", " ") & " "
+    IsFeeLabel = (InStr(t, " fee ") > 0) Or (InStr(t, " fees ") > 0) Or (Left$(ll, 17) = "bijkomende kosten") Or (Left$(ll, 10) = "onvoorzien")
+End Function
+
+Private Function FOCashflow(wsCF As Worksheet, wsI As Worksheet, wsD As Worksheet, rijVan() As Long, ByRef waarschuwing As String) As Long
     ' '1. Cashflow' -> Invoer B8:J..; rijVan(jaar*4+kw) = rij op Invoer; totalen -> Dashboard FO-cellen
     Dim kop As Long, r As Long, i As Long, c As Long, q As Long
     For r = 1 To 15
-        If LCase$(Trim$(CStr(wsCF.Cells(r, 2).Value))) = "jaar" Then
+        If LCase$(Tekst(wsCF.Cells(r, 2).Value)) = "jaar" Then
             kop = r
             Exit For
         End If
@@ -1009,7 +1047,7 @@ Private Function FOCashflow(wsCF As Worksheet, wsI As Worksheet, wsD As Workshee
                 wsI.Cells(INVOER_RIJ1 + i, c).Value = CDbl(wsCF.Cells(r, c).Value)
             End If
         Next c
-        If q > 0 Then rijVan(CLng(Val(wsCF.Cells(r, 2).Value)) * 4 + q) = INVOER_RIJ1 + i
+        If q > 0 Then rijVan(CLng(Val(wsCF.Cells(r, 2).Value)) * 4 + q) = INVOER_RIJ1 + i     ' IsJaar houdt de index binnen IDX_MIN..IDX_MAX
         i = i + 1
         r = r + 1
     Loop
@@ -1017,7 +1055,7 @@ Private Function FOCashflow(wsCF As Worksheet, wsI As Worksheet, wsD As Workshee
     wsD.Range(CEL_FO_OPBR).ClearContents
     wsD.Range(CEL_FO_KOSTEN).ClearContents
     For c = r To r + 6
-        If LCase$(Left$(Trim$(CStr(wsCF.Cells(c, 3).Value)), 6)) = "totaal" Then
+        If LCase$(Left$(Tekst(wsCF.Cells(c, 3).Value), 6)) = "totaal" Then
             wsD.Range(CEL_FO_KOSTEN).Value = Getal(wsCF.Cells(c, 4).Value)
             wsD.Range(CEL_FO_OPBR).Value = Getal(wsCF.Cells(c, 6).Value)
             Exit For
@@ -1028,9 +1066,9 @@ End Function
 
 Private Function FOActuals(wsA As Worksheet) As Long
     ' laatste boekjaar x 4 + kwartaal met een boeking (kolommen op koptekst: Boekjaar, Q, Waarde/TrVal)
-    Dim c As Long, cj As Long, cq As Long, cw As Long, r As Long, laatste As Long, idx As Long, kop As String, rMax As Long
+    Dim c As Long, cj As Long, cq As Long, cw As Long, r As Long, laatste As Long, idx As Long, kop As String, rMax As Long, telt As Boolean
     For c = 1 To wsA.UsedRange.Columns.Count + wsA.UsedRange.Column
-        kop = LCase$(Trim$(CStr(wsA.Cells(1, c).Value)))
+        kop = LCase$(Tekst(wsA.Cells(1, c).Value))
         If kop = "boekjaar" Then cj = c
         If kop = "q" Then cq = c
         If kop = "waarde/trval" Then cw = c
@@ -1039,7 +1077,9 @@ Private Function FOActuals(wsA As Worksheet) As Long
     rMax = wsA.Cells(wsA.Rows.Count, cj).End(xlUp).Row
     For r = 2 To rMax
         If IsJaar(wsA.Cells(r, cj).Value) And KwNummer(wsA.Cells(r, cq).Value) > 0 Then
-            If cw = 0 Or Not IsEmpty(wsA.Cells(r, cw).Value) Then
+            telt = (cw = 0)                                   ' geen kolom 'Waarde/TrVal': elke rij telt
+            If Not telt Then telt = Not IsEmpty(wsA.Cells(r, cw).Value)
+            If telt Then
                 idx = CLng(Val(wsA.Cells(r, cj).Value)) * 4 + KwNummer(wsA.Cells(r, cq).Value)
                 If idx > laatste Then laatste = idx
             End If
@@ -1058,7 +1098,7 @@ Private Sub KolomKaart(ws As Worksheet, rijQ As Long, ByRef idxKol() As Long, By
     jaar = 0
     For c = 1 To nKol
         If IsJaar(ws.Cells(rijQ - 1, c).Value) Then jaar = CLng(Val(ws.Cells(rijQ - 1, c).Value))
-        If LCase$(Left$(Trim$(CStr(ws.Cells(rijQ, c).Value)), 6)) = "actual" Then cAct = c
+        If LCase$(Left$(Tekst(ws.Cells(rijQ, c).Value), 6)) = "actual" Then cAct = c
         q = KwNummer(ws.Cells(rijQ, c).Value)
         If q > 0 And jaar > 0 Then idxKol(c) = jaar * 4 + q Else idxKol(c) = 0
     Next c
@@ -1093,7 +1133,7 @@ Private Function ZoekPlanningRij(ws As Worksheet, r1 As Long, r2 As Long, naam A
     ' rij r1..r2 in de bouwplanning met dezelfde naam en minstens één kwartaalcel; 0 = geen
     Dim r As Long
     For r = r1 To r2
-        If LCase$(Trim$(CStr(ws.Cells(r, 2).Value))) = LCase$(Trim$(naam)) Then
+        If LCase$(Tekst(ws.Cells(r, 2).Value)) = LCase$(Trim$(naam)) Then
             If SomRij(ws, r, idxKol) <> 0 Then
                 ZoekPlanningRij = r
                 Exit Function
@@ -1103,7 +1143,7 @@ Private Function ZoekPlanningRij(ws As Worksheet, r1 As Long, r2 As Long, naam A
 End Function
 
 Private Sub SchrijfVerdeeld(wsT As Worksheet, ws As Worksheet, rBron As Long, idxKol() As Long, idxStart As Long, naam As String, _
-                            waarde As Double, col As Long, ByRef rij As Long, rMax As Long, nf As String, ByRef waarschuwing As String)
+                            waarde As Double, col As Long, ByRef rij As Long, rMax As Long, ByRef waarschuwing As String)
     ' schrijft naam / waarde / bouwkwartaal in rij 'rij' van het typeblok (kolommen col, col+1, col+2); staat de termijn in het FO
     ' over meer kwartalen verdeeld, dan evenredig gesplitst in meer rijen (naam (1/2), (2/2) ...)
     Dim c As Long, som As Double, n As Long, i As Long, deel As Double
@@ -1115,7 +1155,6 @@ Private Sub SchrijfVerdeeld(wsT As Worksheet, ws As Worksheet, rBron As Long, id
         End If
         wsT.Cells(rij, col).Value = naam
         wsT.Cells(rij, col + 1).Value = waarde
-        wsT.Cells(rij, col + 1).NumberFormat = nf
         rij = rij + 1
         Exit Sub
     End If
@@ -1135,7 +1174,6 @@ Private Sub SchrijfVerdeeld(wsT As Worksheet, ws As Worksheet, rBron As Long, id
                 deel = Getal(ws.Cells(rBron, c).Value) / som
                 wsT.Cells(rij, col).Value = naam & IIf(n > 1, " (" & i & "/" & n & ")", "")
                 wsT.Cells(rij, col + 1).Value = waarde * deel
-                wsT.Cells(rij, col + 1).NumberFormat = nf
                 wsT.Cells(rij, col + 2).Value = idxKol(c) - idxStart + 1
                 rij = rij + 1
             End If
@@ -1143,54 +1181,62 @@ Private Sub SchrijfVerdeeld(wsT As Worksheet, ws As Worksheet, rBron As Long, id
     Next c
 End Sub
 
-Private Sub SchrijfAantallen(ws As Worksheet, r As Long, idxKol() As Long, cAct As Long, wsI As Worksheet, colI As Long, rijVan As Object, idxAct As Long)
+Private Sub SchrijfAantallen(ws As Worksheet, r As Long, idxKol() As Long, cAct As Long, wsI As Worksheet, colI As Long, rijVan() As Long, idxAct As Long)
     ' kwartaalcellen (en de kolom 'actuals' in het actuals-kwartaal) van rij r naar de kolom colI op tab Invoer, opgeteld bij wat er staat
-    Dim c As Long, v As Double, rI As Variant
+    Dim c As Long, v As Double, rI As Long
     If cAct > 0 Then
         v = Getal(ws.Cells(r, cAct).Value)
         If v <> 0 Then
             rI = RijVoor(rijVan, idxAct)
-            If Not IsEmpty(rI) Then wsI.Cells(rI, colI).Value = Getal(wsI.Cells(rI, colI).Value) + v
+            If rI > 0 Then wsI.Cells(rI, colI).Value = Getal(wsI.Cells(rI, colI).Value) + v
         End If
     End If
     For c = LBound(idxKol) To UBound(idxKol)
         If idxKol(c) > 0 Then
             v = Getal(ws.Cells(r, c).Value)
-            If v <> 0 And rijVan.Exists(idxKol(c)) Then
-                wsI.Cells(rijVan(idxKol(c)), colI).Value = Getal(wsI.Cells(rijVan(idxKol(c)), colI).Value) + v
+            If v <> 0 Then
+                rI = RijVanIdx(rijVan, idxKol(c))
+                If rI > 0 Then wsI.Cells(rI, colI).Value = Getal(wsI.Cells(rI, colI).Value) + v
             End If
         End If
     Next c
 End Sub
 
-Private Function RijVoor(rijVan As Object, idx As Long) As Variant
-    ' rij op Invoer van kwartaalindex idx; bestaat die niet, de eerste periode met een kwartaal
-    Dim sleutel As Variant, kleinste As Long
-    If rijVan.Exists(idx) Then
-        RijVoor = rijVan(idx)
-        Exit Function
+Private Function RijVanIdx(rijVan() As Long, idx As Long) As Long
+    ' rij op Invoer van kwartaalindex idx (0 = geen periode met dat kwartaal, of idx buiten het bereik)
+    If idx >= LBound(rijVan) Then
+        If idx <= UBound(rijVan) Then RijVanIdx = rijVan(idx)
     End If
-    kleinste = 0
-    For Each sleutel In rijVan.Keys
-        If kleinste = 0 Or CLng(sleutel) < kleinste Then kleinste = CLng(sleutel)
-    Next sleutel
-    If kleinste > 0 Then RijVoor = rijVan(kleinste) Else RijVoor = Empty
 End Function
 
-Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, rijVan As Object, idxAct As Long, ByRef waarschuwing As String) As Long
+Private Function RijVoor(rijVan() As Long, idx As Long) As Long
+    ' rij op Invoer van kwartaalindex idx; bestaat die niet, de eerste periode met een kwartaal (0 = geen)
+    Dim i As Long
+    RijVoor = RijVanIdx(rijVan, idx)
+    If RijVoor > 0 Then Exit Function
+    For i = LBound(rijVan) To UBound(rijVan)
+        If rijVan(i) > 0 Then
+            RijVoor = rijVan(i)
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, rijVan() As Long, idxAct As Long, ByRef waarschuwing As String) As Long
     ' blokken op 'CF - opbrengsten' -> typeblokken op Woningtypes en verkocht/transport op Invoer
     Dim rMax As Long, r As Long, b As String, nBlok As Long, nOmzet As Long, rVerkoop As Long
     Dim blok() As Long, omzet() As Long, k As Long, kT As Long, col As Long, naam As String, aantal As Double
     Dim idxKol() As Long, cAct As Long, idxKolO() As Long, cActO As Long, idxStart As Long, rPlan1 As Long, rPlan2 As Long
     Dim ro As Long, lab As String, ll As String, pct As Variant, eur As Variant, pw As Variant, koopPw As Double, koopsom As Double
-    Dim rTermijn As Long, rExtra As Long, rp As Long, rFee As Long, nComp As Long, feeComp As Long, isDaeb As Boolean
+    Dim rTermijn As Long, rExtra As Long, rp As Long, rFee As Long, rFeeMax As Long, nComp As Long, isDaeb As Boolean, inFee As Boolean
+    Dim compRij As Boolean, kV As Long
     Dim termNaam(1 To 20) As String, termPct(1 To 20) As Double, termPw(1 To 20) As Double, termRij(1 To 20) As Long, nTerm As Long, i As Long
     ReDim blok(1 To MAX_TYPES)
     ReDim omzet(1 To MAX_TYPES)
     rMax = wsO.Cells(wsO.Rows.Count, 2).End(xlUp).Row
     For r = 2 To rMax
-        b = LCase$(Trim$(CStr(wsO.Cells(r, 2).Value)))
-        If Left$(b, 10) = "termijnen " And InStr(b, " in ") = 0 And LCase$(Left$(Trim$(CStr(wsO.Cells(r - 1, 6).Value)), 5)) = "# won" Then
+        b = LCase$(Tekst(wsO.Cells(r, 2).Value))
+        If Left$(b, 10) = "termijnen " And InStr(b, " in " & ChrW(8364)) = 0 And LCase$(Left$(Tekst(wsO.Cells(r - 1, 6).Value), 5)) = "# won" Then
             If nBlok < MAX_TYPES Then
                 nBlok = nBlok + 1
                 blok(nBlok) = r
@@ -1210,7 +1256,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
         If aantal <= 0 Then GoTo Volgende
         kT = kT + 1
         col = TYPE_COL1 + (kT - 1) * TYPE_BREEDTE
-        naam = Trim$(CStr(wsO.Cells(blok(k), 2).Value))
+        naam = Tekst(wsO.Cells(blok(k), 2).Value)
         If InStr(naam, " - ") > 0 Then naam = Trim$(Mid$(naam, InStr(naam, " - ") + 3)) Else naam = "Type " & kT
         wsT.Cells(TYPE_RIJ_NAAM, col).Value = naam
         wsT.Cells(TYPE_RIJ_AANTAL, col).Value = aantal
@@ -1218,7 +1264,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
         KolomKaart wsO, blok(k), idxKol, cAct
         rPlan1 = blok(k) + 1
         rPlan2 = rPlan1
-        Do While Len(Trim$(CStr(wsO.Cells(rPlan2 + 1, 2).Value))) > 0
+        Do While Len(Tekst(wsO.Cells(rPlan2 + 1, 2).Value)) > 0
             rPlan2 = rPlan2 + 1
         Loop
         idxStart = 0
@@ -1242,43 +1288,61 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
         rTermijn = TYPE_RIJ_T1
         rExtra = TYPE_RIJ_X1
         isDaeb = False
+        inFee = False
         nComp = 0
         rFee = 0
+        rFeeMax = 0
         r = ro + 1
-        Do While Len(Trim$(CStr(wsO.Cells(r, 2).Value))) > 0
-            lab = Trim$(CStr(wsO.Cells(r, 2).Value))
+        Do While Len(Tekst(wsO.Cells(r, 2).Value)) > 0
+            lab = Tekst(wsO.Cells(r, 2).Value)
             ll = LCase$(lab)
             pct = wsO.Cells(r, 3).Value
             eur = wsO.Cells(r, 4).Value
             pw = wsO.Cells(r, 5).Value
+            ' DAEB-fees (zelfde regels als fo.py): een rij met alleen een totaal in € (geen %, geen kwartalen, geen actuals) en een
+            ' fee-label is een component; daarna is elke rij met een % of € én een kwartaal of actuals een termijn van die component
+            compRij = (SomRij(wsO, r, idxKolO) = 0 And ActWaarde(wsO, r, cActO) = 0 And Getal(eur) <> 0 And Getal(pct) = 0)
             If ll = "koopsom" Then
                 koopPw = Getal(pw)
                 SchrijfAantallen wsO, r, idxKolO, cActO, wsI, INVOER_COL1 + (kT - 1) * INVOER_BREEDTE + 1, rijVan, idxAct
-            ElseIf Left$(ll, 6) = "ak fee" Or Left$(ll, 6) = "ak-fee" Or Left$(ll, 17) = "bijkomende kosten" Or Left$(ll, 10) = "onvoorzien" Then
-                ' DAEB: componentrij (totaal in €, zonder kwartalen) of termijnrij (% of € in een kwartaal / actuals)
-                If SomRij(wsO, r, idxKolO) = 0 And ActWaarde(wsO, r, cActO) = 0 And Getal(eur) <> 0 And (IsEmpty(pct) Or Not IsNumeric(pct)) Then
-                    If nComp < 2 Then
-                        nComp = nComp + 1
-                        isDaeb = True
-                        wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col).Value = lab
-                        wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col + 1).Value = Getal(eur)
-                        rFee = TYPE_RIJ_F1 + (nComp - 1) * 5
-                    End If
-                ElseIf nComp > 0 And rFee > 0 And rFee < TYPE_RIJ_F1 + nComp * 5 Then
-                    wsT.Cells(rFee, col).Value = lab
-                    If IsNumeric(pct) And Not IsEmpty(pct) Then wsT.Cells(rFee, col + 1).Value = CDbl(pct) Else wsT.Cells(rFee, col + 1).Value = Getal(eur)
-                    If EersteIdx(wsO, r, idxKolO) > 0 Then
-                        wsT.Cells(rFee, col + 2).Value = ((EersteIdx(wsO, r, idxKolO) - 1) \ 4) & " Q" & (EersteIdx(wsO, r, idxKolO) - ((EersteIdx(wsO, r, idxKolO) - 1) \ 4) * 4)
-                    ElseIf cActO > 0 Then
-                        If Getal(wsO.Cells(r, cActO).Value) <> 0 Then wsT.Cells(rFee, col + 2).Value = "actuals"
-                    End If
-                    rFee = rFee + 1
+            ElseIf compRij And (IsFeeLabel(ll) Or inFee) Then
+                inFee = True
+                rFee = 0
+                If Left$(ll, 10) = "onvoorzien" Then
+                    ' onvoorzien doet niet mee (ook de termijnen eronder niet)
+                ElseIf nComp < 2 Then
+                    nComp = nComp + 1
+                    isDaeb = True
+                    wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col).Value = lab
+                    wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col + 1).Value = Getal(eur)
+                    rFee = TYPE_RIJ_F1 + (nComp - 1) * 5
+                    rFeeMax = rFee + 4
+                Else
+                    waarschuwing = waarschuwing & "- " & naam & ": meer dan 2 fee-componenten in het FO; '" & lab & "' is niet overgenomen." & vbCrLf
                 End If
-            ElseIf IsNumeric(pct) And Not IsEmpty(pct) Then
-                If CDbl(pct) <> 0 And nTerm < 20 Then
+            ElseIf inFee And (Getal(pct) <> 0 Or Getal(eur) <> 0) And (SomRij(wsO, r, idxKolO) <> 0 Or ActWaarde(wsO, r, cActO) <> 0) Then
+                If rFee > 0 Then
+                    If rFee <= rFeeMax Then
+                        wsT.Cells(rFee, col).Value = lab
+                        If Getal(pct) <> 0 Then wsT.Cells(rFee, col + 1).Value = Getal(pct) Else wsT.Cells(rFee, col + 1).Value = Getal(eur)
+                        If EersteIdx(wsO, r, idxKolO) > 0 Then
+                            wsT.Cells(rFee, col + 2).Value = ((EersteIdx(wsO, r, idxKolO) - 1) \ 4) & " Q" & (EersteIdx(wsO, r, idxKolO) - ((EersteIdx(wsO, r, idxKolO) - 1) \ 4) * 4)
+                        Else
+                            wsT.Cells(rFee, col + 2).Value = "actuals"
+                        End If
+                        rFee = rFee + 1
+                    ElseIf rFee = rFeeMax + 1 Then
+                        waarschuwing = waarschuwing & "- " & naam & ": meer dan 5 termijnen voor '" & Tekst(wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col).Value) & "'; de rest is niet overgenomen." & vbCrLf
+                        rFee = rFee + 1
+                    End If
+                End If
+            ElseIf inFee And IsFeeLabel(ll) Then
+                waarschuwing = waarschuwing & "- " & naam & ": rij '" & lab & "' in het fee-blok heeft geen bedrag met kwartaal en is overgeslagen." & vbCrLf
+            ElseIf Getal(pct) <> 0 Then
+                If nTerm < 20 Then
                     nTerm = nTerm + 1
                     termNaam(nTerm) = lab
-                    termPct(nTerm) = CDbl(pct)
+                    termPct(nTerm) = Getal(pct)
                     termPw(nTerm) = Getal(pw)
                     termRij(nTerm) = r
                 End If
@@ -1293,9 +1357,9 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
                         rExtra = rExtra + 1
                     End If
                 ElseIf rp = r Then
-                    SchrijfVerdeeld wsT, wsO, rp, idxKolO, idxStart, lab, Getal(pw), col, rExtra, TYPE_RIJ_XN, "#,##0", waarschuwing
+                    SchrijfVerdeeld wsT, wsO, rp, idxKolO, idxStart, lab, Getal(pw), col, rExtra, TYPE_RIJ_XN, waarschuwing
                 Else
-                    SchrijfVerdeeld wsT, wsO, rp, idxKol, idxStart, lab, Getal(pw), col, rExtra, TYPE_RIJ_XN, "#,##0", waarschuwing
+                    SchrijfVerdeeld wsT, wsO, rp, idxKol, idxStart, lab, Getal(pw), col, rExtra, TYPE_RIJ_XN, waarschuwing
                 End If
             End If
             r = r + 1
@@ -1304,6 +1368,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
             wsT.Cells(TYPE_RIJ_SOORT, col).Value = "DAEB"
             wsT.Cells(TYPE_RIJ_KOOPSOM, col).ClearContents
             wsT.Cells(TYPE_RIJ_GROND, col + 1).ClearContents
+            wsT.Range(wsT.Cells(TYPE_RIJ_X1, col), wsT.Cells(TYPE_RIJ_XN, col + 2)).ClearContents
         Else
             koopsom = koopPw
             For i = 1 To nTerm
@@ -1316,9 +1381,9 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
             For i = 1 To nTerm
                 rp = ZoekPlanningRij(wsO, rPlan1, rPlan2, termNaam(i), idxKol)
                 If rp > 0 Then
-                    SchrijfVerdeeld wsT, wsO, rp, idxKol, idxStart, termNaam(i), termPct(i), col, rTermijn, TYPE_RIJ_TN, "0.0%", waarschuwing
+                    SchrijfVerdeeld wsT, wsO, rp, idxKol, idxStart, termNaam(i), termPct(i), col, rTermijn, TYPE_RIJ_TN, waarschuwing
                 Else
-                    SchrijfVerdeeld wsT, wsO, termRij(i), idxKolO, idxStart, termNaam(i), termPct(i), col, rTermijn, TYPE_RIJ_TN, "0.0%", waarschuwing
+                    SchrijfVerdeeld wsT, wsO, termRij(i), idxKolO, idxStart, termNaam(i), termPct(i), col, rTermijn, TYPE_RIJ_TN, waarschuwing
                 End If
             Next i
         End If
@@ -1327,14 +1392,14 @@ Volgende:
     ' verkooptempo: rijen in dezelfde volgorde als de blokken (ook blokken zonder woningen tellen als rij)
     If rVerkoop > 0 Then
         KolomKaart wsO, rVerkoop, idxKol, cAct
-        kT = 0
+        kV = 0
         r = rVerkoop + 1
         k = 0
-        Do While Len(Trim$(CStr(wsO.Cells(r, 2).Value))) > 0 And k < nBlok
+        Do While Len(Tekst(wsO.Cells(r, 2).Value)) > 0 And k < nBlok
             k = k + 1
             If Getal(wsO.Cells(blok(k) - 1, 7).Value) > 0 Then
-                kT = kT + 1
-                SchrijfAantallen wsO, r, idxKol, cAct, wsI, INVOER_COL1 + (kT - 1) * INVOER_BREEDTE, rijVan, idxAct
+                kV = kV + 1
+                SchrijfAantallen wsO, r, idxKol, cAct, wsI, INVOER_COL1 + (kV - 1) * INVOER_BREEDTE, rijVan, idxAct
             End If
             r = r + 1
         Loop

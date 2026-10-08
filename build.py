@@ -122,7 +122,10 @@ def main():
         from forecast_builder import fo
         project = fo.lees_fo(args.fo)
         if args.bron:                                   # knoppen (Dashboard) uit een bestaand werkboek overnemen
-            project.params.update({k: v for k, v in D.lees_werkboek(args.bron).params.items() if k not in ("actuals_jaar", "actuals_kw")})
+            uit_fo = ("actuals_jaar", "actuals_kw") if "actuals" in project.fo else ()
+            project.params.update({k: v for k, v in D.lees_werkboek(args.bron).params.items() if k not in uit_fo})
+        for melding in project.fo.get("waarschuwingen", []):
+            print("let op:", melding)
     else:
         project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld()
     vba_bin = None if args.geen_vba else vba_bin_maken(args.vba)
