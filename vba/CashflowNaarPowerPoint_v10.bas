@@ -1077,6 +1077,11 @@ Private Function EersteIdx(ws As Worksheet, r As Long, idxKol() As Long) As Long
     Next c
 End Function
 
+Private Function ActWaarde(ws As Worksheet, r As Long, cAct As Long) As Double
+    ' waarde in de kolom 'actuals' van rij r (0 als die kolom er niet is)
+    If cAct > 0 Then ActWaarde = Getal(ws.Cells(r, cAct).Value)
+End Function
+
 Private Function SomRij(ws As Worksheet, r As Long, idxKol() As Long) As Double
     Dim c As Long
     For c = LBound(idxKol) To UBound(idxKol)
@@ -1251,7 +1256,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
                 SchrijfAantallen wsO, r, idxKolO, cActO, wsI, INVOER_COL1 + (kT - 1) * INVOER_BREEDTE + 1, rijVan, idxAct
             ElseIf Left$(ll, 6) = "ak fee" Or Left$(ll, 6) = "ak-fee" Or Left$(ll, 17) = "bijkomende kosten" Or Left$(ll, 10) = "onvoorzien" Then
                 ' DAEB: componentrij (totaal in €, zonder kwartalen) of termijnrij (% of € in een kwartaal / actuals)
-                If SomRij(wsO, r, idxKolO) = 0 And Getal(IIf(cActO > 0, wsO.Cells(r, IIf(cActO > 0, cActO, 1)).Value, 0)) = 0 And Getal(eur) <> 0 And Not IsNumeric(pct) Then
+                If SomRij(wsO, r, idxKolO) = 0 And ActWaarde(wsO, r, cActO) = 0 And Getal(eur) <> 0 And (IsEmpty(pct) Or Not IsNumeric(pct)) Then
                     If nComp < 2 Then
                         nComp = nComp + 1
                         isDaeb = True
@@ -1281,7 +1286,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
                 ' extra per woning (kopersmeerwerk, kadastrale kosten, overige): bij transport als het FO de telling in 'actuals' zet
                 rp = ZoekPlanningRij(wsO, rPlan1, rPlan2, lab, idxKol)
                 If rp = 0 And SomRij(wsO, r, idxKolO) <> 0 Then rp = r
-                If rp = 0 Or (cActO > 0 And Getal(wsO.Cells(r, IIf(cActO > 0, cActO, 1)).Value) <> 0) Then
+                If rp = 0 Or ActWaarde(wsO, r, cActO) <> 0 Then
                     If rExtra <= TYPE_RIJ_XN Then
                         wsT.Cells(rExtra, col).Value = lab
                         wsT.Cells(rExtra, col + 1).Value = Getal(pw)
