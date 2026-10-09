@@ -103,8 +103,9 @@ def bouw_woningtypes(wb, data):
     put(ws, f"B{LY.WT_R_D_TITEL}", "5 · SOORT EN FEES · niet-DAEB = koopsom en bouwtermijnen (blok 1 en 2) · DAEB = alleen fees, "
                                    "bedragen voor het hele type; koopsom, grondtermijn, bouwtermijnen en extra's tellen dan niet mee", f=F_SECTION)
     put(ws, f"B{LY.WT_R_SOORT}", "Soort (niet-DAEB / DAEB)", f=F_NOTE, al=AL_VCENTER)
-    put(ws, f"B{LY.WT_R_D_NOTE}", "Per termijn een bedrag in € of een percentage van het componenttotaal (bv. 30%) · kwartaal: '2026 Q4', een "
-                                  "bouwkwartaal (1 = start bouw, 0 = kwartaal ervoor) of 'actuals' (al ontvangen)", f=F_NOTE8)
+    put(ws, f"B{LY.WT_R_D_NOTE}", "Per termijn een bedrag in € of een percentage van het componenttotaal (bv. 30%) · kwartaal = wanneer het binnenkomt: "
+                                  "schrijf het kalenderkwartaal ('2026 Q4'), of een getal t.o.v. start bouw van dit type (1 = kwartaal van start "
+                                  "bouw, 2 = het kwartaal erna, 0 = het kwartaal vóór start bouw, -1 = twee ervoor), of 'actuals' = al ontvangen", f=F_NOTE8)
     put(ws, f"B{LY.WT_R_F_KOP}", "Component · totaal (€) · gepland", f=F_NOTE, al=AL_VCENTER)
     for i in range(LY.N_FEE_COMP):
         put(ws, f"B{LY.WT_R_FC1 + i}", f"Fee-component {i + 1}", f=F_NOTE, al=AL_VCENTER)
@@ -131,9 +132,23 @@ def bouw_woningtypes(wb, data):
     dv_pct = DataValidation(type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True, error="Percentage tussen 0% en 100%.")
     dv_soort = DataValidation(type="list", formula1='"niet-DAEB,DAEB"', allow_blank=True, error="Kies niet-DAEB of DAEB (leeg = niet-DAEB).")
     dv_eur = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True, error="Bedrag in euro's (of een percentage van 1 of kleiner).")
+    # invoerbericht bij het kwartaal van een fee-termijn (verschijnt als de cel geselecteerd is)
+    dv_fkw = DataValidation(type=None, allow_blank=True)
+    dv_fkw.showInputMessage = True
+    dv_fkw.promptTitle = "Kwartaal van deze termijn"
+    dv_fkw.prompt = ("Kalenderkwartaal: '2026 Q4' of 'Q4 2026'. Of een getal t.o.v. start bouw van dit type: 1 = kwartaal van start bouw, "
+                     "2 = het kwartaal erna, 0 = kwartaal ervoor, -1 = twee ervoor. Of 'actuals' = al ontvangen.")
     for dv in (dv_kw4, dv_kw, dv_kwx, dv_pct, dv_soort, dv_eur):
         dv.showErrorMessage = True
         dv.errorTitle = "Ongeldige invoer"
+    for dv, titel, tekst in ((dv_kw, "Bouwkwartaal", "Kwartaal waarin de termijn vervalt, geteld vanaf start bouw van dit type: 1 = kwartaal van start bouw, "
+                                                      "2 = het kwartaal erna, enz. Verschuift mee als start bouw verschuift."),
+                             (dv_kwx, "Bouwkwartaal", "Kwartaal waarin het binnenkomt, geteld vanaf start bouw van dit type (1 = kwartaal van start bouw). "
+                                                       "Leeg of 0 = bij notarieel transport.")):
+        dv.showInputMessage = True
+        dv.promptTitle = titel
+        dv.prompt = tekst
+    for dv in (dv_kw4, dv_kw, dv_kwx, dv_pct, dv_soort, dv_eur, dv_fkw):
         ws.add_data_validation(dv)
 
     totaal_cellen = []
@@ -230,6 +245,7 @@ def bouw_woningtypes(wb, data):
             put(ws, f"{c1}{r}", w_, f=F_INPUT, fl=FL_INPUT, nf='[<=1]0%;#,##0', al=AL_RIGHT)
             put(ws, f"{c2}{r}", kw, f=F_INPUT, fl=FL_INPUT, nf="0", al=AL_RIGHT)
             dv_eur.add(f"{c1}{r}")
+            dv_fkw.add(f"{c2}{r}")
         wt_ = f"{c1}{LY.WT_R_FT1}:{c1}{LY.WT_R_FTN}"
         put(ws, f"{c1}{LY.WT_R_F_TOTAAL}", f"=SUM(Model!{m_col('fee', k)}$6)", f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT)
         # rood als een component met totaal niet (bijna) volledig is ingepland

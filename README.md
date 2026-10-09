@@ -22,6 +22,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v14.pptx`).
 | `tools/pptx_v12_bouwtermijnen.py` | dia 5: bouwtermijnen-tijdlijn (BT_GRAFIEK) naast de tabel; nieuwe dia 6 met de twee verkoop/transport-panelen (v11 → v12) |
 | `tools/pptx_v13_banen.py` | dia 5: bouwtermijnen per woningtype als banen (koprijen jaar/kwartaal, per termijn een baan per type), grafiek hoger (v12 → v13) |
 | `forecast_builder/fo.py` | lezer voor een FO-werkboek (`build.py --fo`); zelfde logica als de macro `UitFOOphalen` |
+| `tools/kringverwijzing.py` | statische controle op kringverwijzingen zoals Excel die meldt (formule hangt af van elk cel in de genoemde bereiken, ook bij INDEX); ook als test op het gebouwde werkboek |
 | `tools/pptx_v14_daeb.py` | dia 8 'Opbrengsten per woningtype' (PT_GRAFIEK; de macro maakt per type een kopie) en herkleurde dia 5/6: vorige prognose lichtrood (v13 → v14) |
 
 ## Bouwen
@@ -83,7 +84,7 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   kwartaal) voor de lichtrode blokjes in de bouwtermijnengrafiek. Blok 5: soort (niet-DAEB/DAEB) en fees: bij DAEB (sociale
   huur, gescheiden koop-/aannemingsovereenkomst) telt het type geen koopsom, grondtermijn, bouwtermijnen of
   extra's, maar fees voor het hele type: twee componenten (AK fee, bijkomende kosten) met een totaalbedrag en elk vijf termijnen
-  (mijlpaal, bedrag in € of percentage ≤ 1 van het totaal, kwartaal als '2026 Q4', bouwkwartaal of 'actuals'). Percentages worden
+  (mijlpaal, bedrag in € of percentage ≤ 1 van het totaal, en het kwartaal waarin het binnenkomt: een kalenderkwartaal als '2026 Q4' of 'Q4 2026', een getal ten opzichte van start bouw van dat type (1 = kwartaal van start bouw, 2 = het kwartaal erna, 0 = het kwartaal ervoor, -1 = twee ervoor; schuift mee met start bouw) of 'actuals' = al ontvangen (telt in het actuals-kwartaal); de cel toont deze uitleg als invoerbericht zodra ze geselecteerd is). Percentages worden
   niet opgeschaald; de kolom 'gepland' en twee Dashboard-controles melden componenten die niet volledig zijn ingepland en
   termijnen zonder geldig kwartaal. De fees staan als banen in de bouwtermijnengrafiek (gegroepeerd per component) en in de
   grafiek per woningtype; de knoppen en de koopsomknop raken ze niet (ze staan in alle vier de modelkolommen gelijk, dus

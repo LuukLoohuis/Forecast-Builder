@@ -889,7 +889,7 @@ Public Sub UitFOOphalen()
     Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
     Dim stap As String, bericht As String, nPer As Long, nTyp As Long, k As Long, waarschuwing As String
     Dim idxAct As Long, aJaar As Long, aKw As Long, wb As Workbook, zelfGeopend As Boolean, foutNr As Long, foutOms As String
-    Dim rekenmodus As Long
+    Dim rekenmodus As Long, iteratie As Boolean
     Dim rijVan(IDX_MIN To IDX_MAX) As Long                        ' rijVan(jaar*4+kw) = rij op Invoer (0 = geen)
     foStap = ""
     On Error GoTo Fout
@@ -915,7 +915,13 @@ Public Sub UitFOOphalen()
         If LCase$(wb.FullName) = LCase$(CStr(pad)) Then Set wbF = wb
     Next wb
     If wbF Is Nothing Then
+        ' een FO kan zelf kringverwijzingen bevatten (bv. een formule die naar zijn eigen rij verwijst): geen melding daarover
+        ' zolang het hier open staat (iteratief rekenen aan, meldingen uit); dit werkboek zelf heeft geen kringverwijzingen
+        iteratie = Application.Iteration
+        Application.Iteration = True
+        Application.DisplayAlerts = False
         Set wbF = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
+        Application.DisplayAlerts = True
         zelfGeopend = True
     End If
     Set wsCF = ZoekBlad(wbF, "1. Cashflow")
@@ -927,6 +933,7 @@ Public Sub UitFOOphalen()
     If wsA Is Nothing Then Set wsA = ZoekBlad(wbF, "actuals")
     If wsCF Is Nothing Or wsO Is Nothing Then
         If zelfGeopend Then wbF.Close SaveChanges:=False
+        If zelfGeopend Then Application.Iteration = iteratie
         Application.Calculation = rekenmodus
         Application.EnableEvents = True
         Application.ScreenUpdating = True
@@ -972,6 +979,7 @@ Public Sub UitFOOphalen()
     wsD.Range(CEL_FO_BESTAND).Value = wbF.Name
     wsD.Range(CEL_FO_DATUM).Value = Format$(Now, "dd-mm-yyyy hh:mm")
     If zelfGeopend Then wbF.Close SaveChanges:=False
+    If zelfGeopend Then Application.Iteration = iteratie
     Set wbF = Nothing
     stap = "doorrekenen"
     Application.Calculation = rekenmodus
@@ -990,8 +998,10 @@ Fout:
     On Error Resume Next
     If rekenmodus <> 0 Then Application.Calculation = rekenmodus
     Application.EnableEvents = True
+    Application.DisplayAlerts = True
     Application.ScreenUpdating = True
     If zelfGeopend And Not wbF Is Nothing Then wbF.Close SaveChanges:=False
+    If zelfGeopend Then Application.Iteration = iteratie
     bericht = "Het ging mis bij: " & stap
     If Len(foStap) > 0 Then bericht = bericht & vbCrLf & "(" & foStap & ")"
     bericht = bericht & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms
