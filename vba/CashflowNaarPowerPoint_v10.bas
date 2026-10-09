@@ -889,6 +889,7 @@ Public Sub UitFOOphalen()
     Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
     Dim stap As String, bericht As String, nPer As Long, nTyp As Long, k As Long, waarschuwing As String
     Dim idxAct As Long, aJaar As Long, aKw As Long, wb As Workbook, zelfGeopend As Boolean, foutNr As Long, foutOms As String
+    Dim rekenmodus As Long
     Dim rijVan(IDX_MIN To IDX_MAX) As Long                        ' rijVan(jaar*4+kw) = rij op Invoer (0 = geen)
     foStap = ""
     On Error GoTo Fout
@@ -904,6 +905,11 @@ Public Sub UitFOOphalen()
     Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
     Set wsD = ThisWorkbook.Worksheets(SH_DASH)
     Application.ScreenUpdating = False
+    ' handmatig rekenen zolang de macro schrijft: anders rekent Excel na elke geschreven cel het hele model opnieuw door
+    ' (honderden cellen x een volledige herberekening = minuten); aan het eind één keer doorrekenen
+    rekenmodus = Application.Calculation
+    Application.Calculation = -4135                              ' xlCalculationManual
+    Application.EnableEvents = False
     stap = "FO openen"
     For Each wb In Workbooks                                      ' staat het FO al open, dan dat gebruiken (en open laten)
         If LCase$(wb.FullName) = LCase$(CStr(pad)) Then Set wbF = wb
@@ -921,6 +927,8 @@ Public Sub UitFOOphalen()
     If wsA Is Nothing Then Set wsA = ZoekBlad(wbF, "actuals")
     If wsCF Is Nothing Or wsO Is Nothing Then
         If zelfGeopend Then wbF.Close SaveChanges:=False
+        Application.Calculation = rekenmodus
+        Application.EnableEvents = True
         Application.ScreenUpdating = True
         MsgBox "Dit lijkt geen FO-werkboek: tabblad '1. Cashflow' of 'CF - opbrengsten' ontbreekt.", vbExclamation, "Ophalen uit FO"
         Exit Sub
@@ -965,6 +973,9 @@ Public Sub UitFOOphalen()
     wsD.Range(CEL_FO_DATUM).Value = Format$(Now, "dd-mm-yyyy hh:mm")
     If zelfGeopend Then wbF.Close SaveChanges:=False
     Set wbF = Nothing
+    stap = "doorrekenen"
+    Application.Calculation = rekenmodus
+    Application.EnableEvents = True
     Application.Calculate
     Application.ScreenUpdating = True
     bericht = "Klaar: " & nPer & " periodes op tab Invoer en " & nTyp & " woningtype(n) op tab Woningtypes uit " & CStr(pad) & "."
@@ -976,8 +987,10 @@ Public Sub UitFOOphalen()
 Fout:
     foutNr = Err.Number                                          ' eerst vastleggen: 'On Error Resume Next' hieronder wist Err
     foutOms = Err.Description
-    Application.ScreenUpdating = True
     On Error Resume Next
+    If rekenmodus <> 0 Then Application.Calculation = rekenmodus
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
     If zelfGeopend And Not wbF Is Nothing Then wbF.Close SaveChanges:=False
     bericht = "Het ging mis bij: " & stap
     If Len(foStap) > 0 Then bericht = bericht & vbCrLf & "(" & foStap & ")"
