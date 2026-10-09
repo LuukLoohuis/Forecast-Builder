@@ -235,3 +235,12 @@ def test_grafiek_per_type(basis):
     som = sum(float(m[f"{LY.PT[x]}{r}"].value) for x in ("grond", "bouw", "extra", "fee1", "fee2") for r in range(LY.ROW1, laatste + 1))
     assert abs(som - 40 * 385000 / 1e6) < 1e-6
     assert m[f"BY{LY.H['pt_lbl_grond']}"].value == "Grondtermijn" and (m[f"BY{LY.H['pt_lbl_fee1']}"].value in (None, ""))
+
+
+def test_geen_kringverwijzingen(tmp):
+    """Excel meldt een kringverwijzing zodra een formule (ook via INDEX over een bereik) afhangt van een cel die van haar afhangt."""
+    sys.path.insert(0, os.path.join(os.path.dirname(HIER), "tools"))
+    import kringverwijzing
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "kring"), None, caches=False)
+    uit = kringverwijzing.kringen(paden[0])
+    assert uit == [], [[kringverwijzing.adres(n) for n in scc[:8]] for scc, _ in uit]
