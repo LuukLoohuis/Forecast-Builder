@@ -492,7 +492,7 @@ PT_KLEUREN = {"grond": "002060", "bouw": "2A78D6", "extra": "EDA100", "fee1": "4
 PT_H_CM = 6.35
 
 
-def type_paneel(r, hoogte_cm=PT_H_CM, legenda=False, variant="A"):
+def type_paneel(r, hoogte_cm=PT_H_CM, legenda=False):
     """r: dict met bereikverwijzingen 'kwartaal', 'grond', 'bouw', 'extra', 'fee1', 'fee2', 'cum', 'realisatie' en 'naam_<reeks>'
     (celverwijzing met de reeksnaam; leeg of '(uit)' = reeks niet in gebruik). Legenda onderaan (PowerPoint) of uit (Dashboard: chips).
     Groepsvolgorde balken -> lijn -> waas (zie verkoop_paneel)."""
@@ -503,14 +503,7 @@ def type_paneel(r, hoogte_cm=PT_H_CM, legenda=False, variant="A"):
     lijnen = [ser_line(n0, "=" + r["naam_cum"], kw, r["cum"], NAVY, 1.5),
               ser_totaal(n0 + 1, "=" + r["naam_totaal"], kw, r["totaal"], sz=700, color=TXT, fmt=FMT_MLN_LABEL),
               ser_punt(n0 + 2, "=" + r["naam_eind"], kw, r["eind"], NAVY, "l", size=5)]
-    if variant == "balken":        # preview B, paneel 1: alleen de stapels met het totaal erboven
-        lijnen = [lijnen[1]]
-        groepen = [grp_bar(bars, grouping="stacked", gap=45, overlap=100), grp_line(lijnen), grp_waas(n0 + 1, kw, r["realisatie"])]
-    elif variant == "cum":         # preview B, paneel 2: alleen de cumulatieve lijn met het eindlabel
-        lijnen = [lijnen[0], lijnen[2]]
-        groepen = [grp_line(lijnen), grp_waas(2, kw, r["realisatie"])]
-    else:
-        groepen = [grp_bar(bars, grouping="stacked", gap=45, overlap=100), grp_line(lijnen), grp_waas(n0 + 3, kw, r["realisatie"])]
+    groepen = [grp_bar(bars, grouping="stacked", gap=45, overlap=100), grp_line(lijnen), grp_waas(n0 + 3, kw, r["realisatie"])]
     top = 0.12 / hoogte_cm
     bottom = (1.2 if legenda else 0.45) / hoogte_cm
     layout = plot_layout(0.045, top, 0.945, 1 - top - bottom)
