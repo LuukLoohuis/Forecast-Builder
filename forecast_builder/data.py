@@ -197,7 +197,7 @@ def _lees_v1(wb):
         label = LY.D_LABELS.get(naam)
         rij = next((r for r in range(1, 120) if _v(d, f"V{r}") == label), None)
         if rij is not None and _v(d, f"W{rij}") not in (None, ""):
-            p.fo[naam[3:]] = _v(d, f"W{rij}")
+            p.fo[{"opbr": "opbrengsten"}.get(naam[3:], naam[3:])] = _v(d, f"W{rij}")
     return p
 
 
@@ -287,5 +287,5 @@ def _lees_v2(wb):
         label = LY.D_LABELS.get(naam)
         rij = next((r for r in range(1, 120) if _v(d, f"V{r}") == label), None)
         if rij is not None and _v(d, f"W{rij}") not in (None, ""):
-            p.fo[naam[3:]] = _v(d, f"W{rij}")
+            p.fo[{"opbr": "opbrengsten"}.get(naam[3:], naam[3:])] = _v(d, f"W{rij}")
     return p

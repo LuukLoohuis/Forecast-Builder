@@ -60,6 +60,7 @@ Private Const CEL_ACTUALS_JAAR As String = "W5"
 Private Const CEL_ACTUALS_KW As String = "X5"
 Private Const TYPE_RIJ_KOOPSOM As Long = 9
 Private Const TYPE_RIJ_STARTJAAR As Long = 10
+Private foStap As String                             ' laatste deelstap van 'Ophalen uit FO' (voor de foutmelding)
 Private Const IDX_MIN As Long = 7961                 ' 1990*4+1: kleinste kwartaalindex die IsJaar toelaat
 Private Const IDX_MAX As Long = 8404                 ' 2100*4+4
 Private Const MAX_PERIODES As Long = 60
@@ -887,8 +888,9 @@ Public Sub UitFOOphalen()
     Dim pad As Variant, wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet
     Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
     Dim stap As String, bericht As String, nPer As Long, nTyp As Long, k As Long, waarschuwing As String
-    Dim idxAct As Long, aJaar As Long, aKw As Long, wb As Workbook, zelfGeopend As Boolean
+    Dim idxAct As Long, aJaar As Long, aKw As Long, wb As Workbook, zelfGeopend As Boolean, foutNr As Long, foutOms As String
     Dim rijVan(IDX_MIN To IDX_MAX) As Long                        ' rijVan(jaar*4+kw) = rij op Invoer (0 = geen)
+    foStap = ""
     On Error GoTo Fout
 #If Mac Then
     pad = Application.GetOpenFilename()
@@ -958,8 +960,9 @@ Public Sub UitFOOphalen()
     nTyp = FOTypen(wsO, wsT, wsI, rijVan, idxAct, waarschuwing)
 
     stap = "afronden"
+    foStap = ""
     wsD.Range(CEL_FO_BESTAND).Value = wbF.Name
-    wsD.Range(CEL_FO_DATUM).Value = Format$(Now, "dd-mm-yyyy hh:nn")
+    wsD.Range(CEL_FO_DATUM).Value = Format$(Now, "dd-mm-yyyy hh:mm")
     If zelfGeopend Then wbF.Close SaveChanges:=False
     Set wbF = Nothing
     Application.Calculate
@@ -971,10 +974,15 @@ Public Sub UitFOOphalen()
     MsgBox bericht, IIf(Len(waarschuwing) > 0, vbExclamation, vbInformation), "Ophalen uit FO"
     Exit Sub
 Fout:
+    foutNr = Err.Number                                          ' eerst vastleggen: 'On Error Resume Next' hieronder wist Err
+    foutOms = Err.Description
     Application.ScreenUpdating = True
     On Error Resume Next
     If zelfGeopend And Not wbF Is Nothing Then wbF.Close SaveChanges:=False
-    MsgBox "Het ging mis bij: " & stap & vbCrLf & vbCrLf & "Fout " & Err.Number & ": " & Err.Description, vbExclamation, "Ophalen uit FO"
+    bericht = "Het ging mis bij: " & stap
+    If Len(foStap) > 0 Then bericht = bericht & vbCrLf & "(" & foStap & ")"
+    bericht = bericht & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms
+    MsgBox bericht, vbExclamation, "Ophalen uit FO"
 End Sub
 
 Private Function ZoekBlad(wb As Workbook, naam As String) As Worksheet
@@ -1008,10 +1016,34 @@ Private Function Getal(v As Variant) As Double
     If IsNumeric(v) Then Getal = CDbl(v)
 End Function
 
-Private Function Tekst(v As Variant) As String
+Private Function IsGetal(v As Variant) As Boolean
+    ' echte getallen (geen lege cel, tekst, datum of foutwaarde)
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    Select Case VarType(v)
+        Case vbInteger, vbLong, vbSingle, vbDouble, vbCurrency, vbDecimal: IsGetal = True
+    End Select
+End Function
+
+Private Function TypeNaam(ws As Worksheet, r As Long, k As Long) As String
+    ' naam van het type: uit de bloktitel 'Termijnen k - naam', anders de cel naast de titel (bv. '<300K VON'),
+    ' anders de tekst na 'Termijnen ' als dat geen nummer is, anders 'Type k'
+    Dim t As String, rest As String
+    t = TekstVan(ws.Cells(r, 2).Value)
+    If InStr(t, " - ") > 0 Then
+        TypeNaam = Trim$(Mid$(t, InStr(t, " - ") + 3))
+    ElseIf Len(TekstVan(ws.Cells(r, 3).Value)) > 0 And Not IsGetal(ws.Cells(r, 3).Value) Then
+        TypeNaam = TekstVan(ws.Cells(r, 3).Value)
+    Else
+        rest = Trim$(Mid$(t, 11))
+        If Len(rest) > 0 And Not IsNumeric(rest) Then TypeNaam = rest
+    End If
+    If Len(TypeNaam) = 0 Then TypeNaam = "Type " & k
+End Function
+
+Private Function TekstVan(v As Variant) As String
     ' celwaarde als tekst zonder spaties eromheen; foutwaarden (#N/A, #REF!) en lege cellen geven ""
     If IsError(v) Or IsEmpty(v) Then Exit Function
-    Tekst = Tekst(v)
+    TekstVan = Trim$(CStr(v))
 End Function
 
 Private Function IsFeeLabel(ll As String) As Boolean
@@ -1023,52 +1055,61 @@ End Function
 
 Private Function FOCashflow(wsCF As Worksheet, wsI As Worksheet, wsD As Worksheet, rijVan() As Long, ByRef waarschuwing As String) As Long
     ' '1. Cashflow' -> Invoer B8:J..; rijVan(jaar*4+kw) = rij op Invoer; totalen -> Dashboard FO-cellen
-    Dim kop As Long, r As Long, i As Long, c As Long, q As Long
-    For r = 1 To 15
-        If LCase$(Tekst(wsCF.Cells(r, 2).Value)) = "jaar" Then
-            kop = r
-            Exit For
-        End If
+    ' de koprij 'Jaar' mag in A1:F30 staan; de kolommen erachter zijn Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig
+    Dim kop As Long, kolJ As Long, r As Long, i As Long, c As Long, q As Long
+    foStap = "koprij 'Jaar' zoeken op '" & wsCF.Name & "'"
+    For r = 1 To 30
+        For c = 1 To 6
+            If LCase$(TekstVan(wsCF.Cells(r, c).Value)) = "jaar" Then
+                kop = r
+                kolJ = c
+                Exit For
+            End If
+        Next c
+        If kop > 0 Then Exit For
     Next r
-    If kop = 0 Then Err.Raise 1001, , "Koprij 'Jaar' niet gevonden op '1. Cashflow'."
+    If kop = 0 Then Err.Raise 1001, , "Koprij 'Jaar' niet gevonden op '" & wsCF.Name & "' (gezocht in A1:F30)."
+    foStap = "tab Invoer leegmaken"
     wsI.Range(wsI.Cells(INVOER_RIJ1, 2), wsI.Cells(INVOER_RIJN, 10)).ClearContents
     r = kop + 1
     i = 0
-    Do While IsJaar(wsCF.Cells(r, 2).Value)
+    Do While IsJaar(wsCF.Cells(r, kolJ).Value)
+        foStap = "rij " & r & " van '" & wsCF.Name & "' naar tab Invoer rij " & (INVOER_RIJ1 + i)
         If i >= MAX_PERIODES Then
-            waarschuwing = waarschuwing & "- '1. Cashflow' heeft meer dan " & MAX_PERIODES & " periodes; alleen de eerste " & MAX_PERIODES & " zijn overgenomen." & vbCrLf
+            waarschuwing = waarschuwing & "- '" & wsCF.Name & "' heeft meer dan " & MAX_PERIODES & " periodes; alleen de eerste " & MAX_PERIODES & " zijn overgenomen." & vbCrLf
             Exit Do
         End If
-        For c = 2 To 10
-            If c = 3 Then
-                q = KwNummer(wsCF.Cells(r, 3).Value)
-                If q > 0 Then wsI.Cells(INVOER_RIJ1 + i, 3).Value = "Q" & q Else wsI.Cells(INVOER_RIJ1 + i, 3).ClearContents
-            ElseIf IsNumeric(wsCF.Cells(r, c).Value) And Not IsEmpty(wsCF.Cells(r, c).Value) Then
-                wsI.Cells(INVOER_RIJ1 + i, c).Value = CDbl(wsCF.Cells(r, c).Value)
-            End If
+        q = KwNummer(wsCF.Cells(r, kolJ + 1).Value)
+        wsI.Cells(INVOER_RIJ1 + i, 2).Value = CLng(Val(wsCF.Cells(r, kolJ).Value))
+        If q > 0 Then wsI.Cells(INVOER_RIJ1 + i, 3).Value = "Q" & q
+        For c = 2 To 8                                           ' kosten .. CF vorig kwartaal -> Invoer D..J
+            If IsGetal(wsCF.Cells(r, kolJ + c).Value) Then wsI.Cells(INVOER_RIJ1 + i, 2 + c).Value = CDbl(wsCF.Cells(r, kolJ + c).Value)
         Next c
-        If q > 0 Then rijVan(CLng(Val(wsCF.Cells(r, 2).Value)) * 4 + q) = INVOER_RIJ1 + i     ' IsJaar houdt de index binnen IDX_MIN..IDX_MAX
+        If q > 0 Then rijVan(CLng(Val(wsCF.Cells(r, kolJ).Value)) * 4 + q) = INVOER_RIJ1 + i     ' IsJaar houdt de index binnen IDX_MIN..IDX_MAX
         i = i + 1
         r = r + 1
     Loop
-    ' totalen onder de tabel ('Totaal:' in kolom C)
+    ' totalen onder de tabel ('Totaal:' in de kolom van Q)
+    foStap = "totalen onder de tabel op '" & wsCF.Name & "'"
     wsD.Range(CEL_FO_OPBR).ClearContents
     wsD.Range(CEL_FO_KOSTEN).ClearContents
     For c = r To r + 6
-        If LCase$(Left$(Tekst(wsCF.Cells(c, 3).Value), 6)) = "totaal" Then
-            wsD.Range(CEL_FO_KOSTEN).Value = Getal(wsCF.Cells(c, 4).Value)
-            wsD.Range(CEL_FO_OPBR).Value = Getal(wsCF.Cells(c, 6).Value)
+        If LCase$(Left$(TekstVan(wsCF.Cells(c, kolJ + 1).Value), 6)) = "totaal" Then
+            wsD.Range(CEL_FO_KOSTEN).Value = Getal(wsCF.Cells(c, kolJ + 2).Value)
+            wsD.Range(CEL_FO_OPBR).Value = Getal(wsCF.Cells(c, kolJ + 4).Value)
             Exit For
         End If
     Next c
+    foStap = ""
     FOCashflow = i
 End Function
 
 Private Function FOActuals(wsA As Worksheet) As Long
     ' laatste boekjaar x 4 + kwartaal met een boeking (kolommen op koptekst: Boekjaar, Q, Waarde/TrVal)
     Dim c As Long, cj As Long, cq As Long, cw As Long, r As Long, laatste As Long, idx As Long, kop As String, rMax As Long, telt As Boolean
+    foStap = "koppen Boekjaar/Q/Waarde zoeken op '" & wsA.Name & "'"
     For c = 1 To wsA.UsedRange.Columns.Count + wsA.UsedRange.Column
-        kop = LCase$(Tekst(wsA.Cells(1, c).Value))
+        kop = LCase$(TekstVan(wsA.Cells(1, c).Value))
         If kop = "boekjaar" Then cj = c
         If kop = "q" Then cq = c
         If kop = "waarde/trval" Then cw = c
@@ -1085,6 +1126,7 @@ Private Function FOActuals(wsA As Worksheet) As Long
             End If
         End If
     Next r
+    foStap = ""
     FOActuals = laatste
 End Function
 
@@ -1098,7 +1140,7 @@ Private Sub KolomKaart(ws As Worksheet, rijQ As Long, ByRef idxKol() As Long, By
     jaar = 0
     For c = 1 To nKol
         If IsJaar(ws.Cells(rijQ - 1, c).Value) Then jaar = CLng(Val(ws.Cells(rijQ - 1, c).Value))
-        If LCase$(Left$(Tekst(ws.Cells(rijQ, c).Value), 6)) = "actual" Then cAct = c
+        If LCase$(Left$(TekstVan(ws.Cells(rijQ, c).Value), 6)) = "actual" Then cAct = c
         q = KwNummer(ws.Cells(rijQ, c).Value)
         If q > 0 And jaar > 0 Then idxKol(c) = jaar * 4 + q Else idxKol(c) = 0
     Next c
@@ -1133,7 +1175,7 @@ Private Function ZoekPlanningRij(ws As Worksheet, r1 As Long, r2 As Long, naam A
     ' rij r1..r2 in de bouwplanning met dezelfde naam en minstens één kwartaalcel; 0 = geen
     Dim r As Long
     For r = r1 To r2
-        If LCase$(Tekst(ws.Cells(r, 2).Value)) = LCase$(Trim$(naam)) Then
+        If LCase$(TekstVan(ws.Cells(r, 2).Value)) = LCase$(Trim$(naam)) Then
             If SomRij(ws, r, idxKol) <> 0 Then
                 ZoekPlanningRij = r
                 Exit Function
@@ -1173,7 +1215,7 @@ Private Sub SchrijfVerdeeld(wsT As Worksheet, ws As Worksheet, rBron As Long, id
                 i = i + 1
                 deel = Getal(ws.Cells(rBron, c).Value) / som
                 wsT.Cells(rij, col).Value = naam & IIf(n > 1, " (" & i & "/" & n & ")", "")
-                wsT.Cells(rij, col + 1).Value = waarde * deel
+                wsT.Cells(rij, col + 1).Value = Round(waarde * deel, IIf(Abs(waarde) > 1, 2, 6))     ' bedragen op centen, percentages op 6 decimalen
                 wsT.Cells(rij, col + 2).Value = idxKol(c) - idxStart + 1
                 rij = rij + 1
             End If
@@ -1233,10 +1275,11 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
     Dim termNaam(1 To 20) As String, termPct(1 To 20) As Double, termPw(1 To 20) As Double, termRij(1 To 20) As Long, nTerm As Long, i As Long
     ReDim blok(1 To MAX_TYPES)
     ReDim omzet(1 To MAX_TYPES)
+    foStap = "blokken zoeken op '" & wsO.Name & "'"
     rMax = wsO.Cells(wsO.Rows.Count, 2).End(xlUp).Row
     For r = 2 To rMax
-        b = LCase$(Tekst(wsO.Cells(r, 2).Value))
-        If Left$(b, 10) = "termijnen " And InStr(b, " in " & ChrW(8364)) = 0 And LCase$(Left$(Tekst(wsO.Cells(r - 1, 6).Value), 5)) = "# won" Then
+        b = LCase$(TekstVan(wsO.Cells(r, 2).Value))
+        If Left$(b, 10) = "termijnen " And InStr(b, " in " & ChrW(8364)) = 0 And LCase$(Left$(TekstVan(wsO.Cells(r - 1, 6).Value), 5)) = "# won" Then
             If nBlok < MAX_TYPES Then
                 nBlok = nBlok + 1
                 blok(nBlok) = r
@@ -1256,15 +1299,15 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
         If aantal <= 0 Then GoTo Volgende
         kT = kT + 1
         col = TYPE_COL1 + (kT - 1) * TYPE_BREEDTE
-        naam = Tekst(wsO.Cells(blok(k), 2).Value)
-        If InStr(naam, " - ") > 0 Then naam = Trim$(Mid$(naam, InStr(naam, " - ") + 3)) Else naam = "Type " & kT
+        naam = TypeNaam(wsO, blok(k), kT)
+        foStap = "type " & kT & " (" & naam & "): bouwplanning vanaf rij " & blok(k) & " van '" & wsO.Name & "'"
         wsT.Cells(TYPE_RIJ_NAAM, col).Value = naam
         wsT.Cells(TYPE_RIJ_AANTAL, col).Value = aantal
         ' bouwplanning: eerste rij met een telling = start bouw
         KolomKaart wsO, blok(k), idxKol, cAct
         rPlan1 = blok(k) + 1
         rPlan2 = rPlan1
-        Do While Len(Tekst(wsO.Cells(rPlan2 + 1, 2).Value)) > 0
+        Do While Len(TekstVan(wsO.Cells(rPlan2 + 1, 2).Value)) > 0
             rPlan2 = rPlan2 + 1
         Loop
         idxStart = 0
@@ -1282,6 +1325,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
         If k > nOmzet Then GoTo Volgende
         ' omzetblok: koopsom, termijnen, extra's, fees
         ro = omzet(k)
+        foStap = "type " & kT & " (" & naam & "): omzetblok vanaf rij " & ro & " van '" & wsO.Name & "'"
         KolomKaart wsO, ro, idxKolO, cActO
         koopPw = 0
         nTerm = 0
@@ -1293,9 +1337,10 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
         rFee = 0
         rFeeMax = 0
         r = ro + 1
-        Do While Len(Tekst(wsO.Cells(r, 2).Value)) > 0
-            lab = Tekst(wsO.Cells(r, 2).Value)
+        Do While Len(TekstVan(wsO.Cells(r, 2).Value)) > 0
+            lab = TekstVan(wsO.Cells(r, 2).Value)
             ll = LCase$(lab)
+            foStap = "type " & kT & " (" & naam & "): rij " & r & " '" & lab & "' van '" & wsO.Name & "'"
             pct = wsO.Cells(r, 3).Value
             eur = wsO.Cells(r, 4).Value
             pw = wsO.Cells(r, 5).Value
@@ -1332,7 +1377,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
                         End If
                         rFee = rFee + 1
                     ElseIf rFee = rFeeMax + 1 Then
-                        waarschuwing = waarschuwing & "- " & naam & ": meer dan 5 termijnen voor '" & Tekst(wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col).Value) & "'; de rest is niet overgenomen." & vbCrLf
+                        waarschuwing = waarschuwing & "- " & naam & ": meer dan 5 termijnen voor '" & TekstVan(wsT.Cells(TYPE_RIJ_FC1 + nComp - 1, col).Value) & "'; de rest is niet overgenomen." & vbCrLf
                         rFee = rFee + 1
                     End If
                 End If
@@ -1346,8 +1391,8 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
                     termPw(nTerm) = Getal(pw)
                     termRij(nTerm) = r
                 End If
-            ElseIf Getal(pw) <> 0 Then
-                ' extra per woning (kopersmeerwerk, kadastrale kosten, overige): bij transport als het FO de telling in 'actuals' zet
+            ElseIf Abs(Getal(pw)) >= 0.005 Then
+                ' extra per woning (kopersmeerwerk, kadastrale kosten, overige; minder dan een cent telt niet): bij transport als het FO de telling in 'actuals' zet
                 rp = ZoekPlanningRij(wsO, rPlan1, rPlan2, lab, idxKol)
                 If rp = 0 And SomRij(wsO, r, idxKolO) <> 0 Then rp = r
                 If rp = 0 Or ActWaarde(wsO, r, cActO) <> 0 Then
@@ -1364,6 +1409,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
             End If
             r = r + 1
         Loop
+        foStap = "type " & kT & " (" & naam & "): termijnen en extra's naar tab Woningtypes"
         If isDaeb Then
             wsT.Cells(TYPE_RIJ_SOORT, col).Value = "DAEB"
             wsT.Cells(TYPE_RIJ_KOOPSOM, col).ClearContents
@@ -1391,11 +1437,12 @@ Volgende:
     Next k
     ' verkooptempo: rijen in dezelfde volgorde als de blokken (ook blokken zonder woningen tellen als rij)
     If rVerkoop > 0 Then
+        foStap = "verkooptempo vanaf rij " & rVerkoop & " van '" & wsO.Name & "'"
         KolomKaart wsO, rVerkoop, idxKol, cAct
         kV = 0
         r = rVerkoop + 1
         k = 0
-        Do While Len(Tekst(wsO.Cells(r, 2).Value)) > 0 And k < nBlok
+        Do While Len(TekstVan(wsO.Cells(r, 2).Value)) > 0 And k < nBlok
             k = k + 1
             If Getal(wsO.Cells(blok(k) - 1, 7).Value) > 0 Then
                 kV = kV + 1
@@ -1406,6 +1453,7 @@ Volgende:
     Else
         waarschuwing = waarschuwing & "- blok 'Verkooptempo' niet gevonden op 'CF - opbrengsten': verkocht per kwartaal is leeg gebleven." & vbCrLf
     End If
+    foStap = ""
     FOTypen = kT
 End Function
 

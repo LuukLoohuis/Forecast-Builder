@@ -96,6 +96,21 @@ def _tellingen(ws, r, kaart, c_act=None):
     return uit
 
 
+def _typenaam(ws, r, k):
+    """Naam van het type: uit de bloktitel 'Termijnen k - naam', anders de cel naast de titel (bv. '<300K VON'), anders de
+    tekst na 'Termijnen ' als dat geen nummer is, anders 'Type k'."""
+    t = _txt(ws.cell(r, 2).value)
+    if " - " in t:
+        return t.split(" - ", 1)[1].strip() or f"Type {k}"
+    naast = ws.cell(r, 3).value
+    if _txt(naast) and _num(naast) is None:
+        return _txt(naast)
+    rest = t[10:].strip() if t.lower().startswith("termijnen ") else ""
+    if rest and not rest.replace(".", "").isdigit():
+        return rest
+    return f"Type {k}"
+
+
 def _is_fee_label(ll):
     return bool(re.search(r"\bfees?\b", ll)) or ll.startswith("ak-fee") or ll.startswith("bijkomende kosten") or ll.startswith("onvoorzien")
 
@@ -148,25 +163,21 @@ def lees_fo(pad):
     ws = _zoek_blad(wb, "1. Cashflow", "Cashflow")
     if ws is None:
         raise ValueError("Tabblad '1. Cashflow' niet gevonden in het FO.")
-    kop = None
-    for r in range(1, 15):
-        if _txt(ws.cell(r, 2).value).lower() == "jaar":
-            kop = r
-            break
+    # koprij 'Jaar' ergens in A1:F30; de kolommen erachter: Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig
+    kop = next(((r, c) for r in range(1, 31) for c in range(1, 7) if _txt(ws.cell(r, c).value).lower() == "jaar"), None)
     if kop is None:
-        raise ValueError("Koprij 'Jaar' niet gevonden op '1. Cashflow'.")
-    r = kop + 1
-    while _jaar(ws.cell(r, 2).value) is not None:
-        q = _kw(ws.cell(r, 3).value)
-        p.periodes.append({"jaar": _jaar(ws.cell(r, 2).value), "kw": f"Q{q}" if q else None,
-                           "kosten": _num(ws.cell(r, 4).value), "pct_kosten": _num(ws.cell(r, 5).value),
-                           "omzet": _num(ws.cell(r, 6).value), "pct_omzet": _num(ws.cell(r, 7).value),
-                           "cf": _num(ws.cell(r, 8).value), "cf1000": _num(ws.cell(r, 9).value), "cf_vorig": _num(ws.cell(r, 10).value)})
+        raise ValueError(f"Koprij 'Jaar' niet gevonden op '{ws.title}' (gezocht in A1:F30).")
+    r, cj = kop[0] + 1, kop[1]
+    while _jaar(ws.cell(r, cj).value) is not None:
+        q = _kw(ws.cell(r, cj + 1).value)
+        v = [_num(ws.cell(r, cj + k).value) for k in range(2, 9)]
+        p.periodes.append({"jaar": _jaar(ws.cell(r, cj).value), "kw": f"Q{q}" if q else None,
+                           "kosten": v[0], "pct_kosten": v[1], "omzet": v[2], "pct_omzet": v[3], "cf": v[4], "cf1000": v[5], "cf_vorig": v[6]})
         r += 1
-    for rr in range(r, r + 6):          # totalen onder de tabel
-        if _txt(ws.cell(rr, 3).value).lower().startswith("totaal"):
-            p.fo["kosten"] = _num(ws.cell(rr, 4).value)
-            p.fo["opbrengsten"] = _num(ws.cell(rr, 6).value)
+    for rr in range(r, r + 6):          # totalen onder de tabel ('Totaal:' in de kolom van Q)
+        if _txt(ws.cell(rr, cj + 1).value).lower().startswith("totaal"):
+            p.fo["kosten"] = _num(ws.cell(rr, cj + 2).value)
+            p.fo["opbrengsten"] = _num(ws.cell(rr, cj + 4).value)
     n_per = len(p.periodes)
     periode_van = {}
     for i, per in enumerate(p.periodes):
@@ -210,11 +221,7 @@ def lees_fo(pad):
             verkoop = r
     p.types = []
     for k, r0 in enumerate(blokken):
-        naam = b_naam = _txt(wo.cell(r0, 2).value)
-        if " - " in b_naam:
-            naam = b_naam.split(" - ", 1)[1].strip()
-        else:
-            naam = f"Type {k + 1}"
+        naam = _typenaam(wo, r0, k + 1)
         aantal = _num(wo.cell(r0 - 1, 7).value) or 0
         kaart, c_act = _kolomkaart(wo, r0)
         # bouwplanning: per termijn het aantal woningen per kwartaal
@@ -264,7 +271,7 @@ def lees_fo(pad):
                     waarschuwingen.append(f"{naam}: rij '{lab}' in het fee-blok heeft geen bedrag met kwartaal en is overgeslagen.")
                 elif pct is not None and pct != 0:
                     termijnen.append((lab, pct, pw or 0.0, tel))
-                elif pw:
+                elif pw and abs(pw) >= 0.005:                 # extra per woning (minder dan een cent telt niet)
                     extras.append((lab, pw, tel, act))
                 r += 1
             # koopsom per woning = grond (rij Koopsom) + termijnen per woning

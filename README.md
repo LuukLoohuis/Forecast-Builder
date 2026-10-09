@@ -46,7 +46,7 @@ Als LibreOffice (`soffice`) aanwezig is, rekent de build het werkboek door en ze
 cellen en grafieken (`forecast_builder/cache.py`), zodat Excel ook in de beveiligde weergave meteen cijfers toont.
 Zonder LibreOffice werkt het bestand ook; Excel rekent dan bij het openen (`--geen-cache` slaat de stap over).
 
-Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om formules door te rekenen).
+Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om formules door te rekenen; `tests/test_macro_lo.py` voert de macro 'Ophalen uit FO' uit in LibreOffice (VBA-compatibiliteit, via pyuno) op een nagebouwd FO en vergelijkt het resultaat met de Python-lezer; `tests/test_vba.py` controleert de VBA-module statisch, onder meer op functies die zichzelf aanroepen).
 
 ## Indeling van het werkboek
 
@@ -113,9 +113,9 @@ macro `UitFOOphalen`) en `python3 build.py --fo FO.xlsx` (module `forecast_build
 
 | FO-tabblad | Wat | Naar |
 |---|---|---|
-| `1. Cashflow` | koprij 'Jaar' in kolom B; daaronder jaar, Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig; 'Totaal:' | tab Invoer B:J; Dashboard FO-cellen (totalen) |
+| `1. Cashflow` | koprij 'Jaar' (ergens in A1:F30); daarachter Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig; 'Totaal:' onder de tabel | tab Invoer B:J; Dashboard FO-cellen (totalen) |
 | `FO - actuals` | laatste boekjaar/kwartaal met een boeking (kolommen Boekjaar, Q, Waarde/TrVal) | Dashboard 'Actuals t/m' |
-| `CF - opbrengsten` | per type: blok 'Termijnen k - naam' met '# won' erboven (bouwplanning: aantal woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom = grond + ontwikkeling per woning; termijnen in %, € en € per woning; kopersmeerwerk, kadastrale kosten, overige) en blok 'Verkooptempo' (verkocht per kwartaal, kolom 'actuals' = al verkocht) | tab Woningtypes: naam, aantal, koopsom per woning (grond + termijnen, excl. btw, incl. KAO-opties), grondtermijn %, start bouw, bouwtermijnen (naam, %, bouwkwartaal; een termijn die het FO over meer kwartalen verdeelt wordt gesplitst in '(1/2)', '(2/2)'), extra's per woning (kwartaal uit de planning, of bij transport); tab Invoer: verkocht en transport per kwartaal (transport = de tellingen op de rij Koopsom) |
+| `CF - opbrengsten` | per type: blok 'Termijnen k - naam' (of 'Termijnen <300K' met de naam in de cel ernaast) met '# won' erboven (bouwplanning: aantal woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom = grond + ontwikkeling per woning; termijnen in %, € en € per woning; kopersmeerwerk, kadastrale kosten, overige) en blok 'Verkooptempo' (verkocht per kwartaal, kolom 'actuals' = al verkocht) | tab Woningtypes: naam, aantal, koopsom per woning (grond + termijnen, excl. btw, incl. KAO-opties), grondtermijn %, start bouw, bouwtermijnen (naam, %, bouwkwartaal; een termijn die het FO over meer kwartalen verdeelt wordt gesplitst in '(1/2)', '(2/2)'), extra's per woning (kwartaal uit de planning, of bij transport); tab Invoer: verkocht en transport per kwartaal (transport = de tellingen op de rij Koopsom) |
 | idem, DAEB | in het omzetblok van een type: een rij met een fee-label ('AK fee', 'Bijkomende kosten'; 'Onvoorzien' wordt overgeslagen) en alleen een totaal in € (geen %, geen kwartalen) is een fee-component; elke rij daarna met een % of € én een kwartaal of 'actuals' is een termijn van die component, wat het label ook is ('na akkoord SO', 'bij start bouw', …) | blok 5 (soort DAEB, componenten, termijnen; koopsom, bouwtermijnen en extra's leeg) — op basis van het fee-overzicht van de gebruiker; nog niet getoetst op een echt DAEB-FO |
 
 De Dashboard-controle 'Invoer sluit aan op het FO' vergelijkt de totalen van tab Invoer met de totalen uit '1. Cashflow';
