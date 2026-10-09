@@ -36,11 +36,6 @@ def _xml(jaar_min, jaar_max=None):
     r_pt = {naam: f"[0]!g_pt_{naam}" for naam in LY.PT_REEKSEN}
     r_pt.update({"kwartaal": "[0]!g_pt_kwartaal", "realisatie": "[0]!g_pt_realisatie"})
     r_pt.update({f"naam_{naam}": f"Model!{LY.h('pt_lbl_' + naam)}" for naam in LY.PT_REEKSEN})
-    import os
-    if os.environ.get("PT_PREVIEW_B"):
-        pertype = cx.type_paneel(r_pt, variant="balken")
-        pertype2 = cx.type_paneel(r_pt, variant="cum")
-        return cashflow, band, verkoop, transport, bouwtermijnen, pertype, pertype2
     pertype = cx.type_paneel(r_pt)
     return cashflow, band, verkoop, transport, bouwtermijnen, pertype
 
@@ -57,15 +52,11 @@ def grafieken(jaar_min=2020, jaar_max=None):
     """[(naam, anker, breedte cm, hoogte cm, xml)] in de volgorde chart1.xml … chart6.xml.
     jaar_min/jaar_max = eerste en laatste jaar van de periodes: voorlopige grenzen van de tijd-as in de bouwtermijnengrafiek
     (kwartaalindex jaar × 4 + 1); cache.py zet ze na het doorrekenen op Model!BY97 (twee jaar vóór de eerste termijn) en BY99."""
-    xmls = _xml(jaar_min, jaar_max)
-    cashflow, band, verkoop, transport, bouwtermijnen, pertype = xmls[:6]
+    cashflow, band, verkoop, transport, bouwtermijnen, pertype = _xml(jaar_min, jaar_max)
     A = LY.D_CHART_ANCHORS
-    uit = [("scenario", A["scenario"], 30.3, 13.0, band), ("cashflow", A["cashflow"], 30.3, 11.5, cashflow),
-           ("verkoop", A["verkoop"], 30.3, cx.PANEEL_H_CM, verkoop), ("transport", A["transport"], 30.3, cx.PANEEL_H_CM, transport),
-           ("bouwtermijnen", A["bouwtermijnen"], 30.3, BT_H_CM, bouwtermijnen), ("pertype", A["pertype"], 30.3, cx.PT_H_CM, pertype)]
-    if len(xmls) > 6:              # preview B: tweede paneel (cumulatief) onder het eerste
-        uit.append(("pertype2", "B133", 30.3, cx.PT_H_CM, xmls[6]))
-    return uit
+    return [("scenario", A["scenario"], 30.3, 13.0, band), ("cashflow", A["cashflow"], 30.3, 11.5, cashflow),
+            ("verkoop", A["verkoop"], 30.3, cx.PANEEL_H_CM, verkoop), ("transport", A["transport"], 30.3, cx.PANEEL_H_CM, transport),
+            ("bouwtermijnen", A["bouwtermijnen"], 30.3, BT_H_CM, bouwtermijnen), ("pertype", A["pertype"], 30.3, cx.PT_H_CM, pertype)]
 
 
 def plaats_grafieken(ws_dashboard, wb, jaar_min=2020, jaar_max=None):
