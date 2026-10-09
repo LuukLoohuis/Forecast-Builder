@@ -27,7 +27,12 @@ Option Explicit
 '  SchikDia5             na het vullen van VT_TABEL (dia 5): bij meer dan 4 types rijen en letters
 '                        kleiner, zo nodig de kaart met BT_GRAFIEK korter, en de tabelkaart sluit om de tabel
 '
+'  v15: grafiek per woningtype (dia 8): blok FM7 met 10 kolommen (totaal per kwartaal als label, eindpunt met het totaal),
+'       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw; sjabloon v15.
+'       Knoppen op Woningtypes: 'Vorige prognose uit FO' (ouder FO -> blok 4 en 6) en 'Nu bewaren als vorige prognose'.
 '  UitFOOphalen         vult Invoer en Woningtypes vanuit een FO-werkboek (zie v14 hierboven)
+'  VorigePrognoseUitFO  vult blok 4 en 6 (vorige prognose) vanuit een ouder FO
+'  PlanningBewarenAlsVorig  zet de huidige planning in blok 4 en 6
 '
 '  Welke tekst naar welke vorm gaat staat op tabblad "PowerPoint", kolom F.
 ' =====================================================================================
@@ -43,15 +48,16 @@ Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFI
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
 Private Const CEL_SJABLOON As String = "D56"
 Private Const CEL_NAAM As String = "D57"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v14.pptx"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v15.pptx"
 Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
 Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
 Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijnenblok (label + 107 reeksen; layout.PP_BT_KOL)
-Private Const BLOK_PT As String = "FM7"            ' blok grafiek per woningtype (dia 8): kwartaal, zes reeksen, realisatie
-Private Const KOL_PT As Long = 8
+Private Const BLOK_PT As String = "FM7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
+Private Const KOL_PT As Long = 10
+Private Const CEL_PT_N As String = "BY128"         ' aantal getoonde periodes in de grafiek per type (tijdvak vanaf twee jaar vóór de eerste opbrengst)
 Private Const CEL_PT_KEUZE As String = "B120"      ' keuzecel op het Dashboard: naam van het type in de grafiek per woningtype
 ' FO-koppeling (Dashboard): bestand, actuals t/m, opbrengsten en kosten totaal uit '1. Cashflow', datum; actuals-knop W5/X5
 Private Const CEL_FO_BESTAND As String = "W69"
@@ -155,6 +161,9 @@ Public Sub KnoppenControleren()
         End If
         If Not BestaatVorm(ws, "btnVorigFO") Then
             MaakKnop ws, ws.Range("B4"), "btnVorigFO", "Vorige prognose uit FO", "VorigePrognoseUitFO", RGB(23, 54, 93), 150, 196, 3
+        End If
+        If Not BestaatVorm(ws, "btnBewaarVorig") Then
+            MaakKnop ws, ws.Range("B4"), "btnBewaarVorig", "Nu bewaren als vorige prognose", "PlanningBewarenAlsVorig", RGB(91, 97, 105), 196, 350, 3
         End If
     End If
     On Error GoTo 0
@@ -835,7 +844,7 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
                 If rSub > 0 Then kopie.Shapes("PT_SUBTITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rSub))
                 On Error GoTo Mislukt
                 fouten2 = ""
-                VulGrafiekVorm kopie.Shapes("PT_GRAFIEK"), "PT_GRAFIEK", wsP.Range(BLOK_PT), n, KOL_PT, fouten2
+                VulGrafiekVorm kopie.Shapes("PT_GRAFIEK"), "PT_GRAFIEK", wsP.Range(BLOK_PT), AantalRijen(CEL_PT_N, MAX_RIJEN), KOL_PT, fouten2
                 If Len(fouten2) > 0 Then fouten = fouten & naam & " · " & fouten2
             End If
         End If
@@ -1146,6 +1155,33 @@ Fout:
     bericht = "Het ging mis bij: " & stap
     If Len(foStap) > 0 Then bericht = bericht & vbCrLf & "(" & foStap & ")"
     MsgBox bericht & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms, vbExclamation, "Vorige prognose uit FO"
+End Sub
+
+Public Sub PlanningBewarenAlsVorig()
+    ' knop 'Nu bewaren als vorige prognose' (tab Woningtypes): de planning die er nu staat (start bouw per type, kwartalen van de
+    ' fee-termijnen) naar blok 4 en 6, zodat je daarna de nieuwe planning kunt invullen en het verschil lichtrood in de grafiek ziet
+    Dim wsT As Worksheet, k As Long, col As Long, i As Long, n As Long
+    Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
+    For k = 1 To MAX_TYPES
+        col = TYPE_COL1 + (k - 1) * TYPE_BREEDTE
+        If Len(TekstVan(wsT.Cells(TYPE_RIJ_NAAM, col).Value)) > 0 Or IsGetal(wsT.Cells(TYPE_RIJ_STARTJAAR, col).Value) Then n = n + 1
+    Next k
+    If n = 0 Then
+        MsgBox "Er staat nog geen planning op tab Woningtypes.", vbInformation, "Nu bewaren als vorige prognose"
+        Exit Sub
+    End If
+    If MsgBox("De huidige start bouw per type en de kwartalen van de fee-termijnen worden de vorige prognose (blok 4 en 6). " & _
+              "Wat daar nu staat wordt overschreven. Doorgaan?", vbQuestion + vbYesNo, "Nu bewaren als vorige prognose") <> vbYes Then Exit Sub
+    For k = 1 To MAX_TYPES
+        col = TYPE_COL1 + (k - 1) * TYPE_BREEDTE
+        wsT.Cells(TYPE_RIJ_VJAAR, col).Value = wsT.Cells(TYPE_RIJ_STARTJAAR, col).Value
+        wsT.Cells(TYPE_RIJ_VKW, col).Value = wsT.Cells(TYPE_RIJ_STARTKW, col).Value
+        For i = 0 To TYPE_RIJ_FN - TYPE_RIJ_F1
+            wsT.Cells(TYPE_RIJ_VF1 + i, col + 2).Value = wsT.Cells(TYPE_RIJ_F1 + i, col + 2).Value
+        Next i
+    Next k
+    MsgBox "Klaar: de huidige planning staat als vorige prognose in blok 4 en 6 van tab Woningtypes. Pas nu de planning aan; " & _
+           "de bouwtermijnengrafiek toont de vorige prognose lichtrood.", vbInformation, "Nu bewaren als vorige prognose"
 End Sub
 
 Private Function FOVorig(wsO As Worksheet, wsT As Worksheet, ByRef waarschuwing As String) As Long

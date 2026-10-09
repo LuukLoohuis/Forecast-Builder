@@ -17,7 +17,8 @@ RED_LINE = "C0392F"    # downside
 RED_BAR = "E5603B"     # kosten (CVD-veilig naast het groen van opbrengsten)
 AMBER = "EDA100"       # scenario (gele lijn)
 BLUE = "2A78D6"        # verkocht (lijn)
-GREY_LINE = "8A94A6"   # vorige prognose / totaal
+GREY_LINE = "8A94A6"   # totaal
+VORIG_LIJN = "6FA8DC"  # vorige prognose (lichtblauw, stippellijn)
 BAND = "8FA9D6"        # bandbreedte (transparant)
 AREA_NEG = "FCEAE8"    # voorfinanciering
 AREA_POS = "E3F3EA"    # positief saldo
@@ -35,6 +36,7 @@ PT = 12700             # EMU per punt
 FMT_ABS = "0;0"        # geen minteken onder de as (vlindergrafiek)
 FMT_MLN = '&quot;€&quot;0&quot;M&quot;;&quot;−€&quot;0&quot;M&quot;;&quot;€&quot;0&quot;M&quot;'
 FMT_MLN_KORT = '&quot;€&quot;0.0&quot;M&quot;'
+FMT_MLN_LABEL = '[&lt;0.05]&quot;&quot;;&quot;€&quot;0.0&quot;M&quot;'   # totaal boven de stapel: kleiner dan € 0,05 mln blijft leeg
 AX1, AX2, AX3, AX4 = 111111111, 222222222, 333333333, 444444444
 
 
@@ -222,7 +224,7 @@ def cashflow(r, lbl, scenario=True):
     waas = grp_waas(2, kw, r["realisatie"])
     bars = [ser_bar(3, "Opbrengsten", kw, r["opbrengsten"], GREEN), ser_bar(4, "Kosten", kw, r["kosten"], RED_BAR)]
     lines = [ser_line(5, "Cumulatieve cashflow", kw, r["stand"], NAVY, 2.5),
-             ser_line(6, "Vorige prognose", kw, r["vorige"], GREY_LINE, 1.5, "sysDash")]
+             ser_line(6, "Vorige prognose", kw, r["vorige"], VORIG_LIJN, 1.5, "sysDash")]
     verborgen = [0, 1, 2]
     nxt = 7
     if scenario:
@@ -309,9 +311,9 @@ def plot_layout(x, y, w, h):
             f'<c:x val="{x:.4f}"/><c:y val="{y:.4f}"/><c:w val="{w:.4f}"/><c:h val="{h:.4f}"/></c:manualLayout></c:layout>')
 
 
-def ser_totaal(idx, naam, cat, val, sz=700, color=TXT):
+def ser_totaal(idx, naam, cat, val, sz=700, color=TXT, fmt="0;;"):
     """Onzichtbare lijnreeks met de waarde als klein cijfer boven elk punt (= boven de stapel); nullen verborgen."""
-    dlbls = (f'<c:dLbls><c:numFmt formatCode="0;;" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
+    dlbls = (f'<c:dLbls><c:numFmt formatCode="{fmt}" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
              f'{_txpr(sz, False, color)}<c:dLblPos val="t"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
              f'<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     return (f'<c:ser><c:idx val="{idx}"/><c:order val="{idx}"/>{_tx(naam)}<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
@@ -490,15 +492,25 @@ PT_KLEUREN = {"grond": "002060", "bouw": "2A78D6", "extra": "EDA100", "fee1": "4
 PT_H_CM = 6.35
 
 
-def type_paneel(r, hoogte_cm=PT_H_CM, legenda=False):
+def type_paneel(r, hoogte_cm=PT_H_CM, legenda=False, variant="A"):
     """r: dict met bereikverwijzingen 'kwartaal', 'grond', 'bouw', 'extra', 'fee1', 'fee2', 'cum', 'realisatie' en 'naam_<reeks>'
     (celverwijzing met de reeksnaam; leeg of '(uit)' = reeks niet in gebruik). Legenda onderaan (PowerPoint) of uit (Dashboard: chips).
     Groepsvolgorde balken -> lijn -> waas (zie verkoop_paneel)."""
     kw = r["kwartaal"]
     reeksen = ["grond", "bouw", "extra", "fee1", "fee2"]
     bars = [ser_bar(i, "=" + r[f"naam_{naam}"], kw, r[naam], PT_KLEUREN[naam]) for i, naam in enumerate(reeksen)]
-    lijn = ser_line(len(reeksen), "=" + r["naam_cum"], kw, r["cum"], NAVY, 1.75)
-    groepen = [grp_bar(bars, grouping="stacked", gap=45, overlap=100), grp_line([lijn]), grp_waas(len(reeksen) + 1, kw, r["realisatie"])]
+    n0 = len(reeksen)
+    lijnen = [ser_line(n0, "=" + r["naam_cum"], kw, r["cum"], NAVY, 1.5),
+              ser_totaal(n0 + 1, "=" + r["naam_totaal"], kw, r["totaal"], sz=700, color=TXT, fmt=FMT_MLN_LABEL),
+              ser_punt(n0 + 2, "=" + r["naam_eind"], kw, r["eind"], NAVY, "l", size=5)]
+    if variant == "balken":        # preview B, paneel 1: alleen de stapels met het totaal erboven
+        lijnen = [lijnen[1]]
+        groepen = [grp_bar(bars, grouping="stacked", gap=45, overlap=100), grp_line(lijnen), grp_waas(n0 + 1, kw, r["realisatie"])]
+    elif variant == "cum":         # preview B, paneel 2: alleen de cumulatieve lijn met het eindlabel
+        lijnen = [lijnen[0], lijnen[2]]
+        groepen = [grp_line(lijnen), grp_waas(2, kw, r["realisatie"])]
+    else:
+        groepen = [grp_bar(bars, grouping="stacked", gap=45, overlap=100), grp_line(lijnen), grp_waas(n0 + 3, kw, r["realisatie"])]
     top = 0.12 / hoogte_cm
     bottom = (1.2 if legenda else 0.45) / hoogte_cm
     layout = plot_layout(0.045, top, 0.945, 1 - top - bottom)
@@ -508,6 +520,6 @@ def type_paneel(r, hoogte_cm=PT_H_CM, legenda=False):
     assert oud in xml
     xml = xml.replace(oud, f'<c:chart><c:autoTitleDeleted val="1"/><c:plotArea>{layout}')
     if legenda:
-        leg = legend([len(reeksen) + 1]).replace('<c:legendPos val="t"/>', '<c:legendPos val="b"/>').replace('sz="800"', 'sz="700"')
+        leg = legend([n0 + 1, n0 + 2, n0 + 3]).replace('<c:legendPos val="t"/>', '<c:legendPos val="b"/>').replace('sz="800"', 'sz="700"')
         xml = xml.replace('<c:plotVisOnly val="0"/>', f'{leg}<c:plotVisOnly val="0"/>')
     return xml

@@ -36,7 +36,8 @@ PT_TEKST = {"PT_KICKER": "OPBRENGSTEN PER WONINGTYPE", "PT_TITEL": "Opbrengsten 
             "PT_SUBTITEL": "per kwartaal · grondtermijn, bouwtermijnen en extra's (koop) of fees (DAEB) · lijn = cumulatief · grijs = gerealiseerd"}
 PT_KOLOMMEN = ["kwartaal"] + LY.PT_REEKSEN + ["realisatie"]
 PT_KOL = {naam: get_column_letter(i + 1) for i, naam in enumerate(PT_KOLOMMEN)}
-PT_NAMEN_LEEG = {"grond": "Grondtermijn", "bouw": "Bouwtermijnen", "extra": "Extra opbrengsten", "fee1": "Fee 1", "fee2": "Fee 2", "cum": "Cumulatief"}
+PT_NAMEN_LEEG = {"grond": "Grondtermijn", "bouw": "Bouwtermijnen", "extra": "Extra opbrengsten", "fee1": "Fee 1", "fee2": "Fee 2", "cum": "Cumulatief",
+                 "totaal": "Totaal per kwartaal", "eind": "Eindpunt"}
 DIA_VO = 6                      # dia 7 (0-gebaseerd): bron van de tekstvormen
 DIA_PT_POS = 7                  # nieuwe dia 8 komt op positie 7 in de sldIdLst
 
