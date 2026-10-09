@@ -86,7 +86,9 @@ def bouw_werkboek(project):
         wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.BT[key]}${LY.BT_ROW1},0,0,MAX(1,Model!{LY.h('bt_n')}),1)")
     for key in LY.PT_REEKSEN:   # grafiek per woningtype (selectieblok): zo lang als er periodes zijn
         naam = f"g_pt_{key}"
-        wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.PT[key]}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
+        wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.PT[key]}${LY.ROW1},Model!{LY.h('pt_start')}-1,0,MAX(1,Model!{LY.h('pt_n')}),1)")
+    for naam, col in (("g_pt_kwartaal", LY.FIX["kwartaal"]), ("g_pt_realisatie", LY.M["g_realisatie"])):
+        wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${col}${LY.ROW1},Model!{LY.h('pt_start')}-1,0,MAX(1,Model!{LY.h('pt_n')}),1)")
     charts.plaats_grafieken(ws_dash, wb, jaar_min_van(project), jaar_max_van(project))
     wb.calculation.fullCalcOnLoad = True
     return wb

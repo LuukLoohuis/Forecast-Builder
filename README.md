@@ -2,7 +2,7 @@
 
 Bouwt het werkboek **Cashflow_scenario** (Dashboard · Invoer · Woningtypes · Model · PowerPoint) met Python/openpyxl.
 Het werkboek rekent scenario's (downside/upside) uit bovenop je eigen projectcashflow en vult met één knop
-het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v14.pptx`).
+het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v15.pptx`).
 
 ## Wat zit erin
 
@@ -23,6 +23,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v14.pptx`).
 | `tools/pptx_v13_banen.py` | dia 5: bouwtermijnen per woningtype als banen (koprijen jaar/kwartaal, per termijn een baan per type), grafiek hoger (v12 → v13) |
 | `forecast_builder/fo.py` | lezer voor een FO-werkboek (`build.py --fo`); zelfde logica als de macro `UitFOOphalen` |
 | `tools/kringverwijzing.py` | statische controle op kringverwijzingen zoals Excel die meldt (formule hangt af van elk cel in de genoemde bereiken, ook bij INDEX); ook als test op het gebouwde werkboek |
+| `tools/pptx_v15_pertype.py` | sjabloon v14 → v15: lichtblauwe 'Vorige prognose' (dia 3), vernieuwde grafiek per woningtype (dia 8) |
 | `tools/pptx_v14_daeb.py` | dia 8 'Opbrengsten per woningtype' (PT_GRAFIEK; de macro maakt per type een kopie) en herkleurde dia 5/6: vorige prognose lichtrood (v13 → v14) |
 
 ## Bouwen
@@ -37,7 +38,7 @@ python build.py --geen-vba                           # alleen .xlsx
 Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`
 geschreven (`forecast_builder/vbabuild.py`, op basis van `vba/vbaProject_template.bin` met de documentmodules en
 projectinstellingen). Importeren in de VBA-editor is dus niet nodig. Bij het openen zet `KnoppenControleren`
-de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v14.pptx` naast het werkboek
+de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v15.pptx` naast het werkboek
 (of vul het pad in op tab PowerPoint).
 
 `--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken), dus een
@@ -101,7 +102,7 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   vorige prognose per type, grijs, onzichtbaar, 16 jaarblokjes; stapel 2: onzichtbaar, huidige planning per type,
   onzichtbaar, 64 kwartaalblokjes), tot 132 rijen, Model!BY96 = aantal rijen, waarden in kwartaalindex; koppen '(uit)' =
   reeks niet in de presentatie), verkoop en transport per type (EF, dia 6: 26 kolommen, twee grafieken lezen hetzelfde
-  blok), van verkoop naar omzet (FG, dia 7), opbrengsten per woningtype (FM, dia 8: 8 kolommen, het type uit de keuzecel;
+  blok), van verkoop naar omzet (FG, dia 7), opbrengsten per woningtype (FM, dia 8: 10 kolommen = kwartaal, zes reeksen, totaal per kwartaal (label boven de stapel), eindpunt (label met het totaal), realisatie; alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY127/BY128); het type uit de keuzecel;
   de macro zet per type de keuzecel, rekent door en vult een kopie van dia 8); tabellen vanaf FV. De bouwtermijnentabel
   staat in het Model (kolommen vanaf FX: raster van alle type × termijn-combinaties (bij DAEB de fee-termijnen) met
   groepsnaam, bedrag, kwartaalindex, rang en positie, daarna de compacte lijst met de koprijen, de banen en de
@@ -168,7 +169,7 @@ rente staan in de hulpcellen en op tab PowerPoint (blok *extra knoppen en scenar
 In het PowerPoint-sjabloon (sinds v11, `tools/pptx_scenario_line.py`) staat de lijn ook in de cashflowgrafiek op
 dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam uit het werkboek.
 
-### Dia's en sjabloon v14
+### Dia's en sjabloon v15
 
 Dia 1 titel · 2 kerncijfers · 3 cashflow per kwartaal (met scenariolijn) · 4 scenario's · 5 bouwtermijnen per woningtype
 (tijdlijn) met de tabel woningtypes · 6 verkoop en transport per kwartaal (twee panelen) · 7 van verkoop naar omzet ·
@@ -177,7 +178,7 @@ De macro *Naar PowerPoint* vult alle teksten, tabellen en grafieken: per grafiek
 in het gegevensblad van de grafiek op de dia en zet de reeksen op de juiste kolommen; reeksen met een kop die op '(uit)'
 eindigt haalt hij weg (scenariolijn uit; typen zonder termijnen en jaren buiten het bereik in de bouwtermijnengrafiek);
 voor de bouwtermijnengrafiek zet hij ook de tijd-as (Model!BY97 t/m BY99, kwartaalindex). Sjabloon v14 is gemaakt met
-`tools/pptx_v12_bouwtermijnen.py` (v11 → v12), `tools/pptx_v13_banen.py` (v12 → v13) en `tools/pptx_v14_daeb.py` (v13 → v14).
+`tools/pptx_v12_bouwtermijnen.py` (v11 → v12), `tools/pptx_v13_banen.py` (v12 → v13), `tools/pptx_v14_daeb.py` (v13 → v14) en `tools/pptx_v15_pertype.py` (v14 → v15: 'Vorige prognose' op dia 3 lichtblauw; dia 8 met totaal per kwartaal boven de stapel, eindpunt met het totaal en een tijdvak vanaf twee jaar vóór de eerste opbrengst).
 
 ## Controle
 

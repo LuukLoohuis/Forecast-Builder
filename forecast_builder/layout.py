@@ -200,9 +200,9 @@ BT_SEG_NAMEN = {"s0": "·", "s1": "Gerealiseerd", "s2": "·", "s4": "Gerealiseer
 # ---- grafiek per woningtype: selectieblok (het type uit de keuzecel op het Dashboard), € mln per kwartaal ----
 PT_COL1 = BT_COL1 + len(BT) + 1
 PT = {}
-for _i, _name in enumerate(["grond", "bouw", "extra", "fee1", "fee2", "cum"]):
+for _i, _name in enumerate(["grond", "bouw", "extra", "fee1", "fee2", "cum", "totaal", "eind"]):
     PT[_name] = L(PT_COL1 + _i)
-PT_REEKSEN = ["grond", "bouw", "extra", "fee1", "fee2", "cum"]
+PT_REEKSEN = ["grond", "bouw", "extra", "fee1", "fee2", "cum", "totaal", "eind"]   # totaal = som per kwartaal (label), eind = laatste punt
 PT_KLEUREN = {"grond": "002060", "bouw": "2A78D6", "extra": "EDA100", "fee1": "4A3AA7", "fee2": "1F8A8A"}
 
 
@@ -253,6 +253,8 @@ H = {
     "pt_keuze": 110, "pt_naam": 111, "pt_daeb": 112, "pt_aantal": 113, "pt_totaal": 114, "pt_nu": 115, "pt_titel": 116, "pt_subtitel": 117,
     "pt_lbl_grond": 118, "pt_lbl_bouw": 119, "pt_lbl_extra": 120, "pt_lbl_fee1": 121, "pt_lbl_fee2": 122, "pt_lbl_cum": 123,
     "bt_min": 124,          # eerste termijn in de bouwtermijnengrafiek (kwartaalindex, huidig of vorig; 99999 = geen)
+    "pt_first": 125, "pt_jaar_first": 126, "pt_start": 127, "pt_n": 128,   # grafiek per type: eerste opbrengst, eerste jaar, startpositie, aantal
+    "pt_lbl_totaal": 129, "pt_lbl_eind": 130,
 }
 
 

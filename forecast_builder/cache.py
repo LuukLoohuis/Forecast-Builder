@@ -133,8 +133,15 @@ def _patch_chart(xml, model, n):
     lengte = {}
     bt_n = model.get(f"{LY.M_HULP}{LY.H['bt_n']}")
     bt_n = int(bt_n) if isinstance(bt_n, (int, float)) else 0
-    for key in LY.PT_REEKSEN:
-        kolom[f"g_pt_{key}"] = LY.PT[key]
+    pt_start = model.get(f"{LY.M_HULP}{LY.H['pt_start']}")
+    pt_n = model.get(f"{LY.M_HULP}{LY.H['pt_n']}")
+    pt_start = int(pt_start) if isinstance(pt_start, (int, float)) and pt_start >= 1 else 1
+    pt_n = int(pt_n) if isinstance(pt_n, (int, float)) and pt_n >= 1 else n
+    start = {}
+    for key, col in [(k, LY.PT[k]) for k in LY.PT_REEKSEN] + [("kwartaal", LY.FIX["kwartaal"]), ("realisatie", LY.M["g_realisatie"])]:
+        kolom[f"g_pt_{key}"] = col
+        lengte[f"g_pt_{key}"] = pt_n
+        start[f"g_pt_{key}"] = LY.ROW1 + pt_start - 1
     for key in ["label"] + LY.BT_REEKSEN:
         kolom[f"g_bt_{key}"] = LY.BT[key]
         lengte[f"g_bt_{key}"] = max(1, bt_n)
@@ -143,7 +150,8 @@ def _patch_chart(xml, model, n):
         col = kolom.get(naam)
         if col is None:
             return None
-        return [model.get(f"{col}{r}") for r in range(LY.ROW1, LY.ROW1 + lengte.get(naam, n))]
+        r0 = start.get(naam, LY.ROW1)
+        return [model.get(f"{col}{r}") for r in range(r0, r0 + lengte.get(naam, n))]
 
     def cat(m):
         naam = m.group(1)

@@ -273,3 +273,28 @@ def test_tijdas_twee_jaar_voor_eerste_termijn(basis):
     verwacht = max(jaar_periodes, (eerste - 1) // 4 - 2)
     assert m[f"BY{LY.H['jaar_first']}"].value == verwacht and m[f"BY{LY.H['t_first']}"].value == verwacht * 4 + 1
     assert eerste == 2026 * 4 + 3 and verwacht == 2024          # voorbeeld: Rijwoning volgens de vorige prognose vanaf 2026 Q3
+
+
+def test_grafiek_per_type_tijdvak(basis):
+    """Het tijdvak van de grafiek per type begint twee jaar vóór de eerste opbrengst van het gekozen type (niet vóór de eerste
+    periode); pt_start/pt_n sturen de benoemde bereiken en het PowerPoint-blok; totaal per kwartaal en eindpunt staan in het blok."""
+    m = basis["Model"]
+    n = m["BY8"].value
+    tot = {r: m[f"{LY.PT['totaal']}{r}"].value for r in range(LY.ROW1, LY.ROW1 + n)}
+    eerste = min(m[f"{LY.FIX['idx']}{r}"].value for r, v in tot.items() if isinstance(v, (int, float)) and v > 1e-6)
+    assert m[f"BY{LY.H['pt_first']}"].value == eerste
+    jaar_periodes = (m[f"{LY.FIX['idx']}{LY.ROW1}"].value - 1) // 4
+    verwacht_jaar = max(jaar_periodes, (eerste - 1) // 4 - 2)
+    assert m[f"BY{LY.H['pt_jaar_first']}"].value == verwacht_jaar
+    start = m[f"BY{LY.H['pt_start']}"].value
+    assert 1 <= start <= n and m[f"{LY.FIX['idx']}{LY.ROW1 + start - 1}"].value >= verwacht_jaar * 4 + 1
+    assert start == 1 or m[f"{LY.FIX['idx']}{LY.ROW1 + start - 2}"].value < verwacht_jaar * 4 + 1
+    assert m[f"BY{LY.H['pt_n']}"].value == n - start + 1
+    laatste = LY.ROW1 + n - 1
+    assert abs(float(m[f"{LY.PT['eind']}{laatste}"].value) - float(m[f"{LY.PT['cum']}{laatste}"].value)) < 1e-9
+    assert all(abs(float(tot[r]) - sum(float(m[f"{LY.PT[k]}{r}"].value) for k in ("grond", "bouw", "extra", "fee1", "fee2"))) < 1e-9
+               for r in range(LY.ROW1, LY.ROW1 + n))
+    pp = basis["PowerPoint"]
+    c0 = pp[LY.PP_BLOK["pt"] + "1"].column
+    assert pp.cell(7, c0 + LY.PP_PT_KOL - 1).value == "Realisatie" and pp.cell(7, c0 + 7).value == "Totaal per kwartaal"
+    assert pp.cell(LY.PP_KPI_ROW1, c0).value == m[f"{LY.FIX['kwartaal']}{LY.ROW1 + start - 1}"].value

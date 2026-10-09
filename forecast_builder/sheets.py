@@ -802,7 +802,8 @@ def bouw_model(wb):
     PT = LY.PT
     put(ws, f"{PT['grond']}4", "grafiek per woningtype: het gekozen type (Dashboard-keuzecel, hulpcel pt_keuze) · € mln per kwartaal: grondtermijn, "
                                "bouwtermijnen, extra's, fees per component, cumulatief", f=F_NOTE8)
-    for naam, kop in (("grond", "Grondtermijn"), ("bouw", "Bouwtermijnen"), ("extra", "Extra's"), ("fee1", "Fee 1"), ("fee2", "Fee 2"), ("cum", "Cumulatief")):
+    for naam, kop in (("grond", "Grondtermijn"), ("bouw", "Bouwtermijnen"), ("extra", "Extra's"), ("fee1", "Fee 1"), ("fee2", "Fee 2"), ("cum", "Cumulatief"),
+                      ("totaal", "Totaal kwartaal"), ("eind", "Eindpunt")):
         put(ws, f"{PT[naam]}7", kop, f=F_HDR8, fl=FL_HDR, al=AL_RIGHT_WRAP)
         ws.column_dimensions[PT[naam]].width = 11
     ws.column_dimensions[L(LY.PT_COL1 - 1)].width = 3
@@ -827,6 +828,8 @@ def bouw_model(wb):
             "fee2": f'=IF({leeg},NA(),{fee(2)}/1000000)',
         }
         f["cum"] = (f'=IF({leeg},NA(),N({PT["cum"]}{p})+{PT["grond"]}{r}+{PT["bouw"]}{r}+{PT["extra"]}{r}+{PT["fee1"]}{r}+{PT["fee2"]}{r})')
+        f["totaal"] = f'=IF({leeg},NA(),{PT["grond"]}{r}+{PT["bouw"]}{r}+{PT["extra"]}{r}+{PT["fee1"]}{r}+{PT["fee2"]}{r})'
+        f["eind"] = f'=IF({leeg},NA(),IF({r - ROW1 + 1}={h("n")},{PT["cum"]}{r},NA()))'
         for naam, formule in f.items():
             put(ws, f"{PT[naam]}{r}", formule, f=F_CALC, nf="0.00", al=AL_RIGHT)
 
@@ -991,6 +994,20 @@ def bouw_model(wb):
         "pt_lbl_fee2": ("Grafiek per type: reeksnaam fee 2", f'=IF(COUNTIF({rng(LY.PT["fee2"])},">0")>0,'
                                                              f'INDEX(Woningtypes!$A${LY.WT_R_FC1 + 1}:${LY.WT_RANGE_END}${LY.WT_R_FC1 + 1},1,{LY.WT_COL1}+({h("pt_keuze")}-1)*{LY.WT_W})&"","")'),
         "pt_lbl_cum": ("Grafiek per type: reeksnaam cumulatief", '="Cumulatief"'),
+        "pt_lbl_totaal": ("Grafiek per type: reeksnaam totaal per kwartaal", '="Totaal per kwartaal"'),
+        "pt_lbl_eind": ("Grafiek per type: label eindpunt", f'="totaal €"&FIXED({h("pt_totaal")},1)&" mln"'),
+        # tijdvak van de grafiek per type: vanaf 1 januari van het jaar twee jaar vóór de eerste opbrengst van het gekozen type
+        # (niet vóór de eerste periode); pt_start = modelpositie van de eerste getoonde periode, pt_n = aantal getoonde periodes
+        "pt_first": ("Grafiek per type: eerste kwartaal met opbrengst (kwartaalindex)",
+                     ArrayFormula(f"{LY.M_HULP}{LY.H['pt_first']}",
+                                  f'=IF(SUMPRODUCT(--(IFERROR({rng(LY.PT["totaal"])},0)>0.000001))=0,99999,'
+                                  f'MIN(IF(IFERROR({rng(LY.PT["totaal"])},0)>0.000001,{rng(IDX)},99999)))')),
+        "pt_jaar_first": ("Grafiek per type: eerste jaar van het tijdvak",
+                          f'=IF({h("n")}=0,0,MAX(INT(({IDX}{ROW1}-1)/4),IF({h("pt_first")}>=99999,0,INT(({h("pt_first")}-1)/4)-2)))'),
+        "pt_start": ("Grafiek per type: positie van de eerste getoonde periode",
+                     ArrayFormula(f"{LY.M_HULP}{LY.H['pt_start']}",
+                                  f'=IF({h("n")}=0,1,MIN({h("n")},IFERROR(MATCH(TRUE,{rng(IDX)}>={h("pt_jaar_first")}*4+1,0),1)))')),
+        "pt_n": ("Grafiek per type: aantal getoonde periodes", f'=MAX(1,{h("n")}-{h("pt_start")}+1)'),
     }
     for naam, (label, formule) in hulp.items():
         r = H[naam]
@@ -1103,7 +1120,7 @@ def bouw_dashboard(wb, data):
 
     # grafiek per woningtype: keuzecel (naam uit de lijst op Model rij 7), chips per onderdeel, ondertitel
     put(ws, f"B{LY.D_ROW_PT}", "Opbrengsten per woningtype · kies het type in de blauwe cel · per kwartaal: grondtermijn, bouwtermijnen en extra's "
-                               "(koop) of fees per component (DAEB) · lijn = cumulatief · grijs = gerealiseerd · € mln", f=F_SECTION)
+                               "(koop) of fees per component (DAEB) · lijn = cumulatief · grijs = gerealiseerd · € mln · tijdvak vanaf twee jaar vóór de eerste opbrengst", f=F_SECTION)
     r = LY.D_ROW_LEGENDA_PT
     ws.row_dimensions[r].height = 16
     kz = LY.D["pt_keuze"]
@@ -1549,6 +1566,9 @@ def bouw_powerpoint(wb, data):
          ["Kwartaal"] + [f'=IF({hm("pt_lbl_" + x)}="","(uit)",{hm("pt_lbl_" + x)})' for x in LY.PT_REEKSEN] + ["Realisatie"],
          [FIX["kwartaal"]] + [LY.PT[x] for x in LY.PT_REEKSEN] + [M["g_realisatie"]], "0.00"),
     ]
+    # het blok van de grafiek per type begint bij de eerste getoonde periode (pt_start) en telt pt_n rijen
+    offset_van = {LY.PP_BLOK["pt"]: f"{hm('pt_start')}-1"}
+    n_ref_van = {LY.PP_BLOK["pt"]: hm("pt_n")}
     blauw = side("medium", PP_BORDER)
     for col0, titel, sub, koppen, bronnen, nf in blokken:
         c0 = ws[f"{col0}1"].column
@@ -1557,7 +1577,8 @@ def bouw_powerpoint(wb, data):
         n = len(koppen)
         bt = col0 == LY.PP_BLOK["bt"]                                   # bouwtermijnenblok: BT_N rijen uit de bouwtermijnentabel
         rijen = LY.BT_N if bt else LY.N_PERIODS
-        n_ref = hm("bt_n") if bt else hm("n")
+        n_ref = hm("bt_n") if bt else n_ref_van.get(col0, hm("n"))
+        offset = offset_van.get(col0, "")
         r1, rN = (LY.BT_ROW1, LY.BT_ROWN) if bt else (ROW1, ROWN)
         for j, kop in enumerate(koppen):
             c = L(c0 + j)
@@ -1568,10 +1589,11 @@ def bouw_powerpoint(wb, data):
             nr = i + 1
             for j, bron in enumerate(bronnen):
                 c = L(c0 + j)
+                pos = f"{nr}+{offset}" if offset else f"{nr}"
                 if j == 0:
-                    formule = f'=IF({nr}>{n_ref},"",INDEX(Model!${bron}${r1}:${bron}${rN},{nr}))'
+                    formule = f'=IF({nr}>{n_ref},"",INDEX(Model!${bron}${r1}:${bron}${rN},{pos}))'
                 else:
-                    formule = f'=IF({nr}>{n_ref},NA(),INDEX(Model!${bron}${r1}:${bron}${rN},{nr}))'
+                    formule = f'=IF({nr}>{n_ref},NA(),INDEX(Model!${bron}${r1}:${bron}${rN},{pos}))'
                 bd = Border(left=blauw if j == 0 else None, right=blauw if j == n - 1 else None, bottom=blauw if i == rijen - 1 else None)
                 put(ws, f"{c}{r}", formule, f=F_CALC9, nf=None if j == 0 else nf, al=AL_LEFT_TOP if j == 0 else None, bd=bd)
     ws.conditional_formatting.add(f"G{LY.PP_KPI_ROW1}:{L(c_t0 - 1)}{LY.PP_KPI_ROW1 + LY.BT_N - 1}",
