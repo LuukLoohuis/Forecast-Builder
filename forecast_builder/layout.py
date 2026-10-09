@@ -66,6 +66,11 @@ WT_R_FT_KOP = 53
 WT_R_FT1 = 54                                  # tien fee-termijnen: rijen 54-58 component 1, 59-63 component 2
 WT_R_FTN = WT_R_FT1 + N_TERMIJNEN - 1          # 63
 WT_R_F_TOTAAL = 64
+# blok 6: vorige prognose van de fees (DAEB): per mijlpaal het kwartaal volgens de vorige prognose (lichtrood in de tijdlijn)
+WT_R_VF_TITEL = 66
+WT_R_VF_KOP = 67
+WT_R_VF1 = 68
+WT_R_VFN = WT_R_VF1 + N_TERMIJNEN - 1          # 77
 WT_LASTCOL = WT_COL1 + N_TYPES * WT_W - 1  # AH bij 10 types
 WT_RANGE_END = "ZZ"   # positionele bereiken lopen tot ZZ: invoegen/verwijderen van kolommen kan ze niet breken
 
@@ -180,7 +185,8 @@ BT = {}
 for _i, _name in enumerate([
     "j", "k", "i", "gebruikt",                        # raster: alle (type k, termijn i)-combinaties, gebruikt = 1/0
     "knaam", "tnaam", "mnaam",                        # raster: typenaam, groepsnaam (termijn, of fee-component bij DAEB), baannaam
-    "comp", "bedrag", "waarde", "kw", "fout",         # raster: fee-component (0 = bouwtermijn), € van de baan (fee), invoer, kwartaalcel, fout
+    "comp", "bedrag", "waarde", "kw", "kwr", "fout",  # raster: fee-component (0 = bouwtermijn), € van de baan (fee), invoer, kwartaalcel,
+                                                      # kwartaalcel vorige prognose (blok 6), fout
     "idxb", "idxr",                                   # raster: kwartaalindex huidig/vorig (99999 = geen)
     "uniek", "rang", "pos", "eerste",                 # raster: eerste gebruikte rij per groepsnaam; rang; positie in de lijst;
                                                       # eerste = 1 bij de eerste baan van de groep (die krijgt het label)
@@ -246,6 +252,7 @@ H = {
     "fee_fout_gepland": 107, "fee_fout_termijn": 108, "daeb_types": 109,
     "pt_keuze": 110, "pt_naam": 111, "pt_daeb": 112, "pt_aantal": 113, "pt_totaal": 114, "pt_nu": 115, "pt_titel": 116, "pt_subtitel": 117,
     "pt_lbl_grond": 118, "pt_lbl_bouw": 119, "pt_lbl_extra": 120, "pt_lbl_fee1": 121, "pt_lbl_fee2": 122, "pt_lbl_cum": 123,
+    "bt_min": 124,          # eerste termijn in de bouwtermijnengrafiek (kwartaalindex, huidig of vorig; 99999 = geen)
 }
 
 

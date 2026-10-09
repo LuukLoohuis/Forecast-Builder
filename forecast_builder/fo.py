@@ -111,6 +111,32 @@ def _typenaam(ws, r, k):
     return f"Type {k}"
 
 
+def voeg_vorige_prognose_toe(project, pad_vorig):
+    """Vorige prognose uit een ouder FO: per type de start bouw (blok 4) en per fee-termijn het kwartaal (blok 6). Typen op naam, anders op
+    positie; fee-termijnen op mijlpaal, anders op positie. Meldingen in project.fo['waarschuwingen']."""
+    vorig = lees_fo(pad_vorig)
+    meldingen = project.fo.setdefault("waarschuwingen", [])
+    op_naam = {t.naam.strip().lower(): t for t in vorig.types}
+    for k, t in enumerate(project.types):
+        tv = op_naam.get(t.naam.strip().lower()) or (vorig.types[k] if k < len(vorig.types) else None)
+        if tv is None:
+            meldingen.append(f"{t.naam}: niet gevonden in het vorige FO ({os.path.basename(pad_vorig)}); vorige prognose leeg gelaten.")
+            continue
+        if tv.naam.strip().lower() != t.naam.strip().lower():
+            meldingen.append(f"{t.naam}: op naam niet gevonden in het vorige FO; het type op dezelfde positie ({tv.naam}) is gebruikt.")
+        t.vorig_start_jaar, t.vorig_start_kw = tv.start_jaar, tv.start_kw
+        if any(lab for lab, _, _ in t.fee_termijnen):
+            kw_vorig = {str(lab).strip().lower(): kw for lab, _, kw in tv.fee_termijnen if lab}
+            t.fee_vorig = []
+            for i, (lab, _, _) in enumerate(t.fee_termijnen):
+                kw = kw_vorig.get(str(lab).strip().lower()) if lab else None
+                if kw is None and lab and i < len(tv.fee_termijnen) and tv.fee_termijnen[i][0]:
+                    kw = tv.fee_termijnen[i][2]
+                t.fee_vorig.append(kw)
+    project.fo["vorig_bestand"] = os.path.basename(pad_vorig)
+    return project
+
+
 def _is_fee_label(ll):
     return bool(re.search(r"\bfees?\b", ll)) or ll.startswith("ak-fee") or ll.startswith("bijkomende kosten") or ll.startswith("onvoorzien")
 

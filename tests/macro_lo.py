@@ -34,11 +34,20 @@ def testmodule(bas_pad=BAS):
     i = t.index('    If MsgBox("Tab Invoer (cashflow, verkocht, transport)')
     j = t.index("Exit Sub\n", i) + len("Exit Sub\n")
     t = t[:i] + t[j:]
+    old2 = ('    pad = Application.GetOpenFilename("Excel-werkboeken (*.xlsx;*.xlsm;*.xlsb),*.xlsx;*.xlsm;*.xlsb", , "Ouder FO-werkboek (vorige prognose) kiezen")\n'
+            '    If VarType(pad) = vbBoolean Then Exit Sub\n')
+    assert t.count(old2) == 1, "bestandskeuze van VorigePrognoseUitFO niet gevonden"
+    t = t.replace(old2, '    pad = ThisWorkbook.Worksheets(SH_INVOER).Range("A1").Value\n')
     vervang = [
         ('    MsgBox bericht, IIf(Len(waarschuwing) > 0, vbExclamation, vbInformation), "Ophalen uit FO"',
          '    ThisWorkbook.Worksheets(SH_INVOER).Range("A2").Value = "KLAAR: " & bericht'),
         ('    MsgBox bericht, vbExclamation, "Ophalen uit FO"', '    ThisWorkbook.Worksheets(SH_INVOER).Range("A2").Value = "FOUT: " & bericht'),
+        ('    MsgBox bericht, IIf(Len(waarschuwing) > 0, vbExclamation, vbInformation), "Vorige prognose uit FO"',
+         '    ThisWorkbook.Worksheets(SH_INVOER).Range("A2").Value = "KLAAR: " & bericht'),
+        ('    MsgBox bericht & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms, vbExclamation, "Vorige prognose uit FO"',
+         '    ThisWorkbook.Worksheets(SH_INVOER).Range("A2").Value = "FOUT: " & bericht & " Fout " & foutNr & ": " & foutOms'),
         ("Set wbF = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)", "Set wbF = Workbooks.Open(CStr(pad), 0, True)"),
+        ('        bewaren = MsgBox(BEWAAR_VRAAG, vbQuestion + vbYesNoCancel, "Ophalen uit FO")', "        bewaren = vbYes"),
     ]
     for old, new in vervang:
         assert t.count(old) == 1, old[:60]
@@ -46,8 +55,10 @@ def testmodule(bas_pad=BAS):
     return t
 
 
-def voer_uit(fo_pad, uit_pad, werkmap=None, project=None, poort=2093):
-    """Voert UitFOOphalen uit op fo_pad; geeft de tekst in Invoer!A2 terug ('KLAAR: ...' of 'FOUT: ...') en schrijft uit_pad (.xlsx)."""
+def voer_uit(fo_pad, uit_pad, werkmap=None, project=None, poort=2093, stappen=None):
+    """Voert UitFOOphalen uit op fo_pad (of de reeks stappen [(macronaam, fo_pad), ...] na elkaar in dezelfde sessie); geeft de
+    tekst in Invoer!A2 terug ('KLAAR: ...' of 'FOUT: ...'; bij meer stappen een lijst) en schrijft uit_pad (.xlsx)."""
+    stappen = stappen or [("UitFOOphalen", fo_pad)]
     import uno
     from com.sun.star.beans import PropertyValue
     sys.path.insert(0, REPO)
@@ -102,11 +113,14 @@ def voer_uit(fo_pad, uit_pad, werkmap=None, project=None, poort=2093):
         if not gevonden:
             raise RuntimeError("UitFOOphalen niet gevonden in " + str(list(libs.ElementNames)))
         invoer = doc.Sheets.getByName("Invoer")
-        invoer.getCellRangeByName("A1").setString(fo_pad)
-        invoer.getCellRangeByName("A2").setString("")
-        script = doc.getScriptProvider().getScript(f"vnd.sun.star.script:{gevonden[0]}.{gevonden[1]}.UitFOOphalen?language=Basic&location=document")
-        script.invoke((), (), ())
-        melding = invoer.getCellRangeByName("A2").getString()
+        meldingen = []
+        for macro, pad in stappen:
+            invoer.getCellRangeByName("A1").setString(pad)
+            invoer.getCellRangeByName("A2").setString("")
+            script = doc.getScriptProvider().getScript(f"vnd.sun.star.script:{gevonden[0]}.{gevonden[1]}.{macro}?language=Basic&location=document")
+            script.invoke((), (), ())
+            meldingen.append(invoer.getCellRangeByName("A2").getString())
+        melding = meldingen if len(stappen) > 1 else meldingen[0]
         doc.storeToURL(uno.systemPathToFileUrl(uit_pad), (prop("FilterName", "Calc MS Excel 2007 XML"),))
         doc.close(True)
         return melding

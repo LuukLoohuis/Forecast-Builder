@@ -53,6 +53,17 @@ def jaar_min_van(project):
     return min(jaren) if jaren else 2020
 
 
+def jaar_max_van(project):
+    """Laatste jaar van de periodes (voorlopige bovengrens van de tijd-as; cache.py zet de echte grenzen uit het Model)."""
+    jaren = []
+    for rij in project.periodes:
+        try:
+            jaren.append(int(float(str(rij.get("jaar")).strip())))
+        except (TypeError, ValueError):
+            pass
+    return max(jaren) if jaren else None
+
+
 def bouw_werkboek(project):
     wb = Workbook()
     wb.remove(wb.active)
@@ -76,7 +87,7 @@ def bouw_werkboek(project):
     for key in LY.PT_REEKSEN:   # grafiek per woningtype (selectieblok): zo lang als er periodes zijn
         naam = f"g_pt_{key}"
         wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.PT[key]}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
-    charts.plaats_grafieken(ws_dash, wb, jaar_min_van(project))
+    charts.plaats_grafieken(ws_dash, wb, jaar_min_van(project), jaar_max_van(project))
     wb.calculation.fullCalcOnLoad = True
     return wb
 
@@ -88,7 +99,7 @@ def bouw(project, pad_uit_basis, vba_bin=None, caches=True):
     cachewaarde in het bestand gezet, zodat Excel ook in de beveiligde weergave meteen cijfers toont.
     """
     wb = bouw_werkboek(project)
-    xmls = charts.chart_xmls(jaar_min_van(project))
+    xmls = charts.chart_xmls(jaar_min_van(project), jaar_max_van(project))
     os.makedirs(os.path.dirname(os.path.abspath(pad_uit_basis)), exist_ok=True)
     paden = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -111,6 +122,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from", dest="bron", help="bestaand werkboek waaruit invoer en knoppen worden overgenomen")
     ap.add_argument("--fo", help="FO-werkboek (Financieel Overzicht) waaruit cashflow, woningtypes, termijnen en verkoop worden gelezen (forecast_builder/fo.py)")
+    ap.add_argument("--fo-vorig", dest="fo_vorig", help="ouder FO-werkboek (vorige prognose): start bouw en fee-kwartalen per type naar blok 4 en 6 van tab Woningtypes")
     ap.add_argument("--vba", help="VBA-sjabloon: een .xlsm of vbaProject.bin waaruit de projectstructuur en document-modules komen "
                                   "(standaard vba/vbaProject_template.bin); de module zelf komt altijd uit vba/CashflowNaarPowerPoint_v10.bas")
     ap.add_argument("--geen-vba", action="store_true", help="alleen een .xlsx maken")
@@ -128,6 +140,11 @@ def main():
             print("let op:", melding)
     else:
         project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld()
+    if args.fo_vorig:
+        from forecast_builder import fo
+        fo.voeg_vorige_prognose_toe(project, args.fo_vorig)
+        for melding in project.fo.get("waarschuwingen", []):
+            print("let op:", melding)
     vba_bin = None if args.geen_vba else vba_bin_maken(args.vba)
     for pad in bouw(project, args.out, vba_bin, caches=not args.geen_cache):
         print("geschreven:", pad)

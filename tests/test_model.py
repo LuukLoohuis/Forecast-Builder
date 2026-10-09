@@ -211,6 +211,14 @@ def test_daeb_fees(tmp, basis):
             assert abs(a - b) < 1e-3, (naam, r, a, b)
         for naam in ("stand_up", "stand_down", "stand_scn"):
             assert abs(float(mb[f"{LY.M[naam]}{r}"].value) - float(m[f"{LY.M[naam]}{r}"].value)) < 1e-3, (naam, r)
+    # vorige prognose van de fees (blok 6): 'na omgevingsvergunning' stond in 2026 Q4 (nu 2027 Q1), 'bij gevelsluiting' in bouwkwartaal 4
+    # (nu 5, geen vorige start bouw: t.o.v. de huidige start 2027 Q3); zonder vorig kwartaal ('na akkoord SO', actuals) staat vorig = nu
+    BT = LY.BT
+    rij_bt = lambda i: LY.BT_ROW1 + 4 * LY.N_TERMIJNEN + i - 1
+    assert (mb[f"{BT['idxb']}{rij_bt(4)}"].value, mb[f"{BT['idxr']}{rij_bt(4)}"].value) == (8109, 8108)
+    assert (mb[f"{BT['idxb']}{rij_bt(8)}"].value, mb[f"{BT['idxr']}{rij_bt(8)}"].value) == (8115, 8114)
+    assert mb[f"{BT['idxr']}{rij_bt(1)}"].value == mb[f"{BT['idxb']}{rij_bt(1)}"].value == 8108
+    assert mb[f"{BT['fout']}{rij_bt(4)}"].value == 0
     # controles en labels
     d = basis["Dashboard"]
     assert d[f"W{LY.D_ROW_CONTROLES + 12}"].value == "OK" and d[f"W{LY.D_ROW_CONTROLES + 13}"].value == "OK"
@@ -223,6 +231,13 @@ def test_daeb_fees(tmp, basis):
     wb = bouw_en_bereken(p, tmp, "daeb_98pct")
     assert str(wb["Dashboard"][f"W{LY.D_ROW_CONTROLES + 12}"].value).startswith("LET OP")
     assert abs(float(wb["Model"][f"{fee}6"].value) - (totaal - ak * 0.02)) < 1e-3
+    # ongeldig vorig kwartaal (blok 6): controle 'geldig kwartaal' slaat aan, de huidige planning blijft staan
+    p = D.voorbeeld()
+    p.types[4].fee_vorig[3] = "ooit"
+    wb = bouw_en_bereken(p, tmp, "daeb_vorig_fout")
+    assert str(wb["Dashboard"][f"W{LY.D_ROW_CONTROLES + 13}"].value).startswith("LET OP")
+    assert wb["Model"][f"{LY.BT['idxr']}{rij_bt(4)}"].value == 99999 and wb["Model"][f"{LY.BT['idxb']}{rij_bt(4)}"].value == 8109
+    assert abs(float(wb["Model"][f"{fee}6"].value) - totaal) < 1e-3
 
 
 def test_grafiek_per_type(basis):
@@ -244,3 +259,17 @@ def test_geen_kringverwijzingen(tmp):
     paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "kring"), None, caches=False)
     uit = kringverwijzing.kringen(paden[0])
     assert uit == [], [[kringverwijzing.adres(n) for n in scc[:8]] for scc, _ in uit]
+
+
+def test_tijdas_twee_jaar_voor_eerste_termijn(basis):
+    """De tijd-as van de bouwtermijnengrafiek begint op 1 januari van het jaar twee jaar vóór de eerste termijn (huidig of vorige
+    prognose), maar niet vóór de eerste periode; de Excel-grafiek krijgt dezelfde ondergrens als het Model (BY97)."""
+    m = basis["Model"]
+    BT = LY.BT
+    eerste = min(min(m[f"{BT['idxb']}{r}"].value, m[f"{BT['idxr']}{r}"].value)
+                 for r in range(LY.BT_ROW1, LY.BT_ROWN + 1) if m[f"{BT['gebruikt']}{r}"].value == 1)
+    assert m[f"BY{LY.H['bt_min']}"].value == eerste
+    jaar_periodes = int((m[f"{LY.FIX['idx']}{LY.ROW1}"].value - 1) // 4)
+    verwacht = max(jaar_periodes, (eerste - 1) // 4 - 2)
+    assert m[f"BY{LY.H['jaar_first']}"].value == verwacht and m[f"BY{LY.H['t_first']}"].value == verwacht * 4 + 1
+    assert eerste == 2026 * 4 + 3 and verwacht == 2024          # voorbeeld: Rijwoning volgens de vorige prognose vanaf 2026 Q3
