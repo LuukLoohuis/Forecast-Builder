@@ -114,6 +114,17 @@ def bouw_woningtypes(wb, data):
         c = i // LY.N_FEE_PER_COMP + 1
         put(ws, f"B{LY.WT_R_FT1 + i}", f"Component {c} · termijn {i % LY.N_FEE_PER_COMP + 1}", f=F_NOTE, al=AL_VCENTER)
     put(ws, f"B{LY.WT_R_F_TOTAAL}", "Totaal fees gepland (€)", f=F_NOTE, al=AL_VCENTER)
+    # blok 6: vorige prognose van de fee-kwartalen
+    put(ws, f"B{LY.WT_R_VF_TITEL}", "6 · VORIGE PROGNOSE FEES (DAEB) · per mijlpaal het kwartaal volgens de vorige prognose, zelfde schrijfwijze als "
+                                    "blok 5 ('2026 Q4', bouwkwartaal of 'actuals') · leeg = zoals nu (een bouwkwartaal schuift mee met de start bouw van "
+                                    "blok 4) · lichtrood in de bouwtermijnengrafiek", f=F_SECTION)
+    put(ws, f"B{LY.WT_R_VF_KOP}", "Mijlpaal · kwartaal nu · kwartaal vorige prognose", f=F_NOTE, al=AL_VCENTER)
+    for i in range(LY.N_TERMIJNEN):
+        put(ws, f"B{LY.WT_R_VF1 + i}", f"Fee-termijn {i + 1}", f=F_NOTE, al=AL_VCENTER)
+    ws[f"B{LY.WT_R_VF_KOP}"].comment = _comment(
+        "De knop 'Ophalen uit FO' bewaart (na een vraag) de planning die vóór het ophalen in dit werkboek stond als vorige prognose: start "
+        "bouw per type in blok 4 en deze fee-kwartalen in blok 6. De knop 'Vorige prognose uit FO' haalt beide uit een ouder FO. "
+        "Handmatig invullen mag ook.")
     ws[f"B{LY.WT_R_SOORT}"].comment = _comment(
         "DAEB: sociale huurwoningen met gescheiden koop- en aannemingsovereenkomst. Vastgoed krijgt dan geen koopsom "
         "en geen bouwtermijnen, maar fees: vul hieronder per component het totaalbedrag en de termijnen in. Aantal, start bouw en "
@@ -138,6 +149,11 @@ def bouw_woningtypes(wb, data):
     dv_fkw.promptTitle = "Kwartaal van deze termijn"
     dv_fkw.prompt = ("Kalenderkwartaal: '2026 Q4' of 'Q4 2026'. Of een getal t.o.v. start bouw van dit type: 1 = kwartaal van start bouw, "
                      "2 = het kwartaal erna, 0 = kwartaal ervoor, -1 = twee ervoor. Of 'actuals' = al ontvangen.")
+    dv_vkw = DataValidation(type=None, allow_blank=True)
+    dv_vkw.showInputMessage = True
+    dv_vkw.promptTitle = "Kwartaal vorige prognose"
+    dv_vkw.prompt = ("Kwartaal van deze termijn volgens de vorige prognose, zelfde schrijfwijze als in blok 5 ('2026 Q4', bouwkwartaal of "
+                     "'actuals'). Leeg = zoals nu; een bouwkwartaal schuift mee met de start bouw van blok 4.")
     for dv in (dv_kw4, dv_kw, dv_kwx, dv_pct, dv_soort, dv_eur):
         dv.showErrorMessage = True
         dv.errorTitle = "Ongeldige invoer"
@@ -148,7 +164,7 @@ def bouw_woningtypes(wb, data):
         dv.showInputMessage = True
         dv.promptTitle = titel
         dv.prompt = tekst
-    for dv in (dv_kw4, dv_kw, dv_kwx, dv_pct, dv_soort, dv_eur, dv_fkw):
+    for dv in (dv_kw4, dv_kw, dv_kwx, dv_pct, dv_soort, dv_eur, dv_fkw, dv_vkw):
         ws.add_data_validation(dv)
 
     totaal_cellen = []
@@ -257,6 +273,19 @@ def bouw_woningtypes(wb, data):
         daeb = f'UPPER(TRIM(${c0}${LY.WT_R_SOORT}&""))="DAEB"'
         ws.conditional_formatting.add(f"{c0}{LY.WT_R_KOOPSOM} {c0}{LY.WT_R_GROND}:{c2}{LY.WT_R_TOTAAL} {c0}{LY.WT_R_X1}:{c2}{LY.WT_R_X_TOTAAL2}",
                                       FormulaRule(formula=[daeb], font=Font(name=ARIAL, color="B0B6BE"),
+                                                  fill=PatternFill(fill_type="solid", bgColor="F2F3F5", fgColor="F2F3F5")))
+        # blok 6: vorige prognose van de fee-kwartalen (mijlpaal en huidig kwartaal uit blok 5, vorig kwartaal invoer); grijs als niet-DAEB
+        put(ws, f"{c0}{LY.WT_R_VF_KOP}", "mijlpaal", f=F_HDR, fl=FL_HDR, al=AL_LEFT)
+        put(ws, f"{c1}{LY.WT_R_VF_KOP}", "nu", f=F_HDR, fl=FL_HDR, al=AL_RIGHT)
+        put(ws, f"{c2}{LY.WT_R_VF_KOP}", "vorig", f=F_HDR, fl=FL_HDR, al=AL_RIGHT)
+        for i in range(LY.N_TERMIJNEN):
+            r, rf = LY.WT_R_VF1 + i, LY.WT_R_FT1 + i
+            put(ws, f"{c0}{r}", f'=IF({c0}{rf}="","",{c0}{rf})', f=F_CALC9, al=AL_LEFT)
+            put(ws, f"{c1}{r}", f'=IF({c2}{rf}="","",{c2}{rf})', f=F_CALC9, nf="0", al=AL_RIGHT)
+            put(ws, f"{c2}{r}", t.fee_vorig[i] if i < len(t.fee_vorig) else None, f=F_INPUT, fl=FL_INPUT, nf="0", al=AL_RIGHT)
+            dv_vkw.add(f"{c2}{r}")
+        ws.conditional_formatting.add(f"{c0}{LY.WT_R_VF1}:{c2}{LY.WT_R_VFN}",
+                                      FormulaRule(formula=[f"NOT({daeb})"], font=Font(name=ARIAL, color="B0B6BE"),
                                                   fill=PatternFill(fill_type="solid", bgColor="F2F3F5", fgColor="F2F3F5")))
     # rood als de bouwtermijnen niet optellen tot 100% (van de aanneemsom) of tot 100% − grondtermijn (van de koopsom); per blok, relatief
     c0, c1 = L(LY.wt_col(1, 0)), L(LY.wt_col(1, 1))
@@ -618,7 +647,7 @@ def bouw_model(wb):
                            "huidige planning, grijs = gerealiseerd) en een lege rij tussen de groepen", f=F_NOTE8)
     bt_koppen = {"j": "j", "k": "type", "i": "termijn", "gebruikt": "Gebruikt", "knaam": "Typenaam", "tnaam": "Groep (termijn / component)",
                  "mnaam": "Baan (termijn / mijlpaal)", "comp": "Fee-component", "bedrag": "Bedrag fee (€)", "waarde": "Invoer % of €",
-                 "kw": "Kwartaalcel", "fout": "Fout (fee)", "idxb": "Idx huidig", "idxr": "Idx vorig", "uniek": "Uniek", "rang": "Rang groep",
+                 "kw": "Kwartaalcel", "kwr": "Kwartaal vorig (blok 6)", "fout": "Fout (fee)", "idxb": "Idx huidig", "idxr": "Idx vorig", "uniek": "Uniek", "rang": "Rang groep",
                  "pos": "Positie", "eerste": "Eerste baan", "nr": "Nr (uniek)", "bron": "Bronrij", "soort": "Soort", "label": "Termijn",
                  "kb": "Type", "ib": "Idx huidig", "ir": "Idx vorig"}
     bt_koppen.update(LY.BT_SEG_NAMEN)
@@ -659,6 +688,7 @@ def bouw_model(wb):
             pct_bt = LY.wt_ref(LY.WT_R_T1 + i - 1, k, 1)
             tn_bt = LY.wt_ref(LY.WT_R_T1 + i - 1, k, 0)
             kw_f = LY.wt_ref(LY.WT_R_FT1 + i - 1, k, 2)
+            kw_vr = LY.wt_ref(LY.WT_R_VF1 + i - 1, k, 2)                  # kwartaal volgens de vorige prognose (blok 6)
             w_f = LY.wt_ref(LY.WT_R_FT1 + i - 1, k, 1)
             mn_f = LY.wt_ref(LY.WT_R_FT1 + i - 1, k, 0)
             cn_f = LY.wt_ref(LY.WT_R_FC1 + c - 1, k, 0)
@@ -668,7 +698,7 @@ def bouw_model(wb):
             daeb = f"{m_col('fee', k)}$5"
             start = f"{m_col('verv', k)}$6"
             aantal = f"N({LY.wt_ref(LY.WT_R_AANTAL, k)})"
-            gebruikt, waarde, bedrag, kwv, idxb, rang = (f"${BT[x]}{r}" for x in ("gebruikt", "waarde", "bedrag", "kw", "idxb", "rang"))
+            gebruikt, waarde, bedrag, kwv, kwr, idxb, idxr_ref, rang = (f"${BT[x]}{r}" for x in ("gebruikt", "waarde", "bedrag", "kw", "kwr", "idxb", "idxr", "rang"))
             f["k"], f["i"] = k, i
             f["knaam"] = f'=IF({naam_k}="","Type {k}",{naam_k}&"")'
             f["comp"] = f'=IF({daeb}=1,{c},0)'
@@ -677,6 +707,7 @@ def bouw_model(wb):
             f["waarde"] = f'=IF({daeb}=1,IF(ISNUMBER({w_f}),{w_f},0),IF(ISNUMBER({pct_bt}),{pct_bt},0))'
             f["bedrag"] = f'=IF({daeb}=1,IF(AND({waarde}>0,{waarde}<=1),{waarde}*N({tot_f}),{waarde}),0)'
             f["kw"] = f'=IF({daeb}=1,IF(ISBLANK({kw_f}),"",{kw_f}),IF(ISBLANK({kw_bt}),"",{kw_bt}))'
+            f["kwr"] = f'=IF({daeb}=1,IF(ISBLANK({kw_vr}),"",{kw_vr}),"")'
             # kwartaalindex: bouwkwartaal (getal) t.o.v. start bouw; bij fees ook 'jaar Qk' / 'Qk jaar' (tekst) of 'actuals'
             t = f'UPPER(TRIM({kwv}&""))'
             jaar = f'IFERROR(VALUE(LEFT({t},4)),IFERROR(VALUE(RIGHT({t},4)),0))'
@@ -688,9 +719,20 @@ def bouw_model(wb):
             f["idxb"] = (f'=IF({daeb}=1,IF(ISNUMBER({kwv}),{rel},IF({t}="ACTUALS",{actuals},IF({kwv}="",99999,'
                          f'IF(ISNUMBER(IFERROR(VALUE({t}),"")),{rel_t},{tekst})))),IF(AND(ISNUMBER({kwv}),N({kwv})>=1),{rel},99999))')
             f["gebruikt"] = f'=IF(AND({aantal}>0,{idxb}<99999,IF({daeb}=1,{bedrag}<>0,{waarde}<>0)),1,0)'
-            f["fout"] = (f'=IF({daeb}=1,IF(OR({waarde}<0,AND({gebruikt}=0,OR({waarde}<>0,{bedrag}<>0,{kwv}<>""))),1,0),'
-                        f'IF(AND(ISNUMBER({w_f}),{w_f}<>0),1,0))')
-            f["idxr"] = (f'=IF({gebruikt}=0,99999,IF(AND(ISNUMBER({kwv}),N({vj_k})>0,N({vk_k})>=1),N({vj_k})*4+N({vk_k})+{kwv}-1,{idxb}))')
+            f["fout"] = (f'=IF({daeb}=1,IF(OR({waarde}<0,AND({gebruikt}=0,OR({waarde}<>0,{bedrag}<>0,{kwv}<>"")),'
+                        f'AND({gebruikt}=1,{kwr}<>"",{idxr_ref}>=99999)),1,0),IF(AND(ISNUMBER({w_f}),{w_f}<>0),1,0))')
+            # kwartaalindex vorige prognose: bij fees het kwartaal uit blok 6 (zelfde schrijfwijze, bouwkwartaal t.o.v. start bouw van
+            # blok 4, anders t.o.v. de huidige start); zonder blok 6: een bouwkwartaal schuift mee met blok 4, de rest staat waar het nu staat
+            startv = f'IF(AND(N({vj_k})>0,N({vk_k})>=1),N({vj_k})*4+N({vk_k}),{start})'
+            tr = f'UPPER(TRIM({kwr}&""))'
+            jaar_r = f'IFERROR(VALUE(LEFT({tr},4)),IFERROR(VALUE(RIGHT({tr},4)),0))'
+            kwt_r = f'IFERROR(VALUE(MID({tr},FIND("Q",{tr})+1,1)),0)'
+            tekst_r = f'IF(AND({jaar_r}>=1990,{jaar_r}<=2100,{kwt_r}>=1,{kwt_r}<=4),{jaar_r}*4+{kwt_r},99999)'
+            rel_r = f'IF(OR({startv}>=99999,{kwr}<-12,{kwr}>60),99999,{startv}+{kwr}-1)'
+            rel_tr = f'IF(OR({startv}>=99999,VALUE({tr})<-12,VALUE({tr})>60),99999,{startv}+VALUE({tr})-1)'
+            idx_vorig = f'IF(ISNUMBER({kwr}),{rel_r},IF({tr}="ACTUALS",{actuals},IF(ISNUMBER(IFERROR(VALUE({tr}),"")),{rel_tr},{tekst_r})))'
+            f["idxr"] = (f'=IF({gebruikt}=0,99999,IF(AND({daeb}=1,{kwr}<>""),{idx_vorig},'
+                         f'IF(AND(ISNUMBER({kwv}),N({vj_k})>0,N({vk_k})>=1),N({vj_k})*4+N({vk_k})+{kwv}-1,{idxb})))')
             if r == LY.BT_ROW1:
                 f["uniek"] = f'={gebruikt}'
             else:
@@ -706,7 +748,7 @@ def bouw_model(wb):
             f["pos"] = f'=IF({gebruikt}=1,SUMPRODUCT(({gebruikt_rng}=1)*({rang_rng}<{rang}))+{rang}-1+SUMPRODUCT({eerder_in_groep})+1,"")'
             f["eerste"] = f'=IF({gebruikt}=1,IF(SUMPRODUCT({eerder_in_groep})=0,1,0),"")'
         else:
-            for naam_ in ("k", "i", "gebruikt", "knaam", "tnaam", "mnaam", "comp", "bedrag", "waarde", "kw", "fout", "idxb", "idxr",
+            for naam_ in ("k", "i", "gebruikt", "knaam", "tnaam", "mnaam", "comp", "bedrag", "waarde", "kw", "kwr", "fout", "idxb", "idxr",
                           "uniek", "rang", "pos", "eerste"):
                 f[naam_] = None
         # ---- compacte lijst ----
@@ -896,13 +938,21 @@ def bouw_model(wb):
         "koopsom_down": ("Koopsom downside (%)", f'=N({dabs("koopsom_down")})'),
         "koopsom_up": ("Koopsom upside (%)", f'=N({dabs("koopsom_up")})'),
         "koopsom_scn": ("Koopsom scenariolijn (%)", f'=N({dabs("koopsom_scn")})'),
-        # bouwtermijnengrafiek: aantal rijen en de tijd-as in kwartaalindex (jaar × 4 + kwartaal): van 1 januari van het eerste jaar
-        # van de periodes tot het einde van het laatste jaar; de VBA leest bt_n (rijen), t_first en t_end (as-grenzen)
+        # bouwtermijnengrafiek: aantal rijen en de tijd-as in kwartaalindex (jaar × 4 + kwartaal): van 1 januari van het jaar twee
+        # jaar vóór de eerste termijn (huidig of vorig; niet vóór de eerste periode) tot het einde van het laatste jaar van de
+        # periodes; de VBA leest bt_n (rijen), t_first en t_end (as-grenzen), cache.py zet de Excel-grafiek op dezelfde grenzen
+        "bt_min": ("Tijd-as: eerste termijn (kwartaalindex, huidig of vorige prognose)",
+                   ArrayFormula(f"{LY.M_HULP}{LY.H['bt_min']}",
+                                f"=IF(SUM(${LY.BT['gebruikt']}${LY.BT_ROW1}:${LY.BT['gebruikt']}${LY.BT_ROWN})=0,99999,"
+                                f"MIN(IF(${LY.BT['gebruikt']}${LY.BT_ROW1}:${LY.BT['gebruikt']}${LY.BT_ROWN}=1,"
+                                f"IF(${LY.BT['idxr']}${LY.BT_ROW1}:${LY.BT['idxr']}${LY.BT_ROWN}<${LY.BT['idxb']}${LY.BT_ROW1}:${LY.BT['idxb']}${LY.BT_ROWN},"
+                                f"${LY.BT['idxr']}${LY.BT_ROW1}:${LY.BT['idxr']}${LY.BT_ROWN},${LY.BT['idxb']}${LY.BT_ROW1}:${LY.BT['idxb']}${LY.BT_ROWN}),99999)))")),
         "bt_lanes": ("Bouwtermijnentabel: aantal banen (type × termijn)", f"=SUM(${LY.BT['gebruikt']}${LY.BT_ROW1}:${LY.BT['gebruikt']}${LY.BT_ROWN})"),
         "bt_uniek": ("Bouwtermijnentabel: aantal unieke termijnnamen", f"=SUM(${LY.BT['uniek']}${LY.BT_ROW1}:${LY.BT['uniek']}${LY.BT_ROWN})"),
         "bt_n": ("Bouwtermijnentabel: aantal rijen (koprijen, banen, scheidingsrijen)",
                  f'=IF({h("bt_lanes")}=0,0,MIN({LY.BT_N},{LY.BT_KOP}+{h("bt_lanes")}+{h("bt_uniek")}-1))'),
-        "jaar_first": ("Tijd-as: eerste jaar", f'=IF({h("n")}=0,0,INT(({IDX}{ROW1}-1)/4))'),
+        "jaar_first": ("Tijd-as: eerste jaar (twee jaar vóór de eerste termijn, niet vóór de eerste periode)",
+                       f'=IF({h("n")}=0,0,MAX(INT(({IDX}{ROW1}-1)/4),IF({h("bt_min")}>=99999,0,INT(({h("bt_min")}-1)/4)-2)))'),
         "jaar_last": ("Tijd-as: laatste jaar", f'=IF({h("n")}=0,0,INT((INDEX({rng(IDX)},{h("n")})-1)/4))'),
         "bt_jaren": ("Tijd-as: aantal jaren (koprij)", f'=MAX(0,MIN({LY.BT_NJ},{h("jaar_last")}-{h("jaar_first")}+1))'),
         "t_first": ("Tijd-as: ondergrens (kwartaalindex 1 jan eerste jaar)", f'={h("jaar_first")}*4+1'),
@@ -1032,7 +1082,8 @@ def bouw_dashboard(wb, data):
                    "gele lijn: scenariolijn (knoppen rechts, kolom Scenario) · grijs vlak = gerealiseerd · € mln", f=F_SECTION)
     put(ws, "B69", VERKOOP_TITEL, f=F_SECTION)
     put(ws, f"B{LY.D_ROW_BT}", "Bouwtermijnen per woningtype · kwartaal waarin de termijn vervalt (tab Woningtypes) · per termijn een baan per type "
-                               "in de typekleur · lichtrood = vorige prognose (blok 4) · grijs = gerealiseerd · DAEB: fee-termijnen per component", f=F_SECTION)
+                               "in de typekleur · lichtrood = vorige prognose (blok 4, fees: blok 6) · grijs = gerealiseerd · DAEB: fee-termijnen per component · "
+                               "tijd-as vanaf twee jaar vóór de eerste termijn", f=F_SECTION)
 
     # cel-legenda: één gekleurde chip per typeblok (zelfde kleur als in de grafiek), leeg en wit als het blok niet meedoet
     def chips(r, meedoen, tekst):
@@ -1342,6 +1393,8 @@ def bouw_dashboard(wb, data):
         ("DAEB (fees)", "tab Woningtypes blok 5: zet Soort op DAEB; het type telt dan geen koopsom, grondtermijn, bouwtermijnen of extra's, maar fees"),
         ("  invoer fees", "per component (AK fee, bijkomende kosten) een totaal en termijnen als bedrag of % met een kwartaal: '2026 Q4', bouwkwartaal of 'actuals'"),
         ("  in de grafieken", "fees staan in de bouwtermijnengrafiek en in de grafiek per type; de knoppen en de koopsomknop raken ze niet"),
+        ("Vorige prognose", "tab Woningtypes blok 4 (start bouw per type) en blok 6 (kwartaal per fee-termijn): lichtrood in de bouwtermijnengrafiek; "
+                            "'Ophalen uit FO' bewaart de planning van vóór het ophalen als vorige prognose, 'Vorige prognose uit FO' leest een ouder FO"),
         ("Grafiek per woningtype", "kies een type in de blauwe cel boven de grafiek: grondtermijn, bouwtermijnen en extra's (koop) of fees (DAEB), met de cumulatieve lijn"),
         ("  presentatie", "de macro maakt per woningtype een eigen dia (kopie van dia 8 in het sjabloon)"),
         ("Type toevoegen/verwijderen", "kolommen invoegen of verwijderen op tab Woningtypes (drie) en tab Invoer (twee), of de knoppen op tab Woningtypes (.xlsm); "

@@ -60,6 +60,7 @@ class TypeData:
     soort: object = None                            # None/'niet-DAEB' = koopwoningen; 'DAEB' = alleen fees (blok 5)
     fee_comp: list = field(default_factory=list)    # [(componentnaam, totaal €)] (maximaal N_FEE_COMP)
     fee_termijnen: list = field(default_factory=list)   # [(mijlpaal, bedrag € (> 1) of % (<= 1), kwartaal)] per rij (N_TERMIJNEN rijen, None = leeg)
+    fee_vorig: list = field(default_factory=list)   # kwartaal per fee-termijn volgens de vorige prognose (blok 6; None = zoals nu)
 
 
 @dataclass
@@ -122,6 +123,7 @@ def voorbeeld():
                           ("na omgevingsvergunning", 0.02, "2027 Q1"), ("", None, None),
                           ("na tekenen TKO", 0.40, "2027 Q1"), ("bij start bouw", 0.40, 1), ("bij gevelsluiting", 0.20, 5), ("bij oplevering", None, None),
                           ("", None, None)]
+    daeb.fee_vorig = [None, None, None, "2026 Q4", None, "2026 Q4", 1, 4, None, None]   # vorige prognose: twee termijnen een kwartaal eerder
     p.types.append(daeb)
     n = len(p.periodes)
     tempo = [(8, 10), (4, 5), (2, 4), (6, 4), (30, 12)]   # type -> (per kwartaal, vanaf periode-index); DAEB: alles in één kwartaal
@@ -213,6 +215,7 @@ def _lees_v2(wb):
     heeft_extras = isinstance(_v(wt, f"B{LY.WT_R_X_TITEL}"), str) and _v(wt, f"B{LY.WT_R_X_TITEL}").startswith("3 ·")   # blok 3 bestaat sinds v6
     heeft_vorig = isinstance(_v(wt, f"B{LY.WT_R_V_TITEL}"), str) and _v(wt, f"B{LY.WT_R_V_TITEL}").startswith("4 ·")     # blok 4 sinds v7
     heeft_fees = isinstance(_v(wt, f"B{LY.WT_R_D_TITEL}"), str) and _v(wt, f"B{LY.WT_R_D_TITEL}").startswith("5 ·")      # blok 5 sinds v8
+    heeft_vf = isinstance(_v(wt, f"B{LY.WT_R_VF_TITEL}"), str) and _v(wt, f"B{LY.WT_R_VF_TITEL}").startswith("6 ·")      # blok 6 sinds v9
     for k in range(1, LY.N_TYPES + 1):
         c0, c1, c2 = (L(LY.wt_col(k, o)) for o in range(3))
         naam = _v(wt, f"{c0}{LY.WT_R_NAAM}")
@@ -238,6 +241,8 @@ def _lees_v2(wb):
             td.soort = _v(wt, f"{c0}{LY.WT_R_SOORT}")
             td.fee_comp = [(_v(wt, f"{c0}{r}"), _v(wt, f"{c1}{r}")) for r in range(LY.WT_R_FC1, LY.WT_R_FCN + 1)]
             td.fee_termijnen = [(_v(wt, f"{c0}{r}"), _v(wt, f"{c1}{r}"), _v(wt, f"{c2}{r}")) for r in range(LY.WT_R_FT1, LY.WT_R_FTN + 1)]
+        if heeft_vf:
+            td.fee_vorig = [_v(wt, f"{c2}{r}") for r in range(LY.WT_R_VF1, LY.WT_R_VFN + 1)]
         p.types.append(td)
     # lege blokken aan het eind weglaten
     while p.types and not p.types[-1].naam and p.types[-1].aantal is None:

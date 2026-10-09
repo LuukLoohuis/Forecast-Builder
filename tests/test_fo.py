@@ -142,3 +142,35 @@ def test_binnen_limiet():
         assert False, "ValueError verwacht"
     except ValueError as e:
         assert "11 bouwtermijnen" in str(e)
+
+
+def maak_fo_vorig(pad_vorig):
+    """Ouder FO (vorige prognose): Rijwoning startte een kwartaal eerder (2026 Q4), 'na omgevingsvergunning' stond een kwartaal
+    eerder (2026 Q3) en 'na tekenen TKO' twee kwartalen eerder (2026 Q4)."""
+    from openpyxl import load_workbook
+    maak_fo(pad_vorig)
+    wb = load_workbook(pad_vorig)
+    wo = wb["CF - opbrengsten"]
+    k1 = _kopregels(wo, 5)
+    wo.cell(6, k1[(2027, 1)]).value = None
+    wo.cell(6, k1[(2026, 4)]).value = 10
+    kd = _kopregels(wo, 41)
+    wo.cell(44, kd[(2026, 4)]).value = None
+    wo.cell(44, kd[(2026, 3)]).value = 700000
+    wo.cell(46, kd[(2027, 2)]).value = None
+    wo.cell(46, kd[(2026, 4)]).value = 500000
+    wb.save(pad_vorig)
+
+
+def test_vorige_prognose_uit_ouder_fo():
+    """--fo-vorig: start bouw en fee-kwartalen uit een ouder FO naar blok 4 en 6 (typen op naam, fee-termijnen op mijlpaal)."""
+    with tempfile.TemporaryDirectory() as d:
+        pad, pad_vorig = os.path.join(d, "fo.xlsx"), os.path.join(d, "fo_vorig.xlsx")
+        maak_fo(pad)
+        maak_fo_vorig(pad_vorig)
+        p = fo.lees_fo(pad)
+        fo.voeg_vorige_prognose_toe(p, pad_vorig)
+    assert (p.types[0].vorig_start_jaar, p.types[0].vorig_start_kw) == (2026, 4)
+    assert (p.types[1].vorig_start_jaar, p.types[1].vorig_start_kw) == (2027, 2)
+    assert p.types[1].fee_vorig[:2] == ["actuals", "2026 Q3"] and p.types[1].fee_vorig[5] == "2026 Q4" and p.types[1].fee_vorig[2] is None
+    assert p.fo["vorig_bestand"] == "fo_vorig.xlsx" and [w for w in p.fo["waarschuwingen"] if "toelichting" not in w] == []

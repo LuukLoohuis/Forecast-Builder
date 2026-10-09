@@ -44,6 +44,9 @@ Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaa
 Private Const CEL_SJABLOON As String = "D56"
 Private Const CEL_NAAM As String = "D57"
 Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v14.pptx"
+Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
+    "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
+    "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
 Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
 Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijnenblok (label + 107 reeksen; layout.PP_BT_KOL)
@@ -84,6 +87,8 @@ Private Const TYPE_RIJ_FC1 As Long = 51       ' fee-componenten: naam (kolom 1),
 Private Const TYPE_RIJ_FCN As Long = 52
 Private Const TYPE_RIJ_F1 As Long = 54        ' fee-termijnen: mijlpaal (1), bedrag of % (2), kwartaal (3)
 Private Const TYPE_RIJ_FN As Long = 63
+Private Const TYPE_RIJ_VF1 As Long = 68       ' blok 6: kwartaal per fee-termijn volgens de vorige prognose (kolom 3)
+Private Const TYPE_RIJ_VFN As Long = 77
 Private Const TYPE_RIJ_AANTAL As Long = 8
 Private Const INVOER_COL1 As Long = 12        ' kolom L: eerste paar (verkocht, transport) op tabblad Invoer
 Private Const INVOER_BREEDTE As Long = 2
@@ -147,6 +152,9 @@ Public Sub KnoppenControleren()
         End If
         If Not BestaatVorm(ws, "btnTypeVerwijderen") Then
             MaakKnop ws, ws.Range("B4"), "btnTypeVerwijderen", "Type verwijderen", "TypeVerwijderen", RGB(91, 97, 105), 96, 96, 3
+        End If
+        If Not BestaatVorm(ws, "btnVorigFO") Then
+            MaakKnop ws, ws.Range("B4"), "btnVorigFO", "Vorige prognose uit FO", "VorigePrognoseUitFO", RGB(23, 54, 93), 150, 196, 3
         End If
     End If
     On Error GoTo 0
@@ -261,6 +269,7 @@ Private Function BlokLeeg(wsT As Worksheet, wsI As Worksheet, pos As Long) As Bo
     If Len(CStr(wsT.Cells(TYPE_RIJ_SOORT, c).Value)) > 0 Then Exit Function
     If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_FC1, c + 1), wsT.Cells(TYPE_RIJ_FCN, c + 1))) > 0 Then Exit Function
     If Application.WorksheetFunction.CountA(wsT.Range(wsT.Cells(TYPE_RIJ_F1, c + 1), wsT.Cells(TYPE_RIJ_FN, c + 2))) > 0 Then Exit Function
+    If Application.WorksheetFunction.CountA(wsT.Range(wsT.Cells(TYPE_RIJ_VF1, c + 2), wsT.Cells(TYPE_RIJ_VFN, c + 2))) > 0 Then Exit Function
     c = INVOER_COL1 + (pos - 1) * INVOER_BREEDTE
     If Application.WorksheetFunction.Count(wsI.Range(wsI.Cells(INVOER_RIJ1, c), wsI.Cells(INVOER_RIJN, c + INVOER_BREEDTE - 1))) > 0 Then Exit Function
     BlokLeeg = True
@@ -298,6 +307,7 @@ Private Sub InvoerLeegmaken(ws As Worksheet, col As Long, breedte As Long)
         ws.Cells(TYPE_RIJ_SOORT, col).ClearContents
         ws.Range(ws.Cells(TYPE_RIJ_FC1, col + 1), ws.Cells(TYPE_RIJ_FCN, col + 1)).ClearContents
         ws.Range(ws.Cells(TYPE_RIJ_F1, col + 1), ws.Cells(TYPE_RIJ_FN, col + 2)).ClearContents
+        ws.Range(ws.Cells(TYPE_RIJ_VF1, col + 2), ws.Cells(TYPE_RIJ_VFN, col + 2)).ClearContents
     Else
         ws.Range(ws.Cells(INVOER_RIJ1, col), ws.Cells(INVOER_RIJN, col + breedte - 1)).ClearContents
     End If
@@ -748,7 +758,8 @@ Private Sub VerwijderUitgezetteReeksen(ch As Object, wsE As Object)
 End Sub
 
 Private Sub ZetTijdAs(ch As Object)
-    ' BT_GRAFIEK: beide waarde-assen (tijd in kwartaalindex) vast op Model!BY97 (1 januari eerste jaar) .. BY99 (einde laatste
+    ' BT_GRAFIEK: beide waarde-assen (tijd in kwartaalindex) vast op Model!BY97 (1 januari van het jaar twee jaar vóór de eerste
+    ' termijn, niet vóór de eerste periode) .. BY99 (einde laatste
     ' jaar), zodat de blokjes van vorige prognose en huidige planning op dezelfde schaal staan als de koprijen.
     ' Late binding: Axes(2 = xlValue, 1 = xlPrimary / 2 = xlSecondary). Eerst het maximum, dan het minimum en nog eens
     ' het maximum: zo lukt het ook als het nieuwe bereik helemaal boven of onder de voorbeeldwaarden van het sjabloon
@@ -879,6 +890,8 @@ End Function
 '      Alles wordt op labels gezocht (zelfde regels als forecast_builder/fo.py):
 '      '1. Cashflow'     koprij 'Jaar' in kolom B; daaronder jaar, Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig
 '      'FO - actuals'    laatste boekjaar/kwartaal met boekingen -> Dashboard 'Actuals t/m'
+'      Vóór het leegmaken vraagt de knop of de planning die er nu staat als vorige prognose bewaard moet worden (blok 4 en 6);
+'      de knop 'Vorige prognose uit FO' (tab Woningtypes, VorigePrognoseUitFO) haalt die uit een ouder FO.
 '      'CF - opbrengsten' per type: blok 'Termijnen k - naam' (rij erboven '# won' en het aantal), bouwplanning (aantal
 '                        woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom, termijnen %/EUR/EUR per wn,
 '                        extra's; DAEB: fee-componenten met alleen een totaal en daaronder de termijnen), blok 'Verkooptempo'
@@ -887,9 +900,11 @@ End Function
 Public Sub UitFOOphalen()
     Dim pad As Variant, wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet
     Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
-    Dim stap As String, bericht As String, nPer As Long, nTyp As Long, k As Long, waarschuwing As String
-    Dim idxAct As Long, aJaar As Long, aKw As Long, wb As Workbook, zelfGeopend As Boolean, foutNr As Long, foutOms As String
-    Dim rekenmodus As Long, iteratie As Boolean
+    Dim stap As String, bericht As String, nPer As Long, nTyp As Long, k As Long, r As Long, waarschuwing As String
+    Dim idxAct As Long, aJaar As Long, aKw As Long, zelfGeopend As Boolean, foutNr As Long, foutOms As String
+    Dim rekenmodus As Long, iteratie As Boolean, col As Long, i As Long, j As Long, bewaren As Long, heeftPlanning As Boolean, nm As String
+    Dim vNaam(1 To MAX_TYPES) As String, vJaar(1 To MAX_TYPES) As Variant, vKw(1 To MAX_TYPES) As Variant
+    Dim vFee(1 To MAX_TYPES, 1 To 10) As Variant, vFeeNaam(1 To MAX_TYPES, 1 To 10) As String
     Dim rijVan(IDX_MIN To IDX_MAX) As Long                        ' rijVan(jaar*4+kw) = rij op Invoer (0 = geen)
     foStap = ""
     On Error GoTo Fout
@@ -904,6 +919,36 @@ Public Sub UitFOOphalen()
     Set wsI = ThisWorkbook.Worksheets(SH_INVOER)
     Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
     Set wsD = ThisWorkbook.Worksheets(SH_DASH)
+    ' vorige prognose: de planning die nu in het werkboek staat (start bouw per type, kwartalen van de fee-termijnen) bewaren in
+    ' blok 4 en 6? Zo niet, dan blijft wat daar staat staan (het ophalen maakt de blokken leeg en zet het daarna terug)
+    heeftPlanning = False
+    For k = 1 To MAX_TYPES
+        If IsGetal(wsT.Cells(TYPE_RIJ_STARTJAAR, TYPE_COL1 + (k - 1) * TYPE_BREEDTE).Value) Then heeftPlanning = True
+    Next k
+    bewaren = vbNo
+    If heeftPlanning Then
+        bewaren = MsgBox(BEWAAR_VRAAG, vbQuestion + vbYesNoCancel, "Ophalen uit FO")
+        If bewaren = vbCancel Then Exit Sub
+    End If
+    For k = 1 To MAX_TYPES
+        col = TYPE_COL1 + (k - 1) * TYPE_BREEDTE
+        vNaam(k) = TekstVan(wsT.Cells(TYPE_RIJ_NAAM, col).Value)
+        If bewaren = vbYes Then
+            vJaar(k) = wsT.Cells(TYPE_RIJ_STARTJAAR, col).Value
+            vKw(k) = wsT.Cells(TYPE_RIJ_STARTKW, col).Value
+            For i = 1 To TYPE_RIJ_FN - TYPE_RIJ_F1 + 1
+                vFee(k, i) = wsT.Cells(TYPE_RIJ_F1 + i - 1, col + 2).Value
+                vFeeNaam(k, i) = LCase$(TekstVan(wsT.Cells(TYPE_RIJ_F1 + i - 1, col).Value))
+            Next i
+        Else
+            vJaar(k) = wsT.Cells(TYPE_RIJ_VJAAR, col).Value
+            vKw(k) = wsT.Cells(TYPE_RIJ_VKW, col).Value
+            For i = 1 To TYPE_RIJ_FN - TYPE_RIJ_F1 + 1
+                vFee(k, i) = wsT.Cells(TYPE_RIJ_VF1 + i - 1, col + 2).Value
+                vFeeNaam(k, i) = ""
+            Next i
+        End If
+    Next k
     Application.ScreenUpdating = False
     ' handmatig rekenen zolang de macro schrijft: anders rekent Excel na elke geschreven cel het hele model opnieuw door
     ' (honderden cellen x een volledige herberekening = minuten); aan het eind één keer doorrekenen
@@ -911,29 +956,14 @@ Public Sub UitFOOphalen()
     Application.Calculation = -4135                              ' xlCalculationManual
     Application.EnableEvents = False
     stap = "FO openen"
-    For Each wb In Workbooks                                      ' staat het FO al open, dan dat gebruiken (en open laten)
-        If LCase$(wb.FullName) = LCase$(CStr(pad)) Then Set wbF = wb
-    Next wb
-    If wbF Is Nothing Then
-        ' een FO kan zelf kringverwijzingen bevatten (bv. een formule die naar zijn eigen rij verwijst): geen melding daarover
-        ' zolang het hier open staat (iteratief rekenen aan, meldingen uit); dit werkboek zelf heeft geen kringverwijzingen
-        iteratie = Application.Iteration
-        Application.Iteration = True
-        Application.DisplayAlerts = False
-        Set wbF = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
-        Application.DisplayAlerts = True
-        zelfGeopend = True
-    End If
+    FOOpenen CStr(pad), wbF, zelfGeopend, iteratie
     Set wsCF = ZoekBlad(wbF, "1. Cashflow")
     If wsCF Is Nothing Then Set wsCF = ZoekBlad(wbF, "Cashflow")
-    Set wsO = ZoekBlad(wbF, "CF - opbrengsten")
-    If wsO Is Nothing Then Set wsO = ZoekBlad(wbF, "CF-opbrengsten")
-    If wsO Is Nothing Then Set wsO = ZoekBlad(wbF, "Opbrengsten")
+    Set wsO = FOOpbrengstenBlad(wbF)
     Set wsA = ZoekBlad(wbF, "FO - actuals")
     If wsA Is Nothing Then Set wsA = ZoekBlad(wbF, "actuals")
     If wsCF Is Nothing Or wsO Is Nothing Then
-        If zelfGeopend Then wbF.Close SaveChanges:=False
-        If zelfGeopend Then Application.Iteration = iteratie
+        FOSluiten wbF, zelfGeopend, iteratie
         Application.Calculation = rekenmodus
         Application.EnableEvents = True
         Application.ScreenUpdating = True
@@ -974,12 +1004,39 @@ Public Sub UitFOOphalen()
     Next k
     nTyp = FOTypen(wsO, wsT, wsI, rijVan, idxAct, waarschuwing)
 
-    stap = "afronden"
+    stap = "vorige prognose (blok 4 en 6)"
     foStap = ""
+    For k = 1 To MAX_TYPES
+        col = TYPE_COL1 + (k - 1) * TYPE_BREEDTE
+        nm = TekstVan(wsT.Cells(TYPE_RIJ_NAAM, col).Value)
+        If Len(nm) > 0 Or Len(vNaam(k)) > 0 Then
+            wsT.Cells(TYPE_RIJ_VJAAR, col).Value = vJaar(k)
+            wsT.Cells(TYPE_RIJ_VKW, col).Value = vKw(k)
+            For i = 1 To TYPE_RIJ_FN - TYPE_RIJ_F1 + 1
+                If bewaren = vbYes Then
+                    ' kwartaal van de oude termijn met dezelfde mijlpaal; zonder naam-match: dezelfde positie
+                    j = 0
+                    If Len(TekstVan(wsT.Cells(TYPE_RIJ_F1 + i - 1, col).Value)) > 0 Then
+                        For r = 1 To TYPE_RIJ_FN - TYPE_RIJ_F1 + 1
+                            If vFeeNaam(k, r) = LCase$(TekstVan(wsT.Cells(TYPE_RIJ_F1 + i - 1, col).Value)) Then j = r
+                        Next r
+                    End If
+                    If j = 0 And vFeeNaam(k, i) = "" Then j = i
+                    If j > 0 Then wsT.Cells(TYPE_RIJ_VF1 + i - 1, col + 2).Value = vFee(k, j)
+                Else
+                    wsT.Cells(TYPE_RIJ_VF1 + i - 1, col + 2).Value = vFee(k, i)
+                End If
+            Next i
+            If bewaren = vbYes And Len(vNaam(k)) > 0 And LCase$(vNaam(k)) <> LCase$(nm) Then
+                waarschuwing = waarschuwing & "- type " & k & " heet nu '" & nm & "' maar was '" & vNaam(k) & "': controleer de vorige prognose in blok 4 en 6." & vbCrLf
+            End If
+        End If
+    Next k
+
+    stap = "afronden"
     wsD.Range(CEL_FO_BESTAND).Value = wbF.Name
     wsD.Range(CEL_FO_DATUM).Value = Format$(Now, "dd-mm-yyyy hh:mm")
-    If zelfGeopend Then wbF.Close SaveChanges:=False
-    If zelfGeopend Then Application.Iteration = iteratie
+    FOSluiten wbF, zelfGeopend, iteratie
     Set wbF = Nothing
     stap = "doorrekenen"
     Application.Calculation = rekenmodus
@@ -988,6 +1045,7 @@ Public Sub UitFOOphalen()
     Application.ScreenUpdating = True
     bericht = "Klaar: " & nPer & " periodes op tab Invoer en " & nTyp & " woningtype(n) op tab Woningtypes uit " & CStr(pad) & "."
     If idxAct > 0 Then bericht = bericht & vbCrLf & "Actuals t/m Q" & aKw & " " & aJaar & " (uit 'FO - actuals')."
+    If bewaren = vbYes Then bericht = bericht & vbCrLf & "De planning van vóór het ophalen staat als vorige prognose in blok 4 en 6 van tab Woningtypes."
     bericht = bericht & vbCrLf & vbCrLf & "Controleer op het Dashboard de controle 'Invoer sluit aan op het FO' en de dekking van het verkooptempo-model."
     If Len(waarschuwing) > 0 Then bericht = bericht & vbCrLf & vbCrLf & "Let op:" & vbCrLf & waarschuwing
     MsgBox bericht, IIf(Len(waarschuwing) > 0, vbExclamation, vbInformation), "Ophalen uit FO"
@@ -1000,13 +1058,207 @@ Fout:
     Application.EnableEvents = True
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
-    If zelfGeopend And Not wbF Is Nothing Then wbF.Close SaveChanges:=False
-    If zelfGeopend Then Application.Iteration = iteratie
+    FOSluiten wbF, zelfGeopend, iteratie
     bericht = "Het ging mis bij: " & stap
     If Len(foStap) > 0 Then bericht = bericht & vbCrLf & "(" & foStap & ")"
     bericht = bericht & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms
     MsgBox bericht, vbExclamation, "Ophalen uit FO"
 End Sub
+
+Private Sub FOOpenen(pad As String, ByRef wbF As Workbook, ByRef zelfGeopend As Boolean, ByRef iteratie As Boolean)
+    ' staat het FO al open, dan dat gebruiken (en open laten); anders alleen-lezen openen. Een FO kan zelf kringverwijzingen
+    ' bevatten (bv. een formule die naar zijn eigen rij verwijst): zolang het hier open staat geen melding daarover
+    ' (iteratief rekenen aan, meldingen uit); dit werkboek zelf heeft geen kringverwijzingen
+    Dim wb As Workbook
+    Set wbF = Nothing
+    For Each wb In Workbooks
+        If LCase$(wb.FullName) = LCase$(pad) Then Set wbF = wb
+    Next wb
+    zelfGeopend = False
+    If wbF Is Nothing Then
+        iteratie = Application.Iteration
+        Application.Iteration = True
+        Application.DisplayAlerts = False
+        Set wbF = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
+        Application.DisplayAlerts = True
+        zelfGeopend = True
+    End If
+End Sub
+
+Private Sub FOSluiten(ByRef wbF As Workbook, zelfGeopend As Boolean, iteratie As Boolean)
+    If zelfGeopend And Not wbF Is Nothing Then wbF.Close SaveChanges:=False
+    If zelfGeopend Then Application.Iteration = iteratie
+    Set wbF = Nothing
+End Sub
+
+Private Function FOOpbrengstenBlad(wbF As Workbook) As Worksheet
+    Set FOOpbrengstenBlad = ZoekBlad(wbF, "CF - opbrengsten")
+    If FOOpbrengstenBlad Is Nothing Then Set FOOpbrengstenBlad = ZoekBlad(wbF, "CF-opbrengsten")
+    If FOOpbrengstenBlad Is Nothing Then Set FOOpbrengstenBlad = ZoekBlad(wbF, "Opbrengsten")
+End Function
+
+Private Function KwTekst(idx As Long) As String
+    ' kwartaalindex -> 'jaar Qk' (de schrijfwijze van blok 5 en 6)
+    KwTekst = ((idx - 1) \ 4) & " Q" & (idx - ((idx - 1) \ 4) * 4)
+End Function
+
+Public Sub VorigePrognoseUitFO()
+    ' knop 'Vorige prognose uit FO' (tab Woningtypes): uit een ouder FO per type de start bouw (blok 4) en per fee-termijn het
+    ' kwartaal (blok 6) halen; typen op naam, anders op positie; fee-termijnen op mijlpaal binnen dezelfde component
+    Dim pad As Variant, wbF As Workbook, wsO As Worksheet, wsT As Worksheet, zelfGeopend As Boolean, iteratie As Boolean
+    Dim stap As String, foutNr As Long, foutOms As String, waarschuwing As String, n As Long, rekenmodus As Long, bericht As String
+    foStap = ""
+    On Error GoTo Fout
+#If Mac Then
+    pad = Application.GetOpenFilename()
+#Else
+    pad = Application.GetOpenFilename("Excel-werkboeken (*.xlsx;*.xlsm;*.xlsb),*.xlsx;*.xlsm;*.xlsb", , "Ouder FO-werkboek (vorige prognose) kiezen")
+#End If
+    If VarType(pad) = vbBoolean Then Exit Sub
+    Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
+    Application.ScreenUpdating = False
+    rekenmodus = Application.Calculation
+    Application.Calculation = -4135
+    stap = "FO openen"
+    FOOpenen CStr(pad), wbF, zelfGeopend, iteratie
+    Set wsO = FOOpbrengstenBlad(wbF)
+    If wsO Is Nothing Then Err.Raise 1002, , "Tabblad 'CF - opbrengsten' niet gevonden in " & wbF.Name & "."
+    stap = "vorige prognose (CF - opbrengsten)"
+    n = FOVorig(wsO, wsT, waarschuwing)
+    stap = "afronden"
+    foStap = ""
+    FOSluiten wbF, zelfGeopend, iteratie
+    Application.Calculation = rekenmodus
+    Application.Calculate
+    Application.ScreenUpdating = True
+    bericht = "Klaar: vorige prognose (start bouw in blok 4, fee-kwartalen in blok 6) voor " & n & " woningtype(n) uit " & CStr(pad) & "."
+    If Len(waarschuwing) > 0 Then bericht = bericht & vbCrLf & vbCrLf & "Let op:" & vbCrLf & waarschuwing
+    MsgBox bericht, IIf(Len(waarschuwing) > 0, vbExclamation, vbInformation), "Vorige prognose uit FO"
+    Exit Sub
+Fout:
+    foutNr = Err.Number
+    foutOms = Err.Description
+    On Error Resume Next
+    If rekenmodus <> 0 Then Application.Calculation = rekenmodus
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    FOSluiten wbF, zelfGeopend, iteratie
+    bericht = "Het ging mis bij: " & stap
+    If Len(foStap) > 0 Then bericht = bericht & vbCrLf & "(" & foStap & ")"
+    MsgBox bericht & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms, vbExclamation, "Vorige prognose uit FO"
+End Sub
+
+Private Function FOVorig(wsO As Worksheet, wsT As Worksheet, ByRef waarschuwing As String) As Long
+    ' blokken op 'CF - opbrengsten' van een ouder FO -> blok 4 (start bouw) en blok 6 (fee-kwartalen) op tab Woningtypes
+    Dim rMax As Long, r As Long, b As String, nBlok As Long, nOmzet As Long, blok() As Long, omzet() As Long, k As Long, kT As Long, kk As Long
+    Dim idxKol() As Long, cAct As Long, idxKolO() As Long, cActO As Long, idxStart As Long, rPlan1 As Long, rPlan2 As Long
+    Dim naam As String, col As Long, ro As Long, lab As String, ll As String, compRij As Boolean, inFee As Boolean, overslaan As Boolean
+    Dim nComp As Long, i As Long, r1 As Long, r2 As Long, gevonden As Boolean, kwT As String
+    ReDim blok(1 To MAX_TYPES)
+    ReDim omzet(1 To MAX_TYPES)
+    foStap = "blokken zoeken op '" & wsO.Name & "'"
+    rMax = wsO.Cells(wsO.Rows.Count, 2).End(xlUp).Row
+    For r = 2 To rMax
+        b = LCase$(TekstVan(wsO.Cells(r, 2).Value))
+        If Left$(b, 10) = "termijnen " And InStr(b, " in " & ChrW(8364)) = 0 And LCase$(Left$(TekstVan(wsO.Cells(r - 1, 6).Value), 5)) = "# won" Then
+            If nBlok < MAX_TYPES Then
+                nBlok = nBlok + 1
+                blok(nBlok) = r
+            End If
+        ElseIf Left$(b, 9) = "omzet hvg" Or Left$(b, 15) = "omzet termijnen" Then
+            If nOmzet < MAX_TYPES Then
+                nOmzet = nOmzet + 1
+                omzet(nOmzet) = r
+            End If
+        End If
+    Next r
+    kT = 0
+    For k = 1 To nBlok
+        If Getal(wsO.Cells(blok(k) - 1, 7).Value) <= 0 Then GoTo Volgende
+        kT = kT + 1
+        naam = TypeNaam(wsO, blok(k), kT)
+        foStap = "vorige prognose: '" & naam & "' (blok vanaf rij " & blok(k) & " van '" & wsO.Name & "')"
+        ' doelkolom: het type met dezelfde naam, anders het type op dezelfde positie
+        col = 0
+        For kk = 1 To MAX_TYPES
+            If LCase$(TekstVan(wsT.Cells(TYPE_RIJ_NAAM, TYPE_COL1 + (kk - 1) * TYPE_BREEDTE).Value)) = LCase$(naam) Then col = TYPE_COL1 + (kk - 1) * TYPE_BREEDTE
+        Next kk
+        If col = 0 Then
+            col = TYPE_COL1 + (kT - 1) * TYPE_BREEDTE
+            If Len(TekstVan(wsT.Cells(TYPE_RIJ_NAAM, col).Value)) > 0 Then
+                waarschuwing = waarschuwing & "- '" & naam & "' uit het vorige FO staat niet op tab Woningtypes; type " & kT & " ('" & TekstVan(wsT.Cells(TYPE_RIJ_NAAM, col).Value) & "') op dezelfde positie gebruikt." & vbCrLf
+            Else
+                waarschuwing = waarschuwing & "- '" & naam & "' uit het vorige FO staat niet op tab Woningtypes; overgeslagen." & vbCrLf
+                GoTo Volgende
+            End If
+        End If
+        ' start bouw: eerste telling in de bouwplanning
+        KolomKaart wsO, blok(k), idxKol, cAct
+        rPlan1 = blok(k) + 1
+        rPlan2 = rPlan1
+        Do While Len(TekstVan(wsO.Cells(rPlan2 + 1, 2).Value)) > 0
+            rPlan2 = rPlan2 + 1
+        Loop
+        idxStart = 0
+        For r = rPlan1 To rPlan2
+            idxStart = EersteIdx(wsO, r, idxKol)
+            If idxStart > 0 Then Exit For
+        Next r
+        wsT.Range(wsT.Cells(TYPE_RIJ_VJAAR, col), wsT.Cells(TYPE_RIJ_VKW, col)).ClearContents
+        If idxStart > 0 Then
+            wsT.Cells(TYPE_RIJ_VJAAR, col).Value = (idxStart - 1) \ 4
+            wsT.Cells(TYPE_RIJ_VKW, col).Value = idxStart - ((idxStart - 1) \ 4) * 4
+        End If
+        ' fees: per termijn het kwartaal, naar de rij in blok 5 met dezelfde mijlpaal (eerst binnen dezelfde component)
+        wsT.Range(wsT.Cells(TYPE_RIJ_VF1, col + 2), wsT.Cells(TYPE_RIJ_VFN, col + 2)).ClearContents
+        If k <= nOmzet Then
+            ro = omzet(k)
+            KolomKaart wsO, ro, idxKolO, cActO
+            inFee = False
+            overslaan = False
+            nComp = 0
+            r = ro + 1
+            Do While Len(TekstVan(wsO.Cells(r, 2).Value)) > 0
+                lab = TekstVan(wsO.Cells(r, 2).Value)
+                ll = LCase$(lab)
+                compRij = (SomRij(wsO, r, idxKolO) = 0 And ActWaarde(wsO, r, cActO) = 0 And Getal(wsO.Cells(r, 4).Value) <> 0 And Getal(wsO.Cells(r, 3).Value) = 0)
+                If ll = "koopsom" Then
+                    ' niets
+                ElseIf compRij And (IsFeeLabel(ll) Or inFee) Then
+                    inFee = True
+                    overslaan = (Left$(ll, 10) = "onvoorzien")
+                    If Not overslaan Then nComp = nComp + 1
+                ElseIf inFee And Not overslaan And (Getal(wsO.Cells(r, 3).Value) <> 0 Or Getal(wsO.Cells(r, 4).Value) <> 0) And (SomRij(wsO, r, idxKolO) <> 0 Or ActWaarde(wsO, r, cActO) <> 0) Then
+                    If EersteIdx(wsO, r, idxKolO) > 0 Then kwT = KwTekst(EersteIdx(wsO, r, idxKolO)) Else kwT = "actuals"
+                    gevonden = False
+                    If nComp >= 1 And nComp <= 2 Then
+                        r1 = TYPE_RIJ_F1 + (nComp - 1) * 5
+                        r2 = r1 + 4
+                        For i = r1 To r2
+                            If LCase$(TekstVan(wsT.Cells(i, col).Value)) = ll And Not gevonden Then
+                                wsT.Cells(TYPE_RIJ_VF1 + i - TYPE_RIJ_F1, col + 2).Value = kwT
+                                gevonden = True
+                            End If
+                        Next i
+                    End If
+                    If Not gevonden Then
+                        For i = TYPE_RIJ_F1 To TYPE_RIJ_FN
+                            If LCase$(TekstVan(wsT.Cells(i, col).Value)) = ll And Not gevonden Then
+                                wsT.Cells(TYPE_RIJ_VF1 + i - TYPE_RIJ_F1, col + 2).Value = kwT
+                                gevonden = True
+                            End If
+                        Next i
+                    End If
+                    If Not gevonden Then waarschuwing = waarschuwing & "- " & naam & ": mijlpaal '" & lab & "' uit het vorige FO staat niet in blok 5; overgeslagen." & vbCrLf
+                End If
+                r = r + 1
+            Loop
+        End If
+        FOVorig = FOVorig + 1
+Volgende:
+    Next k
+    foStap = ""
+End Function
 
 Private Function ZoekBlad(wb As Workbook, naam As String) As Worksheet
     ' werkblad op naam, hoofdletters en spaties genegeerd
@@ -1394,7 +1646,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
                         wsT.Cells(rFee, col).Value = lab
                         If Getal(pct) <> 0 Then wsT.Cells(rFee, col + 1).Value = Getal(pct) Else wsT.Cells(rFee, col + 1).Value = Getal(eur)
                         If EersteIdx(wsO, r, idxKolO) > 0 Then
-                            wsT.Cells(rFee, col + 2).Value = ((EersteIdx(wsO, r, idxKolO) - 1) \ 4) & " Q" & (EersteIdx(wsO, r, idxKolO) - ((EersteIdx(wsO, r, idxKolO) - 1) \ 4) * 4)
+                            wsT.Cells(rFee, col + 2).Value = KwTekst(EersteIdx(wsO, r, idxKolO))
                         Else
                             wsT.Cells(rFee, col + 2).Value = "actuals"
                         End If

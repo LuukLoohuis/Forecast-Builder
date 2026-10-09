@@ -163,6 +163,15 @@ def _patch_chart(xml, model, n):
     xml = re.sub(r"<c:f>\[0\]!(g_[a-z_0-9]+)</c:f></c:strRef>", cat, xml)
     xml = re.sub(r"<c:f>\[0\]!(g_[a-z_0-9]+)</c:f></c:numRef>", val, xml)
     xml = re.sub(r"<c:f>Model!(\$([A-Z]+\$[0-9]+))</c:f></c:strRef>", lambda m: tx(_M(m)), xml)
+    if "g_bt_" in xml:
+        # bouwtermijnengrafiek: de vaste ondergrens van beide tijd-assen op t_first (Model!BY97), zoals het Model die uitrekent
+        # (twee jaar vóór de eerste termijn); de macro zet de PowerPoint-grafiek op dezelfde cel
+        t_first = model.get(f"{LY.M_HULP}{LY.H['t_first']}")
+        t_end = model.get(f"{LY.M_HULP}{LY.H['t_end']}")
+        if isinstance(t_first, (int, float)) and t_first > 0:
+            xml = re.sub(r'<c:min val="[^"]*"/>', f'<c:min val="{int(t_first)}"/>', xml)
+        if isinstance(t_end, (int, float)) and t_end > 0:
+            xml = re.sub(r'<c:max val="[^"]*"/>', f'<c:max val="{int(t_end)}"/>', xml)
     return xml
 
 
