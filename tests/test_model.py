@@ -371,7 +371,7 @@ def test_kerncijfers_dia2(basis):
         if pp[f"B{r}"].value == 2:
             regels[pp[f"F{r}"].value] = pp[f"D{r}"].value
         r += 1
-    assert {v.split("_")[0] for v in regels if v[3].isdigit()} == {"KPI1", "KPI2", "KPI3", "KPI4", "KPI6", "KPI7", "KPI8"}
+    assert {v.split("_")[0] for v in regels if v[3].isdigit()} == {"KPI1", "KPI2", "KPI3", "KPI4", "KPI6", "KPI7", "KPI8", "KPI9"}
     assert regels["KPI3_SUB"] == f'eindsaldo in {hb("laatste_kw")}'
     assert regels["KPI8_LABEL"] == "MARGE NIET-DAEB / TOTAAL" and regels["KPI8_SUB"] == "DAEB heeft geen marge"
     assert regels["KPI8_WAARDE"].replace(",", ".") == f'{hb("marge_nd") * 100:.1f}% / {hb("marge") * 100:.1f}%'
@@ -395,3 +395,56 @@ def test_norm_met_oud_label_wordt_gelezen(tmp):
     pad = os.path.join(tmp, "normlabel_oud.xlsx")
     wb.save(pad)
     assert D.lees_werkboek(pad).params["norm"] == 0.65
+
+
+def test_dia2_grafiekblok_balken_en_lasten(tmp, basis):
+    """Sjabloon v17: het blok van de kleine cashflowgrafiek (jaarlabel bij het eerste kwartaal van elk jaar, één-punts-reeksen
+    nu/dieptepunt/break-even/eindsaldo/€0, '(uit)' zonder vorige prognose), de as-grenzen, de balkregels (aandeel 0..1) en de
+    kaart 'grootste lasten' uit de Dashboard-sectie; de sectie wordt bij inlezen teruggelezen."""
+    m, pp, d = basis["Model"], basis["PowerPoint"], basis["Dashboard"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    n, pos_nu, pos_be = hb("n"), hb("pos_actuals"), hb("be_basis_pos")
+    c0 = pp[LY.PP_BLOK["kc"] + "1"].column
+    koppen = [pp.cell(7, c0 + j).value for j in range(LY.PP_KC_KOL)]
+    assert koppen == ["Kwartaal", "cum. cashflow", "vorige prognose (uit)", "nu", "dieptepunt", "break-even", "eindsaldo", "€0"]
+    assert pp.cell(7, c0 + LY.PP_KC_KOL).value is None
+    cel = lambda i, j: pp.cell(LY.PP_KPI_ROW1 + i - 1, c0 + j).value  # noqa: E731  rij i (1..n), kolom j (0..7)
+    for i in range(1, n + 1):
+        kw = m[f"{LY.FIX['kw']}{LY.ROW1 + i - 1}"].value
+        jaar = (m[f"{LY.FIX['idx']}{LY.ROW1 + i - 1}"].value - 1) // 4
+        assert cel(i, 0) == (jaar if (i == 1 or kw == 1) else None), i
+        assert abs(float(cel(i, 1)) - float(m[f"{LY.M['g_stand']}{LY.ROW1 + i - 1}"].value)) < 1e-9
+        for j, pos in ((3, pos_nu), (5, pos_be), (6, n), (7, 1)):
+            v = cel(i, j)
+            if i == pos:
+                assert abs(float(v) - (0 if j == 7 else float(cel(i, 1)))) < 1e-9, (i, j)
+            else:
+                assert v == "#N/A", (i, j, v)
+    assert cel(n + 1, 0) is None and cel(n + 1, 1) == "#N/A"
+    lo, hi = min(0, hb("dal_basis")), max(0, hb("top_basis"))
+    assert abs(hb("kc_min") - (lo - 0.24 * (hi - lo)) / 1e6) < 1e-9 and abs(hb("kc_max") - (hi + 0.12 * (hi - lo)) / 1e6) < 1e-9
+    regels, r = {}, LY.PP_KPI_ROW1
+    while pp[f"C{r}"].value:
+        if pp[f"B{r}"].value == 2:
+            regels[pp[f"F{r}"].value] = pp[f"D{r}"].value
+        r += 1
+    assert r - 1 < int(LY.PP_CEL_SJABLOON[1:]) - 1 and pp[f"C{int(LY.PP_CEL_SJABLOON[1:])}"].value == LY.PP_LABEL_SJABLOON
+    assert abs(regels["KPI6_BALK"] - hb("verk_bij_start_pct")) < 1e-12 and regels["KPI6_NORM"] == 0.7
+    assert abs(regels["KPI7_BALK_V"] - hb("verkocht_actuals") / hb("woningen")) < 1e-12
+    assert abs(regels["KPI7_BALK_T"] - hb("transport_actuals") / hb("woningen")) < 1e-12
+    assert regels["GRAFIEK_LEGENDA_VORIG"] is None
+    lasten = D.voorbeeld().params["lasten"]
+    assert regels["KPI9_LABEL"] == "GROOTSTE LASTEN"
+    for i, (naam, bedrag) in enumerate(lasten, start=1):
+        assert regels[f"KPI9_NAAM{i}"] == naam and regels[f"KPI9_BEDRAG{i}"].replace(",", ".") == f"€{bedrag / 1e6:.1f}M"
+        assert abs(regels[f"KPI9_BALK{i}"] - bedrag / lasten[0][1]) < 1e-12
+    assert d[f"V{LY.D_ROW_LASTEN}"].value == LY.D_LABEL_LASTEN and d[LY.D["last1_naam"]].value == lasten[0][0]
+    # ronde reis: de sectie wordt teruggelezen; zonder lasten blijven de regels leeg (de macro haalt de kaart dan weg)
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "lasten_rond"), None, caches=False)
+    assert D.lees_werkboek(paden[0]).params["lasten"] == lasten
+    p = D.voorbeeld()
+    p.params["lasten"] = []
+    wb = bouw_en_bereken(p, tmp, "zonder_lasten")
+    pp2 = wb["PowerPoint"]
+    leeg = {pp2[f"F{r}"].value: pp2[f"D{r}"].value for r in range(LY.PP_KPI_ROW1, LY.PP_KPI_ROW1 + 80) if pp2[f"F{r}"].value}
+    assert leeg["KPI9_NAAM1"] is None and leeg["KPI9_BALK1"] == 0 and wb["Model"][f"BY{LY.H['lasten_max']}"].value == 0

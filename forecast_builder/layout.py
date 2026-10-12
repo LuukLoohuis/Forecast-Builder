@@ -268,6 +268,8 @@ H = {
     "vp_tekst": 133,                # verkoopgrafiek: voortgang per type als tekst ('Rijwoning 25%, Tweekapper 40%, ...')
     # marge (dia 2 en Dashboard): DAEB heeft geen marge, dus marge niet-DAEB = projectresultaat / (opbrengsten - fees DAEB)
     "opbr_daeb": 134, "woningen_daeb": 135, "marge": 136, "marge_nd": 137, "marge_tekst": 138, "marge_split": 139,
+    # dia 2 (sjabloon v17): as-grenzen van de kleine cashflowgrafiek (€ mln; de VBA leest kc_min/kc_max) en de grootste lasten
+    "top_basis": 140, "top_vorig": 141, "kc_min": 142, "kc_max": 143, "lasten_max": 144,
 }
 
 
@@ -300,7 +302,11 @@ D = {
     "pt_keuze": "B120",                                     # grafiek per woningtype: gekozen type (naam; keuzelijst uit Model rij 7)
     # FO-koppeling (macro 'Ophalen uit FO' op tab Invoer, of build.py --fo): bestand, actuals t/m, totalen uit '1. Cashflow', datum
     "fo_bestand": "W69", "fo_actuals": "W70", "fo_opbr": "W71", "fo_kosten": "W72", "fo_datum": "W73",
+    # grootste lasten (dia 2, kaart KPI9): kop van de kaart en drie regels naam (W:X samengevoegd) en bedrag in € (Y)
+    "lasten_kop": "W76", "last1_naam": "W77", "last1_bedrag": "Y77", "last2_naam": "W78", "last2_bedrag": "Y78",
+    "last3_naam": "W79", "last3_bedrag": "Y79",
 }
+N_LASTEN = 3
 # data.py leest de knoppen op het label in kolom V (zo blijven oudere bestanden met andere rijnummers leesbaar)
 D_LABELS = {
     "actuals_jaar": "Actuals t/m (jaar · kwartaal)", "rente": "Jaarrente", "rente_tm": "Rente t/m", "rente_basis": "Rente ook in de basis",
@@ -319,6 +325,8 @@ D_ROW_POWERPOINT = 34      # knop staat op W35:X36 (vast: de VBA-macro zet hem d
 D_ROW_CONTROLES = 40
 D_ROW_TYPES = 56           # overzicht woningtypes (na vijftien controles)
 D_ROW_FO = 68              # FO-koppeling: bestand, actuals, totalen (cellen in LY.D fo_*)
+D_ROW_LASTEN = 75          # grootste lasten voor dia 2 (sectiekop; data.py zoekt de sectie op dit label)
+D_LABEL_LASTEN = "GROOTSTE LASTEN (dia 2)"
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
 D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; chips (typekleuren) in rij 96, grafiek op B97 (19 rijen)
 D_ROW_LEGENDA_BT = 96
@@ -357,5 +365,17 @@ _pt = _vo + 6                          # 173 (FQ): dia 8, grafiek per woningtype
 PP_BLOK = {"cf": "G", "sc": "P", "bt": "AA", "vp": L(_vp), "vo": L(_vo), "pt": L(_pt)}
 PP_TABEL_SC = f"{L(_pt + PP_PT_KOL + 1)}7"                      # GB7: 9 rijen x 4 kolommen
 PP_TABEL_VT_ROW = 18           # kop in BR18, daaronder N_TYPES rijen
-PP_CEL_SJABLOON = "D56"        # (de VBA leest dezelfde cellen: CEL_SJABLOON / CEL_NAAM)
-PP_CEL_NAAM = "D57"
+# dia 2 (sjabloon v17): kleine cashflowgrafiek KPI_GRAFIEK, blok 'kc' rechts van de tabellen (8 kolommen: jaarlabel, cum.
+# cashflow, vorige prognose, nu, dieptepunt, break-even, eindsaldo, €0; de laatste zes als één-punts-reeksen)
+PP_KC_KOL = 8
+_kc = _pt + PP_PT_KOL + 1 + 9                                    # GK: na de tabel woningtypes (8 kolommen vanaf GB)
+PP_BLOK["kc"] = L(_kc)
+PP_CEL_SJABLOON = "D76"        # (de VBA leest dezelfde cellen: CEL_SJABLOON / CEL_NAAM; data.py zoekt op het label in kolom C)
+PP_CEL_NAAM = "D77"
+PP_LABEL_SJABLOON = "Sjabloon (pptx)"
+# dia 2: grafiekkader en tekenvlak van KPI_GRAFIEK in inch (links, boven, rechts, onder), zoals tools/pptx_v17_kerncijfers.py ze
+# zet (manualLayout); de VBA rekent met de fracties KC_PLOT_X/KC_PLOT_W de x van het 'nu'-kwartaal uit (grijs vlak, nu-blok)
+KC_KADER = (0.30, 2.58, 9.50, 3.98)
+KC_PLOT = (0.50, 2.76, 8.98, 3.98)
+KC_PLOT_X = round((KC_PLOT[0] - KC_KADER[0]) / (KC_KADER[2] - KC_KADER[0]), 4)
+KC_PLOT_W = round((KC_PLOT[2] - KC_PLOT[0]) / (KC_KADER[2] - KC_KADER[0]), 4)

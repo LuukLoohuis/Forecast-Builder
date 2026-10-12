@@ -2,7 +2,7 @@
 
 Bouwt het werkboek **Cashflow_scenario** (Dashboard · Invoer · Woningtypes · Model · PowerPoint) met Python/openpyxl.
 Het werkboek rekent scenario's (downside/upside) uit bovenop je eigen projectcashflow en vult met één knop
-het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v16.pptx`).
+het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v17.pptx`).
 
 ## Wat zit erin
 
@@ -26,6 +26,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v16.pptx`).
 | `tools/pptx_v15_pertype.py` | sjabloon v14 → v15: lichtblauwe 'Vorige prognose' (dia 3), vernieuwde grafiek per woningtype (dia 8) |
 | `tools/pptx_v16_verkooppct.py` | sjabloon v15 → v16: dia 6 met het cumulatieve percentage als lijn met labels, blok van 30 kolommen, tijdvak vanaf het actuals-jaar |
 | `tools/pptx_v14_daeb.py` | dia 8 'Opbrengsten per woningtype' (PT_GRAFIEK; de macro maakt per type een kopie) en herkleurde dia 5/6: vorige prognose lichtrood (v13 → v14) |
+| `tools/pptx_v17_kerncijfers.py` | sjabloon v16 → v17: dia 2 'kerncijfers' in het nieuwe ontwerp (tegels, tijdlijnband met de kleine cashflowgrafiek KPI_GRAFIEK, kaarten met balken, grootste lasten); `--simuleer` doet na wat de macro doet |
 
 ## Bouwen
 
@@ -40,8 +41,8 @@ python build.py --leeg --out out/Cashflow_scenario_leeg   # leeg sjabloon: geen 
 Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`
 geschreven (`forecast_builder/vbabuild.py`, op basis van `vba/vbaProject_template.bin` met de documentmodules en
 projectinstellingen). Importeren in de VBA-editor is dus niet nodig. Bij het openen zet `KnoppenControleren`
-de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v16.pptx` naast het werkboek
-(of vul het pad in op tab PowerPoint).
+de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v17.pptx` naast het werkboek
+(of vul het pad in op tab PowerPoint). Sjabloon v17 maak je van v16 met `python3 tools/pptx_v17_kerncijfers.py v16.pptx v17.pptx`.
 
 `--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken), dus een
 bijgewerkt werkboek genereer je later opnieuw zonder gegevens over te typen.
@@ -175,9 +176,9 @@ rente staan in de hulpcellen en op tab PowerPoint (blok *extra knoppen en scenar
 In het PowerPoint-sjabloon (sinds v11, `tools/pptx_scenario_line.py`) staat de lijn ook in de cashflowgrafiek op
 dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam uit het werkboek.
 
-### Dia's en sjabloon v15
+### Dia's en sjabloon v17
 
-Dia 1 titel · 2 kerncijfers · 3 cashflow per kwartaal (met scenariolijn) · 4 scenario's · 5 bouwtermijnen per woningtype
+Dia 1 titel · 2 kerncijfers (tegels, tijdlijnband met kleine cashflowgrafiek, kaarten met balken) · 3 cashflow per kwartaal (met scenariolijn) · 4 scenario's · 5 bouwtermijnen per woningtype
 (tijdlijn) met de tabel woningtypes · 6 verkoop en transport per kwartaal (twee panelen) · 7 van verkoop naar omzet ·
 8 opbrengsten per woningtype (de macro maakt per type met aantal > 0 een kopie van deze dia en haalt dia 8 zelf weg).
 De macro *Naar PowerPoint* vult alle teksten, tabellen en grafieken: per grafiek schrijft hij het blok van tab PowerPoint
@@ -186,16 +187,26 @@ eindigt haalt hij weg (scenariolijn uit; typen zonder termijnen en jaren buiten 
 voor de bouwtermijnengrafiek zet hij ook de tijd-as (Model!BY97 t/m BY99, kwartaalindex). Sjabloon v16 is gemaakt met
 `tools/pptx_v12_bouwtermijnen.py` (v11 → v12), `tools/pptx_v13_banen.py` (v12 → v13), `tools/pptx_v14_daeb.py` (v13 → v14) en `tools/pptx_v15_pertype.py` (v14 → v15: 'Vorige prognose' op dia 3 lichtblauw; dia 8 met totaal per kwartaal boven de stapel, eindpunt met het totaal en een tijdvak vanaf twee jaar vóór de eerste opbrengst) en `tools/pptx_v16_verkooppct.py` (v15 → v16: dia 6 met het cumulatieve percentage verkocht/getransporteerd als lijn met labels, blok van 30 kolommen, alleen de kwartalen vanaf het actuals-jaar).
 
-Dia 2 (kerncijfers) houdt het bij drie grote kaarten (max. financieringsbehoefte, break-even, projectresultaat) en vier kleine
-(cumulatieve cashflow per actuals-kwartaal, verkocht bij start bouw, verkocht / getransporteerd t/m het actuals-kwartaal, marge);
-de ondertitel noemt opbrengsten, kosten en het aantal woningen (waarvan DAEB). *Verkocht bij start bouw* telt per type de
-woningen die t/m het kwartaal van start bouw verkocht zijn (dat kwartaal telt mee; DAEB telt niet mee), tegen de norm op het
-Dashboard. De margekaart (KPI8, was rente) toont bij een project met DAEB twee marges: *niet-DAEB* = projectresultaat /
-(opbrengsten − fees DAEB), want DAEB heeft geen marge, en *totaal* = projectresultaat / opbrengsten; zonder DAEB één marge
-(hulpcellen `opbr_daeb`, `marge`, `marge_nd`, `marge_split`, `marge_tekst`). Bandbreedte en voetnoot staan niet meer op dia 2:
-het sjabloon (v15/v16) heeft die kaart (KPI5) en de voetnoot nog, maar zonder regel op tab PowerPoint haalt de macro ze weg
-(de voetnoot op naam VOETNOOT, anders de tekstvorm die met 'Stip' begint) en verdeelt hij de overige kleine kaarten over de
-breedte, bij drie precies onder de grote kaarten (`SchikDia2`). Een nieuw sjabloon is daarvoor niet nodig.
+Dia 2 (kerncijfers, sjabloon v17 via `tools/pptx_v17_kerncijfers.py`) bestaat uit drie tegels (max. financieringsbehoefte,
+break-even, projectresultaat, elk met het verschil met de vorige prognose en 'was …'), een tijdlijnband met de kleine
+cashflowgrafiek `KPI_GRAFIEK` (cum. cashflow, vorige prognose als lichtblauwe stippellijn, stippen met label voor nu, dieptepunt,
+break-even en eindsaldo, grijs vlak voor de gerealiseerde kwartalen, de stand per actuals-kwartaal als nu-blok bij de stip) en
+vier kaarten: verkocht bij start bouw (balk met normstreep), verkocht / getransporteerd (twee balken op het aantal woningen),
+marge en de grootste lasten. *Verkocht bij start bouw* telt per type de woningen die t/m het kwartaal van start bouw verkocht
+zijn (dat kwartaal telt mee; DAEB telt niet mee), tegen de norm op het Dashboard. De margekaart toont bij een project met DAEB
+twee marges: *niet-DAEB* = projectresultaat / (opbrengsten − fees DAEB), want DAEB heeft geen marge, en *totaal* =
+projectresultaat / opbrengsten; zonder DAEB één marge (hulpcellen `opbr_daeb`, `marge`, `marge_nd`, `marge_split`, `marge_tekst`).
+De *grootste lasten* vul je zelf in op het Dashboard (sectie 'GROOTSTE LASTEN (dia 2)': kop van de kaart en tot drie posten met
+naam en bedrag in €, bv. grond, honoraria, aansluitkosten; het Dashboard toont het aandeel in de kosten); de kaart toont ze met
+een balk ten opzichte van de hoogste post, en zonder lasten haalt de macro de kaart weg en verdeelt hij de drie overige kaarten
+onder de tegels (`SchikDia2`). Tab PowerPoint heeft voor dia 2 naast de teksten balkregels (vormnaam met `_BALK` of `_NORM`,
+kolom D = aandeel 0..1; `VulBalken` zet de breedte op aandeel × breedte van het spoor met dezelfde naam op `_SPOOR`) en het blok
+van de grafiek (kolom GK: jaarlabel, cum. cashflow, vorige prognose, nu, dieptepunt, break-even, eindsaldo, €0; de laatste zes als
+één-punts-reeksen met de reeksnaam als label, '(uit)' = reeks niet in de presentatie). Na het vullen zet `SchikGrafiekDia2` de
+waarde-as op de hulpcellen `kc_min`/`kc_max`, het grijze vlak t/m het actuals-kwartaal en het nu-blok ernaast (links van de
+stip, of rechts als het links niet past); de x van een kwartaal volgt uit het vaste tekenvlak (`layout.KC_PLOT`). Met een ouder
+sjabloon (v15/v16) werkt de knop nog: de bandbreedtekaart (KPI5) en de voetnoot gaan weg en de overige kaarten verdelen de
+breedte; de grafiek en de balken ontbreken dan (gemeld als 'niet gevonden').
 
 ## Controle
 

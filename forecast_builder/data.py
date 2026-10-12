@@ -42,6 +42,9 @@ PARAM_STANDAARD = {
     "rente_pct_down": None, "rente_pct_up": None, "rente_pct_scn": None, "koopsom_down": 0.0, "koopsom_up": 0.0, "koopsom_scn": 0.0,
     "norm": 0.7,
     "sjabloon": None,
+    # grootste lasten voor dia 2 (Dashboard-sectie): kop van de kaart en tot drie (naam, bedrag in €); leeg = kaart niet op de dia
+    "lasten_kop": "GROOTSTE LASTEN",
+    "lasten": (),
 }
 
 
@@ -150,6 +153,7 @@ def voorbeeld():
             rij_t.append(v)
         p.transport.append(rij_t)
     p.params["actuals_jaar"], p.params["actuals_kw"] = 2026, 4
+    p.params["lasten"] = [("Grondkosten", 7900000), ("Honoraria", 3200000), ("Aansluitkosten", 800000)]
     return p
 
 
@@ -201,13 +205,19 @@ def _lees_v1(wb):
         "kosten_down": _v(d, "W15"), "kosten_up": _v(d, "X15"), "norm": _v(d, "W18"),
     })
     if "PowerPoint" in wb.sheetnames:
-        p.params["sjabloon"] = _v(wb["PowerPoint"], LY.PP_CEL_SJABLOON)
+        p.params["sjabloon"] = _lees_sjabloon(wb["PowerPoint"])
     for naam in ("fo_bestand", "fo_actuals", "fo_opbr", "fo_kosten", "fo_datum"):       # FO-koppeling (sinds v8), op label
         label = LY.D_LABELS.get(naam)
         rij = next((r for r in range(1, 120) if _v(d, f"V{r}") == label), None)
         if rij is not None and _v(d, f"W{rij}") not in (None, ""):
             p.fo[{"opbr": "opbrengsten"}.get(naam[3:], naam[3:])] = _v(d, f"W{rij}")
     return p
+
+
+def _lees_sjabloon(pp):
+    """Sjabloonpad op tab PowerPoint: de cel naast het label 'Sjabloon (pptx)' in kolom C (de rij verschilt per versie)."""
+    rij = next((r for r in range(1, 200) if _v(pp, f"C{r}") == LY.PP_LABEL_SJABLOON), None)
+    return _v(pp, f"D{rij}") if rij is not None else _v(pp, LY.PP_CEL_SJABLOON)
 
 
 def _lees_v2(wb):
@@ -293,8 +303,16 @@ def _lees_v2(wb):
             continue
         kol = "".join(ch for ch in cel if ch.isalpha())
         p.params[naam] = _v(d, f"{kol}{rij}")
+    # grootste lasten (dia 2, sinds sjabloon v17): sectiekop in kolom V, daaronder de kop van de kaart en drie regels naam/bedrag
+    rij_l = next((r for r in range(LY.D_ROW_CONTROLES, 200) if _v(d, f"V{r}") == LY.D_LABEL_LASTEN), None)
+    if rij_l is not None:
+        kop = _v(d, f"W{rij_l + 1}")
+        if kop not in (None, ""):
+            p.params["lasten_kop"] = kop
+        p.params["lasten"] = [(_v(d, f"W{rij_l + 1 + i}"), _v(d, f"Y{rij_l + 1 + i}")) for i in range(1, LY.N_LASTEN + 1)
+                              if _v(d, f"W{rij_l + 1 + i}") not in (None, "") or _v(d, f"Y{rij_l + 1 + i}") not in (None, "")]
     if "PowerPoint" in wb.sheetnames:
-        p.params["sjabloon"] = _v(wb["PowerPoint"], LY.PP_CEL_SJABLOON)
+        p.params["sjabloon"] = _lees_sjabloon(wb["PowerPoint"])
     for naam in ("fo_bestand", "fo_actuals", "fo_opbr", "fo_kosten", "fo_datum"):       # FO-koppeling (sinds v8), op label
         label = LY.D_LABELS.get(naam)
         rij = next((r for r in range(1, 120) if _v(d, f"V{r}") == label), None)

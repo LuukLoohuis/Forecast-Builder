@@ -27,8 +27,10 @@ Option Explicit
 '  SchikDia5             na het vullen van VT_TABEL (dia 5): bij meer dan 4 types rijen en letters
 '                        kleiner, zo nodig de kaart met BT_GRAFIEK korter, en de tabelkaart sluit om de tabel
 '  SchikDia2             na het vullen van de teksten (dia 2): kleine KPI-kaarten zonder regel op tabblad PowerPoint
-'                        gaan weg, de overige verdelen de breedte (drie kaarten: precies onder de grote kaarten);
-'                        de voetnoot gaat weg (VOETNOOT, of de tekstvorm op dia 2 die met 'Stip' begint)
+'                        (of een lege lastenkaart) gaan weg, de overige verdelen de breedte (drie kaarten: precies onder
+'                        de grote kaarten); de voetnoot en een leeg bijschrift 'vorige prognose' gaan weg
+'  VulBalken             balken op dia 2: breedte = aandeel (kolom D) x breedte van het spoor, normstreep op de norm
+'  SchikGrafiekDia2      kleine cashflowgrafiek op dia 2: waarde-as, grijs vlak t/m 'nu' en het nu-blok bij dat kwartaal
 '
 '  v15: grafiek per woningtype (dia 8): blok FM7 met 10 kolommen (totaal per kwartaal als label, eindpunt met het totaal),
 '       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw; sjabloon v15.
@@ -39,6 +41,13 @@ Option Explicit
 '       Dia 2 met minder tekst: bandbreedte (KPI5) heeft geen regel meer op tabblad PowerPoint en SchikDia2 haalt die kaart
 '       weg (werkt met sjabloon v15 en v16); KPI8 (was rente) = marge niet-DAEB / totaal, verkocht bij start bouw,
 '       verkocht / getransporteerd t/m actuals; de voetnoot gaat van de dia (VOETNOOT, anders de tekstvorm die met 'Stip' begint).
+'  v17: dia 2 in het nieuwe ontwerp (tools/pptx_v17_kerncijfers.py): drie tegels, een tijdlijnband met de kleine cashflowgrafiek
+'       KPI_GRAFIEK (blok GK7, 8 kolommen: jaarlabel, cum. cashflow, vorige prognose, nu, dieptepunt, break-even, eindsaldo, €0;
+'       de laatste zes als één-punts-reeksen met de reeksnaam als label; '(uit)' = reeks weg) en vier kaarten met balken:
+'       verkocht bij start bouw (KPI6_SPOOR/_BALK/_NORM), verkocht / getransporteerd (KPI7_SPOOR_V/_BALK_V, _T), marge en de
+'       grootste lasten (KPI9_NAAM1..3, _BEDRAG1..3, _SPOOR1..3/_BALK1..3; Dashboard-sectie 'GROOTSTE LASTEN'). VulBalken zet de
+'       balkbreedtes (aandeel in kolom D), SchikGrafiekDia2 de waarde-as (Model!BY142..BY143), het grijze vlak GRAFIEK_REALISATIE
+'       en het nu-blok (TL_NU_LABEL, KPI4_WAARDE, KPI4_SUB) op het 'nu'-kwartaal; instellingen op D76/D77; sjabloon v17.
 '  UitFOOphalen         vult Invoer en Woningtypes vanuit een FO-werkboek (zie v14 hierboven)
 '  VorigePrognoseUitFO  vult blok 4 en 6 (vorige prognose) vanuit een ouder FO
 '  PlanningBewarenAlsVorig  zet de huidige planning in blok 4 en 6
@@ -55,9 +64,9 @@ Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
 Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFIEK: kwartaalindex 1 jan eerste jaar (Model, t_first)
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
-Private Const CEL_SJABLOON As String = "D56"
-Private Const CEL_NAAM As String = "D57"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v16.pptx"
+Private Const CEL_SJABLOON As String = "D76"
+Private Const CEL_NAAM As String = "D77"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v17.pptx"
 Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
@@ -70,6 +79,15 @@ Private Const KOL_VP As Long = 30          ' kolommen van het blok van dia 6 (ve
 Private Const CEL_PT_N As String = "BY128"
 Private Const CEL_VP_N As String = "BY132"         ' aantal getoonde periodes in de verkoop- en transportgrafiek (vanaf het actuals-jaar)         ' aantal getoonde periodes in de grafiek per type (tijdvak vanaf twee jaar vóór de eerste opbrengst)
 Private Const CEL_PT_KEUZE As String = "B120"      ' keuzecel op het Dashboard: naam van het type in de grafiek per woningtype
+' dia 2 (sjabloon v17): blok van de kleine cashflowgrafiek, as-grenzen (Model, kc_min/kc_max), positie actuals, en het tekenvlak
+' van KPI_GRAFIEK als fractie van het grafiekkader (layout.KC_PLOT_X / KC_PLOT_W; manualLayout in het sjabloon)
+Private Const BLOK_KC As String = "GK7"
+Private Const KOL_KC As Long = 8
+Private Const CEL_KC_MIN As String = "BY142"
+Private Const CEL_KC_MAX As String = "BY143"
+Private Const CEL_POS_ACTUALS As String = "BY10"
+Private Const KC_PLOT_X As Double = 0.0217
+Private Const KC_PLOT_W As Double = 0.9217
 ' FO-koppeling (Dashboard): bestand, actuals t/m, opbrengsten en kosten totaal uit '1. Cashflow', datum; actuals-knop W5/X5
 Private Const CEL_FO_BESTAND As String = "W69"
 Private Const CEL_FO_ACTUALS As String = "W70"
@@ -123,10 +141,12 @@ Private Function Grafieken() As Variant
     '   kwartaalblokjes (64)); tijd in kwartaalindex; aantal rijen in Model!BY96; reeksen met kop '(uit)' (typen zonder
     '   termijnen, jaren buiten het bereik) gaan weg; na het vullen zet ZetTijdAs beide waarde-assen op BY97..BY99
     ' VP1/VP2 (dia 6): verkocht en getransporteerd per kwartaal, beide panelen lezen hetzelfde blok van 26 kolommen
+    ' KPI (dia 2): kleine cashflowgrafiek, blok BLOK_KC met KOL_KC kolommen (één-punts-reeksen voor nu, dieptepunt, break-even,
+    '   eindsaldo en €0; na het vullen zet SchikGrafiekDia2 de as, het grijze vlak en het nu-blok)
     Grafieken = Array(Array("CF_GRAFIEK", "G7", 8, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
                       Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
                       Array("VP1_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), Array("VP2_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), _
-                      Array("VO_GRAFIEK", "FK7", 5, ""))
+                      Array("VO_GRAFIEK", "FK7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, ""))
 End Function
 
 Private Function Tabellen() As Variant
@@ -367,6 +387,7 @@ Public Sub NaarPowerPoint()
 
     stap = "dia 2 schikken"
     SchikDia2 pres, wsP
+    VulBalken pres, wsP
 
     stap = "tabellen vullen"
     t = Tabellen()
@@ -555,11 +576,14 @@ End Function
 
 Private Sub VulTeksten(pres As Object, wsP As Worksheet, ByRef mist As String)
     ' loopt de KPI-regels af tot de eerste lege regel; kolom D = tekst, E = richting (kleur), F = vormnaam
+    ' (balkregels, vormnaam met _BALK of op _NORM: geen tekst maar een aandeel; die doet VulBalken na SchikDia2)
     Dim r As Long, vorm As String, richting As String, shp As Object, stip As Object, kleur As Long
     r = KPI_ROW1
     Do While Len(CelTekst(wsP.Range("C" & r))) > 0 And r < KPI_ROW1 + 300
         vorm = Trim$(CelTekst(wsP.Range("F" & r)))
-        If Len(vorm) > 0 Then
+        If IsBalkregel(vorm) Then
+            ' niets: balk
+        ElseIf Len(vorm) > 0 Then
             Set shp = ZoekVorm(pres, vorm)
             If shp Is Nothing Then
                 mist = mist & vorm & vbCrLf
@@ -603,24 +627,38 @@ Private Function VormOpDia(dia As Object, naam As String) As Object
     Next shp
 End Function
 
+Private Function IsBalkregel(vorm As String) As Boolean
+    ' regel op tabblad PowerPoint voor een balk (KPI6_BALK, KPI7_BALK_V, KPI9_BALK1, ...) of de normstreep (KPI6_NORM)
+    IsBalkregel = (InStr(vorm, "_BALK") > 0 Or Right$(vorm, 5) = "_NORM")
+End Function
+
+Private Function IsTekstVanKaart(naam As String) As Boolean
+    ' tekstvakken van een kleine kaart die bij drie kaarten op de tekstrand van de grote kaarten komen te staan
+    IsTekstVanKaart = (Right$(naam, 6) = "_LABEL" Or Right$(naam, 7) = "_WAARDE" Or Right$(naam, 4) = "_SUB" _
+                       Or InStr(naam, "_NAAM") > 0 Or InStr(naam, "_BEDRAG") > 0)
+End Function
+
 Private Sub SchikDia2(pres As Object, wsP As Worksheet)
-    ' na het vullen van de teksten, dia 2 (kerncijfers): een kleine KPI-kaart (KPI4 en verder: KAART, LABEL, WAARDE, SUB) waarvan
-    ' de WAARDE geen regel heeft op tabblad PowerPoint, gaat van de dia (het sjabloon heeft nog een kaart die de knop niet meer
-    ' vult: bandbreedte KPI5). De overige kaarten verdelen daarna de breedte van het kaartenblok met dezelfde tussenruimte;
-    ' blijven er drie over, dan staan ze precies onder de grote kaarten KPI1..KPI3, met de tekst op dezelfde afstand van de
-    ' rand als in de grote kaarten. Vult de knop alle kaarten, dan blijft de dia zoals het sjabloon hem heeft.
-    ' De voetnoot (VOETNOOT, of anders de tekstvorm op dia 2 die met 'Stip' begint) gaat van de dia.
+    ' na het vullen van de teksten, dia 2 (kerncijfers): een kleine KPI-kaart in de onderste rij (KPI4 en verder: KAART, LABEL,
+    ' WAARDE, SUB; de lastenkaart KPI9: NAAM1..3, BEDRAG1..3, SPOOR1..3, BALK1..3) gaat van de dia als de WAARDE geen regel heeft
+    ' op tabblad PowerPoint (bandbreedte KPI5 in sjabloon v15/v16) of als de eerste lastenregel (KPI9_NAAM1) leeg is. De overige
+    ' kaarten verdelen daarna de breedte van het kaartenblok met dezelfde tussenruimte; blijven er drie over, dan staan ze precies
+    ' onder de grote kaarten KPI1..KPI3, met de teksten op dezelfde afstand van de rand als in de grote kaarten. Sporen en de
+    ' kleine labels schuiven mee en rekken met de kaart; balken en normstreep schuiven alleen mee (VulBalken zet ze daarna
+    ' opnieuw). Vult de knop alle kaarten, dan blijft de dia zoals het sjabloon hem heeft. Weg gaan ook: de voetnoot (VOETNOOT,
+    ' of de tekstvorm die met 'Stip' begint) en een leeg bijschrift 'vorige prognose' bij de grafiek (GRAFIEK_LEGENDA_VORIG + _LIJN).
+    ' Alleen kaarten in de onderste rij tellen mee (zelfde Top als de laagste kaart, 7 pt speling).
     ' Hoogtes en letters veranderen niet; fouten worden stil overgeslagen (de dia blijft dan zoals het sjabloon hem had)
     Const MAX_KAART As Long = 20
     Dim dia As Object, kaart As Object, shp As Object, groot As Object, grootTekst As Object
-    Dim nr(1 To MAX_KAART) As Long, links(1 To MAX_KAART) As Double, breed(1 To MAX_KAART) As Double
+    Dim nr(1 To MAX_KAART) As Long, links(1 To MAX_KAART) As Double, breed(1 To MAX_KAART) As Double, boven(1 To MAX_KAART) As Double
     Dim blijft(1 To MAX_KAART) As Boolean, doelL(1 To MAX_KAART) As Double, doelB(1 To MAX_KAART) As Double
-    Dim n As Long, nBlijft As Long, k As Long, i As Long, j As Long, t As Long, hNr As Long, hBlijft As Boolean
-    Dim hL As Double, hB As Double, bLinks As Double, bRechts As Double, tussen As Double, w As Double
+    Dim n As Long, nBlijft As Long, k As Long, i As Long, j As Long, t As Long, hNr As Long, hBlijft As Boolean, rW As Long
+    Dim hL As Double, hB As Double, bLinks As Double, bRechts As Double, tussen As Double, w As Double, rijTop As Double
     Dim binnen As Double, mL As Double, mR As Double, prefix As String, onderGroot As Boolean
 
     On Error Resume Next
-    Set kaart = ZoekVorm(pres, "KPI4_KAART")
+    Set kaart = ZoekVorm(pres, "KPI1_KAART")
     If kaart Is Nothing Then Exit Sub
     Set dia = kaart.Parent
     If dia Is Nothing Then Exit Sub
@@ -639,16 +677,47 @@ Private Sub SchikDia2(pres As Object, wsP As Worksheet)
     End If
     If Not shp Is Nothing Then shp.Delete
 
-    ' de kleine kaarten op de dia en of de knop ze vult
+    ' bijschrift 'vorige prognose' bij de grafiek: weg als de tekst leeg is (geen vorige prognose)
+    Set shp = Nothing
+    Set shp = VormOpDia(dia, "GRAFIEK_LEGENDA_VORIG")
+    If Not shp Is Nothing Then
+        If Len(Trim$(shp.TextFrame.TextRange.Text)) = 0 Then
+            shp.Delete
+            Set shp = Nothing
+            Set shp = VormOpDia(dia, "GRAFIEK_LEGENDA_VORIG_LIJN")
+            If Not shp Is Nothing Then shp.Delete
+        End If
+    End If
+
+    ' de kleine kaarten op de dia (alleen de onderste rij) en of de knop ze vult
+    rijTop = -1
     For k = 4 To MAX_KAART
+        Set kaart = Nothing
         Set kaart = VormOpDia(dia, "KPI" & k & "_KAART")
         If Not kaart Is Nothing Then
-            n = n + 1
-            nr(n) = k
-            links(n) = kaart.Left
-            breed(n) = kaart.Width
-            blijft(n) = (RegelVanVorm(wsP, "KPI" & k & "_WAARDE") > 0)
-            If blijft(n) Then nBlijft = nBlijft + 1
+            If kaart.Top > rijTop Then rijTop = kaart.Top
+        End If
+    Next k
+    For k = 4 To MAX_KAART
+        Set kaart = Nothing
+        Set kaart = VormOpDia(dia, "KPI" & k & "_KAART")
+        If Not kaart Is Nothing Then
+            If kaart.Top >= rijTop - 7 Then
+                n = n + 1
+                nr(n) = k
+                links(n) = kaart.Left
+                breed(n) = kaart.Width
+                boven(n) = kaart.Top
+                rW = RegelVanVorm(wsP, "KPI" & k & "_WAARDE")
+                If rW > 0 Then
+                    blijft(n) = True
+                Else
+                    rW = RegelVanVorm(wsP, "KPI" & k & "_NAAM1")
+                    blijft(n) = False
+                    If rW > 0 Then blijft(n) = (Len(CelTekst(wsP.Range("D" & rW))) > 0)
+                End If
+                If blijft(n) Then nBlijft = nBlijft + 1
+            End If
         End If
     Next k
     If n = 0 Or nBlijft = n Then Exit Sub
@@ -694,6 +763,7 @@ Private Sub SchikDia2(pres As Object, wsP As Worksheet)
     onderGroot = (nBlijft = 3)
     If onderGroot Then
         For t = 1 To 3
+            Set groot = Nothing
             Set groot = VormOpDia(dia, "KPI" & t & "_KAART")
             If groot Is Nothing Then
                 onderGroot = False
@@ -724,9 +794,9 @@ Private Sub SchikDia2(pres As Object, wsP As Worksheet)
         Next t
     End If
 
-    ' verplaatsen en verbreden: elke vorm van de kaart houdt zijn afstand tot de linker- en rechterrand van de kaart;
-    ' onder de grote kaarten staat de tekst op dezelfde afstand van de rand als de tekst in de grote kaart (de binnenmarge
-    ' van het tekstvak telt mee; lukt het lezen daarvan niet, dan houdt het vak zijn eigen afstand)
+    ' verplaatsen en verbreden: elke vorm van de kaart houdt zijn afstand tot de linker- en rechterrand van de kaart (en rekt dus
+    ' mee); onder de grote kaarten staan label, waarde en toelichting op dezelfde afstand van de rand als de tekst in de grote
+    ' kaart (de binnenmarge van het tekstvak telt mee); balken en normstreep schuiven alleen mee (VulBalken zet ze opnieuw)
     t = 0
     For i = 1 To n
         If blijft(i) Then
@@ -737,18 +807,168 @@ Private Sub SchikDia2(pres As Object, wsP As Worksheet)
                 If Left$(shp.Name, Len(prefix)) = prefix Then
                     mL = shp.Left - links(i)
                     mR = links(i) + breed(i) - (shp.Left + shp.Width)
-                    If binnen >= 0 And shp.Name <> prefix & "KAART" Then
-                        mL = binnen - shp.TextFrame.MarginLeft
-                        mR = binnen - shp.TextFrame.MarginRight
-                    End If
-                    If doelB(t) - mL - mR > 1 Then
+                    If IsBalkregel(shp.Name) Then
                         shp.Left = doelL(t) + mL
-                        shp.Width = doelB(t) - mL - mR
+                    Else
+                        If binnen >= 0 And IsTekstVanKaart(shp.Name) Then
+                            mL = binnen - shp.TextFrame.MarginLeft
+                            mR = binnen - shp.TextFrame.MarginRight
+                        End If
+                        If doelB(t) - mL - mR > 1 Then
+                            shp.Left = doelL(t) + mL
+                            shp.Width = doelB(t) - mL - mR
+                        End If
                     End If
                 End If
             Next j
         End If
     Next i
+    On Error GoTo 0
+End Sub
+
+Private Sub VulBalken(pres As Object, wsP As Worksheet)
+    ' balken op dia 2 (sjabloon v17): een regel op tabblad PowerPoint met vormnaam ..._BALK (ook _BALK_V, _BALK_T, _BALK1..3) heeft
+    ' in kolom D een aandeel 0..1; de balk krijgt de linkerrand en aandeel x de breedte van het spoor met dezelfde naam waarin
+    ' _BALK door _SPOOR is vervangen (KPI7_BALK_V -> KPI7_SPOOR_V). Een regel ..._NORM (KPI6_NORM) zet de normstreep op aandeel x
+    ' breedte van het spoor. Aandeel 0 = balk onzichtbaar, een klein aandeel = een rondje zo breed als het spoor hoog is; de balk
+    ' KPIk_BALK krijgt de richtingkleur van KPIk_WAARDE (op norm = groen, onder norm = rood). Na SchikDia2, want die verbreedt de
+    ' sporen bij drie kaarten; fouten worden per balk stil overgeslagen.
+    Dim r As Long, vorm As String, v As Variant, aandeel As Double, shp As Object, spoor As Object, rW As Long, richting As String
+    On Error Resume Next
+    r = KPI_ROW1
+    Do While Len(CelTekst(wsP.Range("C" & r))) > 0 And r < KPI_ROW1 + 300
+        vorm = Trim$(CelTekst(wsP.Range("F" & r)))
+        If IsBalkregel(vorm) Then
+            v = wsP.Range("D" & r).Value
+            aandeel = 0
+            If Not IsError(v) Then
+                If IsNumeric(v) Then aandeel = CDbl(v)
+            End If
+            If aandeel < 0 Then aandeel = 0
+            If aandeel > 1 Then aandeel = 1
+            Set shp = Nothing
+            Set spoor = Nothing
+            Set shp = ZoekVorm(pres, vorm)
+            If InStr(vorm, "_BALK") > 0 Then
+                Set spoor = ZoekVorm(pres, Replace(vorm, "_BALK", "_SPOOR"))
+            Else
+                Set spoor = ZoekVorm(pres, Replace(vorm, "_NORM", "_SPOOR"))
+            End If
+            If Not shp Is Nothing And Not spoor Is Nothing Then
+                If Right$(vorm, 5) = "_NORM" Then
+                    shp.Left = spoor.Left + aandeel * spoor.Width - shp.Width / 2
+                Else
+                    shp.Left = spoor.Left
+                    shp.Top = spoor.Top
+                    shp.Height = spoor.Height
+                    If aandeel * spoor.Width < 0.5 Then
+                        shp.Visible = 0
+                    Else
+                        shp.Visible = -1
+                        If aandeel * spoor.Width < spoor.Height Then
+                            shp.Width = spoor.Height
+                        Else
+                            shp.Width = aandeel * spoor.Width
+                        End If
+                    End If
+                    If Right$(vorm, 5) = "_BALK" Then
+                        rW = RegelVanVorm(wsP, Replace(vorm, "_BALK", "_WAARDE"))
+                        If rW > 0 Then
+                            richting = LCase$(Trim$(CelTekst(wsP.Range("E" & rW))))
+                            If Len(richting) > 0 Then shp.Fill.ForeColor.RGB = RichtingKleur(richting)
+                        End If
+                    End If
+                End If
+            End If
+        End If
+        r = r + 1
+    Loop
+    On Error GoTo 0
+End Sub
+
+Private Sub SchikGrafiekDia2(shp As Object, ch As Object)
+    ' KPI_GRAFIEK (dia 2, sjabloon v17), na het vullen: de waarde-as op Model!BY142..BY143 (as-grenzen uit het Model, gezet zoals
+    ' in ZetTijdAs), het grijze vlak GRAFIEK_REALISATIE van de linkerrand van het tekenvlak tot het 'nu'-kwartaal en het nu-blok
+    ' (TL_NU_LABEL, KPI4_WAARDE, KPI4_SUB) ernaast. x van kwartaal i (1..n) = links + breedte x (KC_PLOT_X + KC_PLOT_W x (i - 1) /
+    ' (n - 1)): het tekenvlak staat vast in het sjabloon (manualLayout, layout.KC_PLOT). Het nu-blok staat links van de stip zoals in
+    ' het sjabloon; past dat niet (nu in de eerste kwartalen), dan rechts ervan, links uitgelijnd. Geen gerealiseerd kwartaal: vlak
+    ' en blok onzichtbaar. Fouten worden stil overgeslagen.
+    Dim vMin As Variant, vMax As Variant, ax As Object, dia As Object, vlak As Object, blok As Object, namen As Variant
+    Dim n As Long, posNu As Long, i As Long, plotL As Double, xNu As Double, xOud As Double, dx As Double, bLinks As Double
+    On Error Resume Next
+    vMin = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_KC_MIN).Value
+    vMax = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_KC_MAX).Value
+    If Not IsError(vMin) And Not IsError(vMax) Then
+        If IsNumeric(vMin) And IsNumeric(vMax) Then
+            If CDbl(vMax) > CDbl(vMin) Then
+                Set ax = Nothing
+                Set ax = ch.Axes(2, 1)
+                If Not ax Is Nothing Then
+                    ax.MaximumScale = CDbl(vMax)
+                    Err.Clear
+                    ax.MinimumScale = CDbl(vMin)
+                    Err.Clear
+                    ax.MaximumScale = CDbl(vMax)
+                    Err.Clear
+                    ax.MinimumScaleIsAuto = False
+                    ax.MaximumScaleIsAuto = False
+                    Err.Clear
+                End If
+            End If
+        End If
+    End If
+    Set dia = shp.Parent
+    If dia Is Nothing Then Exit Sub
+    n = AantalPeriodes()
+    posNu = AantalRijen(CEL_POS_ACTUALS, MAX_RIJEN)
+    Set vlak = VormOpDia(dia, "GRAFIEK_REALISATIE")
+    namen = Array("TL_NU_LABEL", "KPI4_WAARDE", "KPI4_SUB")
+    If posNu < 1 Or n < 2 Or posNu > n Then
+        If Not vlak Is Nothing Then vlak.Visible = 0
+        For i = LBound(namen) To UBound(namen)
+            Set blok = Nothing
+            Set blok = VormOpDia(dia, CStr(namen(i)))
+            If Not blok Is Nothing Then blok.Visible = 0
+        Next i
+        Exit Sub
+    End If
+    If vlak Is Nothing Then Exit Sub
+    plotL = shp.Left + shp.Width * KC_PLOT_X
+    xNu = plotL + shp.Width * KC_PLOT_W * (posNu - 1) / (n - 1)
+    xOud = vlak.Left + vlak.Width
+    vlak.Left = plotL
+    If xNu - plotL < 1 Then
+        vlak.Visible = 0
+    Else
+        vlak.Visible = -1
+        vlak.Width = xNu - plotL
+    End If
+    ' nu-blok meeschuiven; links van de stip zoals in het sjabloon, of rechts ervan als het links niet past
+    dx = xNu - xOud
+    bLinks = 1E+9
+    For i = LBound(namen) To UBound(namen)
+        Set blok = Nothing
+        Set blok = VormOpDia(dia, CStr(namen(i)))
+        If Not blok Is Nothing Then
+            blok.Left = blok.Left + dx
+            If blok.Left < bLinks Then bLinks = blok.Left
+        End If
+    Next i
+    If bLinks < plotL Then
+        dx = (xNu + 7) - bLinks
+        For i = LBound(namen) To UBound(namen)
+            Set blok = Nothing
+            Set blok = VormOpDia(dia, CStr(namen(i)))
+            If Not blok Is Nothing Then
+                blok.Left = blok.Left + dx
+                blok.TextFrame.TextRange.ParagraphFormat.Alignment = 1    ' ppAlignLeft
+            End If
+        Next i
+        ' het getal direct achter 'nu' (het nu-vak is rechts uitgelijnd en breder dan het woord)
+        Set blok = Nothing
+        Set blok = VormOpDia(dia, "KPI4_WAARDE")
+        If Not blok Is Nothing Then blok.Left = xNu + 7 + 14.4
+    End If
     On Error GoTo 0
 End Sub
 
@@ -918,8 +1138,9 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     Next i
     ' reeksen met '(uit)' in de kop gaan weg: de scenariolijn in de cashflowgrafiek, in de bouwtermijnengrafiek de typen
     ' zonder termijnen en de jaren buiten het bereik, in de grafiek per type de onderdelen die het type niet heeft
-    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
+    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
     If vorm = "BT_GRAFIEK" Then ZetTijdAs ch
+    If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch
     wbE.Close
     Set wbE = Nothing
     Exit Sub
@@ -1990,8 +2211,8 @@ Public Sub ControleerSjabloon()
         aantal = aantal + 1
         If ZoekVorm(pres, CStr(lijst(i)(0))) Is Nothing Then mist = mist & CStr(lijst(i)(0)) & vbCrLf
     Next i
-    ' hulpvormen van dia 5 (kaarten): zonder die vormen vult de knop wel, maar schikt SchikDia5 de dia niet
-    lijst = Array("VT_KAART", "VT_TABELKAART")
+    ' hulpvormen van dia 5 (kaarten) en dia 2 (grijs vlak, nu-blok, sporen): zonder die vormen vult de knop wel, maar schikt hij niet
+    lijst = Array("VT_KAART", "VT_TABELKAART", "GRAFIEK_REALISATIE", "TL_NU_LABEL", "KPI6_SPOOR", "KPI7_SPOOR_V", "KPI7_SPOOR_T", "KPI9_SPOOR1")
     For i = LBound(lijst) To UBound(lijst)
         If ZoekVorm(pres, CStr(lijst(i))) Is Nothing Then hulp = hulp & CStr(lijst(i)) & vbCrLf
     Next i
@@ -2000,7 +2221,7 @@ Public Sub ControleerSjabloon()
     pres.Close
     On Error GoTo 0
     If Len(hulp) > 0 Then
-        hulp = vbCrLf & "Hulpvormen van dia 5 die niet gevonden zijn (de tabel wordt dan niet automatisch geschikt):" & vbCrLf & hulp
+        hulp = vbCrLf & "Hulpvormen (dia 2 en 5) die niet gevonden zijn (die dia's worden dan niet automatisch geschikt):" & vbCrLf & hulp
     End If
     If Len(mist) = 0 Then
         MsgBox "Alles compleet: alle " & aantal & " vormnamen staan in het sjabloon." & hulp, _

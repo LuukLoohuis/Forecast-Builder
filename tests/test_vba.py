@@ -64,6 +64,15 @@ def test_blokconstanten_volgen_de_layout():
     assert int(const("KOL_VP")) == LY.PP_VP_KOL
     assert const("CEL_PT_N") == f"{LY.M_HULP}{LY.H['pt_n']}"
     assert const("CEL_VP_N") == f"{LY.M_HULP}{LY.H['vp_n']}"
+    # dia 2 (sjabloon v17): grafiekblok, as-grenzen, positie actuals, instellingen en het tekenvlak van KPI_GRAFIEK
+    assert const("BLOK_KC") == LY.PP_BLOK["kc"] + "7" and int(const("KOL_KC")) == LY.PP_KC_KOL
+    assert const("CEL_KC_MIN") == f"{LY.M_HULP}{LY.H['kc_min']}" and const("CEL_KC_MAX") == f"{LY.M_HULP}{LY.H['kc_max']}"
+    assert const("CEL_POS_ACTUALS") == f"{LY.M_HULP}{LY.H['pos_actuals']}"
+    assert const("CEL_SJABLOON") == LY.PP_CEL_SJABLOON and const("CEL_NAAM") == LY.PP_CEL_NAAM
+    for naam, waarde in (("KC_PLOT_X", LY.KC_PLOT_X), ("KC_PLOT_W", LY.KC_PLOT_W)):
+        m = re.search(rf"^Private Const {naam} As Double = ([0-9.]+)", src, flags=re.M)
+        assert m and abs(float(m.group(1)) - waarde) < 1e-4, naam
+    assert 'Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, "")' in src
     assert const("CEL_AS_MIN") == f"{LY.M_HULP}{LY.H['t_first']}" and const("CEL_AS_MAX") == f"{LY.M_HULP}{LY.H['t_end']}"
     assert const("KOL_BT") == str(LY.PP_BT_KOL)
     for regel in (f'Array("CF_GRAFIEK", "{LY.PP_BLOK["cf"]}7", 8, "")', f'Array("SC_GRAFIEK", "{LY.PP_BLOK["sc"]}7", 10, "")',
@@ -83,3 +92,9 @@ def test_dia2_geschikt_na_de_teksten():
     assert body.index("VulTeksten pres, wsP, mist") < body.index("SchikDia2 pres, wsP") < body.index("t = Tabellen()")
     assert 'RegelVanVorm(wsP, "KPI" & k & "_WAARDE")' in procs["SchikDia2"] and "shp.Delete" in procs["SchikDia2"]
     assert 'VormOpDia(dia, "VOETNOOT")' in procs["SchikDia2"] and '"Stip"' in procs["SchikDia2"]
+    # v17: balken na het schikken, de grafiek van dia 2 na het vullen geschikt, '(uit)'-reeksen ook in KPI_GRAFIEK
+    assert body.index("SchikDia2 pres, wsP") < body.index("VulBalken pres, wsP") < body.index("t = Tabellen()")
+    assert 'If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch' in procs["VulGrafiekVorm"]
+    assert 'Or vorm = "KPI_GRAFIEK" Then VerwijderUitgezetteReeksen' in procs["VulGrafiekVorm"]
+    assert "If IsBalkregel(vorm) Then" in procs["VulTeksten"] and "RichtingKleur(richting)" in procs["VulBalken"]
+    assert 'RegelVanVorm(wsP, "KPI" & k & "_NAAM1")' in procs["SchikDia2"] and "GRAFIEK_LEGENDA_VORIG_LIJN" in procs["SchikDia2"]

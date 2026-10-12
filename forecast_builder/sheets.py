@@ -1034,6 +1034,16 @@ def bouw_model(wb):
         "marge_tekst": ("Marge (tekst; met DAEB: niet-DAEB en totaal)",
                         f'=IF({h("marge_split")}=0,"marge "&FIXED({h("marge")}*100,1)&"%",'
                         f'"marge niet-DAEB "&FIXED({h("marge_nd")}*100,1)&"% · totaal "&FIXED({h("marge")}*100,1)&"%")'),
+        # dia 2 (sjabloon v17): as-grenzen van de kleine cashflowgrafiek, in € mln: 24% van de spreiding onder het laagste punt
+        # (ruimte voor de labels 'dieptepunt' en het nu-blok) en 12% boven het hoogste (label 'eindsaldo'); de VBA zet ze op de as
+        "top_basis": ("Hoogste stand basis (€)", f"=MAX(0,{rng(sb)})"),
+        "top_vorig": ("Hoogste stand vorige prognose (€)", f'=IF({h("vorig_aanwezig")}=0,0,MAX(0,{inv_j})*1000)'),
+        "kc_min": ("Dia 2 grafiek: as-minimum (€ mln)",
+                   f'=(MIN(0,{h("dal_basis")},{h("dal_vorig")})-0.24*(MAX(0,{h("top_basis")},{h("top_vorig")})-MIN(0,{h("dal_basis")},{h("dal_vorig")})))/1000000'),
+        "kc_max": ("Dia 2 grafiek: as-maximum (€ mln)",
+                   f'=(MAX(0,{h("top_basis")},{h("top_vorig")})+0.12*(MAX(0,{h("top_basis")},{h("top_vorig")})-MIN(0,{h("dal_basis")},{h("dal_vorig")})))/1000000'),
+        "lasten_max": ("Grootste lasten (Dashboard): hoogste bedrag (€)",
+                       "=MAX(0," + ",".join(f'N({dabs(f"last{i}_bedrag")})' for i in range(1, LY.N_LASTEN + 1)) + ")"),
     }
     for naam, (label, formule) in hulp.items():
         r = H[naam]
@@ -1041,12 +1051,12 @@ def bouw_model(wb):
         put(ws, f"{LY.M_HULP}{r}", formule, f=F_CALC, al=AL_LEFT_TOP)
     for naam in ("verk_bij_start_pct", "marge", "marge_nd", "rente", "rente_pct_down", "rente_pct_up", "rente_pct_scn", "koopsom_down", "koopsom_up", "koopsom_scn"):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = FMT_PCT
-    for naam in ("pt_totaal", "pt_nu"):
+    for naam in ("pt_totaal", "pt_nu", "kc_min", "kc_max"):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = "0.00"
     for naam in ("stand_nu", "opbr_totaal", "kosten_totaal", "cum_opbr_actuals", "dal_basis", "eind_basis", "dal_up", "eind_up",
                  "dal_down", "eind_down", "dal_vorig", "eind_vorig", "vorig_nu", "model_opbr", "rente_basis_tot", "rente_up_tot",
                  "rente_down_tot", "rente_up_extra", "rente_down_extra", "eind_scn", "dal_scn", "rente_scn_tot", "rente_scn_extra",
-                 "opbr_daeb"):
+                 "opbr_daeb", "top_basis", "top_vorig", "lasten_max"):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = FMT_INT
     return ws
 
@@ -1396,6 +1406,26 @@ def bouw_dashboard(wb, data):
         put(ws, LY.D[naam], waarde, f=F_CALC9, nf=nf, al=AL_LEFT)
     put(ws, f"Z{LY.D_ROW_FO + 1}", "de macro vult deze cellen; de controle hierboven vergelijkt tab Invoer met deze totalen", f=F_NOTE8)
 
+    # ---- grootste lasten (dia 2, kaart 'grootste lasten'): kop en drie regels naam/bedrag, zelf in te vullen ------------
+    r = LY.D_ROW_LASTEN
+    sectie(r, LY.D_LABEL_LASTEN)
+    label(r + 1, "Kop van de kaart")
+    ws.merge_cells(f"W{r + 1}:Y{r + 1}")
+    put(ws, LY.D["lasten_kop"], P.get("lasten_kop") or "GROOTSTE LASTEN", f=F_YELLOW, fl=FL_YELLOW, al=AL_LEFT)
+    put(ws, f"Z{r + 1}", "de drie kostenposten die de financieringsbehoefte het meest bepalen (bv. grond, honoraria, aansluitkosten), "
+                         "grootste eerst; alle drie leeg = kaart niet op de dia", f=F_NOTE8, al=AL_VCENTER)
+    lasten = list(P.get("lasten") or [])
+    for i in range(1, LY.N_LASTEN + 1):
+        rij = r + 1 + i
+        naam, bedrag = lasten[i - 1] if i <= len(lasten) else (None, None)
+        label(rij, f"Last {i} · naam en bedrag (€)")
+        ws.merge_cells(f"W{rij}:X{rij}")
+        put(ws, LY.D[f"last{i}_naam"], naam or None, f=F_YELLOW, fl=FL_YELLOW, al=AL_LEFT)
+        put(ws, LY.D[f"last{i}_bedrag"], bedrag if bedrag not in (None, "") else None, f=F_YELLOW, fl=FL_YELLOW, nf=FMT_INT, al=AL_CENTER)
+        b = f'N({dabs(f"last{i}_bedrag")})'
+        put(ws, f"Z{rij}", f'=IF({b}=0,"",{eur_m(b)}&IF({hm("kosten_totaal")}>0," · "&FIXED({b}/{hm("kosten_totaal")}*100,0)&"% van de kosten",""))',
+            f=F_NOTE8, al=AL_VCENTER)
+
     # ---- validaties -------------------------------------------------------------------
     for dv, cells in (
         (DataValidation(type="list", formula1='"ja,nee"', allow_blank=False, error="Kies ja of nee."), ["W12", "W8", LY.D["scn_aan"]]),
@@ -1476,6 +1506,8 @@ def bouw_powerpoint(wb, data):
         widths.setdefault(L(c), 13)
     for c in range(c_t0 + 1, c_t0 + 8):
         widths[L(c)] = 14
+    for c in range(ws[LY.PP_BLOK["kc"] + "1"].column, ws[LY.PP_BLOK["kc"] + "1"].column + LY.PP_KC_KOL):
+        widths[L(c)] = 13
     for col, w in widths.items():
         ws.column_dimensions[col].width = w
     ws.row_dimensions[7].height = 32
@@ -1505,13 +1537,13 @@ def bouw_powerpoint(wb, data):
          f'=IF(OR({hm("vorig_aanwezig")}=0,ABS(({dal}-{dal_v}))<50000),"gelijk",IF(({dal}-{dal_v})<0,"slechter","beter"))', "KPI1_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({hm("vorig_aanwezig")}=0,"","was "&{eur_m(dal_v)})', None, "KPI1_WAS"),
         (2, "Break-even", f'=IF({hm("be_basis")}="","niet bereikt",{hm("be_basis")})', None, "KPI2_WAARDE"),
-        (2, "  toelichting", "eerste kwartaal met positief saldo", None, "KPI2_SUB"),
+        (2, "  toelichting", f'=IF({hm("be_basis")}="","saldo blijft negatief t/m "&{hm("laatste_kw")},"eerste kwartaal met positief saldo")', None, "KPI2_SUB"),
         (2, "  verschil met vorige prognose",
          f'=IF(OR({bep}=0,{bevp}=0),"geen vergelijking met vorige prognose",IF(({bep}-{bevp})=0,"gelijk aan vorige prognose",'
          f'ABS(({bep}-{bevp}))&" kw "&IF(({bep}-{bevp})>0,"later","eerder")&" dan vorige prognose"))',
          f'=IF(OR({bep}=0,{bevp}=0,({bep}-{bevp})=0),"gelijk",IF(({bep}-{bevp})>0,"slechter","beter"))', "KPI2_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({bevp}=0,"","was "&{hm("be_vorig")})', None, "KPI2_WAS"),
-        (2, "Projectresultaat", f"={eur_m(eind)}", None, "KPI3_WAARDE"),
+        (2, "Projectresultaat", f"={eur_m(eind)}", f'=IF({eind}<0,"slechter","beter")', "KPI3_WAARDE"),
         (2, "  toelichting", f'="eindsaldo in "&{hm("laatste_kw")}', None, "KPI3_SUB"),
         (2, "  verschil met vorige prognose",
          f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose",IF(ABS(({eind}-{eind_v}))<50000,"gelijk aan vorige prognose",'
@@ -1534,6 +1566,20 @@ def bouw_powerpoint(wb, data):
         (2, "Marge · label", f'=IF({hm("marge_split")}=1,"MARGE NIET-DAEB / TOTAAL","MARGE")', None, "KPI8_LABEL"),
         (2, "Marge", f'=IF({hm("marge_split")}=1,FIXED({hm("marge_nd")}*100,1)&"% / ","")&FIXED({hm("marge")}*100,1)&"%"', None, "KPI8_WAARDE"),
         (2, "  toelichting", f'=IF({hm("marge_split")}=1,"DAEB heeft geen marge","projectresultaat / opbrengsten")', None, "KPI8_SUB"),
+        # balken (sjabloon v17): kolom D = aandeel 0..1, geen tekst; de macro zet de breedte van KPIx_BALK op aandeel × breedte van
+        # KPIx_SPOOR en schuift KPI6_NORM naar aandeel × breedte (VulBalken)
+        (2, "Verkocht bij start bouw · balk", f'={hm("verk_bij_start_pct")}', None, "KPI6_BALK"),
+        (2, "  normstreep", f'=N({dabs("norm")})', None, "KPI6_NORM"),
+        (2, "Verkocht · balk", f'=IF({hm("woningen")}=0,0,{hm("verkocht_actuals")}/{hm("woningen")})', None, "KPI7_BALK_V"),
+        (2, "Getransporteerd · balk", f'=IF({hm("woningen")}=0,0,{hm("transport_actuals")}/{hm("woningen")})', None, "KPI7_BALK_T"),
+        # grootste lasten (Dashboard-sectie): kaart KPI9 met drie regels naam, bedrag en balk (aandeel van het hoogste bedrag);
+        # zonder lasten haalt de macro de kaart van de dia (SchikDia2)
+        (2, "Grootste lasten · kop", f'=IF(TRIM({dabs("lasten_kop")}&"")="","GROOTSTE LASTEN",UPPER(TRIM({dabs("lasten_kop")}&"")))', None, "KPI9_LABEL"),
+        *[regel for i in range(1, LY.N_LASTEN + 1) for regel in (
+            (2, f"  last {i} · naam", f'=TRIM({dabs(f"last{i}_naam")}&"")', None, f"KPI9_NAAM{i}"),
+            (2, f"  last {i} · bedrag", f'=IF(N({dabs(f"last{i}_bedrag")})=0,"",{eur_m("N(" + dabs(f"last{i}_bedrag") + ")")})', None, f"KPI9_BEDRAG{i}"),
+            (2, f"  last {i} · balk", f'=IF({hm("lasten_max")}<=0,0,MAX(0,N({dabs(f"last{i}_bedrag")}))/{hm("lasten_max")})', None, f"KPI9_BALK{i}"))],
+        (2, "Grafiek · bijschrift vorige prognose", f'=IF({hm("vorig_aanwezig")}=1,"vorige prognose","")', None, "GRAFIEK_LEGENDA_VORIG"),
         (3, "Titel", f'="Dieptepunt "&{eur_mln(dal)}&" in "&{hm("dal_basis_kw")}&", eindsaldo "&{eur_mln(eind)}&" in "&{hm("laatste_kw")}', None, "CF_TITEL"),
         (3, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&": "&{eur_mln(hm("stand_nu"))}&" · balken: opbrengsten en kosten per kwartaal · lijn: cumulatieve cashflow"'
                           f'&IF({rb}=1," · incl. "&{hm("rente_tekst")},"")', None, "CF_SUBTITEL"),
@@ -1568,11 +1614,13 @@ def bouw_powerpoint(wb, data):
         put(ws, f"D{r}", tekst, f=F_BOLD9, al=AL_LEFT_TOP, bd=BD_ROW)
         put(ws, f"E{r}", richting, f=F_NOTE, bd=BD_ROW)
         put(ws, f"F{r}", vorm, f=F_NOTE8, bd=BD_ROW)
+        if "_BALK" in vorm or vorm.endswith("_NORM"):
+            ws[f"D{r}"].number_format = "0%"
     r_s = int(LY.PP_CEL_SJABLOON[1:])
     assert LY.PP_KPI_ROW1 + len(kpi) - 1 <= r_s - 2, "KPI-regels lopen tot in de instellingen (de rij erboven moet leeg blijven)"
-    put(ws, f"C{r_s}", "Sjabloon (pptx)", f=F_NOTE)
+    put(ws, f"C{r_s}", LY.PP_LABEL_SJABLOON, f=F_NOTE)
     put(ws, LY.PP_CEL_SJABLOON, data.params.get("sjabloon") or None, f=F_INPUT, fl=FL_INPUT, al=AL_LEFT_TOP)
-    put(ws, f"E{r_s}", "leeg = Kwartaal_Template_cashflow_v14.pptx in dezelfde map als dit bestand; anders het volledige pad", f=F_NOTE8)
+    put(ws, f"E{r_s}", "leeg = Kwartaal_Template_cashflow_v17.pptx in dezelfde map als dit bestand; anders het volledige pad", f=F_NOTE8)
     put(ws, f"C{r_s + 1}", "Naam nieuwe presentatie", f=F_NOTE)
     put(ws, LY.PP_CEL_NAAM, f'="Cashflow update Q"&{dabs("actuals_kw")}&" "&{dabs("actuals_jaar")}', f=F_CALC9, al=AL_LEFT_TOP)
     put(ws, f"E{r_s + 1}", "de knop zet er datum en tijd achter en bewaart naast dit bestand", f=F_NOTE8)
@@ -1605,6 +1653,19 @@ def bouw_powerpoint(wb, data):
          f"kopie van dia 8) · plakken: {LY.PP_BLOK['pt']}7 t/m {L(ws[LY.PP_BLOK['pt'] + '1'].column + LY.PP_PT_KOL - 1)}, laatste periode · '(uit)' = reeks niet in de presentatie",
          ["Kwartaal"] + [f'=IF({hm("pt_lbl_" + x)}="","(uit)",{hm("pt_lbl_" + x)})' for x in LY.PT_REEKSEN] + ["Realisatie"],
          [FIX["kwartaal"]] + [LY.PT[x] for x in LY.PT_REEKSEN] + [M["g_realisatie"]], "0.00"),
+        # dia 2 (sjabloon v17): kleine cashflowgrafiek. Kolom A = jaartal bij het eerste kwartaal van elk jaar (en bij de eerste
+        # periode), anders leeg; na de cashflow en de vorige prognose vijf één-punts-reeksen (label = reeksnaam): nu, dieptepunt,
+        # break-even, eindsaldo en €0 (nullijn-label in het eerste kwartaal); '(uit)' = reeks niet in de presentatie
+        (LY.PP_BLOK["kc"], "DIA 2 · KLEINE CASHFLOWGRAFIEK · € mln", f"grafiek op dia 2 (KPI_GRAFIEK) · plakken: {LY.PP_BLOK['kc']}7 t/m "
+         f"{L(ws[LY.PP_BLOK['kc'] + '1'].column + LY.PP_KC_KOL - 1)}, laatste periode · '(uit)' = reeks niet in de presentatie",
+         ["Kwartaal", "cum. cashflow", f'=IF({hm("vorig_aanwezig")}=1,"vorige prognose","vorige prognose (uit)")', "nu", "dieptepunt",
+          f'=IF({hm("be_basis_pos")}=0,"break-even (uit)","break-even")', "eindsaldo", "€0"],
+         [lambda nr, n_ref: f'=IF({nr}>{n_ref},"",IF(OR({nr}=1,INDEX(Model!${FIX["kw"]}${ROW1}:${FIX["kw"]}${ROWN},{nr})=1),'
+                            f'INT((INDEX(Model!${FIX["idx"]}${ROW1}:${FIX["idx"]}${ROWN},{nr})-1)/4),""))',
+          M["g_stand"], M["g_vorige"], M["g_punt_nu"], M["g_punt_dal"],
+          lambda nr, n_ref: f'=IF({nr}>{n_ref},NA(),IF({nr}={hm("be_basis_pos")},INDEX(Model!${M["g_stand"]}${ROW1}:${M["g_stand"]}${ROWN},{nr}),NA()))',
+          M["g_eind_basis"],
+          lambda nr, n_ref: f'=IF({nr}>{n_ref},NA(),IF({nr}=1,0,NA()))'], "0.00"),
     ]
     # het blok van de grafiek per type begint bij de eerste getoonde periode (pt_start) en telt pt_n rijen
     offset_van = {LY.PP_BLOK["pt"]: f"{hm('pt_start')}-1", LY.PP_BLOK["vp"]: f"{hm('vp_start')}-1"}
@@ -1630,7 +1691,9 @@ def bouw_powerpoint(wb, data):
             for j, bron in enumerate(bronnen):
                 c = L(c0 + j)
                 pos = f"{nr}+{offset}" if offset else f"{nr}"
-                if j == 0:
+                if callable(bron):                                  # eigen formule (blok van dia 2)
+                    formule = bron(nr, n_ref)
+                elif j == 0:
                     formule = f'=IF({nr}>{n_ref},"",INDEX(Model!${bron}${r1}:${bron}${rN},{pos}))'
                 else:
                     formule = f'=IF({nr}>{n_ref},NA(),INDEX(Model!${bron}${r1}:${bron}${rN},{pos}))'
@@ -1639,6 +1702,9 @@ def bouw_powerpoint(wb, data):
                 put(ws, f"{c}{r}", formule, f=F_CALC9, nf=None if j == 0 else nf_j, al=AL_LEFT_TOP if j == 0 else None, bd=bd)
     ws.conditional_formatting.add(f"G{LY.PP_KPI_ROW1}:{L(c_t0 - 1)}{LY.PP_KPI_ROW1 + LY.BT_N - 1}",
                                   FormulaRule(formula=[f"ISERROR(G{LY.PP_KPI_ROW1})"], font=Font(name=ARIAL, color="D0D3D8")))
+    c_kc = ws[LY.PP_BLOK["kc"] + "1"].column
+    ws.conditional_formatting.add(f"{L(c_kc)}{LY.PP_KPI_ROW1}:{L(c_kc + LY.PP_KC_KOL - 1)}{LY.PP_KPI_ROW1 + LY.N_PERIODS - 1}",
+                                  FormulaRule(formula=[f"ISERROR({L(c_kc)}{LY.PP_KPI_ROW1})"], font=Font(name=ARIAL, color="D0D3D8")))
 
     # ---- tabellen (kolom T0 = eerste tabelkolom) --------------------------------------------
     T0 = "".join(ch for ch in LY.PP_TABEL_SC if ch.isalpha())
