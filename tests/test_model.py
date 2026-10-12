@@ -53,7 +53,8 @@ def foutcellen(wb):
     n = wb["Model"]["BY8"].value
     chart = {LY.M[k] for k in LY.M if k.startswith("g_")}
     na_ok = {LY.FIX["vorig"], LY.M["g_vorige"], LY.M["g_punt_nu"], LY.M["g_punt_dal"], LY.M["g_eind_upside"], LY.M["g_eind_downside"], LY.M["g_eind_basis"],
-             LY.M["g_realisatie"], LY.M["g_scenario"], LY.M["g_eind_scenario"], LY.M["g_punt_uitverkocht"], LY.M["g_punt_alles_transport"]}
+             LY.M["g_realisatie"], LY.M["g_scenario"], LY.M["g_eind_scenario"], LY.M["g_punt_uitverkocht"], LY.M["g_punt_alles_transport"],
+             LY.M["g_verkocht_pct_lbl"], LY.M["g_getransporteerd_pct_lbl"]}        # %-label alleen in kwartalen met een stapel
     na_ok |= {LY.m_col(blok, k) for blok in ("gv", "gt") for k in range(1, LY.N_TYPES + 1)}   # lege typeblokken: NA()
     na_ok |= set(LY.BT.values())                                                            # bouwtermijnentabel: NA() buiten de gebruikte rijen
     na_ok |= set(LY.PT.values())                                                            # grafiek per type: NA() voorbij de laatste periode
@@ -328,3 +329,13 @@ def test_verkoopgrafiek_venster_en_percentage(basis):
     pp = basis["PowerPoint"]
     c0 = pp[LY.PP_BLOK["vp"] + "1"].column
     assert pp.cell(LY.PP_KPI_ROW1, c0).value == m[f"{LY.FIX['kwartaal']}{LY.ROW1 + start - 1}"].value
+    # blok van dia 6: 30 kolommen, de laatste vier het cumulatieve percentage (lijn) en het label (alleen bij een stapel)
+    koppen = [pp.cell(7, c0 + j).value for j in range(LY.PP_VP_KOL)]
+    assert koppen[-4:] == ["Verkocht cumulatief %", "Label verkocht %", "Getransporteerd cumulatief %", "Label transport %"]
+    assert pp.cell(7, c0 + LY.PP_VP_KOL).value is None
+    r0 = LY.ROW1 + start - 1
+    pct = pp.cell(LY.PP_KPI_ROW1, c0 + LY.PP_VP_KOL - 4)
+    assert abs(float(pct.value) - float(m[f"{LY.M['g_verkocht_pct']}{r0}"].value)) < 1e-9 and pct.number_format == "0%"
+    tpct = pp.cell(LY.PP_KPI_ROW1 + n - start, c0 + LY.PP_VP_KOL - 2)
+    assert abs(float(tpct.value) - float(m[f"{LY.M['g_getransporteerd_pct']}{laatste}"].value)) < 1e-9
+    assert pp.cell(LY.PP_KPI_ROW1 + n - start + 1, c0 + LY.PP_VP_KOL - 4).value == "#N/A"

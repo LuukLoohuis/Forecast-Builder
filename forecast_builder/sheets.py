@@ -1577,9 +1577,12 @@ def bouw_powerpoint(wb, data):
          [LY.BT["label"]] + [LY.BT[x] for x in LY.BT_REEKSEN], "0.00"),
         (LY.PP_BLOK["vp"], "DIA 6 · VERKOOP EN TRANSPORT PER WONINGTYPE · aantal woningen", f"twee grafieken (verkocht / getransporteerd) lezen dit blok · plakken: {LY.PP_BLOK['vp']}7 t/m {L(ws[LY.PP_BLOK['vp'] + '1'].column + 25)}, laatste periode",
          ["Kwartaal"] + [f"=Model!${m_col('gv', k)}$7" for k in range(1, N_TYPES + 1)] + [f"=Model!${m_col('gt', k)}$7" for k in range(1, N_TYPES + 1)]
-         + ["Verkocht", "Getransporteerd", f"={hm('lbl_uitverkocht')}", f"={hm('lbl_alles_transport')}", "Realisatie"],
+         + ["Verkocht", "Getransporteerd", f"={hm('lbl_uitverkocht')}", f"={hm('lbl_alles_transport')}", "Realisatie",
+            "Verkocht cumulatief %", "Label verkocht %", "Getransporteerd cumulatief %", "Label transport %"],
          [FIX["kwartaal"]] + [m_col("gv", k) for k in range(1, N_TYPES + 1)] + [m_col("gt", k) for k in range(1, N_TYPES + 1)]
-         + [M["g_verkocht"], M["g_getransporteerd"], M["g_punt_uitverkocht"], M["g_punt_alles_transport"], M["g_realisatie"]], FMT_INT),
+         + [M["g_verkocht"], M["g_getransporteerd"], M["g_punt_uitverkocht"], M["g_punt_alles_transport"], M["g_realisatie"],
+            M["g_verkocht_pct"], M["g_verkocht_pct_lbl"], M["g_getransporteerd_pct"], M["g_getransporteerd_pct_lbl"]],
+         [FMT_INT] * 26 + ["0%"] * 4),
         (LY.PP_BLOK["vo"], "DIA 7 · VAN VERKOOP NAAR OMZET · cumulatief %", f"grafiek verkoop naar omzet · plakken: {LY.PP_BLOK['vo']}7 t/m {L(ws[LY.PP_BLOK['vo'] + '1'].column + 4)}, laatste periode",
          ["Kwartaal", "Verkocht", "Getransporteerd", "Opbrengsten ontvangen", "Kosten gemaakt"],
          [FIX["kwartaal"], M["g_verkocht_pct"], M["g_getransporteerd_pct"], M["g_opbrengsten_pct"], M["g_kosten_pct"]], FMT_PCT0),
@@ -1617,7 +1620,8 @@ def bouw_powerpoint(wb, data):
                 else:
                     formule = f'=IF({nr}>{n_ref},NA(),INDEX(Model!${bron}${r1}:${bron}${rN},{pos}))'
                 bd = Border(left=blauw if j == 0 else None, right=blauw if j == n - 1 else None, bottom=blauw if i == rijen - 1 else None)
-                put(ws, f"{c}{r}", formule, f=F_CALC9, nf=None if j == 0 else nf, al=AL_LEFT_TOP if j == 0 else None, bd=bd)
+                nf_j = nf[j] if isinstance(nf, list) else nf
+                put(ws, f"{c}{r}", formule, f=F_CALC9, nf=None if j == 0 else nf_j, al=AL_LEFT_TOP if j == 0 else None, bd=bd)
     ws.conditional_formatting.add(f"G{LY.PP_KPI_ROW1}:{L(c_t0 - 1)}{LY.PP_KPI_ROW1 + LY.BT_N - 1}",
                                   FormulaRule(formula=[f"ISERROR(G{LY.PP_KPI_ROW1})"], font=Font(name=ARIAL, color="D0D3D8")))
 

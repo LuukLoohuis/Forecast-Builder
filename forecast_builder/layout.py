@@ -344,12 +344,14 @@ PP_KPI_ROW1 = 8
 # (PP_BT_KOL kolommen: label + alle reeksen van BT_REEKSEN, BT_N rijen), vp dia 6 verkoop/transport per type (26 kolommen: kwartaal,
 # 10x verkocht, 10x transport, totalen, mijlpalen, realisatie; twee grafieken lezen hetzelfde blok), vo dia 7 (5)
 PP_BT_KOL = 1 + len(BT_REEKSEN)        # 108
-PP_PT_KOL = 2 + len(PT_REEKSEN)        # 8: kwartaal, zes reeksen, realisatie
+PP_PT_KOL = 2 + len(PT_REEKSEN)        # 10: kwartaal, acht reeksen, realisatie
+PP_VP_KOL = 1 + 2 * N_TYPES + 5 + 4    # 30: kwartaal, verkocht en getransporteerd per type, verkocht, getransporteerd, twee mijlpalen, realisatie,
+                                       # cumulatief % en label (verkocht), cumulatief % en label (transport); de macro: KOL_VP
 _vp = 27 + PP_BT_KOL + 1               # 136 (EF)
-_vo = _vp + 27                         # 163 (FG)
-_pt = _vo + 6                          # 169 (FM): dia 8, grafiek per woningtype (de macro vult per type een kopie van de dia)
+_vo = _vp + PP_VP_KOL + 1              # 167 (FK)
+_pt = _vo + 6                          # 173 (FQ): dia 8, grafiek per woningtype (de macro vult per type een kopie van de dia)
 PP_BLOK = {"cf": "G", "sc": "P", "bt": "AA", "vp": L(_vp), "vo": L(_vo), "pt": L(_pt)}
-PP_TABEL_SC = f"{L(_pt + PP_PT_KOL + 1)}7"                      # FV7: 9 rijen x 4 kolommen
+PP_TABEL_SC = f"{L(_pt + PP_PT_KOL + 1)}7"                      # GB7: 9 rijen x 4 kolommen
 PP_TABEL_VT_ROW = 18           # kop in BR18, daaronder N_TYPES rijen
 PP_CEL_SJABLOON = "D56"        # (de VBA leest dezelfde cellen: CEL_SJABLOON / CEL_NAAM)
 PP_CEL_NAAM = "D57"

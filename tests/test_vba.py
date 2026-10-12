@@ -1,6 +1,7 @@
 """Statische controles op de VBA-module (geen Excel nodig)."""
 import os
 import re
+import sys
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 BAS = os.path.join(os.path.dirname(HIER), "vba", "CashflowNaarPowerPoint_v10.bas")
@@ -44,3 +45,30 @@ def test_geen_procedure_heet_als_parameter():
     for m in re.finditer(r"^(?:Private |Public )?(?:Sub|Function) \w+\((.*?)\)", src, flags=re.M):
         namen |= {w.group(1).lower() for part in m.group(1).split(",") if (w := re.match(r"\s*(?:ByVal |ByRef |Optional )*(\w+)", part)) and w.group(1)}
     assert procs & namen == set(), procs & namen
+
+
+def test_blokconstanten_volgen_de_layout():
+    """De celverwijzingen in de macro (blokken op tab PowerPoint, hulpcellen op Model) horen bij forecast_builder/layout.py."""
+    sys.path.insert(0, os.path.dirname(HIER))
+    from forecast_builder import layout as LY
+    src = open(BAS, encoding="utf-8").read()
+
+    def const(naam):
+        m = re.search(rf'^Private Const {naam} As (?:String|Long) = "?([A-Z0-9]+)"?', src, flags=re.M)
+        assert m, f"constante {naam} niet gevonden"
+        return m.group(1)
+
+    assert const("CEL_N") == f"{LY.M_HULP}{LY.H['n']}"
+    assert const("BLOK_PT") == LY.PP_BLOK["pt"] + "7"
+    assert int(const("KOL_PT")) == LY.PP_PT_KOL
+    assert int(const("KOL_VP")) == LY.PP_VP_KOL
+    assert const("CEL_PT_N") == f"{LY.M_HULP}{LY.H['pt_n']}"
+    assert const("CEL_VP_N") == f"{LY.M_HULP}{LY.H['vp_n']}"
+    assert const("CEL_AS_MIN") == f"{LY.M_HULP}{LY.H['t_first']}" and const("CEL_AS_MAX") == f"{LY.M_HULP}{LY.H['t_end']}"
+    assert const("KOL_BT") == str(LY.PP_BT_KOL)
+    for regel in (f'Array("CF_GRAFIEK", "{LY.PP_BLOK["cf"]}7", 8, "")', f'Array("SC_GRAFIEK", "{LY.PP_BLOK["sc"]}7", 10, "")',
+                  f'Array("BT_GRAFIEK", "{LY.PP_BLOK["bt"]}7", KOL_BT, "{LY.M_HULP}{LY.H["bt_n"]}")',
+                  f'Array("VP1_GRAFIEK", "{LY.PP_BLOK["vp"]}7", KOL_VP, CEL_VP_N)', f'Array("VP2_GRAFIEK", "{LY.PP_BLOK["vp"]}7", KOL_VP, CEL_VP_N)',
+                  f'Array("VO_GRAFIEK", "{LY.PP_BLOK["vo"]}7", 5, "")', f'Array("SC_TABEL", "{LY.PP_TABEL_SC}", 9, 4, 0)',
+                  f'Array("VT_TABEL", "{LY.PP_TABEL_SC.rstrip("7")}{LY.PP_TABEL_VT_ROW}", MAX_TYPES + 1, 8, 1)'):
+        assert regel in src, regel

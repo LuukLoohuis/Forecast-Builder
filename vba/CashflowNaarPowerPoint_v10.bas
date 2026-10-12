@@ -30,6 +30,9 @@ Option Explicit
 '  v15: grafiek per woningtype (dia 8): blok FM7 met 10 kolommen (totaal per kwartaal als label, eindpunt met het totaal),
 '       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw; sjabloon v15.
 '       Knoppen op Woningtypes: 'Vorige prognose uit FO' (ouder FO -> blok 4 en 6) en 'Nu bewaren als vorige prognose'.
+'  v16: dia 6 (VP1_/VP2_GRAFIEK): cumulatief percentage verkocht/getransporteerd als lijn met labels; blok EF7 met 30 kolommen
+'       (vier kolommen extra: cumulatief % en label, verkocht en transport), alleen de periodes vanaf het actuals-jaar (Model!BY132);
+'       VO-blok vanaf FK7, blok per type (dia 8) vanaf FQ7, tabellen vanaf kolom GB; sjabloon v16.
 '  UitFOOphalen         vult Invoer en Woningtypes vanuit een FO-werkboek (zie v14 hierboven)
 '  VorigePrognoseUitFO  vult blok 4 en 6 (vorige prognose) vanuit een ouder FO
 '  PlanningBewarenAlsVorig  zet de huidige planning in blok 4 en 6
@@ -48,15 +51,16 @@ Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFI
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
 Private Const CEL_SJABLOON As String = "D56"
 Private Const CEL_NAAM As String = "D57"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v15.pptx"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v16.pptx"
 Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
 Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
 Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijnenblok (label + 107 reeksen; layout.PP_BT_KOL)
-Private Const BLOK_PT As String = "FM7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
+Private Const BLOK_PT As String = "FQ7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
 Private Const KOL_PT As Long = 10
+Private Const KOL_VP As Long = 30          ' kolommen van het blok van dia 6 (verkoop en transport, met cumulatief %)
 Private Const CEL_PT_N As String = "BY128"
 Private Const CEL_VP_N As String = "BY132"         ' aantal getoonde periodes in de verkoop- en transportgrafiek (vanaf het actuals-jaar)         ' aantal getoonde periodes in de grafiek per type (tijdvak vanaf twee jaar vóór de eerste opbrengst)
 Private Const CEL_PT_KEUZE As String = "B120"      ' keuzecel op het Dashboard: naam van het type in de grafiek per woningtype
@@ -115,13 +119,13 @@ Private Function Grafieken() As Variant
     ' VP1/VP2 (dia 6): verkocht en getransporteerd per kwartaal, beide panelen lezen hetzelfde blok van 26 kolommen
     Grafieken = Array(Array("CF_GRAFIEK", "G7", 8, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
                       Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
-                      Array("VP1_GRAFIEK", "EF7", 26, CEL_VP_N), Array("VP2_GRAFIEK", "EF7", 26, CEL_VP_N), _
-                      Array("VO_GRAFIEK", "FG7", 5, ""))
+                      Array("VP1_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), Array("VP2_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), _
+                      Array("VO_GRAFIEK", "FK7", 5, ""))
 End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    Tabellen = Array(Array("SC_TABEL", "FV7", 9, 4, 0), Array("VT_TABEL", "FV18", MAX_TYPES + 1, 8, 1))
+    Tabellen = Array(Array("SC_TABEL", "GB7", 9, 4, 0), Array("VT_TABEL", "GB18", MAX_TYPES + 1, 8, 1))
 End Function
 
 ' -------------------------------------------------------------------------------------
