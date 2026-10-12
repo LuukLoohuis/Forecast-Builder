@@ -156,7 +156,7 @@ M_BLOK1 = 79          # kolom CA
 # grafiek: verkocht per kwartaal (gv) en getransporteerd per kwartaal als negatief getal (gt); benoemde bereiken g_v<k>, g_t<k>
 # vx: extra opbrengsten per woning (€) vervallen per bouwkwartaal; rij 6 = extra's bij transport
 # fee: rij 5 = DAEB (1/0), rij 6 = totaal fees (gepland, €), rijen = fees vervallen t/m de periode (cumulatief, €)
-BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx", "fee"]
+BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx", "fee", "vp"]   # vp: verkocht cumulatief als % van het aantal
 
 
 # ---- bouwtermijnentabel in het Model: tijdlijn met per bouwtermijn een baan (lane) per woningtype ----
@@ -196,6 +196,12 @@ for _i, _name in enumerate([
 ] + BT_REEKSEN):
     BT[_name] = L(BT_COL1 + _i)
 BT_SEG_NAMEN = {"s0": "·", "s1": "Gerealiseerd", "s2": "·", "s4": "Gerealiseerd", "s5": "·", "s6": "·", "s8": "·"}   # vaste reeksnamen
+
+# benoemde bereiken van de verkoop- en transportgrafiek (tijdvak vanaf het actuals-jaar): naam -> Modelkolom
+VK_NAMEN = {"g_vk_kwartaal": FIX["kwartaal"], "g_vk_realisatie": M["g_realisatie"], "g_vk_verkocht": M["g_verkocht"],
+            "g_vk_getransporteerd": M["g_getransporteerd"], "g_vk_punt_uitverkocht": M["g_punt_uitverkocht"],
+            "g_vk_punt_alles_transport": M["g_punt_alles_transport"], "g_vk_pct": M["g_verkocht_pct"]}
+
 
 # ---- grafiek per woningtype: selectieblok (het type uit de keuzecel op het Dashboard), € mln per kwartaal ----
 PT_COL1 = BT_COL1 + len(BT) + 1
@@ -255,6 +261,7 @@ H = {
     "bt_min": 124,          # eerste termijn in de bouwtermijnengrafiek (kwartaalindex, huidig of vorig; 99999 = geen)
     "pt_first": 125, "pt_jaar_first": 126, "pt_start": 127, "pt_n": 128,   # grafiek per type: eerste opbrengst, eerste jaar, startpositie, aantal
     "pt_lbl_totaal": 129, "pt_lbl_eind": 130,
+    "vp_start": 131, "vp_n": 132,   # verkoopgrafiek: eerste getoonde periode (1 januari van het actuals-jaar) en aantal periodes
 }
 
 
@@ -309,7 +316,7 @@ D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; chips (typekleuren)
 D_ROW_LEGENDA_BT = 96
 D_ROW_PT = 118             # sectiekop grafiek per woningtype; keuzecel en chips in rij 120, grafiek op B121 (12 rijen)
 D_ROW_LEGENDA_PT = 120
-D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83", "bouwtermijnen": "B97", "pertype": "B121"}
+D_CHART_ANCHORS = {"scenario": "B15", "cashflow": "B44", "verkoop": "B71", "transport": "B83", "verkooppct": "B165", "bouwtermijnen": "B97", "pertype": "B121"}   # verkooppct: voorlopig onderaan (preview)
 D_LEGENDA_CELLEN = ["B", "C", "D", "E", "G", "H", "I", "J", "L", "M"]   # chip per typeblok 1..N_TYPES
 D_LEGENDA_PT_CELLEN = ["G", "H", "I", "J", "L"]                          # chips van de grafiek per type (PT_REEKSEN zonder cum)
 D_ROW_UITLEG = 136

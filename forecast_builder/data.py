@@ -91,6 +91,13 @@ def _num(v):
 
 
 # ---------------------------------------------------------------------------
+def leeg():
+    """Leeg sjabloon: standaardknoppen, geen periodes, geen woningtypes; standaardnamen voor termijnen, extra's en fees blijven staan."""
+    p = ProjectData()
+    p.params = dict(PARAM_STANDAARD)
+    return p
+
+
 def voorbeeld():
     """Klein fictief project: vier woningtypes, twaalf kwartalen gerealiseerd."""
     p = ProjectData()

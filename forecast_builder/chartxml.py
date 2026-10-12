@@ -357,6 +357,25 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
     return chart_space_paneel(groepen, assen, titel(tt), layout)
 
 
+TITEL_VERKOCHT_PCT = "Verkocht cumulatief · % van het aantal woningen · dikke lijn = totaal, dunne lijnen = per type"
+
+
+def verkoop_pct_paneel(r, types, hoogte_cm=PANEEL_H_CM, cat_labels=True):
+    """Derde paneel van de verkoopgrafiek: per type het cumulatief verkochte deel van het aantal (dunne lijn in de typekleur)
+    en het totaal (dikke lijn), as 0-100%, grijze waas over de gerealiseerde kwartalen. `types` = [(naamcel, bereik %)]."""
+    kw = r["kwartaal"]
+    n = len(types)
+    lines = [ser_line(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)], 1.25) for k, (naam, v) in enumerate(types)]
+    lines.append(ser_line(n, "Totaal", kw, r["pct"], NAVY, 2.5))
+    groepen = [grp_line(lines), grp_waas(n + 1, kw, r["realisatie"])]
+    top = PANEEL_TOP_CM / hoogte_cm
+    bottom = (0.45 if cat_labels else 0.12) / hoogte_cm
+    layout = plot_layout(PANEEL_PLOT_X, top, PANEEL_PLOT_W, 1 - top - bottom)
+    catax = cat_ax(AX1, AX2) if cat_labels else cat_ax(AX1, AX2).replace('<c:tickLblPos val="low"/>', '<c:tickLblPos val="none"/>')
+    assen = [catax, val_ax(AX2, AX1, "0%", vmin=0, vmax=1)] + assen_waas()
+    return chart_space_paneel(groepen, assen, titel(TITEL_VERKOCHT_PCT), layout)
+
+
 # ---------------------------------------------------------------------------------------------
 #  Bouwtermijnen per woningtype: tijdlijn (horizontale gestapelde balken), per termijn een baan per type
 # ---------------------------------------------------------------------------------------------

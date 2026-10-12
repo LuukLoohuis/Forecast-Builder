@@ -298,3 +298,25 @@ def test_grafiek_per_type_tijdvak(basis):
     c0 = pp[LY.PP_BLOK["pt"] + "1"].column
     assert pp.cell(7, c0 + LY.PP_PT_KOL - 1).value == "Realisatie" and pp.cell(7, c0 + 7).value == "Totaal per kwartaal"
     assert pp.cell(LY.PP_KPI_ROW1, c0).value == m[f"{LY.FIX['kwartaal']}{LY.ROW1 + start - 1}"].value
+
+
+def test_verkoopgrafiek_venster_en_percentage(basis):
+    """De verkoop- en transportgrafiek toont alleen de periodes vanaf 1 januari van het actuals-jaar (vp_start/vp_n);
+    blok 'vp' = verkocht cumulatief als deel van het aantal per type, g_verkocht_pct = totaal."""
+    m = basis["Model"]
+    d = basis["Dashboard"]
+    n = m["BY8"].value
+    jaar_act = d[LY.D["actuals_jaar"]].value
+    start = m[f"BY{LY.H['vp_start']}"].value
+    assert 1 <= start <= n and m[f"{LY.FIX['idx']}{LY.ROW1 + start - 1}"].value >= jaar_act * 4 + 1
+    assert start == 1 or m[f"{LY.FIX['idx']}{LY.ROW1 + start - 2}"].value < jaar_act * 4 + 1
+    assert m[f"BY{LY.H['vp_n']}"].value == n - start + 1
+    laatste = LY.ROW1 + n - 1
+    for k in range(1, 5):
+        aantal = m[f"{LY.m_col('vcum', k)}6"].value
+        assert abs(float(m[f"{LY.m_col('vp', k)}{laatste}"].value) - float(m[f"{LY.m_col('vcum', k)}{laatste}"].value) / aantal) < 1e-9
+        assert m[f"{LY.m_col('vp', k)}7"].value == m[f"{LY.m_col('gv', k)}7"].value
+    assert abs(float(m[f"{LY.M['g_verkocht_pct']}{laatste}"].value) - float(m[f"{LY.M['g_verkocht_cum']}{laatste}"].value) / m[f"BY{LY.H['woningen']}"].value) < 1e-9
+    pp = basis["PowerPoint"]
+    c0 = pp[LY.PP_BLOK["vp"] + "1"].column
+    assert pp.cell(LY.PP_KPI_ROW1, c0).value == m[f"{LY.FIX['kwartaal']}{LY.ROW1 + start - 1}"].value

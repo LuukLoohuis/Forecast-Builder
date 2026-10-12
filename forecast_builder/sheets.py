@@ -408,6 +408,7 @@ def bouw_model(wb):
         "verv": "rij 6: index start bouw (jaar × 4 + kwartaal; 99999 = geen)",
         "tscn": "transport cumulatief in de scenariolijn (verschuiving uit de derde knoppenkolom)",
         "gv": "grafiek: verkocht per kwartaal per type (rij 7 = typenaam)",
+        "vp": "grafiek: verkocht cumulatief als % van het aantal per type (rij 7 = typenaam)",
         "gt": "grafiek: getransporteerd per kwartaal per type",
         "vx": "rij 6: extra opbrengsten per woning bij transport (€) · rijen: extra's vervallen per bouwkwartaal (€ per woning)",
         "fee": "rij 5: DAEB (1/0) · rij 6: totaal fees gepland (€) · rijen: fees vervallen t/m de periode (€, cumulatief, hele type)",
@@ -456,7 +457,7 @@ def bouw_model(wb):
         put(ws, f"{col}7", t, f=F_HDR8, fl=FL_HDR, al=AL_RIGHT_WRAP)
     for k in range(1, N_TYPES + 1):   # typenaam als reeksnaam van de verkoopgrafiek (vaste cel, schuift niet mee met Woningtypes)
         naam = LY.wt_ref(LY.WT_R_NAAM, k)
-        for blok in ("gv", "gt"):
+        for blok in ("gv", "gt", "vp"):
             put(ws, f"{m_col(blok, k)}7", f'=IF({naam}="","Type {k}",{naam})', f=F_HDR8, fl=FL_HDR, al=AL_RIGHT_WRAP)
     put(ws, f"{LY.M_HULP_LABEL}7", "Hulpcellen", f=F_BOLD9)
 
@@ -465,7 +466,7 @@ def bouw_model(wb):
     BT = LY.BT
     rng_bt = lambda naam: f"${BT[naam]}${LY.BT_ROW1}:${BT[naam]}${LY.BT_ROWN}"  # noqa: E731
     for k in range(1, N_TYPES + 1):
-        vc, tc, tu, td, bv, ts, gv, gt, vx, fe = (m_col(b, k) for b in LY.BLOKKEN)
+        vc, tc, tu, td, bv, ts, gv, gt, vx, fe, vp = (m_col(b, k) for b in LY.BLOKKEN)
         aantal = f"N({LY.wt_ref(LY.WT_R_AANTAL, k)})"
         # DAEB (blok 5): rij 5 = vlag, rij 6 = totaal fees (gepland en geldig) uit de bouwtermijnentabel
         put(ws, f"{fe}5", f'=IF(UPPER(TRIM({LY.wt_ref(LY.WT_R_SOORT, k)}&""))="DAEB",1,0)', f=F_CALC, nf="0", al=AL_RIGHT)
@@ -515,7 +516,7 @@ def bouw_model(wb):
         f[VORIG] = f'=IF(OR({leeg},{h("vorig_aanwezig")}=0),NA(),IF(ISNUMBER({vorig}),{vorig}*1000,NA()))'
         # typeblokken
         for k in range(1, N_TYPES + 1):
-            vc, tc, tu, td, bv, ts, gv, gt, vx, fe = (m_col(b, k) for b in LY.BLOKKEN)
+            vc, tc, tu, td, bv, ts, gv, gt, vx, fe, vp = (m_col(b, k) for b in LY.BLOKKEN)
             # fees (DAEB) die t/m deze periode vervallen: cumulatief, hele type, uit de bouwtermijnentabel (geldige banen)
             f[fe] = (f'=IF({leeg},"",SUMIFS({rng_bt("bedrag")},{rng_bt("k")},{k},{rng_bt("gebruikt")},1,{rng_bt("idxb")},"<="&{IDX}{r},'
                      f'{rng_bt("idxb")},">="&${IDX}${ROW1}))')
@@ -523,6 +524,7 @@ def bouw_model(wb):
             f[tc] = f'=IF({leeg},"",N({tc}{p})+IFERROR(N({LY.in_ref(r, k, 1)}),0))'
             f[gv] = f'=IF(OR({leeg},{vc}$6=0),NA(),{vc}{r}-N({vc}{p}))'
             f[gt] = f'=IF(OR({leeg},{vc}$6=0),NA(),{tc}{r}-N({tc}{p}))'
+            f[vp] = f'=IF(OR({leeg},{vc}$6=0),NA(),{vc}{r}/{vc}$6)'
             for col, shift in ((tu, up_shift), (td, down_shift), (ts, scn_shift)):
                 f[col] = (f'=IF({leeg},"",IF(OR({FASE}{r}="Realisatie",${NR}{r}={h("n")}),{tc}{r},'
                           f'MAX({td}$6,N(INDEX({tc}${ROW1}:{tc}${ROWN},MAX(1,MIN({h("n")},${NR}{r}-N({shift}))))))))')
@@ -1008,6 +1010,11 @@ def bouw_model(wb):
                      ArrayFormula(f"{LY.M_HULP}{LY.H['pt_start']}",
                                   f'=IF({h("n")}=0,1,MIN({h("n")},IFERROR(MATCH(TRUE,{rng(IDX)}>={h("pt_jaar_first")}*4+1,0),1)))')),
         "pt_n": ("Grafiek per type: aantal getoonde periodes", f'=MAX(1,{h("n")}-{h("pt_start")}+1)'),
+        # tijdvak van de verkoop- en transportgrafiek: vanaf 1 januari van het actuals-jaar (niet vóór de eerste periode)
+        "vp_start": ("Verkoopgrafiek: positie van de eerste getoonde periode (1 januari actuals-jaar)",
+                     ArrayFormula(f"{LY.M_HULP}{LY.H['vp_start']}",
+                                  f'=IF({h("n")}=0,1,MIN({h("n")},IFERROR(MATCH(TRUE,{rng(IDX)}>={dabs("actuals_jaar")}*4+1,0),1)))')),
+        "vp_n": ("Verkoopgrafiek: aantal getoonde periodes", f'=MAX(1,{h("n")}-{h("vp_start")}+1)'),
     }
     for naam, (label, formule) in hulp.items():
         r = H[naam]
@@ -1567,8 +1574,8 @@ def bouw_powerpoint(wb, data):
          [FIX["kwartaal"]] + [LY.PT[x] for x in LY.PT_REEKSEN] + [M["g_realisatie"]], "0.00"),
     ]
     # het blok van de grafiek per type begint bij de eerste getoonde periode (pt_start) en telt pt_n rijen
-    offset_van = {LY.PP_BLOK["pt"]: f"{hm('pt_start')}-1"}
-    n_ref_van = {LY.PP_BLOK["pt"]: hm("pt_n")}
+    offset_van = {LY.PP_BLOK["pt"]: f"{hm('pt_start')}-1", LY.PP_BLOK["vp"]: f"{hm('vp_start')}-1"}
+    n_ref_van = {LY.PP_BLOK["pt"]: hm("pt_n"), LY.PP_BLOK["vp"]: hm("vp_n")}
     blauw = side("medium", PP_BORDER)
     for col0, titel, sub, koppen, bronnen, nf in blokken:
         c0 = ws[f"{col0}1"].column

@@ -127,17 +127,23 @@ def _patch_chart(xml, model, n):
     """Zet str-/numCache in elke reeks: categorieën (g_kwartaal), waarden (g_*) en reeksnamen (Model!$BY$..)."""
     kolom = {"g_kwartaal": LY.FIX["kwartaal"]}
     kolom.update({naam: col for naam, col in LY.M.items() if naam.startswith("g_")})
-    for k in range(1, LY.N_TYPES + 1):
-        kolom[f"g_v{k}"] = LY.m_col("gv", k)
-        kolom[f"g_t{k}"] = LY.m_col("gt", k)
     lengte = {}
+    start = {}
+    vp_start = model.get(f"{LY.M_HULP}{LY.H['vp_start']}")
+    vp_n = model.get(f"{LY.M_HULP}{LY.H['vp_n']}")
+    vp_start = int(vp_start) if isinstance(vp_start, (int, float)) and vp_start >= 1 else 1
+    vp_n = int(vp_n) if isinstance(vp_n, (int, float)) and vp_n >= 1 else n
+    vk = dict(LY.VK_NAMEN)
+    for k in range(1, LY.N_TYPES + 1):
+        vk[f"g_v{k}"], vk[f"g_t{k}"], vk[f"g_vp{k}"] = LY.m_col("gv", k), LY.m_col("gt", k), LY.m_col("vp", k)
+    for naam, col in vk.items():
+        kolom[naam], lengte[naam], start[naam] = col, vp_n, LY.ROW1 + vp_start - 1
     bt_n = model.get(f"{LY.M_HULP}{LY.H['bt_n']}")
     bt_n = int(bt_n) if isinstance(bt_n, (int, float)) else 0
     pt_start = model.get(f"{LY.M_HULP}{LY.H['pt_start']}")
     pt_n = model.get(f"{LY.M_HULP}{LY.H['pt_n']}")
     pt_start = int(pt_start) if isinstance(pt_start, (int, float)) and pt_start >= 1 else 1
     pt_n = int(pt_n) if isinstance(pt_n, (int, float)) and pt_n >= 1 else n
-    start = {}
     for key, col in [(k, LY.PT[k]) for k in LY.PT_REEKSEN] + [("kwartaal", LY.FIX["kwartaal"]), ("realisatie", LY.M["g_realisatie"])]:
         kolom[f"g_pt_{key}"] = col
         lengte[f"g_pt_{key}"] = pt_n

@@ -78,9 +78,14 @@ def bouw_werkboek(project):
         if naam.startswith("g_"):
             wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${col}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
     wb.defined_names["g_kwartaal"] = DefinedName("g_kwartaal", attr_text=f"OFFSET(Model!${LY.FIX['kwartaal']}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
-    for k in range(1, LY.N_TYPES + 1):   # verkoopgrafiek: per typeblok verkocht (g_v<k>) en getransporteerd (g_t<k>) per kwartaal
-        for naam, blok in ((f"g_v{k}", "gv"), (f"g_t{k}", "gt")):
-            wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.m_col(blok, k)}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
+    # verkoop- en transportgrafiek: alleen de periodes vanaf 1 januari van het actuals-jaar (vp_start, vp_n): per typeblok verkocht
+    # (g_v<k>), getransporteerd (g_t<k>) en verkocht cumulatief in % (g_vp<k>), plus de totaalreeksen onder g_vk_*
+    venster = f"Model!{LY.h('vp_start')}-1,0,MAX(1,Model!{LY.h('vp_n')}),1)"
+    for k in range(1, LY.N_TYPES + 1):
+        for naam, blok in ((f"g_v{k}", "gv"), (f"g_t{k}", "gt"), (f"g_vp{k}", "vp")):
+            wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.m_col(blok, k)}${LY.ROW1},{venster}")
+    for naam, col in LY.VK_NAMEN.items():
+        wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${col}${LY.ROW1},{venster}")
     for key in ["label"] + LY.BT_REEKSEN:   # bouwtermijnengrafiek: zo lang als de bouwtermijnentabel rijen heeft
         naam = f"g_bt_{key}"
         wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.BT[key]}${LY.BT_ROW1},0,0,MAX(1,Model!{LY.h('bt_n')}),1)")
@@ -127,6 +132,7 @@ def main():
     ap.add_argument("--fo-vorig", dest="fo_vorig", help="ouder FO-werkboek (vorige prognose): start bouw en fee-kwartalen per type naar blok 4 en 6 van tab Woningtypes")
     ap.add_argument("--vba", help="VBA-sjabloon: een .xlsm of vbaProject.bin waaruit de projectstructuur en document-modules komen "
                                   "(standaard vba/vbaProject_template.bin); de module zelf komt altijd uit vba/CashflowNaarPowerPoint_v10.bas")
+    ap.add_argument("--leeg", action="store_true", help="leeg sjabloon: geen periodes en geen woningtypes, wel de standaardknoppen")
     ap.add_argument("--geen-vba", action="store_true", help="alleen een .xlsx maken")
     ap.add_argument("--geen-cache", action="store_true", help="niet doorrekenen met LibreOffice (geen cachewaarden)")
     ap.add_argument("--out", default="out/Cashflow_scenario", help="uitvoerpad zonder extensie (standaard out/Cashflow_scenario)")
@@ -140,6 +146,8 @@ def main():
             project.params.update({k: v for k, v in D.lees_werkboek(args.bron).params.items() if k not in uit_fo})
         for melding in project.fo.get("waarschuwingen", []):
             print("let op:", melding)
+    elif args.leeg:
+        project = D.leeg()
     else:
         project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld()
     if args.fo_vorig:

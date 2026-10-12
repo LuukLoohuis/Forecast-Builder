@@ -57,7 +57,8 @@ Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenb
 Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijnenblok (label + 107 reeksen; layout.PP_BT_KOL)
 Private Const BLOK_PT As String = "FM7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
 Private Const KOL_PT As Long = 10
-Private Const CEL_PT_N As String = "BY128"         ' aantal getoonde periodes in de grafiek per type (tijdvak vanaf twee jaar vóór de eerste opbrengst)
+Private Const CEL_PT_N As String = "BY128"
+Private Const CEL_VP_N As String = "BY132"         ' aantal getoonde periodes in de verkoop- en transportgrafiek (vanaf het actuals-jaar)         ' aantal getoonde periodes in de grafiek per type (tijdvak vanaf twee jaar vóór de eerste opbrengst)
 Private Const CEL_PT_KEUZE As String = "B120"      ' keuzecel op het Dashboard: naam van het type in de grafiek per woningtype
 ' FO-koppeling (Dashboard): bestand, actuals t/m, opbrengsten en kosten totaal uit '1. Cashflow', datum; actuals-knop W5/X5
 Private Const CEL_FO_BESTAND As String = "W69"
@@ -114,7 +115,7 @@ Private Function Grafieken() As Variant
     ' VP1/VP2 (dia 6): verkocht en getransporteerd per kwartaal, beide panelen lezen hetzelfde blok van 26 kolommen
     Grafieken = Array(Array("CF_GRAFIEK", "G7", 8, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
                       Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
-                      Array("VP1_GRAFIEK", "EF7", 26, ""), Array("VP2_GRAFIEK", "EF7", 26, ""), _
+                      Array("VP1_GRAFIEK", "EF7", 26, CEL_VP_N), Array("VP2_GRAFIEK", "EF7", 26, CEL_VP_N), _
                       Array("VO_GRAFIEK", "FG7", 5, ""))
 End Function
 

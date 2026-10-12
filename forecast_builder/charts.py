@@ -28,8 +28,11 @@ def _xml(jaar_min, jaar_max=None):
                                    eind_scenario="lbl_eind_scn"))
     band = cx.band(r, _lbl(nu="lbl_nu", dal="lbl_dal", eind_up="lbl_eind_up", eind_down="lbl_eind_down"))
     lbl_vt = _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport")
-    verkoop = cx.verkoop_paneel(r, lbl_vt, _type_namen(), "verkocht")
-    transport = cx.verkoop_paneel(r, lbl_vt, _type_namen(), "transport")
+    r_vk = {naam[5:]: f"[0]!{naam}" for naam in LY.VK_NAMEN}            # kwartaal, realisatie, verkocht, ... in het tijdvak
+    verkoop = cx.verkoop_paneel(r_vk, lbl_vt, _type_namen(), "verkocht")
+    transport = cx.verkoop_paneel(r_vk, lbl_vt, _type_namen(), "transport")
+    pct_types = [(f"Model!${LY.m_col('vp', k)}$7", f"[0]!g_vp{k}") for k in range(1, LY.N_TYPES + 1)]
+    verkooppct = cx.verkoop_pct_paneel(r_vk, pct_types)
     r_bt = {naam: f"[0]!g_bt_{naam}" for naam in ["label"] + LY.BT_REEKSEN}
     r_bt.update({f"naam_{naam}": f"Model!${LY.BT[naam]}$7" for naam in LY.BT_PREV + LY.BT_CUR + LY.BT_JR})
     bouwtermijnen = cx.bouwtermijnen(r_bt, jaar_min * 4 + 1, (jaar_max + 1) * 4 + 1 if jaar_max else None)
@@ -37,7 +40,7 @@ def _xml(jaar_min, jaar_max=None):
     r_pt.update({"kwartaal": "[0]!g_pt_kwartaal", "realisatie": "[0]!g_pt_realisatie"})
     r_pt.update({f"naam_{naam}": f"Model!{LY.h('pt_lbl_' + naam)}" for naam in LY.PT_REEKSEN})
     pertype = cx.type_paneel(r_pt)
-    return cashflow, band, verkoop, transport, bouwtermijnen, pertype
+    return cashflow, band, verkoop, transport, bouwtermijnen, pertype, verkooppct
 
 
 def _type_namen():
@@ -52,10 +55,11 @@ def grafieken(jaar_min=2020, jaar_max=None):
     """[(naam, anker, breedte cm, hoogte cm, xml)] in de volgorde chart1.xml … chart6.xml.
     jaar_min/jaar_max = eerste en laatste jaar van de periodes: voorlopige grenzen van de tijd-as in de bouwtermijnengrafiek
     (kwartaalindex jaar × 4 + 1); cache.py zet ze na het doorrekenen op Model!BY97 (twee jaar vóór de eerste termijn) en BY99."""
-    cashflow, band, verkoop, transport, bouwtermijnen, pertype = _xml(jaar_min, jaar_max)
+    cashflow, band, verkoop, transport, bouwtermijnen, pertype, verkooppct = _xml(jaar_min, jaar_max)
     A = LY.D_CHART_ANCHORS
     return [("scenario", A["scenario"], 30.3, 13.0, band), ("cashflow", A["cashflow"], 30.3, 11.5, cashflow),
             ("verkoop", A["verkoop"], 30.3, cx.PANEEL_H_CM, verkoop), ("transport", A["transport"], 30.3, cx.PANEEL_H_CM, transport),
+            ("verkooppct", A["verkooppct"], 30.3, cx.PANEEL_H_CM, verkooppct),
             ("bouwtermijnen", A["bouwtermijnen"], 30.3, BT_H_CM, bouwtermijnen), ("pertype", A["pertype"], 30.3, cx.PT_H_CM, pertype)]
 
 
