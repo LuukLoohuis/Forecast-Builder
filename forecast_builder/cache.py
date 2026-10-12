@@ -135,7 +135,7 @@ def _patch_chart(xml, model, n):
     vp_n = int(vp_n) if isinstance(vp_n, (int, float)) and vp_n >= 1 else n
     vk = dict(LY.VK_NAMEN)
     for k in range(1, LY.N_TYPES + 1):
-        vk[f"g_v{k}"], vk[f"g_t{k}"], vk[f"g_vp{k}"] = LY.m_col("gv", k), LY.m_col("gt", k), LY.m_col("vp", k)
+        vk[f"g_v{k}"], vk[f"g_t{k}"] = LY.m_col("gv", k), LY.m_col("gt", k)
     for naam, col in vk.items():
         kolom[naam], lengte[naam], start[naam] = col, vp_n, LY.ROW1 + vp_start - 1
     bt_n = model.get(f"{LY.M_HULP}{LY.H['bt_n']}")

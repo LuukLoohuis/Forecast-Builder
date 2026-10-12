@@ -82,7 +82,7 @@ def bouw_werkboek(project):
     # (g_v<k>), getransporteerd (g_t<k>) en verkocht cumulatief in % (g_vp<k>), plus de totaalreeksen onder g_vk_*
     venster = f"Model!{LY.h('vp_start')}-1,0,MAX(1,Model!{LY.h('vp_n')}),1)"
     for k in range(1, LY.N_TYPES + 1):
-        for naam, blok in ((f"g_v{k}", "gv"), (f"g_t{k}", "gt"), (f"g_vp{k}", "vp")):
+        for naam, blok in ((f"g_v{k}", "gv"), (f"g_t{k}", "gt")):
             wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.m_col(blok, k)}${LY.ROW1},{venster}")
     for naam, col in LY.VK_NAMEN.items():
         wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${col}${LY.ROW1},{venster}")

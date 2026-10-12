@@ -312,11 +312,19 @@ def test_verkoopgrafiek_venster_en_percentage(basis):
     assert start == 1 or m[f"{LY.FIX['idx']}{LY.ROW1 + start - 2}"].value < jaar_act * 4 + 1
     assert m[f"BY{LY.H['vp_n']}"].value == n - start + 1
     laatste = LY.ROW1 + n - 1
-    for k in range(1, 5):
-        aantal = m[f"{LY.m_col('vcum', k)}6"].value
-        assert abs(float(m[f"{LY.m_col('vp', k)}{laatste}"].value) - float(m[f"{LY.m_col('vcum', k)}{laatste}"].value) / aantal) < 1e-9
-        assert m[f"{LY.m_col('vp', k)}7"].value == m[f"{LY.m_col('gv', k)}7"].value
     assert abs(float(m[f"{LY.M['g_verkocht_pct']}{laatste}"].value) - float(m[f"{LY.M['g_verkocht_cum']}{laatste}"].value) / m[f"BY{LY.H['woningen']}"].value) < 1e-9
+    # label alleen in kwartalen met een stapel; tekst per type met het verkochte deel t/m actuals
+    for r in range(LY.ROW1, LY.ROW1 + n):
+        v = m[f"{LY.M['g_verkocht']}{r}"].value
+        lbl = m[f"{LY.M['g_verkocht_pct_lbl']}{r}"].value
+        if isinstance(v, (int, float)) and v > 0:
+            assert abs(float(lbl) - float(m[f"{LY.M['g_verkocht_pct']}{r}"].value)) < 1e-9
+        else:
+            assert lbl in (None, "#N/A") or str(lbl).startswith("#")
+    tekst = m[f"BY{LY.H['vp_tekst']}"].value
+    assert tekst.startswith("Rijwoning ") and "%" in tekst and ", Tweekapper " in tekst
+    chip = d[f"{LY.D_LEGENDA_CELLEN[0]}{LY.D_ROW_LEGENDA}"].value
+    assert chip.startswith("Rijwoning ") and chip.endswith("%")
     pp = basis["PowerPoint"]
     c0 = pp[LY.PP_BLOK["vp"] + "1"].column
     assert pp.cell(LY.PP_KPI_ROW1, c0).value == m[f"{LY.FIX['kwartaal']}{LY.ROW1 + start - 1}"].value

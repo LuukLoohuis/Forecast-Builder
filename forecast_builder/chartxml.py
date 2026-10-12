@@ -139,8 +139,10 @@ def grp_waas(idx, cat, val, naam="Realisatie"):
     return grp_area([ser], ax=(AX3, AX4))
 
 
-def assen_waas():
-    return [cat_ax(AX3, AX4, deleted=True), val_ax(AX4, AX3, "General", pos="r", crosses="max", grid=False, vmin=0, vmax=1, zichtbaar=False)]
+def assen_waas(zichtbaar=False, fmt="General"):
+    """Tweede aspaar (0-1) voor de grijze waas; in de verkoop- en transportgrafiek ook de zichtbare rechteras 0-100% van de
+    cumulatieve percentagelijn (Excel en LibreOffice kennen maar twee asparen: primair en secundair)."""
+    return [cat_ax(AX3, AX4, deleted=True), val_ax(AX4, AX3, fmt, pos="r", crosses="max", grid=False, vmin=0, vmax=1, zichtbaar=zichtbaar)]
 
 
 def grp_line(sers, ax=(AX1, AX2)):
@@ -311,10 +313,10 @@ def plot_layout(x, y, w, h):
             f'<c:x val="{x:.4f}"/><c:y val="{y:.4f}"/><c:w val="{w:.4f}"/><c:h val="{h:.4f}"/></c:manualLayout></c:layout>')
 
 
-def ser_totaal(idx, naam, cat, val, sz=700, color=TXT, fmt="0;;"):
+def ser_totaal(idx, naam, cat, val, sz=700, color=TXT, fmt="0;;", bold=False):
     """Onzichtbare lijnreeks met de waarde als klein cijfer boven elk punt (= boven de stapel); nullen verborgen."""
     dlbls = (f'<c:dLbls><c:numFmt formatCode="{fmt}" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
-             f'{_txpr(sz, False, color)}<c:dLblPos val="t"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
+             f'{_txpr(sz, bold, color)}<c:dLblPos val="t"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
              f'<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     return (f'<c:ser><c:idx val="{idx}"/><c:order val="{idx}"/>{_tx(naam)}<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
             f'<c:marker><c:symbol val="none"/></c:marker>{dlbls}{_cat(cat)}{_val(val)}<c:smooth val="0"/></c:ser>')
@@ -341,39 +343,24 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
     n = len(types)
     if soort == "verkocht":
         bars = [ser_bar(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)], labels=True) for k, (naam, v, _) in enumerate(types)]
-        totaal, punt, ptxt, tt = r["verkocht"], r["punt_uitverkocht"], lbl["uitverkocht"], TITEL_VERKOCHT
+        pct, pct_lbl, punt, ptxt, tt = r["pct"], r["pct_lbl"], r["punt_uitverkocht"], lbl["uitverkocht"], TITEL_VERKOCHT
     else:
         bars = [ser_bar(k, "=" + naam, kw, t, TYPEKLEUREN[k % len(TYPEKLEUREN)], labels=True) for k, (naam, _, t) in enumerate(types)]
-        totaal, punt, ptxt, tt = r["getransporteerd"], r["punt_alles_transport"], lbl["alles_transport"], TITEL_TRANSPORT
+        pct, pct_lbl, punt, ptxt, tt = r["tpct"], r["tpct_lbl"], r["punt_alles_transport"], lbl["alles_transport"], TITEL_TRANSPORT
     mijlpaal = ser_punt(n + 1, "=" + ptxt, kw, punt, NAVY, "t", size=5)
     mijlpaal = mijlpaal.replace('<c:txPr><a:bodyPr/>', '<c:txPr><a:bodyPr wrap="none"/>')   # label op één regel
-    lines = [ser_totaal(n, "Totaal", kw, totaal), mijlpaal]
-    groepen = [grp_bar(bars, grouping="stacked", gap=gap, overlap=100), grp_line(lines), grp_waas(n + 2, kw, r["realisatie"])]
+    # cumulatief percentage van alle woningen (verkocht of getransporteerd): donkerblauwe lijn op een rechteras 0-100%, met het
+    # percentage in vet boven de lijn in de kwartalen waar een stapel staat; de aantallen staan in de blokjes
+    pct_lijn = ser_line(n + 2, "Cumulatief %", kw, pct, NAVY, 2.0)
+    pct_lbls = ser_totaal(n + 3, "Cumulatief % (label)", kw, pct_lbl, sz=750, color=NAVY, fmt="0%", bold=True)
+    groepen = [grp_bar(bars, grouping="stacked", gap=gap, overlap=100), grp_line([mijlpaal]),
+               grp_line([pct_lijn, pct_lbls], ax=(AX3, AX4)), grp_waas(n + 4, kw, r["realisatie"])]
     top = PANEEL_TOP_CM / hoogte_cm
     bottom = (0.45 if cat_labels else 0.12) / hoogte_cm
     layout = plot_layout(PANEEL_PLOT_X, top, PANEEL_PLOT_W, 1 - top - bottom)
     catax = cat_ax(AX1, AX2) if cat_labels else cat_ax(AX1, AX2).replace('<c:tickLblPos val="low"/>', '<c:tickLblPos val="none"/>')
-    assen = [catax, val_ax(AX2, AX1, "0", vmin=0)] + assen_waas()
+    assen = [catax, val_ax(AX2, AX1, "0", vmin=0)] + assen_waas(zichtbaar=True, fmt="0%")
     return chart_space_paneel(groepen, assen, titel(tt), layout)
-
-
-TITEL_VERKOCHT_PCT = "Verkocht cumulatief · % van het aantal woningen · dikke lijn = totaal, dunne lijnen = per type"
-
-
-def verkoop_pct_paneel(r, types, hoogte_cm=PANEEL_H_CM, cat_labels=True):
-    """Derde paneel van de verkoopgrafiek: per type het cumulatief verkochte deel van het aantal (dunne lijn in de typekleur)
-    en het totaal (dikke lijn), as 0-100%, grijze waas over de gerealiseerde kwartalen. `types` = [(naamcel, bereik %)]."""
-    kw = r["kwartaal"]
-    n = len(types)
-    lines = [ser_line(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)], 1.25) for k, (naam, v) in enumerate(types)]
-    lines.append(ser_line(n, "Totaal", kw, r["pct"], NAVY, 2.5))
-    groepen = [grp_line(lines), grp_waas(n + 1, kw, r["realisatie"])]
-    top = PANEEL_TOP_CM / hoogte_cm
-    bottom = (0.45 if cat_labels else 0.12) / hoogte_cm
-    layout = plot_layout(PANEEL_PLOT_X, top, PANEEL_PLOT_W, 1 - top - bottom)
-    catax = cat_ax(AX1, AX2) if cat_labels else cat_ax(AX1, AX2).replace('<c:tickLblPos val="low"/>', '<c:tickLblPos val="none"/>')
-    assen = [catax, val_ax(AX2, AX1, "0%", vmin=0, vmax=1)] + assen_waas()
-    return chart_space_paneel(groepen, assen, titel(TITEL_VERKOCHT_PCT), layout)
 
 
 # ---------------------------------------------------------------------------------------------
