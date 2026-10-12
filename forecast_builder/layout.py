@@ -238,7 +238,7 @@ H = {
     "dal_down": 28, "dal_down_kw": 29, "eind_down": 30, "be_down": 31, "be_down_pos": 32,
     "laatste_kw": 33, "dal_vorig": 34, "eind_vorig": 35, "vorig_nu": 36, "be_vorig": 37, "be_vorig_pos": 38,
     "woningen": 39, "verkocht_plan": 40, "transport_plan": 41, "verkocht_actuals": 42, "transport_actuals": 43,
-    "model_opbr": 44, "verk_voor_start": 45, "won_met_start": 46, "verk_voor_start_pct": 47,
+    "model_opbr": 44, "verk_bij_start": 45, "won_met_start": 46, "verk_bij_start_pct": 47,
     "uitverkocht": 48, "alles_transport": 49,
     "lbl_nu": 50, "lbl_dal": 51, "lbl_eind_up": 52, "lbl_eind_down": 53, "lbl_eind_basis": 54,
     "rente": 55, "rente_tm_start": 56, "rente_in_basis": 57, "start_idx": 58, "start_tekst": 59,
@@ -266,6 +266,8 @@ H = {
     "pt_lbl_totaal": 129, "pt_lbl_eind": 130,
     "vp_start": 131, "vp_n": 132,   # verkoopgrafiek: eerste getoonde periode (1 januari van het actuals-jaar) en aantal periodes
     "vp_tekst": 133,                # verkoopgrafiek: voortgang per type als tekst ('Rijwoning 25%, Tweekapper 40%, ...')
+    # marge (dia 2 en Dashboard): DAEB heeft geen marge, dus marge niet-DAEB = projectresultaat / (opbrengsten - fees DAEB)
+    "opbr_daeb": 134, "woningen_daeb": 135, "marge": 136, "marge_nd": 137, "marge_tekst": 138,
 }
 
 
@@ -305,10 +307,12 @@ D_LABELS = {
     "model_aan": "Woningtypes en termijnen gebruiken",
     "shift_down": "Verkoop en transport verschuiven (kw)", "uitstel_down": "Uitstel start bouw (kw)", "opbr_down": "Opbrengsten",
     "kosten_down": "Kosten", "rente_pct_down": "Jaarrente per scenario", "koopsom_down": "Koopsom (VON-prijs)",
-    "scn_aan": "Scenariolijn tonen in de cashflowgrafiek", "scn_naam": "Naam van de scenariolijn", "norm": "Norm verkocht vóór start bouw",
+    "scn_aan": "Scenariolijn tonen in de cashflowgrafiek", "scn_naam": "Naam van de scenariolijn", "norm": "Norm verkocht bij start bouw",
     "fo_bestand": "FO-bestand", "fo_actuals": "Actuals in het FO t/m", "fo_opbr": "Opbrengsten totaal volgens het FO",
     "fo_kosten": "Kosten totaal volgens het FO", "fo_datum": "Opgehaald op",
 }
+# oudere labels van dezelfde knop (data.py zoekt ook hierop, zodat een bestand van vóór de hernoeming leesbaar blijft)
+D_LABELS_OUD = {"norm": ["Norm verkocht vóór start bouw"]}
 D_ROW_SCENARIO = 15        # sectie SCENARIO'S (kop Downside/Upside/Scenario in rij 16)
 D_ROW_VERKOOP = 28
 D_ROW_POWERPOINT = 34      # knop staat op W35:X36 (vast: de VBA-macro zet hem daar)

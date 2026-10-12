@@ -26,6 +26,8 @@ Option Explicit
 '  TypeVerwijderen       haalt een typeblok weg (zelfde kolommen); alles rechts schuift mee
 '  SchikDia5             na het vullen van VT_TABEL (dia 5): bij meer dan 4 types rijen en letters
 '                        kleiner, zo nodig de kaart met BT_GRAFIEK korter, en de tabelkaart sluit om de tabel
+'  SchikDia2             na het vullen van de teksten (dia 2): kleine KPI-kaarten zonder regel op tabblad PowerPoint
+'                        gaan weg, de overige verdelen de breedte (drie kaarten: precies onder de grote kaarten)
 '
 '  v15: grafiek per woningtype (dia 8): blok FM7 met 10 kolommen (totaal per kwartaal als label, eindpunt met het totaal),
 '       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw; sjabloon v15.
@@ -33,6 +35,9 @@ Option Explicit
 '  v16: dia 6 (VP1_/VP2_GRAFIEK): cumulatief percentage verkocht/getransporteerd als lijn met labels; blok EF7 met 30 kolommen
 '       (vier kolommen extra: cumulatief % en label, verkocht en transport), alleen de periodes vanaf het actuals-jaar (Model!BY132);
 '       VO-blok vanaf FK7, blok per type (dia 8) vanaf FQ7, tabellen vanaf kolom GB; sjabloon v16.
+'       Dia 2 met minder tekst: bandbreedte (KPI5) en rente (KPI8) hebben geen regel meer op tabblad PowerPoint en SchikDia2
+'       haalt die kaarten weg (werkt met sjabloon v15 en v16); marge niet-DAEB en gezamenlijk, verkocht bij start bouw,
+'       verkocht / getransporteerd t/m actuals.
 '  UitFOOphalen         vult Invoer en Woningtypes vanuit een FO-werkboek (zie v14 hierboven)
 '  VorigePrognoseUitFO  vult blok 4 en 6 (vorige prognose) vanuit een ouder FO
 '  PlanningBewarenAlsVorig  zet de huidige planning in blok 4 en 6
@@ -359,6 +364,9 @@ Public Sub NaarPowerPoint()
     stap = "teksten vullen"
     VulTeksten pres, wsP, mist
 
+    stap = "dia 2 schikken"
+    SchikDia2 pres, wsP
+
     stap = "tabellen vullen"
     t = Tabellen()
     For i = LBound(t) To UBound(t)
@@ -569,6 +577,163 @@ Private Sub VulTeksten(pres As Object, wsP As Worksheet, ByRef mist As String)
         End If
         r = r + 1
     Loop
+End Sub
+
+Private Function VormGevuld(wsP As Worksheet, naam As String) As Boolean
+    ' True als de vorm in kolom F van de KPI-regels op tabblad PowerPoint staat (dan vult de knop hem)
+    Dim r As Long
+    r = KPI_ROW1
+    Do While Len(CelTekst(wsP.Range("C" & r))) > 0 And r < KPI_ROW1 + 300
+        If StrComp(Trim$(CelTekst(wsP.Range("F" & r))), naam, vbTextCompare) = 0 Then
+            VormGevuld = True
+            Exit Function
+        End If
+        r = r + 1
+    Loop
+End Function
+
+Private Function VormOpDia(dia As Object, naam As String) As Object
+    Dim shp As Object
+    For Each shp In dia.Shapes
+        If shp.Name = naam Then
+            Set VormOpDia = shp
+            Exit Function
+        End If
+    Next shp
+End Function
+
+Private Sub SchikDia2(pres As Object, wsP As Worksheet)
+    ' na het vullen van de teksten, dia 2 (kerncijfers): een kleine KPI-kaart (KPI4 en verder: KAART, LABEL, WAARDE, SUB) waarvan
+    ' de WAARDE geen regel heeft op tabblad PowerPoint, gaat van de dia (het sjabloon heeft nog kaarten die de knop niet meer
+    ' vult: bandbreedte KPI5 en rente KPI8). De overige kaarten verdelen daarna de breedte van het kaartenblok met dezelfde
+    ' tussenruimte; blijven er drie over, dan staan ze precies onder de grote kaarten KPI1..KPI3, met de tekst op dezelfde
+    ' afstand van de rand als in de grote kaarten. Vult de knop alle kaarten, dan blijft de dia zoals het sjabloon hem heeft.
+    ' Hoogtes en letters veranderen niet; fouten worden stil overgeslagen (de dia blijft dan zoals het sjabloon hem had)
+    Const MAX_KAART As Long = 20
+    Dim dia As Object, kaart As Object, shp As Object, groot As Object, grootTekst As Object
+    Dim nr(1 To MAX_KAART) As Long, links(1 To MAX_KAART) As Double, breed(1 To MAX_KAART) As Double
+    Dim blijft(1 To MAX_KAART) As Boolean, doelL(1 To MAX_KAART) As Double, doelB(1 To MAX_KAART) As Double
+    Dim n As Long, nBlijft As Long, k As Long, i As Long, j As Long, t As Long, hNr As Long, hBlijft As Boolean
+    Dim hL As Double, hB As Double, bLinks As Double, bRechts As Double, tussen As Double, w As Double
+    Dim binnen As Double, mL As Double, mR As Double, prefix As String, onderGroot As Boolean
+
+    On Error Resume Next
+    Set kaart = ZoekVorm(pres, "KPI4_KAART")
+    If kaart Is Nothing Then Exit Sub
+    Set dia = kaart.Parent
+    If dia Is Nothing Then Exit Sub
+
+    ' de kleine kaarten op de dia en of de knop ze vult
+    For k = 4 To MAX_KAART
+        Set kaart = VormOpDia(dia, "KPI" & k & "_KAART")
+        If Not kaart Is Nothing Then
+            n = n + 1
+            nr(n) = k
+            links(n) = kaart.Left
+            breed(n) = kaart.Width
+            blijft(n) = VormGevuld(wsP, "KPI" & k & "_WAARDE")
+            If blijft(n) Then nBlijft = nBlijft + 1
+        End If
+    Next k
+    If n = 0 Or nBlijft = n Then Exit Sub
+
+    ' van links naar rechts (invoegsorteren op Left)
+    For i = 2 To n
+        hNr = nr(i): hL = links(i): hB = breed(i): hBlijft = blijft(i)
+        j = i - 1
+        Do While j >= 1
+            If links(j) <= hL Then Exit Do
+            nr(j + 1) = nr(j): links(j + 1) = links(j): breed(j + 1) = breed(j): blijft(j + 1) = blijft(j)
+            j = j - 1
+        Loop
+        nr(j + 1) = hNr: links(j + 1) = hL: breed(j + 1) = hB: blijft(j + 1) = hBlijft
+    Next i
+
+    ' kaartenblok: van de linkerrand van de eerste tot de rechterrand van de laatste kaart; tussenruimte = de kleinste
+    bLinks = links(1)
+    bRechts = links(1) + breed(1)
+    tussen = -1
+    For i = 1 To n
+        If links(i) + breed(i) > bRechts Then bRechts = links(i) + breed(i)
+        If i > 1 Then
+            If tussen < 0 Or links(i) - (links(i - 1) + breed(i - 1)) < tussen Then tussen = links(i) - (links(i - 1) + breed(i - 1))
+        End If
+    Next i
+    If tussen < 0 Then tussen = 0
+
+    ' kaarten zonder regel: alle vormen waarvan de naam met KPIk_ begint gaan weg
+    For i = 1 To n
+        If Not blijft(i) Then
+            prefix = "KPI" & nr(i) & "_"
+            For j = dia.Shapes.Count To 1 Step -1
+                Set shp = dia.Shapes(j)
+                If Left$(shp.Name, Len(prefix)) = prefix Then shp.Delete
+            Next j
+        End If
+    Next i
+    If nBlijft = 0 Then Exit Sub
+
+    ' nieuwe plek: drie kaarten onder de drie grote kaarten (van links naar rechts), anders gelijk verdeeld over het blok
+    binnen = -1
+    onderGroot = (nBlijft = 3)
+    If onderGroot Then
+        For t = 1 To 3
+            Set groot = VormOpDia(dia, "KPI" & t & "_KAART")
+            If groot Is Nothing Then
+                onderGroot = False
+            Else
+                doelL(t) = groot.Left
+                doelB(t) = groot.Width
+            End If
+        Next t
+    End If
+    If onderGroot Then
+        For i = 1 To 2
+            For j = 1 To 3 - i
+                If doelL(j) > doelL(j + 1) Then
+                    hL = doelL(j): doelL(j) = doelL(j + 1): doelL(j + 1) = hL
+                    hB = doelB(j): doelB(j) = doelB(j + 1): doelB(j + 1) = hB
+                End If
+            Next j
+        Next i
+        ' tekstrand van de grote kaart: van de kaartrand tot de tekst (vak plus binnenmarge van het vak)
+        Set groot = VormOpDia(dia, "KPI1_KAART")
+        Set grootTekst = VormOpDia(dia, "KPI1_LABEL")
+        If Not grootTekst Is Nothing Then binnen = grootTekst.Left + grootTekst.TextFrame.MarginLeft - groot.Left
+    Else
+        w = (bRechts - bLinks - (nBlijft - 1) * tussen) / nBlijft
+        For t = 1 To nBlijft
+            doelL(t) = bLinks + (t - 1) * (w + tussen)
+            doelB(t) = w
+        Next t
+    End If
+
+    ' verplaatsen en verbreden: elke vorm van de kaart houdt zijn afstand tot de linker- en rechterrand van de kaart;
+    ' onder de grote kaarten staat de tekst op dezelfde afstand van de rand als de tekst in de grote kaart (de binnenmarge
+    ' van het tekstvak telt mee; lukt het lezen daarvan niet, dan houdt het vak zijn eigen afstand)
+    t = 0
+    For i = 1 To n
+        If blijft(i) Then
+            t = t + 1
+            prefix = "KPI" & nr(i) & "_"
+            For j = 1 To dia.Shapes.Count
+                Set shp = dia.Shapes(j)
+                If Left$(shp.Name, Len(prefix)) = prefix Then
+                    mL = shp.Left - links(i)
+                    mR = links(i) + breed(i) - (shp.Left + shp.Width)
+                    If binnen >= 0 And shp.Name <> prefix & "KAART" Then
+                        mL = binnen - shp.TextFrame.MarginLeft
+                        mR = binnen - shp.TextFrame.MarginRight
+                    End If
+                    If doelB(t) - mL - mR > 1 Then
+                        shp.Left = doelL(t) + mL
+                        shp.Width = doelB(t) - mL - mR
+                    End If
+                End If
+            Next j
+        End If
+    Next i
+    On Error GoTo 0
 End Sub
 
 Private Sub VulTabel(pres As Object, vorm As String, kop As Range, nRijen As Long, nKol As Long, overslaan As Boolean, _

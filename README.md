@@ -58,7 +58,7 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   hele looptijd), rente ook in de basis (ja/nee), verkooptempo-model aan/uit, per scenario (downside, upside én de
   scenariolijn): verschuiving verkoop/transport, uitstel start bouw, opbrengsten %, kosten %, eigen jaarrente (leeg =
   algemeen) en koopsom % (VON-prijs via het verkooptempo-model); scenariolijn aan/uit en naam;
-  norm verkocht vóór start bouw; tien controles (oplopende kwartalen zonder gaten, maximaal 60 periodes, rijen zonder jaar,
+  norm verkocht bij start bouw; tien controles (oplopende kwartalen zonder gaten, maximaal 60 periodes, rijen zonder jaar,
   jaar als getal, koprij, verkocht/transport = aantal, termijnen); overzicht types.
   De grafieken (`forecast_builder/chartxml.py`): *scenario's* (basis met de band tussen downside en upside), *cashflow per
   kwartaal* (opbrengsten, kosten, cumulatieve cashflow, vorige prognose en de gele scenariolijn vanaf het punt 'nu') en
@@ -94,7 +94,7 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   termijnen zonder geldig kwartaal. De fees staan als banen in de bouwtermijnengrafiek (gegroepeerd per component) en in de
   grafiek per woningtype; de knoppen en de koopsomknop raken ze niet (ze staan in alle vier de modelkolommen gelijk, dus
   scenario's, rente en standen veranderen niet). Een project mag DAEB en niet-DAEB mengen; DAEB-woningen tellen niet mee in
-  'verkocht vóór start bouw'.
+  'verkocht bij start bouw'.
 * **Model** – rekenblad. Kolommen A:L uit de invoer (B = bronrij op Invoer), M:BU model, scenario's, scenariolijn, rente en
   grafiekkolommen, BX:BY hulpcellen (BY8 = aantal periodes, de VBA leest die cel), vanaf CA de typeblokken (verkocht cum,
   transport cum, transport cum up/down/scenariolijn, termijnen, en per type verkocht en getransporteerd per kwartaal voor
@@ -185,6 +185,16 @@ in het gegevensblad van de grafiek op de dia en zet de reeksen op de juiste kolo
 eindigt haalt hij weg (scenariolijn uit; typen zonder termijnen en jaren buiten het bereik in de bouwtermijnengrafiek);
 voor de bouwtermijnengrafiek zet hij ook de tijd-as (Model!BY97 t/m BY99, kwartaalindex). Sjabloon v16 is gemaakt met
 `tools/pptx_v12_bouwtermijnen.py` (v11 → v12), `tools/pptx_v13_banen.py` (v12 → v13), `tools/pptx_v14_daeb.py` (v13 → v14) en `tools/pptx_v15_pertype.py` (v14 → v15: 'Vorige prognose' op dia 3 lichtblauw; dia 8 met totaal per kwartaal boven de stapel, eindpunt met het totaal en een tijdvak vanaf twee jaar vóór de eerste opbrengst) en `tools/pptx_v16_verkooppct.py` (v15 → v16: dia 6 met het cumulatieve percentage verkocht/getransporteerd als lijn met labels, blok van 30 kolommen, alleen de kwartalen vanaf het actuals-jaar).
+
+Dia 2 (kerncijfers) houdt het bij drie grote kaarten (max. financieringsbehoefte, break-even, projectresultaat) en drie kleine
+(cumulatieve cashflow per actuals-kwartaal, verkocht bij start bouw, verkocht / getransporteerd t/m het actuals-kwartaal);
+de ondertitel noemt opbrengsten, kosten en het aantal woningen (waarvan DAEB). *Verkocht bij start bouw* telt per type de
+woningen die t/m het kwartaal van start bouw verkocht zijn (dat kwartaal telt mee; DAEB telt niet mee), tegen de norm op het
+Dashboard. De marge in de kaart projectresultaat staat er bij een project met DAEB twee keer: *niet-DAEB* = projectresultaat /
+(opbrengsten − fees DAEB), want DAEB heeft geen marge, en *totaal* (gezamenlijk) = projectresultaat / opbrengsten (hulpcellen
+`opbr_daeb`, `marge`, `marge_nd`, `marge_tekst`). Bandbreedte en rente staan niet meer op dia 2: het sjabloon (v15/v16) heeft die
+kaarten nog (KPI5, KPI8), maar zonder regel op tab PowerPoint haalt de macro ze weg en verdeelt hij de overige kleine kaarten
+over de breedte, bij drie precies onder de grote kaarten (`SchikDia2`). Een nieuw sjabloon is daarvoor niet nodig.
 
 ## Controle
 

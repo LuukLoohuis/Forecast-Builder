@@ -212,6 +212,9 @@ def test_daeb_fees(tmp, basis):
             assert abs(a - b) < 1e-3, (naam, r, a, b)
         for naam in ("stand_up", "stand_down", "stand_scn"):
             assert abs(float(mb[f"{LY.M[naam]}{r}"].value) - float(m[f"{LY.M[naam]}{r}"].value)) < 1e-3, (naam, r)
+    # zonder geplande fees geen opbrengsten DAEB: dan één marge (gezamenlijk)
+    assert m[f"BY{LY.H['opbr_daeb']}"].value == 0
+    assert m[f"BY{LY.H['marge_tekst']}"].value.startswith("marge ") and "niet-DAEB" not in m[f"BY{LY.H['marge_tekst']}"].value
     # vorige prognose van de fees (blok 6): 'na omgevingsvergunning' stond in 2026 Q4 (nu 2027 Q1), 'bij gevelsluiting' in bouwkwartaal 4
     # (nu 5, geen vorige start bouw: t.o.v. de huidige start 2027 Q3); zonder vorig kwartaal ('na akkoord SO', actuals) staat vorig = nu
     BT = LY.BT
@@ -224,7 +227,7 @@ def test_daeb_fees(tmp, basis):
     d = basis["Dashboard"]
     assert d[f"W{LY.D_ROW_CONTROLES + 12}"].value == "OK" and d[f"W{LY.D_ROW_CONTROLES + 13}"].value == "OK"
     assert mb[f"BY{LY.H['daeb_types']}"].value == 1
-    assert mb[f"BY{LY.H['verk_voor_start']}"].value == sum(float(mb[f"{LY.m_col('vcum', k)}5"].value) for k in range(1, 5))
+    assert mb[f"BY{LY.H['verk_bij_start']}"].value == sum(float(mb[f"{LY.m_col('vcum', k)}5"].value) for k in range(1, 5))
     assert mb[f"BY{LY.H['won_met_start']}"].value == 40 + 20 + 8 + 24
     # fee-component zonder volledige planning: controle slaat aan
     p = D.voorbeeld()
@@ -339,3 +342,52 @@ def test_verkoopgrafiek_venster_en_percentage(basis):
     tpct = pp.cell(LY.PP_KPI_ROW1 + n - start, c0 + LY.PP_VP_KOL - 2)
     assert abs(float(tpct.value) - float(m[f"{LY.M['g_getransporteerd_pct']}{laatste}"].value)) < 1e-9
     assert pp.cell(LY.PP_KPI_ROW1 + n - start + 1, c0 + LY.PP_VP_KOL - 4).value == "#N/A"
+
+
+def test_kerncijfers_dia2(basis):
+    """Dia 2: verkocht bij start bouw telt per type t/m het kwartaal van start bouw (DAEB niet); de marge staat er voor niet-DAEB
+    (DAEB heeft geen marge: projectresultaat / (opbrengsten - fees DAEB)) en totaal; bandbreedte (KPI5) en rente (KPI8) hebben
+    geen regel meer op tab PowerPoint (de macro haalt die kaarten van de dia)."""
+    m = basis["Model"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    rij = {m[f"{LY.FIX['idx']}{r}"].value: r for r in range(LY.ROW1, LY.ROW1 + hb("n"))}
+    for k in range(1, 5):
+        vc, start = LY.m_col("vcum", k), m[f"{LY.m_col('verv', k)}6"].value
+        assert m[f"{vc}5"].value == m[f"{vc}{rij[start]}"].value, k              # cumulatief t/m het startkwartaal
+    vc1 = LY.m_col("vcum", 1)
+    assert m[f"{vc1}5"].value > m[f"{vc1}{rij[m[LY.m_col('verv', 1) + '6'].value] - 1}"].value   # voorbeeld: ook in dat kwartaal verkocht
+    assert m[f"{LY.m_col('vcum', 5)}5"].value == 0                              # DAEB telt niet mee
+    assert hb("verk_bij_start") == sum(m[f"{LY.m_col('vcum', k)}5"].value for k in range(1, 5))
+    assert abs(hb("verk_bij_start_pct") - hb("verk_bij_start") / hb("won_met_start")) < 1e-12
+    fees = 1192252 + 1636540
+    assert abs(hb("opbr_daeb") - fees) < 1e-6 and hb("woningen_daeb") == 30
+    assert abs(hb("marge") - hb("eind_basis") / hb("opbr_totaal")) < 1e-12
+    assert abs(hb("marge_nd") - hb("eind_basis") / (hb("opbr_totaal") - fees)) < 1e-12 and hb("marge_nd") > hb("marge")
+    assert hb("marge_tekst").startswith("marge niet-DAEB ") and " · totaal " in hb("marge_tekst")
+    pp = basis["PowerPoint"]
+    regels, r = {}, LY.PP_KPI_ROW1
+    while pp[f"C{r}"].value:
+        if pp[f"B{r}"].value == 2:
+            regels[pp[f"F{r}"].value] = pp[f"D{r}"].value
+        r += 1
+    assert {v.split("_")[0] for v in regels if v[3].isdigit()} == {"KPI1", "KPI2", "KPI3", "KPI4", "KPI6", "KPI7"}
+    assert regels["KPI3_SUB"] == hb("marge_tekst")
+    assert regels["KPI6_LABEL"] == "VERKOCHT BIJ START BOUW" and regels["KPI6_WAARDE"].endswith("%")
+    assert regels["KPI7_WAARDE"] == f'{int(hb("verkocht_actuals"))} / {int(hb("transport_actuals"))}'
+    assert regels["KPI7_SUB"] == f'van {int(hb("woningen"))} woningen · t/m {hb("kw_actuals")}'
+    assert regels["KPI_SUBTITEL"].startswith("Opbrengsten €")
+    assert regels["KPI_SUBTITEL"].endswith(f'{int(hb("woningen"))} woningen, waarvan {int(hb("woningen_daeb"))} DAEB')
+    assert basis["Dashboard"]["B3"].value.startswith("Projectresultaat ") and hb("marge_tekst") in basis["Dashboard"]["B3"].value
+
+
+def test_norm_met_oud_label_wordt_gelezen(tmp):
+    """Een werkboek van vóór de hernoeming ('Norm verkocht vóór start bouw') houdt zijn norm bij inlezen (build.py --from)."""
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "normlabel"), None, caches=False)
+    wb = load_workbook(paden[0])
+    d = wb["Dashboard"]
+    rij = next(r for r in range(1, LY.D_ROW_CONTROLES + 1) if d[f"V{r}"].value == LY.D_LABELS["norm"])
+    d[f"V{rij}"].value = "Norm verkocht vóór start bouw"
+    d[LY.D["norm"]].value = 0.65
+    pad = os.path.join(tmp, "normlabel_oud.xlsx")
+    wb.save(pad)
+    assert D.lees_werkboek(pad).params["norm"] == 0.65

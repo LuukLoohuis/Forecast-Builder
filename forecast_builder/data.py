@@ -288,7 +288,7 @@ def _lees_v2(wb):
         if naam.endswith("_scn") and not scn_kolom or naam in ("scn_aan", "scn_naam") and not scn_kolom:
             continue
         label = LY.D_LABELS.get(paren.get(naam, naam))
-        rij = rijen.get(label)
+        rij = next((rijen[lb] for lb in [label] + LY.D_LABELS_OUD.get(naam, []) if lb in rijen), None)
         if rij is None:
             continue
         kol = "".join(ch for ch in cel if ch.isalpha())

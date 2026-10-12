@@ -72,3 +72,13 @@ def test_blokconstanten_volgen_de_layout():
                   f'Array("VO_GRAFIEK", "{LY.PP_BLOK["vo"]}7", 5, "")', f'Array("SC_TABEL", "{LY.PP_TABEL_SC}", 9, 4, 0)',
                   f'Array("VT_TABEL", "{LY.PP_TABEL_SC.rstrip("7")}{LY.PP_TABEL_VT_ROW}", MAX_TYPES + 1, 8, 1)'):
         assert regel in src, regel
+
+
+def test_dia2_geschikt_na_de_teksten():
+    """NaarPowerPoint schikt dia 2 direct na het vullen van de teksten: kleine kaarten zonder regel op tab PowerPoint gaan weg
+    (SchikDia2, op basis van kolom F), de rest verdeelt de breedte."""
+    src = open(BAS, encoding="utf-8").read()
+    procs = _procedures(src)
+    body = procs["NaarPowerPoint"]
+    assert body.index("VulTeksten pres, wsP, mist") < body.index("SchikDia2 pres, wsP") < body.index("t = Tabellen()")
+    assert 'VormGevuld(wsP, "KPI" & k & "_WAARDE")' in procs["SchikDia2"] and "shp.Delete" in procs["SchikDia2"]

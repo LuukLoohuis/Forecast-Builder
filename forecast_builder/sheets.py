@@ -401,7 +401,7 @@ def bouw_model(wb):
     put(ws, f"{M['model_basis']}4", "modelkolommen: opbrengsten volgens woningtypes en termijnen, scenario's, rente en de 'getoonde' standen (met of zonder rente in de basis)", f=F_NOTE8)
     put(ws, f"{M['g_voorfinanciering']}4", "grafiekkolommen (x € 1 mln)", f=F_NOTE8)
     bloklabels = {
-        "vcum": "rij 5: verkocht vóór start bouw · rij 6: aantal woningen",
+        "vcum": "rij 5: verkocht bij start bouw (t/m het kwartaal van start bouw) · rij 6: aantal woningen",
         "tcum": "rij 5: aantal (types met start bouw) · rij 6: koopsom per woning",
         "tup": "rij 5: schaal bouwtermijnen = (100% − grond) / som bouwtermijnen · rij 6: grondtermijn %",
         "tdown": "rij 6: getransporteerd t/m actuals",
@@ -475,8 +475,9 @@ def bouw_model(wb):
         x_eur = LY.wt_ref(0, k, 1, rows=(LY.WT_R_X1, LY.WT_R_XN))
         x_kw = LY.wt_ref(0, k, 2, rows=(LY.WT_R_X1, LY.WT_R_XN))
         put(ws, f"{vx}6", f'=SUMPRODUCT((N(+{x_kw})<1)*N(+{x_eur}))', f=F_CALC, nf=FMT_INT, al=AL_RIGHT)
-        put(ws, f"{vc}5", f'=IF(OR({bv}$6>=99999,{fe}$5=1,COUNTIF({idx_rng},"<"&{bv}$6)=0),0,'
-                          f'N(INDEX({vc}${ROW1}:{vc}${ROWN},COUNTIF({idx_rng},"<"&{bv}$6))))', f=F_CALC, nf=FMT_INT, al=AL_RIGHT)
+        # verkocht bij start bouw: cumulatief verkocht t/m het kwartaal van start bouw (dat kwartaal telt mee); DAEB telt niet mee
+        put(ws, f"{vc}5", f'=IF(OR({bv}$6>=99999,{fe}$5=1,COUNTIF({idx_rng},"<="&{bv}$6)=0),0,'
+                          f'N(INDEX({vc}${ROW1}:{vc}${ROWN},COUNTIF({idx_rng},"<="&{bv}$6))))', f=F_CALC, nf=FMT_INT, al=AL_RIGHT)
         put(ws, f"{vc}6", f"={aantal}", f=F_CALC, nf=FMT_INT, al=AL_RIGHT)
         put(ws, f"{tc}5", f"=IF(OR({bv}$6>=99999,{fe}$5=1),0,{vc}$6)", f=F_CALC, nf=FMT_INT, al=AL_RIGHT)
         put(ws, f"{tc}6", f"=N({LY.wt_ref(LY.WT_R_KOOPSOM, k)})", f=F_CALC, nf=FMT_INT, al=AL_RIGHT)
@@ -881,9 +882,9 @@ def bouw_model(wb):
         "verkocht_actuals": ("Verkocht t/m actuals", f'=IF({h("pos_actuals")}=0,0,INDEX({rng(M["g_verkocht_cum"])},{h("pos_actuals")}))'),
         "transport_actuals": ("Getransporteerd t/m actuals", f'=IF({h("pos_actuals")}=0,0,INDEX({rng(M["g_getransporteerd_cum"])},{h("pos_actuals")}))'),
         "model_opbr": ("Model-opbrengst totaal", f'=IF({h("n")}=0,0,INDEX({rng(M["model_basis"])},{h("n")}))'),
-        "verk_voor_start": ("Verkocht vóór start bouw (aantal)", f"=SUM({m_range_abs('vcum', 5)})"),
-        "won_met_start": ("Woningen in types met start bouw", f"=SUM({m_range_abs('tcum', 5)})"),
-        "verk_voor_start_pct": ("Verkocht vóór start bouw (%)", f'=IFERROR({h("verk_voor_start")}/{h("won_met_start")},0)'),
+        "verk_bij_start": ("Verkocht bij start bouw (aantal, t/m het kwartaal van start bouw per type)", f"=SUM({m_range_abs('vcum', 5)})"),
+        "won_met_start": ("Woningen in types met start bouw (zonder DAEB)", f"=SUM({m_range_abs('tcum', 5)})"),
+        "verk_bij_start_pct": ("Verkocht bij start bouw (%)", f'=IFERROR({h("verk_bij_start")}/{h("won_met_start")},0)'),
         "uitverkocht": ("Uitverkocht in",
                         f'=IF(OR({h("woningen")}=0,(COUNTIF({rng(M["g_verkocht_pct"])},"<"&0.99999)+1)>{h("n")}),"niet binnen de looptijd",'
                         f'INDEX({D_},(COUNTIF({rng(M["g_verkocht_pct"])},"<"&0.99999)+1)))'),
@@ -1022,18 +1023,28 @@ def bouw_model(wb):
                          f'IF(N({m_col("vcum", k)}$6)>0,", "&{m_col("gv", k)}$7&" "&TEXT(IF({h("pos_actuals")}=0,0,'
                          f'N(INDEX({rng(m_col("vcum", k))},{h("pos_actuals")}))/{m_col("vcum", k)}$6),"0%"),"")'
                          for k in range(1, N_TYPES + 1)) + ',3,999)'),
+        # marge: DAEB (fees) heeft geen marge, dus het hele projectresultaat komt uit niet-DAEB
+        "opbr_daeb": ("Opbrengsten DAEB (fees, gepland)", f"=SUMPRODUCT({m_range_abs('fee', 5)},{m_range_abs('fee', 6)})"),
+        "woningen_daeb": ("Woningen DAEB", f"=SUMPRODUCT({m_range_abs('fee', 5)},{m_range_abs('vcum', 6)})"),
+        "marge": ("Marge gezamenlijk (projectresultaat / opbrengsten)", f'=IF({h("opbr_totaal")}=0,0,{h("eind_basis")}/{h("opbr_totaal")})'),
+        "marge_nd": ("Marge niet-DAEB (projectresultaat / opbrengsten zonder de fees DAEB)",
+                     f'=IF({h("opbr_totaal")}-{h("opbr_daeb")}<=0,0,{h("eind_basis")}/({h("opbr_totaal")}-{h("opbr_daeb")}))'),
+        "marge_tekst": ("Marge (tekst; met DAEB: niet-DAEB en totaal = gezamenlijk)",
+                        f'=IF(OR({h("opbr_daeb")}<=0,{h("opbr_totaal")}-{h("opbr_daeb")}<=0),"marge "&FIXED({h("marge")}*100,1)&"%",'
+                        f'"marge niet-DAEB "&FIXED({h("marge_nd")}*100,1)&"% · totaal "&FIXED({h("marge")}*100,1)&"%")'),
     }
     for naam, (label, formule) in hulp.items():
         r = H[naam]
         put(ws, f"{LY.M_HULP_LABEL}{r}", label, f=F_NOTE8)
         put(ws, f"{LY.M_HULP}{r}", formule, f=F_CALC, al=AL_LEFT_TOP)
-    for naam in ("verk_voor_start_pct", "rente", "rente_pct_down", "rente_pct_up", "rente_pct_scn", "koopsom_down", "koopsom_up", "koopsom_scn"):
+    for naam in ("verk_bij_start_pct", "marge", "marge_nd", "rente", "rente_pct_down", "rente_pct_up", "rente_pct_scn", "koopsom_down", "koopsom_up", "koopsom_scn"):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = FMT_PCT
     for naam in ("pt_totaal", "pt_nu"):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = "0.00"
     for naam in ("stand_nu", "opbr_totaal", "kosten_totaal", "cum_opbr_actuals", "dal_basis", "eind_basis", "dal_up", "eind_up",
                  "dal_down", "eind_down", "dal_vorig", "eind_vorig", "vorig_nu", "model_opbr", "rente_basis_tot", "rente_up_tot",
-                 "rente_down_tot", "rente_up_extra", "rente_down_extra", "eind_scn", "dal_scn", "rente_scn_tot", "rente_scn_extra"):
+                 "rente_down_tot", "rente_up_extra", "rente_down_extra", "eind_scn", "dal_scn", "rente_scn_tot", "rente_scn_extra",
+                 "opbr_daeb"):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = FMT_INT
     return ws
 
@@ -1059,8 +1070,8 @@ def bouw_dashboard(wb, data):
     put(ws, "B2", f'="Financiering piekt op €"&FIXED(ABS({hm("dal_basis")})/1000000,1)&" mln in "&{hm("dal_basis_kw")}'
                   f'&IF({hm("be_basis")}="",", geen break-even",", break-even in "&{hm("be_basis")})', f=font(14, True, TXT), al=AL_VCENTER)
     ws.merge_cells("B3:T3")
-    put(ws, "B3", f'="Projectresultaat "&{eur_mln(hm("eind_basis"))}&" · marge "&IFERROR(FIXED({hm("eind_basis")}/{hm("opbr_totaal")}*100,1),"0")'
-                  f'&"% · opbrengsten €"&FIXED({hm("opbr_totaal")}/1000000,1)&" mln · kosten €"&FIXED({hm("kosten_totaal")}/1000000,1)&" mln · basis = je eigen cashflow"'
+    put(ws, "B3", f'="Projectresultaat "&{eur_mln(hm("eind_basis"))}&" · "&{hm("marge_tekst")}'
+                  f'&" · opbrengsten €"&FIXED({hm("opbr_totaal")}/1000000,1)&" mln · kosten €"&FIXED({hm("kosten_totaal")}/1000000,1)&" mln · basis = je eigen cashflow"'
                   f'&IF({rb}=1," + rente ("&FIXED({hm("rente_basis_tot")}/1000000,1)&" mln)","")', f=font(10, False, TXT2))
 
     # ---- KPI-kaarten -------------------------------------------------------------
@@ -1271,9 +1282,10 @@ def bouw_dashboard(wb, data):
     sectie(r, "VERKOOP")
     label(r + 1, LY.D_LABELS["norm"])
     geel(LY.D["norm"], P["norm"], FMT_PCT0)
-    label(r + 2, "Verkocht vóór start bouw")
-    info(f"W{r + 2}", f'={hm("verk_voor_start_pct")}', FMT_PCT0)
-    put(ws, f"Z{r + 2}", f'={hm("verk_voor_start")}&" van "&{hm("won_met_start")}&" woningen (types met start bouw)"', f=F_NOTE8, al=AL_VCENTER)
+    label(r + 2, "Verkocht bij start bouw")
+    info(f"W{r + 2}", f'={hm("verk_bij_start_pct")}', FMT_PCT0)
+    put(ws, f"Z{r + 2}", f'={hm("verk_bij_start")}&" van "&{hm("won_met_start")}&" woningen · per type t/m het kwartaal van start bouw (zonder DAEB)"',
+        f=F_NOTE8, al=AL_VCENTER)
     label(r + 3, "Verkocht t/m nu")
     info(f"W{r + 3}", f'={hm("verkocht_actuals")}&" van "&{hm("woningen")}')
     put(ws, f"Z{r + 3}", f'="nog te verkopen in de prognose: "&{hm("nog_verkopen")}&" · uitverkocht in "&{hm("uitverkocht")}', f=F_NOTE8, al=AL_VCENTER)
@@ -1480,8 +1492,8 @@ def bouw_powerpoint(wb, data):
     kpi = [
         (2, "Kopje", f'="KERNCIJFERS · STAND PER "&UPPER({hm("kw_actuals")})', None, "KPI_KICKER"),
         (2, "Titel", "=Dashboard!$B$2", None, "KPI_TITEL"),
-        (2, "Ondertitel", f'="Projectresultaat "&{eur_mln(eind)}&" · marge "&IFERROR(FIXED({eind}/{hm("opbr_totaal")}*100,1),"0")&"% · opbrengsten €"'
-                          f'&FIXED({hm("opbr_totaal")}/1000000,1)&" mln · kosten €"&FIXED({hm("kosten_totaal")}/1000000,1)&" mln · "&{hm("woningen")}&" woningen"'
+        (2, "Ondertitel", f'="Opbrengsten €"&FIXED({hm("opbr_totaal")}/1000000,1)&" mln · kosten €"&FIXED({hm("kosten_totaal")}/1000000,1)&" mln · "'
+                          f'&{hm("woningen")}&" woningen"&IF({hm("woningen_daeb")}>0,", waarvan "&{hm("woningen_daeb")}&" DAEB","")'
                           f'&IF({rb}=1," · incl. rente","")', None, "KPI_SUBTITEL"),
         (2, "Max. financieringsbehoefte", f"={eur_m(dal)}", None, "KPI1_WAARDE"),
         (2, "  toelichting", f'="dieptepunt in "&{hm("dal_basis_kw")}', None, "KPI1_SUB"),
@@ -1498,22 +1510,24 @@ def bouw_powerpoint(wb, data):
          f'=IF(OR({bep}=0,{bevp}=0,({bep}-{bevp})=0),"gelijk",IF(({bep}-{bevp})>0,"slechter","beter"))', "KPI2_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({bevp}=0,"","was "&{hm("be_vorig")})', None, "KPI2_WAS"),
         (2, "Projectresultaat", f"={eur_m(eind)}", None, "KPI3_WAARDE"),
-        (2, "  toelichting", f'="marge "&IFERROR(FIXED({eind}/{hm("opbr_totaal")}*100,1),"0")&"% · eindsaldo in "&{hm("laatste_kw")}', None, "KPI3_SUB"),
+        (2, "  toelichting", f'={hm("marge_tekst")}', None, "KPI3_SUB"),
         (2, "  verschil met vorige prognose",
          f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose",IF(ABS(({eind}-{eind_v}))<50000,"gelijk aan vorige prognose",'
          f'"€"&FIXED(ABS(({eind}-{eind_v}))/1000000,1)&"M "&IF(({eind}-{eind_v})>0,"hoger","lager")&" dan vorige prognose"))',
          f'=IF(OR({hm("vorig_aanwezig")}=0,ABS(({eind}-{eind_v}))<50000),"gelijk",IF(({eind}-{eind_v})>0,"beter","slechter"))', "KPI3_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({hm("vorig_aanwezig")}=0,"","was "&{eur_m(eind_v)})', None, "KPI3_WAS"),
+        # kleine kaarten: KPI4, KPI6 en KPI7. Een kaart in het sjabloon zonder regel hier (KPI5 bandbreedte, KPI8 rente) haalt de
+        # macro van de dia; de overige kaarten verdelen de breedte (SchikDia2)
         (2, "Cumulatieve cashflow · label", f'="CUM. CASHFLOW PER "&UPPER({hm("kw_actuals")})', None, "KPI4_LABEL"),
         (2, "Cumulatieve cashflow", f"={eur_m(hm('stand_nu'))}", None, "KPI4_WAARDE"),
         (2, "  toelichting", f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose","vorige prognose "&{eur_m(hm("vorig_nu"))})', None, "KPI4_SUB"),
-        (2, "Bandbreedte eindsaldo", f'={eur_m(hm("eind_down"))}&" tot "&{eur_m(hm("eind_up"))}', None, "KPI5_WAARDE"),
-        (2, "  toelichting", "downside tot upside", None, "KPI5_SUB"),
-        (2, "Verkocht vóór start bouw", f'=FIXED({hm("verk_voor_start_pct")}*100,0)&"%"',
-         f'=IF({hm("verk_voor_start_pct")}>={dabs("norm")},"op norm","onder norm")', "KPI6_WAARDE"),
-        (2, "  toelichting", f'="norm "&FIXED({dabs("norm")}*100,0)&"% · "&{hm("verk_voor_start")}&" van "&{hm("won_met_start")}&" woningen"', None, "KPI6_SUB"),
-        (2, "Woningen getransporteerd", f'={hm("transport_actuals")}&" van "&{hm("woningen")}', None, "KPI7_WAARDE"),
-        (2, "  toelichting", f'="t/m "&{hm("kw_actuals")}&" · verkocht "&{hm("verkocht_actuals")}', None, "KPI7_SUB"),
+        (2, "Verkocht bij start bouw · label", "VERKOCHT BIJ START BOUW", None, "KPI6_LABEL"),
+        (2, "Verkocht bij start bouw", f'=FIXED({hm("verk_bij_start_pct")}*100,0)&"%"',
+         f'=IF({hm("verk_bij_start_pct")}>={dabs("norm")},"op norm","onder norm")', "KPI6_WAARDE"),
+        (2, "  toelichting", f'="norm "&FIXED({dabs("norm")}*100,0)&"% · "&{hm("verk_bij_start")}&" van "&{hm("won_met_start")}&" woningen"', None, "KPI6_SUB"),
+        (2, "Verkocht / getransporteerd · label", "VERKOCHT / GETRANSPORTEERD", None, "KPI7_LABEL"),
+        (2, "Verkocht / getransporteerd", f'={hm("verkocht_actuals")}&" / "&{hm("transport_actuals")}', None, "KPI7_WAARDE"),
+        (2, "  toelichting", f'="van "&{hm("woningen")}&" woningen · t/m "&{hm("kw_actuals")}', None, "KPI7_SUB"),
         (3, "Titel", f'="Dieptepunt "&{eur_mln(dal)}&" in "&{hm("dal_basis_kw")}&", eindsaldo "&{eur_mln(eind)}&" in "&{hm("laatste_kw")}', None, "CF_TITEL"),
         (3, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&": "&{eur_mln(hm("stand_nu"))}&" · balken: opbrengsten en kosten per kwartaal · lijn: cumulatieve cashflow"'
                           f'&IF({rb}=1," · incl. "&{hm("rente_tekst")},"")', None, "CF_SUBTITEL"),
@@ -1540,11 +1554,6 @@ def bouw_powerpoint(wb, data):
         (7, "Laatste kwartaal", f"={hm('laatste_kw')}", None, "VO_STAT3_WAARDE"),
         (8, "Titel", f"={hm('pt_titel')}", None, "PT_TITEL"),
         (8, "Ondertitel", f"={hm('pt_subtitel')}", None, "PT_SUBTITEL"),
-        # rente: vijfde kleine kaart op dia 2 (sjabloon v10)
-        (2, "Rentelasten · label", f'=IF({hm("rente")}=0,"RENTE",IF({rb}=1,"RENTELASTEN (IN BASIS)","RENTELASTEN (BEREKEND)"))', None, "KPI8_LABEL"),
-        (2, "Rentelasten", f'=IF({hm("rente")}=0,"geen",{eur_m(hm("rente_basis_tot"))})', None, "KPI8_WAARDE"),
-        (2, "  toelichting", f'=IF({hm("rente")}=0,"zet een jaarrente op het Dashboard",FIXED({hm("rente")}*100,1)&"% "&IF({hm("rente_tm_start")}=1,"t/m start bouw","hele looptijd")'
-                             f'&" · down "&{eur_m(hm("rente_down_tot"))}&" · up "&{eur_m(hm("rente_up_tot"))})', None, "KPI8_SUB"),
     ]
     for i, (dia, onderdeel, tekst, richting, vorm) in enumerate(kpi):
         r = LY.PP_KPI_ROW1 + i
@@ -1683,7 +1692,7 @@ def bouw_powerpoint(wb, data):
 
     put(ws, f"{T0}{LY.PP_TABEL_VT_ROW - 1}", "DIA 5 · TABEL WONINGTYPES", f=F_SECTION)
     r0 = LY.PP_TABEL_VT_ROW
-    for j, t in enumerate(["Type", "Aantal", "Verkocht t/m nu", "Getransporteerd t/m nu", "Start bouw", "Vóór start bouw", "In %", "Norm"]):
+    for j, t in enumerate(["Type", "Aantal", "Verkocht t/m nu", "Getransporteerd t/m nu", "Start bouw", "Bij start bouw", "In %", "Norm"]):
         put(ws, f"{L(c_t0 + j)}{r0}", t, f=F_HDR, fl=FL_HDR, al=AL_LEFT_WRAP if j == 0 else AL_RIGHT_WRAP)
     for k in range(1, N_TYPES + 1):
         r = r0 + k
