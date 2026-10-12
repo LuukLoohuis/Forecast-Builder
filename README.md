@@ -186,15 +186,17 @@ eindigt haalt hij weg (scenariolijn uit; typen zonder termijnen en jaren buiten 
 voor de bouwtermijnengrafiek zet hij ook de tijd-as (Model!BY97 t/m BY99, kwartaalindex). Sjabloon v16 is gemaakt met
 `tools/pptx_v12_bouwtermijnen.py` (v11 → v12), `tools/pptx_v13_banen.py` (v12 → v13), `tools/pptx_v14_daeb.py` (v13 → v14) en `tools/pptx_v15_pertype.py` (v14 → v15: 'Vorige prognose' op dia 3 lichtblauw; dia 8 met totaal per kwartaal boven de stapel, eindpunt met het totaal en een tijdvak vanaf twee jaar vóór de eerste opbrengst) en `tools/pptx_v16_verkooppct.py` (v15 → v16: dia 6 met het cumulatieve percentage verkocht/getransporteerd als lijn met labels, blok van 30 kolommen, alleen de kwartalen vanaf het actuals-jaar).
 
-Dia 2 (kerncijfers) houdt het bij drie grote kaarten (max. financieringsbehoefte, break-even, projectresultaat) en drie kleine
-(cumulatieve cashflow per actuals-kwartaal, verkocht bij start bouw, verkocht / getransporteerd t/m het actuals-kwartaal);
+Dia 2 (kerncijfers) houdt het bij drie grote kaarten (max. financieringsbehoefte, break-even, projectresultaat) en vier kleine
+(cumulatieve cashflow per actuals-kwartaal, verkocht bij start bouw, verkocht / getransporteerd t/m het actuals-kwartaal, marge);
 de ondertitel noemt opbrengsten, kosten en het aantal woningen (waarvan DAEB). *Verkocht bij start bouw* telt per type de
 woningen die t/m het kwartaal van start bouw verkocht zijn (dat kwartaal telt mee; DAEB telt niet mee), tegen de norm op het
-Dashboard. De marge in de kaart projectresultaat staat er bij een project met DAEB twee keer: *niet-DAEB* = projectresultaat /
-(opbrengsten − fees DAEB), want DAEB heeft geen marge, en *totaal* (gezamenlijk) = projectresultaat / opbrengsten (hulpcellen
-`opbr_daeb`, `marge`, `marge_nd`, `marge_tekst`). Bandbreedte en rente staan niet meer op dia 2: het sjabloon (v15/v16) heeft die
-kaarten nog (KPI5, KPI8), maar zonder regel op tab PowerPoint haalt de macro ze weg en verdeelt hij de overige kleine kaarten
-over de breedte, bij drie precies onder de grote kaarten (`SchikDia2`). Een nieuw sjabloon is daarvoor niet nodig.
+Dashboard. De margekaart (KPI8, was rente) toont bij een project met DAEB twee marges: *niet-DAEB* = projectresultaat /
+(opbrengsten − fees DAEB), want DAEB heeft geen marge, en *gezamenlijk* = projectresultaat / opbrengsten; zonder DAEB één marge
+(hulpcellen `opbr_daeb`, `marge`, `marge_nd`, `marge_split`, `marge_tekst`). Bandbreedte staat niet meer op dia 2: het sjabloon
+(v15/v16) heeft die kaart nog (KPI5), maar zonder regel op tab PowerPoint haalt de macro hem weg en verdeelt hij de overige
+kleine kaarten over de breedte, bij drie precies onder de grote kaarten (`SchikDia2`). De voetnoot is korter (regel VOETNOOT;
+heet die vorm in het sjabloon anders, dan vult de macro de tekstvorm op dia 2 die met 'Stip' begint). Een nieuw sjabloon is
+daarvoor niet nodig.
 
 ## Controle
 

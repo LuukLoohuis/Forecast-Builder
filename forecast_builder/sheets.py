@@ -1029,8 +1029,10 @@ def bouw_model(wb):
         "marge": ("Marge gezamenlijk (projectresultaat / opbrengsten)", f'=IF({h("opbr_totaal")}=0,0,{h("eind_basis")}/{h("opbr_totaal")})'),
         "marge_nd": ("Marge niet-DAEB (projectresultaat / opbrengsten zonder de fees DAEB)",
                      f'=IF({h("opbr_totaal")}-{h("opbr_daeb")}<=0,0,{h("eind_basis")}/({h("opbr_totaal")}-{h("opbr_daeb")}))'),
+        "marge_split": ("Marge apart voor niet-DAEB (1/0): fees DAEB gepland en ook opbrengsten daarbuiten",
+                        f'=IF(AND({h("opbr_daeb")}>0,{h("opbr_totaal")}-{h("opbr_daeb")}>0),1,0)'),
         "marge_tekst": ("Marge (tekst; met DAEB: niet-DAEB en totaal = gezamenlijk)",
-                        f'=IF(OR({h("opbr_daeb")}<=0,{h("opbr_totaal")}-{h("opbr_daeb")}<=0),"marge "&FIXED({h("marge")}*100,1)&"%",'
+                        f'=IF({h("marge_split")}=0,"marge "&FIXED({h("marge")}*100,1)&"%",'
                         f'"marge niet-DAEB "&FIXED({h("marge_nd")}*100,1)&"% · totaal "&FIXED({h("marge")}*100,1)&"%")'),
     }
     for naam, (label, formule) in hulp.items():
@@ -1510,14 +1512,14 @@ def bouw_powerpoint(wb, data):
          f'=IF(OR({bep}=0,{bevp}=0,({bep}-{bevp})=0),"gelijk",IF(({bep}-{bevp})>0,"slechter","beter"))', "KPI2_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({bevp}=0,"","was "&{hm("be_vorig")})', None, "KPI2_WAS"),
         (2, "Projectresultaat", f"={eur_m(eind)}", None, "KPI3_WAARDE"),
-        (2, "  toelichting", f'={hm("marge_tekst")}', None, "KPI3_SUB"),
+        (2, "  toelichting", f'="eindsaldo in "&{hm("laatste_kw")}', None, "KPI3_SUB"),
         (2, "  verschil met vorige prognose",
          f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose",IF(ABS(({eind}-{eind_v}))<50000,"gelijk aan vorige prognose",'
          f'"€"&FIXED(ABS(({eind}-{eind_v}))/1000000,1)&"M "&IF(({eind}-{eind_v})>0,"hoger","lager")&" dan vorige prognose"))',
          f'=IF(OR({hm("vorig_aanwezig")}=0,ABS(({eind}-{eind_v}))<50000),"gelijk",IF(({eind}-{eind_v})>0,"beter","slechter"))', "KPI3_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({hm("vorig_aanwezig")}=0,"","was "&{eur_m(eind_v)})', None, "KPI3_WAS"),
-        # kleine kaarten: KPI4, KPI6 en KPI7. Een kaart in het sjabloon zonder regel hier (KPI5 bandbreedte, KPI8 rente) haalt de
-        # macro van de dia; de overige kaarten verdelen de breedte (SchikDia2)
+        # kleine kaarten: KPI4, KPI6, KPI7 en KPI8 (marge; was rente). Een kaart in het sjabloon zonder regel hier (KPI5,
+        # bandbreedte) haalt de macro van de dia; de overige kaarten verdelen de breedte (SchikDia2)
         (2, "Cumulatieve cashflow · label", f'="CUM. CASHFLOW PER "&UPPER({hm("kw_actuals")})', None, "KPI4_LABEL"),
         (2, "Cumulatieve cashflow", f"={eur_m(hm('stand_nu'))}", None, "KPI4_WAARDE"),
         (2, "  toelichting", f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose","vorige prognose "&{eur_m(hm("vorig_nu"))})', None, "KPI4_SUB"),
@@ -1528,6 +1530,11 @@ def bouw_powerpoint(wb, data):
         (2, "Verkocht / getransporteerd · label", "VERKOCHT / GETRANSPORTEERD", None, "KPI7_LABEL"),
         (2, "Verkocht / getransporteerd", f'={hm("verkocht_actuals")}&" / "&{hm("transport_actuals")}', None, "KPI7_WAARDE"),
         (2, "  toelichting", f'="van "&{hm("woningen")}&" woningen · t/m "&{hm("kw_actuals")}', None, "KPI7_SUB"),
+        # marge: met DAEB niet-DAEB / gezamenlijk (DAEB heeft geen marge: projectresultaat / (opbrengsten - fees DAEB))
+        (2, "Marge · label", f'=IF({hm("marge_split")}=1,"MARGE NIET-DAEB / GEZAMENLIJK","MARGE")', None, "KPI8_LABEL"),
+        (2, "Marge", f'=IF({hm("marge_split")}=1,FIXED({hm("marge_nd")}*100,1)&"% / ","")&FIXED({hm("marge")}*100,1)&"%"', None, "KPI8_WAARDE"),
+        (2, "  toelichting", f'=IF({hm("marge_split")}=1,"DAEB heeft geen marge","projectresultaat / opbrengsten")', None, "KPI8_SUB"),
+        (2, "Voetnoot", "Stip = verschil met de vorige prognose: rood slechter, groen beter, grijs gelijk", None, "VOETNOOT"),
         (3, "Titel", f'="Dieptepunt "&{eur_mln(dal)}&" in "&{hm("dal_basis_kw")}&", eindsaldo "&{eur_mln(eind)}&" in "&{hm("laatste_kw")}', None, "CF_TITEL"),
         (3, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&": "&{eur_mln(hm("stand_nu"))}&" · balken: opbrengsten en kosten per kwartaal · lijn: cumulatieve cashflow"'
                           f'&IF({rb}=1," · incl. "&{hm("rente_tekst")},"")', None, "CF_SUBTITEL"),

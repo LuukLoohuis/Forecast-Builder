@@ -213,7 +213,7 @@ def test_daeb_fees(tmp, basis):
         for naam in ("stand_up", "stand_down", "stand_scn"):
             assert abs(float(mb[f"{LY.M[naam]}{r}"].value) - float(m[f"{LY.M[naam]}{r}"].value)) < 1e-3, (naam, r)
     # zonder geplande fees geen opbrengsten DAEB: dan één marge (gezamenlijk)
-    assert m[f"BY{LY.H['opbr_daeb']}"].value == 0
+    assert m[f"BY{LY.H['opbr_daeb']}"].value == 0 and m[f"BY{LY.H['marge_split']}"].value == 0
     assert m[f"BY{LY.H['marge_tekst']}"].value.startswith("marge ") and "niet-DAEB" not in m[f"BY{LY.H['marge_tekst']}"].value
     # vorige prognose van de fees (blok 6): 'na omgevingsvergunning' stond in 2026 Q4 (nu 2027 Q1), 'bij gevelsluiting' in bouwkwartaal 4
     # (nu 5, geen vorige start bouw: t.o.v. de huidige start 2027 Q3); zonder vorig kwartaal ('na akkoord SO', actuals) staat vorig = nu
@@ -345,9 +345,9 @@ def test_verkoopgrafiek_venster_en_percentage(basis):
 
 
 def test_kerncijfers_dia2(basis):
-    """Dia 2: verkocht bij start bouw telt per type t/m het kwartaal van start bouw (DAEB niet); de marge staat er voor niet-DAEB
-    (DAEB heeft geen marge: projectresultaat / (opbrengsten - fees DAEB)) en totaal; bandbreedte (KPI5) en rente (KPI8) hebben
-    geen regel meer op tab PowerPoint (de macro haalt die kaarten van de dia)."""
+    """Dia 2: verkocht bij start bouw telt per type t/m het kwartaal van start bouw (DAEB niet); de margekaart (KPI8, was rente)
+    toont niet-DAEB (DAEB heeft geen marge: projectresultaat / (opbrengsten - fees DAEB)) en gezamenlijk; bandbreedte (KPI5)
+    heeft geen regel meer op tab PowerPoint (de macro haalt die kaart van de dia); kortere voetnoot."""
     m = basis["Model"]
     hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
     rij = {m[f"{LY.FIX['idx']}{r}"].value: r for r in range(LY.ROW1, LY.ROW1 + hb("n"))}
@@ -363,6 +363,7 @@ def test_kerncijfers_dia2(basis):
     assert abs(hb("opbr_daeb") - fees) < 1e-6 and hb("woningen_daeb") == 30
     assert abs(hb("marge") - hb("eind_basis") / hb("opbr_totaal")) < 1e-12
     assert abs(hb("marge_nd") - hb("eind_basis") / (hb("opbr_totaal") - fees)) < 1e-12 and hb("marge_nd") > hb("marge")
+    assert hb("marge_split") == 1
     assert hb("marge_tekst").startswith("marge niet-DAEB ") and " · totaal " in hb("marge_tekst")
     pp = basis["PowerPoint"]
     regels, r = {}, LY.PP_KPI_ROW1
@@ -370,8 +371,11 @@ def test_kerncijfers_dia2(basis):
         if pp[f"B{r}"].value == 2:
             regels[pp[f"F{r}"].value] = pp[f"D{r}"].value
         r += 1
-    assert {v.split("_")[0] for v in regels if v[3].isdigit()} == {"KPI1", "KPI2", "KPI3", "KPI4", "KPI6", "KPI7"}
-    assert regels["KPI3_SUB"] == hb("marge_tekst")
+    assert {v.split("_")[0] for v in regels if v[3].isdigit()} == {"KPI1", "KPI2", "KPI3", "KPI4", "KPI6", "KPI7", "KPI8"}
+    assert regels["KPI3_SUB"] == f'eindsaldo in {hb("laatste_kw")}'
+    assert regels["KPI8_LABEL"] == "MARGE NIET-DAEB / GEZAMENLIJK" and regels["KPI8_SUB"] == "DAEB heeft geen marge"
+    assert regels["KPI8_WAARDE"].replace(",", ".") == f'{hb("marge_nd") * 100:.1f}% / {hb("marge") * 100:.1f}%'
+    assert regels["VOETNOOT"].startswith("Stip = verschil met de vorige prognose") and len(regels["VOETNOOT"]) < 90
     assert regels["KPI6_LABEL"] == "VERKOCHT BIJ START BOUW" and regels["KPI6_WAARDE"].endswith("%")
     assert regels["KPI7_WAARDE"] == f'{int(hb("verkocht_actuals"))} / {int(hb("transport_actuals"))}'
     assert regels["KPI7_SUB"] == f'van {int(hb("woningen"))} woningen · t/m {hb("kw_actuals")}'

@@ -267,7 +267,7 @@ H = {
     "vp_start": 131, "vp_n": 132,   # verkoopgrafiek: eerste getoonde periode (1 januari van het actuals-jaar) en aantal periodes
     "vp_tekst": 133,                # verkoopgrafiek: voortgang per type als tekst ('Rijwoning 25%, Tweekapper 40%, ...')
     # marge (dia 2 en Dashboard): DAEB heeft geen marge, dus marge niet-DAEB = projectresultaat / (opbrengsten - fees DAEB)
-    "opbr_daeb": 134, "woningen_daeb": 135, "marge": 136, "marge_nd": 137, "marge_tekst": 138,
+    "opbr_daeb": 134, "woningen_daeb": 135, "marge": 136, "marge_nd": 137, "marge_tekst": 138, "marge_split": 139,
 }
 
 
