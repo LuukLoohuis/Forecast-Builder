@@ -191,12 +191,11 @@ Dia 2 (kerncijfers) houdt het bij drie grote kaarten (max. financieringsbehoefte
 de ondertitel noemt opbrengsten, kosten en het aantal woningen (waarvan DAEB). *Verkocht bij start bouw* telt per type de
 woningen die t/m het kwartaal van start bouw verkocht zijn (dat kwartaal telt mee; DAEB telt niet mee), tegen de norm op het
 Dashboard. De margekaart (KPI8, was rente) toont bij een project met DAEB twee marges: *niet-DAEB* = projectresultaat /
-(opbrengsten − fees DAEB), want DAEB heeft geen marge, en *gezamenlijk* = projectresultaat / opbrengsten; zonder DAEB één marge
-(hulpcellen `opbr_daeb`, `marge`, `marge_nd`, `marge_split`, `marge_tekst`). Bandbreedte staat niet meer op dia 2: het sjabloon
-(v15/v16) heeft die kaart nog (KPI5), maar zonder regel op tab PowerPoint haalt de macro hem weg en verdeelt hij de overige
-kleine kaarten over de breedte, bij drie precies onder de grote kaarten (`SchikDia2`). De voetnoot is korter (regel VOETNOOT;
-heet die vorm in het sjabloon anders, dan vult de macro de tekstvorm op dia 2 die met 'Stip' begint). Een nieuw sjabloon is
-daarvoor niet nodig.
+(opbrengsten − fees DAEB), want DAEB heeft geen marge, en *totaal* = projectresultaat / opbrengsten; zonder DAEB één marge
+(hulpcellen `opbr_daeb`, `marge`, `marge_nd`, `marge_split`, `marge_tekst`). Bandbreedte en voetnoot staan niet meer op dia 2:
+het sjabloon (v15/v16) heeft die kaart (KPI5) en de voetnoot nog, maar zonder regel op tab PowerPoint haalt de macro ze weg
+(de voetnoot op naam VOETNOOT, anders de tekstvorm die met 'Stip' begint) en verdeelt hij de overige kleine kaarten over de
+breedte, bij drie precies onder de grote kaarten (`SchikDia2`). Een nieuw sjabloon is daarvoor niet nodig.
 
 ## Controle
 

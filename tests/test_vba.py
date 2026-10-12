@@ -76,10 +76,10 @@ def test_blokconstanten_volgen_de_layout():
 
 def test_dia2_geschikt_na_de_teksten():
     """NaarPowerPoint schikt dia 2 direct na het vullen van de teksten: kleine kaarten zonder regel op tab PowerPoint gaan weg
-    (SchikDia2, op basis van kolom F), de rest verdeelt de breedte; de voetnoot ook onder een andere vormnaam."""
+    (SchikDia2, op basis van kolom F), de rest verdeelt de breedte; de voetnoot gaat van de dia."""
     src = open(BAS, encoding="utf-8").read()
     procs = _procedures(src)
     body = procs["NaarPowerPoint"]
     assert body.index("VulTeksten pres, wsP, mist") < body.index("SchikDia2 pres, wsP") < body.index("t = Tabellen()")
     assert 'RegelVanVorm(wsP, "KPI" & k & "_WAARDE")' in procs["SchikDia2"] and "shp.Delete" in procs["SchikDia2"]
-    assert body.index("SchikDia2 pres, wsP, mist") > 0 and 'RegelVanVorm(wsP, "VOETNOOT")' in procs["SchikDia2"]
+    assert 'VormOpDia(dia, "VOETNOOT")' in procs["SchikDia2"] and '"Stip"' in procs["SchikDia2"]

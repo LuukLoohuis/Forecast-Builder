@@ -28,7 +28,7 @@ Option Explicit
 '                        kleiner, zo nodig de kaart met BT_GRAFIEK korter, en de tabelkaart sluit om de tabel
 '  SchikDia2             na het vullen van de teksten (dia 2): kleine KPI-kaarten zonder regel op tabblad PowerPoint
 '                        gaan weg, de overige verdelen de breedte (drie kaarten: precies onder de grote kaarten);
-'                        voetnoot ook als die vorm in het sjabloon niet VOETNOOT heet
+'                        de voetnoot gaat weg (VOETNOOT, of de tekstvorm op dia 2 die met 'Stip' begint)
 '
 '  v15: grafiek per woningtype (dia 8): blok FM7 met 10 kolommen (totaal per kwartaal als label, eindpunt met het totaal),
 '       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw; sjabloon v15.
@@ -37,8 +37,8 @@ Option Explicit
 '       (vier kolommen extra: cumulatief % en label, verkocht en transport), alleen de periodes vanaf het actuals-jaar (Model!BY132);
 '       VO-blok vanaf FK7, blok per type (dia 8) vanaf FQ7, tabellen vanaf kolom GB; sjabloon v16.
 '       Dia 2 met minder tekst: bandbreedte (KPI5) heeft geen regel meer op tabblad PowerPoint en SchikDia2 haalt die kaart
-'       weg (werkt met sjabloon v15 en v16); KPI8 (was rente) = marge niet-DAEB / gezamenlijk, verkocht bij start bouw,
-'       verkocht / getransporteerd t/m actuals; kortere voetnoot (VOETNOOT, anders de tekstvorm op dia 2 die met 'Stip' begint).
+'       weg (werkt met sjabloon v15 en v16); KPI8 (was rente) = marge niet-DAEB / totaal, verkocht bij start bouw,
+'       verkocht / getransporteerd t/m actuals; de voetnoot gaat van de dia (VOETNOOT, anders de tekstvorm die met 'Stip' begint).
 '  UitFOOphalen         vult Invoer en Woningtypes vanuit een FO-werkboek (zie v14 hierboven)
 '  VorigePrognoseUitFO  vult blok 4 en 6 (vorige prognose) vanuit een ouder FO
 '  PlanningBewarenAlsVorig  zet de huidige planning in blok 4 en 6
@@ -366,7 +366,7 @@ Public Sub NaarPowerPoint()
     VulTeksten pres, wsP, mist
 
     stap = "dia 2 schikken"
-    SchikDia2 pres, wsP, mist
+    SchikDia2 pres, wsP
 
     stap = "tabellen vullen"
     t = Tabellen()
@@ -603,14 +603,13 @@ Private Function VormOpDia(dia As Object, naam As String) As Object
     Next shp
 End Function
 
-Private Sub SchikDia2(pres As Object, wsP As Worksheet, ByRef mist As String)
+Private Sub SchikDia2(pres As Object, wsP As Worksheet)
     ' na het vullen van de teksten, dia 2 (kerncijfers): een kleine KPI-kaart (KPI4 en verder: KAART, LABEL, WAARDE, SUB) waarvan
     ' de WAARDE geen regel heeft op tabblad PowerPoint, gaat van de dia (het sjabloon heeft nog een kaart die de knop niet meer
     ' vult: bandbreedte KPI5). De overige kaarten verdelen daarna de breedte van het kaartenblok met dezelfde tussenruimte;
     ' blijven er drie over, dan staan ze precies onder de grote kaarten KPI1..KPI3, met de tekst op dezelfde afstand van de
     ' rand als in de grote kaarten. Vult de knop alle kaarten, dan blijft de dia zoals het sjabloon hem heeft.
-    ' Heet de voetnoot in het sjabloon niet VOETNOOT, dan krijgt de tekstvorm op dia 2 die met 'Stip' begint de tekst van de
-    ' regel VOETNOOT (en verdwijnt VOETNOOT uit de lijst met niet gevonden vormen).
+    ' De voetnoot (VOETNOOT, of anders de tekstvorm op dia 2 die met 'Stip' begint) gaat van de dia.
     ' Hoogtes en letters veranderen niet; fouten worden stil overgeslagen (de dia blijft dan zoals het sjabloon hem had)
     Const MAX_KAART As Long = 20
     Dim dia As Object, kaart As Object, shp As Object, groot As Object, grootTekst As Object
@@ -618,7 +617,7 @@ Private Sub SchikDia2(pres As Object, wsP As Worksheet, ByRef mist As String)
     Dim blijft(1 To MAX_KAART) As Boolean, doelL(1 To MAX_KAART) As Double, doelB(1 To MAX_KAART) As Double
     Dim n As Long, nBlijft As Long, k As Long, i As Long, j As Long, t As Long, hNr As Long, hBlijft As Boolean
     Dim hL As Double, hB As Double, bLinks As Double, bRechts As Double, tussen As Double, w As Double
-    Dim binnen As Double, mL As Double, mR As Double, prefix As String, onderGroot As Boolean, r As Long
+    Dim binnen As Double, mL As Double, mR As Double, prefix As String, onderGroot As Boolean
 
     On Error Resume Next
     Set kaart = ZoekVorm(pres, "KPI4_KAART")
@@ -626,19 +625,19 @@ Private Sub SchikDia2(pres As Object, wsP As Worksheet, ByRef mist As String)
     Set dia = kaart.Parent
     If dia Is Nothing Then Exit Sub
 
-    ' voetnoot onder een andere naam: de tekstvorm die met 'Stip' begint (de tekst uit het sjabloon)
-    r = RegelVanVorm(wsP, "VOETNOOT")
-    If r > 0 And ZoekVorm(pres, "VOETNOOT") Is Nothing Then
-        For Each shp In dia.Shapes
-            If shp.HasTextFrame Then
-                If Left$(Trim$(shp.TextFrame.TextRange.Text), 4) = "Stip" Then
-                    shp.TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & r))
-                    mist = Mid$(Replace(vbCrLf & mist, vbCrLf & "VOETNOOT" & vbCrLf, vbCrLf), 3)
+    ' voetnoot weg: de vorm VOETNOOT, of anders de tekstvorm die met 'Stip' begint (de tekst uit het sjabloon)
+    Set shp = VormOpDia(dia, "VOETNOOT")
+    If shp Is Nothing Then
+        For j = dia.Shapes.Count To 1 Step -1
+            If dia.Shapes(j).HasTextFrame Then
+                If Left$(Trim$(dia.Shapes(j).TextFrame.TextRange.Text), 4) = "Stip" Then
+                    Set shp = dia.Shapes(j)
                     Exit For
                 End If
             End If
-        Next shp
+        Next j
     End If
+    If Not shp Is Nothing Then shp.Delete
 
     ' de kleine kaarten op de dia en of de knop ze vult
     For k = 4 To MAX_KAART
