@@ -171,4 +171,12 @@ def vergelijk(project_fo, project_macro):
             chk(f"transport periode {i} type {k}", a.transport[i][k], b.transport[i][k])
     for k in ("bestand", "actuals", "kosten", "opbrengsten"):
         chk(f"fo {k}", a.fo.get(k), b.fo.get(k))
+    # tab CF kosten (sinds v19)
+    chk("aantal kostenposten", len(a.kosten_posten), len(b.kosten_posten))
+    for i, (ka, kb) in enumerate(zip(a.kosten_posten, b.kosten_posten)):
+        for k in ("naam", "mee"):
+            chk(f"kostenpost {i} {k}", ka[k], kb[k])
+        chk(f"kostenpost {i} gerealiseerd", float(ka["gerealiseerd"] or 0), float(kb["gerealiseerd"] or 0))
+        for j in range(len(a.periodes)):
+            chk(f"kostenpost {i} periode {j}", float(ka["bedragen"][j] or 0), float(kb["bedragen"][j] or 0))
     return fouten

@@ -19,7 +19,7 @@ import tempfile
 from openpyxl import Workbook
 from openpyxl.workbook.defined_name import DefinedName
 
-from forecast_builder import cache, charts, data as D, layout as LY, package, scenarios, sheets
+from forecast_builder import cache, charts, data as D, kosten, layout as LY, package, scenarios, sheets
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 VBA_BAS = os.path.join(HIER, "vba", "CashflowNaarPowerPoint_v10.bas")
@@ -38,7 +38,7 @@ def vba_bin_maken(template_pad=None, bas_pad=VBA_BAS):
             template = f.read()
     with open(bas_pad, encoding="utf-8", newline="") as f:
         bron = f.read().replace("\r\n", "\n").replace("\n", "\r\n")   # VBA-bron wordt met CRLF opgeslagen
-    codenames = ["shDashboard", "shScenarios", "shInvoer", "shWoningtypes", "shModel", "shPowerPoint"]   # werkbladen in het werkboek
+    codenames = ["shDashboard", "shScenarios", "shInvoer", "shWoningtypes", "shCFKosten", "shModel", "shPowerPoint"]   # werkbladen
     return vbabuild.build_vbaproject(template, {VBA_MODULE: bron}, documentmodules=codenames)
 
 
@@ -72,8 +72,10 @@ def bouw_werkboek(project):
     scenarios.bouw_tab(wb, project)                    # tab Scenario's direct na het Dashboard
     sheets.bouw_invoer(wb, project)
     sheets.bouw_woningtypes(wb, project)
+    kosten.bouw_tab(wb, project)                       # tab CF kosten na Woningtypes
     sheets.bouw_model(wb)
     scenarios.bouw_model_scenarios(wb["Model"])
+    kosten.bouw_model(wb["Model"])
     sheets.bouw_powerpoint(wb, project)
     # benoemde bereiken voor de grafieken: zo lang als er periodes zijn
     for naam, col in LY.M.items():
@@ -154,7 +156,11 @@ def main():
         project = fo.lees_fo(args.fo)
         if args.bron:                                   # knoppen (Dashboard) uit een bestaand werkboek overnemen
             uit_fo = ("actuals_jaar", "actuals_kw") if "actuals" in project.fo else ()
-            project.params.update({k: v for k, v in D.lees_werkboek(args.bron).params.items() if k not in uit_fo})
+            oud = D.lees_werkboek(args.bron)
+            project.params.update({k: v for k, v in oud.params.items() if k not in uit_fo})
+            mee = {k["naam"].lower(): k["mee"] for k in oud.kosten_posten if k.get("mee")}    # tab CF kosten: eigen keuze per post houden
+            for post in project.kosten_posten:
+                post["mee"] = mee.get(post["naam"].lower(), post["mee"])
         for melding in project.fo.get("waarschuwingen", []):
             print("let op:", melding)
     elif args.leeg:

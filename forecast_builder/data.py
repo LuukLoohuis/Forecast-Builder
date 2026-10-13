@@ -48,10 +48,22 @@ PARAM_STANDAARD = {
     # scenario's (tab Scenario's, sinds v18): per scenario een dict met naam, sb (start bouw), vv (verkoop vanaf), tv (transport vanaf)
     # als tekst ('Q3 2027'); leeg = zoals de planning. vs_pp = Naar PowerPoint (ja/nee); vs_sel / vs_type = keuze in de tabel per termijn
     "vs": (),
-    "vs_pp": "ja",
+    "vs_pp": "ja", "vs_cf": "nee",
     "vs_sel": "Scenario 1",
     "vs_type": "alle types",
 }
+
+
+def standaard_mee(naam):
+    """Tab CF kosten: standaardkeuze 'schuift mee met' op de naam van de post (zoals het FO ze noemt). Bouwkosten, meerwerk,
+    aansluitkosten en de reserve na oplevering schuiven mee met de start bouw; promotie- en verkoopkosten met de verkoop; de rest
+    (grond, honoraria, leges, rente, AK) blijft staan."""
+    n = (naam or "").lower()
+    if any(w in n for w in ("promotie", "verkoop", "verhuur", "makelaar", "marketing")):
+        return "verkoop"
+    if any(w in n for w in ("aanneemsom", "bouwkosten", "meerwerk", "aansluit", "reserve", "bouwplaats", "nutsvoorziening")):
+        return "start bouw"
+    return "vast"
 
 
 @dataclass
@@ -84,6 +96,9 @@ class ProjectData:
     fee_comp_namen: list = field(default_factory=lambda: list(STANDAARD_FEE_COMP))
     fee_mijlpalen: list = field(default_factory=lambda: list(STANDAARD_FEE_MIJLPALEN))
     fo: dict = field(default_factory=dict)          # koppeling met een FO-werkboek: bestand, actuals, opbrengsten, kosten (fo.py)
+    # tab CF kosten (sinds v19): per post een dict met naam, mee ('start bouw' / 'verkoop' / 'vast'), gerealiseerd (€ t/m actuals) en
+    # bedragen (lijst per periode van het Model, None = leeg)
+    kosten_posten: list = field(default_factory=list)
 
     def type_(self, k):
         """TypeData van blok k (1-based); leeg type als het blok niet gevuld is."""
@@ -162,7 +177,32 @@ def voorbeeld():
     p.params["lasten"] = [("Grondkosten", 7900000), ("Honoraria", 3200000), ("Aansluitkosten", 800000)]
     # twee scenario's: de resterende verkoop een jaar later, en de bouw een half jaar later starten
     p.params["vs"] = [{"vv": "Q1 2028"}, {"naam": "Later starten", "sb": "Q3 2027"}]
+    p.kosten_posten = _voorbeeld_kostenposten(kosten, 12)
     return p
+
+
+def _voorbeeld_kostenposten(kosten, n_act):
+    """Tab CF kosten voor het voorbeeld: de prognosekosten (na de eerste n_act periodes) verdeeld over posten zoals in een FO, per
+    kwartaal precies gelijk aan de kosten op tab Invoer; de bouwkosten zijn de rest. Gerealiseerd: grond, honoraria, overig."""
+    n = len(kosten)
+    leeg = lambda: [None] * n  # noqa: E731
+    hon, aansl, verk, ak, bouw = leeg(), leeg(), leeg(), leeg(), leeg()
+    for i in range(n_act, n):
+        hon[i] = 200000 if i < n_act + 4 else None
+        verk[i] = 100000 if i < n_act + 4 else None
+        ak[i] = 150000
+    aansl[n_act], aansl[n - 2] = 400000, 400000
+    for i in range(n_act, n):
+        bouw[i] = kosten[i] - sum(x[i] or 0 for x in (hon, aansl, verk, ak))
+    real = sum(kosten[:n_act])
+    return [
+        {"naam": "Grondkosten", "mee": "vast", "gerealiseerd": 7900000, "bedragen": leeg()},
+        {"naam": "Aanneemsom", "mee": "start bouw", "gerealiseerd": None, "bedragen": bouw},
+        {"naam": "Honoraria", "mee": "vast", "gerealiseerd": 2400000, "bedragen": hon},
+        {"naam": "Promotiekosten", "mee": "verkoop", "gerealiseerd": None, "bedragen": verk},
+        {"naam": "Aansluitkosten", "mee": "start bouw", "gerealiseerd": None, "bedragen": aansl},
+        {"naam": "Direct doorbelaste projectkosten", "mee": "vast", "gerealiseerd": real - 7900000 - 2400000, "bedragen": ak},
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +368,28 @@ def _lees_v2(wb):
             p.fo[{"opbr": "opbrengsten"}.get(naam[3:], naam[3:])] = _v(d, f"W{rij}")
     if LY.SC_TAB in wb.sheetnames:
         _lees_scenarios(wb[LY.SC_TAB], p)
+    if LY.KF_TAB in wb.sheetnames:
+        _lees_kosten(wb[LY.KF_TAB], p)
     return p
+
+
+def _lees_kosten(ws, p):
+    """Tab CF kosten (sinds v19): de posten onder de koprij 'Kostenpost' (kolom B): naam, schuift mee met, gerealiseerd en een
+    bedrag per periode (kolom = periode van het Model)."""
+    C = LY.KF_C
+    kop = next((r for r in range(1, 40) if _v(ws, f"{C['naam']}{r}") == LY.KF_LABEL_KOP), None)
+    if kop is None:
+        return
+    posten = []
+    for r in range(kop + 1, kop + 1 + LY.N_KF):
+        naam = _v(ws, f"{C['naam']}{r}")
+        if naam is None or not str(naam).strip():
+            continue
+        mee = _v(ws, f"{C['mee']}{r}")
+        posten.append({"naam": str(naam).strip(), "mee": str(mee).strip() if mee else standaard_mee(str(naam)),
+                       "gerealiseerd": _num(_v(ws, f"{C['real']}{r}")),
+                       "bedragen": [_num(_v(ws, f"{L(LY.KF_COL1 + i)}{r}")) for i in range(LY.ROWN - LY.ROW1 + 1)]})
+    p.kosten_posten = posten
 
 
 def _lees_scenarios(ws, p):
@@ -352,9 +413,12 @@ def _lees_scenarios(ws, p):
     while vs and not vs[-1]:
         vs.pop()
     p.params["vs"] = vs
-    r = rijen.get(LY.SC_LABELS["pp"])
-    if r is not None and tekst(_v(ws, f"C{r}")):
-        p.params["vs_pp"] = tekst(_v(ws, f"C{r}"))
-    for naam, cel in (("vs_sel", LY.SC_CEL_SEL), ("vs_type", LY.SC_CEL_TYPE)):
+    for naam, labels in (("vs_pp", (LY.SC_LABELS["pp"], "Naar PowerPoint")), ("vs_cf", (LY.SC_LABELS["cf"],))):
+        r = next((rijen[t] for t in labels if t in rijen), None)
+        if r is not None and tekst(_v(ws, f"C{r}")):
+            p.params[naam] = tekst(_v(ws, f"C{r}"))
+    # keuze in de tabel per termijn: rij met 'Scenario' in kolom B (scenario in C, woningtype in I); werkboeken tot nu: C41/I41
+    r = rijen.get("Scenario")
+    for naam, cel in (("vs_sel", f"C{r}" if r else LY.SC_CEL_SEL), ("vs_type", f"I{r}" if r else LY.SC_CEL_TYPE)):
         if tekst(_v(ws, cel)):
             p.params[naam] = tekst(_v(ws, cel))

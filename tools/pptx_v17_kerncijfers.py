@@ -167,6 +167,7 @@ def maak_voorbeeld(map_, vorig=True, lasten=True):
             per["cf_vorig"] = round(stand * (0.93 if stand < 0 else 0.72) / 1000, 1)
     if not lasten:
         p.params["lasten"] = []
+        p.kosten_posten = []        # anders vult tab CF kosten de kaart automatisch
     pad = build.bouw(p, os.path.join(map_, "voorbeeld_dia2"), None, caches=False)[0]
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     assert soffice, "LibreOffice (soffice) is nodig om het voorbeeld door te rekenen; geef anders --voorbeeld"

@@ -55,9 +55,14 @@ Option Explicit
 '       nee (Model!BY154 = 0), en anders de kaarten en legenda-regels van lege scenario's, en verdeelt de rest; SchikGrafiekVS zet de
 '       waarde-as (Model!BY155..BY157) en het grijze vlak VS_REALISATIE t/m het 'nu'-kwartaal. Instellingen nu op D130/D131
 '       (meer KPI-regels); de dia's na dia 3 schuiven een nummer op; sjabloon v18.
+'  v19: tab CF kosten (kosten per post en per kwartaal): UitFOOphalen leest ook het FO-tabblad 'CF - kosten' (blok 'Onderdelen',
+'       FOKosten; zelfde regels als fo.py _lees_kosten) en zet 'schuift mee met' op de naam van de post (StandaardMee), of houdt de
+'       keuze die er voor een post met dezelfde naam al stond. De scenariolijnen in de cashflowgrafiek hebben een eigen schakelaar
+'       op tab Scenario's (kop '(uit)' in blok BLOK_CF); de grootste lasten op dia 2 komen zonder Dashboard-invoer uit tab CF kosten
+'       (tab PowerPoint, geen macrowijziging).
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
-'  UitFOOphalen         vult Invoer en Woningtypes vanuit een FO-werkboek (zie v14 hierboven)
+'  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
 '  VorigePrognoseUitFO  vult blok 4 en 6 (vorige prognose) vanuit een ouder FO
 '  PlanningBewarenAlsVorig  zet de huidige planning in blok 4 en 6
 '
@@ -69,6 +74,10 @@ Private Const SH_DASH As String = "Dashboard"
 Private Const SH_MODEL As String = "Model"
 Private Const SH_TYPES As String = "Woningtypes"
 Private Const SH_INVOER As String = "Invoer"
+Private Const SH_KOSTEN As String = "CF kosten"        ' tab CF kosten (sinds v19; layout.KF_TAB)
+Private Const KOST_RIJ1 As Long = 8                    ' eerste kostenpost (layout.KF_R1)
+Private Const KOST_N As Long = 20                      ' aantal posten (layout.N_KF)
+Private Const KOST_COL1 As Long = 9                    ' kolom I = periode 1 (layout.KF_COL1); B naam, C schuift mee met, E gerealiseerd
 Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
 Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFIEK: kwartaalindex 1 jan eerste jaar (Model, t_first)
@@ -1530,7 +1539,7 @@ End Function
 Public Sub UitFOOphalen()
     Dim pad As Variant, wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet
     Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
-    Dim stap As String, bericht As String, nPer As Long, nTyp As Long, k As Long, r As Long, waarschuwing As String
+    Dim stap As String, bericht As String, nPer As Long, nTyp As Long, nKost As Long, k As Long, r As Long, waarschuwing As String
     Dim idxAct As Long, aJaar As Long, aKw As Long, zelfGeopend As Boolean, foutNr As Long, foutOms As String
     Dim rekenmodus As Long, iteratie As Boolean, col As Long, i As Long, j As Long, bewaren As Long, heeftPlanning As Boolean, nm As String
     Dim vNaam(1 To MAX_TYPES) As String, vJaar(1 To MAX_TYPES) As Variant, vKw(1 To MAX_TYPES) As Variant
@@ -1544,7 +1553,7 @@ Public Sub UitFOOphalen()
     pad = Application.GetOpenFilename("Excel-werkboeken (*.xlsx;*.xlsm;*.xlsb),*.xlsx;*.xlsm;*.xlsb", , "FO-werkboek kiezen")
 #End If
     If VarType(pad) = vbBoolean Then Exit Sub
-    If MsgBox("Tab Invoer (cashflow, verkocht, transport) en tab Woningtypes worden overschreven met de gegevens uit:" & vbCrLf & pad & _
+    If MsgBox("Tab Invoer (cashflow, verkocht, transport), tab Woningtypes en tab CF kosten worden overschreven met de gegevens uit:" & vbCrLf & pad & _
               vbCrLf & vbCrLf & "De knoppen op het Dashboard blijven staan. Doorgaan?", vbQuestion + vbYesNo, "Ophalen uit FO") <> vbYes Then Exit Sub
     Set wsI = ThisWorkbook.Worksheets(SH_INVOER)
     Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
@@ -1634,6 +1643,9 @@ Public Sub UitFOOphalen()
     Next k
     nTyp = FOTypen(wsO, wsT, wsI, rijVan, idxAct, waarschuwing)
 
+    stap = "kosten per post (CF - kosten)"
+    nKost = FOKosten(wbF, rijVan, idxAct, nPer, waarschuwing)
+
     stap = "vorige prognose (blok 4 en 6)"
     foStap = ""
     For k = 1 To MAX_TYPES
@@ -1674,6 +1686,7 @@ Public Sub UitFOOphalen()
     Application.Calculate
     Application.ScreenUpdating = True
     bericht = "Klaar: " & nPer & " periodes op tab Invoer en " & nTyp & " woningtype(n) op tab Woningtypes uit " & CStr(pad) & "."
+    bericht = bericht & vbCrLf & nKost & " kostenpost(en) op tab CF kosten; controleer daar 'schuift mee met'."
     If idxAct > 0 Then bericht = bericht & vbCrLf & "Actuals t/m Q" & aKw & " " & aJaar & " (uit 'FO - actuals')."
     If bewaren = vbYes Then bericht = bericht & vbCrLf & "De planning van vóór het ophalen staat als vorige prognose in blok 4 en 6 van tab Woningtypes."
     bericht = bericht & vbCrLf & vbCrLf & "Controleer op het Dashboard de controle 'Invoer sluit aan op het FO' en de dekking van het verkooptempo-model."
@@ -2387,6 +2400,137 @@ Volgende:
     End If
     foStap = ""
     FOTypen = kT
+End Function
+
+Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPer As Long, ByRef waarschuwing As String) As Long
+    ' FO-tabblad 'CF - kosten', blok 'Onderdelen' (label in kolom B; kwartalen Q1..Q4 met de jaartallen in de rij erboven) -> tab
+    ' CF kosten: per post de naam, 'schuift mee met' (de keuze die er al stond voor dezelfde naam, anders StandaardMee), het
+    ' gerealiseerde bedrag (de kolommen onder 'Actuals', ook samengevoegd; anders de kolom vóór het eerste kwartaal; kwartalen t/m
+    ' actuals tellen ook als gerealiseerd) en de prognose per periode (kolom = rij op tab Invoer; na de laatste periode: in de
+    ' laatste periode). Rijen tot de eerste rij zonder label of met 'Totaal'. Zelfde regels als fo.py (_lees_kosten).
+    Dim wsC As Worksheet, wsK As Worksheet, rQ As Long, r As Long, c As Long, cc As Long, rr As Long, c1 As Long, n As Long, i As Long
+    Dim idxKol() As Long, cAct As Long, act() As Boolean, heeftAct As Boolean, ruw As Double, v As Double, rI As Long, kol As Long
+    Dim naam As String, buiten As String, mee As String, mr As Range, rMax As Long
+    Dim oudNaam(1 To KOST_N) As String, oudMee(1 To KOST_N) As String
+    Set wsC = ZoekBlad(ThisWorkbook, SH_KOSTEN)
+    If wsC Is Nothing Then
+        waarschuwing = waarschuwing & "- tab '" & SH_KOSTEN & "' ontbreekt in dit werkboek (versie van vóór v19): kosten per post niet opgehaald." & vbCrLf
+        Exit Function
+    End If
+    foStap = "tab CF kosten leegmaken"
+    For i = 1 To KOST_N
+        oudNaam(i) = LCase$(TekstVan(wsC.Cells(KOST_RIJ1 + i - 1, 2).Value))
+        oudMee(i) = TekstVan(wsC.Cells(KOST_RIJ1 + i - 1, 3).Value)
+    Next i
+    wsC.Range(wsC.Cells(KOST_RIJ1, 2), wsC.Cells(KOST_RIJ1 + KOST_N - 1, 3)).ClearContents
+    wsC.Range(wsC.Cells(KOST_RIJ1, 5), wsC.Cells(KOST_RIJ1 + KOST_N - 1, 5)).ClearContents
+    wsC.Range(wsC.Cells(KOST_RIJ1, KOST_COL1), wsC.Cells(KOST_RIJ1 + KOST_N - 1, KOST_COL1 + MAX_PERIODES - 1)).ClearContents
+    Set wsK = ZoekBlad(wbF, "CF - kosten")
+    If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF-kosten")
+    If wsK Is Nothing Then
+        waarschuwing = waarschuwing & "- tabblad 'CF - kosten' ontbreekt: tab CF kosten blijft leeg (in een scenario met een andere start bouw schuiven dan alle kosten vanaf de geplande start bouw mee)." & vbCrLf
+        Exit Function
+    End If
+    foStap = "blok 'Onderdelen' zoeken op '" & wsK.Name & "'"
+    rMax = wsK.UsedRange.Rows.Count + wsK.UsedRange.Row
+    For r = 2 To rMax
+        If LCase$(TekstVan(wsK.Cells(r, 2).Value)) = "onderdelen" Then
+            rQ = r
+            Exit For
+        End If
+    Next r
+    If rQ > 0 Then
+        KolomKaart wsK, rQ, idxKol, cAct
+        For c = LBound(idxKol) To UBound(idxKol)
+            If idxKol(c) > 0 Then
+                c1 = c
+                Exit For
+            End If
+        Next c
+    End If
+    If c1 < 2 Then
+        waarschuwing = waarschuwing & "- 'CF - kosten': blok 'Onderdelen' met kwartalen niet gevonden: tab CF kosten blijft leeg." & vbCrLf
+        Exit Function
+    End If
+    ' gerealiseerd: kolommen met 'actual...' in de koprij of de rij erboven (een samengevoegd label geldt voor alle kolommen eronder)
+    ReDim act(1 To c1)
+    For rr = rQ - 1 To rQ
+        For c = 3 To c1 - 1
+            If LCase$(Left$(TekstVan(wsK.Cells(rr, c).Value), 6)) = "actual" Then
+                Set mr = wsK.Cells(rr, c).MergeArea
+                For cc = mr.Column To mr.Column + mr.Columns.Count - 1
+                    If cc >= 1 And cc < c1 Then
+                        act(cc) = True
+                        heeftAct = True
+                    End If
+                Next cc
+            End If
+        Next c
+    Next rr
+    If Not heeftAct Then act(c1 - 1) = True
+    r = rQ + 1
+    n = 0
+    Do While Len(TekstVan(wsK.Cells(r, 2).Value)) > 0
+        naam = TekstVan(wsK.Cells(r, 2).Value)
+        If LCase$(Left$(naam, 6)) = "totaal" Then Exit Do
+        If n >= KOST_N Then
+            waarschuwing = waarschuwing & "- 'CF - kosten': meer dan " & KOST_N & " posten; '" & naam & "' en verder zijn niet overgenomen." & vbCrLf
+            Exit Do
+        End If
+        foStap = "post '" & naam & "' (rij " & r & ")"
+        ruw = 0
+        For c = 3 To c1 - 1
+            If act(c) Then ruw = ruw + Getal(wsK.Cells(r, c).Value)
+        Next c
+        For c = c1 To UBound(idxKol)
+            If idxKol(c) > 0 Then
+                v = Getal(wsK.Cells(r, c).Value)
+                If v <> 0 Then
+                    If idxKol(c) <= idxAct Then
+                        ruw = ruw + v                                       ' kwartaal t/m actuals: gerealiseerd
+                    Else
+                        rI = RijVanIdx(rijVan, idxKol(c))
+                        If rI = 0 And nPer > 0 Then
+                            rI = INVOER_RIJ1 + nPer - 1                     ' na de laatste periode van '1. Cashflow': in de laatste
+                            If InStr(buiten, "'" & naam & "'") = 0 Then buiten = buiten & IIf(Len(buiten) > 0, ", ", "") & "'" & naam & "'"
+                        End If
+                        If rI > 0 Then
+                            kol = KOST_COL1 + rI - INVOER_RIJ1
+                            wsC.Cells(KOST_RIJ1 + n, kol).Value = Getal(wsC.Cells(KOST_RIJ1 + n, kol).Value) + v
+                        End If
+                    End If
+                End If
+            End If
+        Next c
+        mee = StandaardMee(naam)
+        For i = 1 To KOST_N
+            If Len(oudMee(i)) > 0 And oudNaam(i) = LCase$(naam) Then mee = oudMee(i)
+        Next i
+        wsC.Cells(KOST_RIJ1 + n, 2).Value = naam
+        wsC.Cells(KOST_RIJ1 + n, 3).Value = mee
+        If ruw <> 0 Then wsC.Cells(KOST_RIJ1 + n, 5).Value = Round(ruw, 2)
+        n = n + 1
+        r = r + 1
+    Loop
+    If Len(buiten) > 0 Then
+        waarschuwing = waarschuwing & "- 'CF - kosten': bedragen na de laatste periode van '1. Cashflow' staan in de laatste periode (" & buiten & ")." & vbCrLf
+    End If
+    foStap = ""
+    FOKosten = n
+End Function
+
+Private Function StandaardMee(naam As String) As String
+    ' tab CF kosten: 'schuift mee met' op de naam van de post (zelfde woorden als data.standaard_mee)
+    Dim t As String
+    t = LCase$(naam)
+    If InStr(t, "promotie") > 0 Or InStr(t, "verkoop") > 0 Or InStr(t, "verhuur") > 0 Or InStr(t, "makelaar") > 0 Or InStr(t, "marketing") > 0 Then
+        StandaardMee = "verkoop"
+    ElseIf InStr(t, "aanneemsom") > 0 Or InStr(t, "bouwkosten") > 0 Or InStr(t, "meerwerk") > 0 Or InStr(t, "aansluit") > 0 _
+           Or InStr(t, "reserve") > 0 Or InStr(t, "bouwplaats") > 0 Or InStr(t, "nutsvoorziening") > 0 Then
+        StandaardMee = "start bouw"
+    Else
+        StandaardMee = "vast"
+    End If
 End Function
 
 ' -------------------------------------------------------------------------------------

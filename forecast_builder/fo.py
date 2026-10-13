@@ -10,6 +10,10 @@ labels gezocht, niet op vaste celadressen, zodat kleine verschillen tussen proje
     kosten, overige) en het verkooptempo (verkocht per kwartaal; 'actuals' = al verkocht). Daaruit: naam, aantal, koopsom
     per woning (grond + termijnen, excl. btw), grondtermijn %, start bouw, bouwtermijnen (naam, %, bouwkwartaal; een termijn
     die over meer kwartalen is verdeeld wordt gesplitst), extra's per woning en verkocht/transport per kwartaal.
+  * 'CF - kosten', blok 'Onderdelen' (label in kolom B, kwartalen Q1..Q4 met de jaartallen in de rij erboven): per kostenpost
+    de naam, het gerealiseerde bedrag (de kolom(men) onder 'Actuals', anders de kolom vóór het eerste kwartaal; kwartalen t/m
+    actuals tellen ook als gerealiseerd) en de prognose per kwartaal -> tab CF kosten, met 'schuift mee met' op de naam
+    (data.standaard_mee). Rijen tot de eerste rij zonder label of met 'Totaal'.
   * DAEB-fees: een rij 'AK fee' of 'Bijkomende kosten' met alleen een totaal in € (geen %, geen kwartalen) is een
     fee-component; elke rij daarna met een % of € én een kwartaal of 'actuals' is een termijn van die component, wat het
     label ook is ('na akkoord SO', 'bij start bouw', ...). 'Onvoorzien' wordt overgeslagen. Zo'n type wordt DAEB: alleen
@@ -24,7 +28,7 @@ from datetime import datetime
 from openpyxl import load_workbook
 
 from . import layout as LY
-from .data import PARAM_STANDAARD, ProjectData, TypeData
+from .data import PARAM_STANDAARD, ProjectData, TypeData, standaard_mee
 
 KW = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
 
@@ -383,4 +387,60 @@ def lees_fo(pad):
             if hasattr(t, attr):
                 delattr(t, attr)
     p.fo["typen"] = typen_namen
+    p.kosten_posten = _lees_kosten(wb, periode_van, idx_act, n_per, waarschuwingen)
     return p
+
+
+def _lees_kosten(wb, periode_van, idx_act, n_per, waarschuwingen):
+    """FO-tabblad 'CF - kosten', blok 'Onderdelen' -> [{naam, mee, gerealiseerd, bedragen per periode}] (zie de moduletekst)."""
+    wk = _zoek_blad(wb, "CF - kosten", "CF-kosten", "CF kosten")
+    if wk is None:
+        waarschuwingen.append("tabblad 'CF - kosten' ontbreekt: tab CF kosten blijft leeg (in een scenario met een andere start bouw "
+                              "schuiven dan alle kosten vanaf de geplande start bouw mee).")
+        return []
+    r_q = next((r for r in range(1, wk.max_row + 1) if _txt(wk.cell(r, 2).value).lower() == "onderdelen"), None)
+    kaart, _ = _kolomkaart(wk, r_q) if r_q else ({}, None)
+    if not kaart:
+        waarschuwingen.append("'CF - kosten': blok 'Onderdelen' met kwartalen niet gevonden: tab CF kosten blijft leeg.")
+        return []
+    c1 = min(kaart)
+    act = set()
+    for rr in (r_q - 1, r_q):
+        for c in range(3, c1):
+            if _txt(wk.cell(rr, c).value).lower().startswith("actual"):
+                act.add(c)
+                for mr in wk.merged_cells.ranges:
+                    if mr.min_row <= rr <= mr.max_row and mr.min_col <= c <= mr.max_col:
+                        act.update(range(mr.min_col, mr.max_col + 1))
+    if not act:
+        act = {c1 - 1}
+    laatste = max(periode_van.values()) if periode_van else None
+    posten, buiten = [], []
+    r = r_q + 1
+    while _txt(wk.cell(r, 2).value) and not _txt(wk.cell(r, 2).value).lower().startswith("totaal"):
+        naam = _txt(wk.cell(r, 2).value)
+        real = sum(_num(wk.cell(r, c).value) or 0.0 for c in act)
+        bedragen = [None] * n_per
+        for c, (j, q) in sorted(kaart.items()):
+            v = _num(wk.cell(r, c).value)
+            if not v:
+                continue
+            i = periode_van.get(_idx(j, q))
+            if _idx(j, q) <= idx_act:
+                real += v                           # kwartaal t/m actuals: gerealiseerd
+            elif i is None and laatste is not None:
+                buiten.append(naam)                 # na de laatste periode van '1. Cashflow': in de laatste periode
+                bedragen[laatste] = (bedragen[laatste] or 0.0) + v
+            elif i is not None:
+                bedragen[i] = (bedragen[i] or 0.0) + v
+        posten.append({"naam": naam, "mee": standaard_mee(naam), "gerealiseerd": round(real, 2) if real else None,
+                       "bedragen": [round(b, 2) if b else None for b in bedragen]})
+        r += 1
+    if buiten:
+        waarschuwingen.append(f"'CF - kosten': bedragen na de laatste periode van '1. Cashflow' staan in de laatste periode "
+                              f"({', '.join(sorted(set(buiten)))}).")
+    if len(posten) > LY.N_KF:
+        waarschuwingen.append(f"'CF - kosten': {len(posten)} posten, alleen de eerste {LY.N_KF} zijn overgenomen "
+                              f"({', '.join(p_['naam'] for p_ in posten[LY.N_KF:])} niet).")
+        posten = posten[:LY.N_KF]
+    return posten

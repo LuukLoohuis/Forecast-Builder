@@ -1,6 +1,6 @@
 # Forecast-Builder
 
-Bouwt het werkboek **Cashflow_scenario** (Dashboard · Scenario's · Invoer · Woningtypes · Model · PowerPoint) met Python/openpyxl.
+Bouwt het werkboek **Cashflow_scenario** (Dashboard · Scenario's · Invoer · Woningtypes · CF kosten · Model · PowerPoint) met Python/openpyxl.
 Het werkboek rekent scenario's (downside/upside en verkoopscenario's) uit bovenop je eigen projectcashflow en vult met één knop
 het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v18.pptx`).
 
@@ -12,6 +12,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v18.pptx`).
 | `forecast_builder/layout.py` | vaste indeling: kolommen, rijen, hulpcellen, capaciteit (`N_TYPES = 10`) |
 | `forecast_builder/sheets.py` | alle tabbladen en formules |
 | `forecast_builder/scenarios.py` | tab Scenario's en de Modelkolommen van de verkoopscenario's |
+| `forecast_builder/kosten.py` | tab CF kosten (kosten per post en per kwartaal) en de Modelkolommen voor het meeschuiven van kosten in de scenario's |
 | `forecast_builder/data.py` | projectgegevens: inlezen uit een bestaand werkboek (oude of nieuwe indeling) of het ingebouwde voorbeeld |
 | `forecast_builder/charts.py` | grafiek-XML voor het Dashboard |
 | `forecast_builder/package.py` | nabewerking: grafieken en VBA in het bestand zetten |
@@ -89,11 +90,24 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   stip) en de opbrengsten per termijn en per kwartaal voor een gekozen scenario en woningtype (zoals 'CF - opbrengsten' in het FO).
   Rekenregels: verkoop per type schuift met het verschil tussen *verkoop vanaf* en de eerste geplande verkoop; transport volgt
   de geplande transportcurve, verschoven, en nooit meer dan er verkocht is; bouwtermijnen en extra's schuiven met de start bouw
-  en worden bij transport ingehaald (grond + alle vervallen termijnen); kosten vanaf de geplande start bouw schuiven mee met de
-  start bouw; rente rekent zoals bij de scenariolijn. Een scenario zonder invoer is precies de Basis. **Naar PowerPoint** (ja/nee)
-  bepaalt of de ingevulde scenario's op dia 4 en als lijnen in de cashflowgrafiek komen; zonder ingevuld scenario komt er niets
-  in PowerPoint (de macro haalt dia 4 weg). De Dashboard-cashflowgrafiek toont de scenariolijnen ook. Model: kolommen vanaf LK
-  (per scenario een blok, `layout.vs_col`), hulpcellen `vs_*` en `vs<s>_*` (BY145 e.v.), benoemde bereiken `g_vs<s>` en `g_vsw_*`.
+  en worden bij transport ingehaald (grond + alle vervallen termijnen); kosten: met posten op tab CF kosten schuiven alleen de
+  posten op 'start bouw' mee met de start bouw en die op 'verkoop' met de verkoop (zonder posten: alle kosten vanaf de geplande
+  start bouw); rente rekent zoals bij de scenariolijn. Een scenario zonder invoer is precies de Basis. **Naar PowerPoint**
+  (ja/nee, standaard ja) bepaalt of de ingevulde scenario's op dia 4 komen; zonder ingevuld scenario komt er niets in PowerPoint
+  (de macro haalt dia 4 weg). **Lijnen in de cashflowgrafiek** (ja/nee, standaard nee) zet de scenario's daarnaast als lijn in de
+  cashflowgrafiek op het Dashboard en op dia 3 (met Naar PowerPoint = ja). Model: kolommen vanaf LK (per scenario een blok,
+  `layout.vs_col`; `gcf` = lijn voor de cashflowgrafiek), hulpcellen `vs_*` en `vs<s>_*` (BY145 e.v.), benoemde bereiken
+  `g_vs<s>` en `g_vsw_*`.
+* **CF kosten** – kosten per post en per kwartaal, zoals het FO-tabblad 'CF - kosten' (blok 'Onderdelen'): per post de naam,
+  *schuift mee met* (start bouw = bouwkosten die met de bouw meeschuiven: aanneemsom, meerwerk, aansluitkosten, reserve na
+  oplevering; verkoop = promotie- en verkoopkosten; vast = grond, honoraria, leges, rente, AK), het gerealiseerde bedrag t/m het
+  actuals-kwartaal (kolom E) en de prognose per periode (kolom I = periode 1, zoals de rijen op tab Invoer). 'Ophalen uit FO'
+  vult de tab en zet de keuze op de naam van de post (een eigen keuze voor een post met dezelfde naam blijft staan). Een
+  controleregel vergelijkt elk prognosekwartaal met de kosten op tab Invoer: de Basis blijft altijd je eigen cashflow, de posten
+  bepalen alleen wat er in een scenario verschuift (Model: cumulatieve prognose per soort in de kolommen `cksb`/`ckv`; scenario =
+  basis − eigen curve + verschoven curve; wat vóór het eerste prognosekwartaal zou vallen komt daarin, wat na de laatste periode
+  zou vallen in de laatste). Blok 2 telt per post de kosten t/m het dieptepunt van de Basis; de drie grootste gaan naar dia 2 als
+  het Dashboard geen lasten heeft.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
@@ -119,8 +133,8 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   de grafiek, benoemde bereiken `g_v<k>`/`g_t<k>`).
 * **PowerPoint** – teksten, tabellen en grafiekblokken voor de dia's; kolom F = vormnaam op de dia. Blokken (kop in rij 7):
   cashflow (GT, dia 3, elf kolommen; de achtste is de scenariolijn, in het sjabloon een reeks op kolom H van het
-  gegevensblad, de laatste drie zijn de verkoopscenario's (kolom I..K); staat een lijn uit, dan luidt de kop '… (uit)' en
-  haalt de macro die reeks uit de grafiek), verkoopscenario's (HF, dia 4: negen kolommen = jaarlabel, Basis, scenario 1..3,
+  gegevensblad, de laatste drie zijn de verkoopscenario's (kolom I..K, alleen met 'Lijnen in de cashflowgrafiek' = ja); staat
+  een lijn uit, dan luidt de kop '… (uit)' en haalt de macro die reeks uit de grafiek), verkoopscenario's (HF, dia 4: negen kolommen = jaarlabel, Basis, scenario 1..3,
   dieptepunt Basis en scenario 1..3; tijdvak vanaf het actuals-jaar), scenario's (P, dia 5), bouwtermijnen (AA, dia 6: 108 kolommen = termijn + 107 reeksen (stapel 1: onzichtbaar, grijs, onzichtbaar,
   vorige prognose per type, grijs, onzichtbaar, 16 jaarblokjes; stapel 2: onzichtbaar, huidige planning per type,
   onzichtbaar, 64 kwartaalblokjes), tot 132 rijen, Model!BY96 = aantal rijen, waarden in kwartaalindex; koppen '(uit)' =
@@ -143,6 +157,7 @@ macro `UitFOOphalen`) en `python3 build.py --fo FO.xlsx` (module `forecast_build
 | `1. Cashflow` | koprij 'Jaar' (ergens in A1:F30); daarachter Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig; 'Totaal:' onder de tabel | tab Invoer B:J; Dashboard FO-cellen (totalen) |
 | `FO - actuals` | laatste boekjaar/kwartaal met een boeking (kolommen Boekjaar, Q, Waarde/TrVal) | Dashboard 'Actuals t/m' |
 | `CF - opbrengsten` | per type: blok 'Termijnen k - naam' (of 'Termijnen <300K' met de naam in de cel ernaast) met '# won' erboven (bouwplanning: aantal woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom = grond + ontwikkeling per woning; termijnen in %, € en € per woning; kopersmeerwerk, kadastrale kosten, overige) en blok 'Verkooptempo' (verkocht per kwartaal, kolom 'actuals' = al verkocht) | tab Woningtypes: naam, aantal, koopsom per woning (grond + termijnen, excl. btw, incl. KAO-opties), grondtermijn %, start bouw, bouwtermijnen (naam, %, bouwkwartaal; een termijn die het FO over meer kwartalen verdeelt wordt gesplitst in '(1/2)', '(2/2)'), extra's per woning (kwartaal uit de planning, of bij transport); tab Invoer: verkocht en transport per kwartaal (transport = de tellingen op de rij Koopsom) |
+| `CF - kosten` | blok 'Onderdelen' (label in kolom B; kwartalen Q1..Q4 met de jaartallen erboven): per post de naam, het gerealiseerde bedrag (kolommen onder 'Actuals', ook samengevoegd; anders de kolom vóór het eerste kwartaal; kwartalen t/m actuals tellen mee) en de prognose per kwartaal, tot de eerste rij zonder label of 'Totaal' | tab CF kosten (maximaal 20 posten; bedragen na de laatste periode van '1. Cashflow' in de laatste periode) |
 | idem, DAEB | in het omzetblok van een type: een rij met een fee-label ('AK fee', 'Bijkomende kosten'; 'Onvoorzien' wordt overgeslagen) en alleen een totaal in € (geen %, geen kwartalen) is een fee-component; elke rij daarna met een % of € én een kwartaal of 'actuals' is een termijn van die component, wat het label ook is ('na akkoord SO', 'bij start bouw', …) | blok 5 (soort DAEB, componenten, termijnen; koopsom, bouwtermijnen en extra's leeg) — op basis van het fee-overzicht van de gebruiker; nog niet getoetst op een echt DAEB-FO |
 
 Vorige prognose: vóór het leegmaken vraagt de knop of de planning die in het werkboek staat (start bouw per type, kwartalen van de fee-termijnen) bewaard moet worden als vorige prognose (blok 4 en 6; typen op positie met een melding als de naam verschilt, fee-termijnen op mijlpaal). De knop **Vorige prognose uit FO** (tab Woningtypes, macro `VorigePrognoseUitFO`) haalt beide uit een ouder FO (typen op naam, anders positie; fee-termijnen op mijlpaal binnen dezelfde component); in Python: `build.py --fo FO.xlsx --fo-vorig FO_vorig.xlsx` (`fo.voeg_vorige_prognose_toe`). Het FO zelf bevat de vorige planning niet ('FO - vorig' en 'FO - huidig' zijn SAP-budgetexports; alleen 'CF vorig kwartaal' op '1. Cashflow' gaat naar Invoer J).
@@ -215,8 +230,10 @@ zijn (dat kwartaal telt mee; DAEB telt niet mee), tegen de norm op het Dashboard
 twee marges: *niet-DAEB* = projectresultaat / (opbrengsten − fees DAEB), want DAEB heeft geen marge, en *totaal* =
 projectresultaat / opbrengsten; zonder DAEB één marge (hulpcellen `opbr_daeb`, `marge`, `marge_nd`, `marge_split`, `marge_tekst`).
 De *grootste lasten* vul je zelf in op het Dashboard (sectie 'GROOTSTE LASTEN (dia 2)': kop van de kaart en tot drie posten met
-naam en bedrag in €, bv. grond, honoraria, aansluitkosten; het Dashboard toont het aandeel in de kosten); de kaart toont ze met
-een balk ten opzichte van de hoogste post, en zonder lasten haalt de macro de kaart weg en verdeelt hij de drie overige kaarten
+naam en bedrag in €, bv. grond, honoraria, aansluitkosten; het Dashboard toont het aandeel in de kosten). Laat je ze leeg, dan
+komen de drie grootste posten van tab CF kosten op de kaart, met hun kosten t/m het dieptepunt van de Basis (kop 'LASTEN T/M
+DIEPTEPUNT'; hulpcellen `kl_bron`, `kl<i>_naam`, `kl<i>_bedrag`; lange namen worden ingekort). De kaart toont ze met een balk ten
+opzichte van de hoogste post; zonder lasten en zonder posten haalt de macro de kaart weg en verdeelt hij de drie overige kaarten
 onder de tegels (`SchikDia2`). Tab PowerPoint heeft voor dia 2 naast de teksten balkregels (vormnaam met `_BALK` of `_NORM`,
 kolom D = aandeel 0..1; `VulBalken` zet de breedte op aandeel × breedte van het spoor met dezelfde naam op `_SPOOR`) en het blok
 van de grafiek (kolom GK: jaarlabel, cum. cashflow, vorige prognose, nu, dieptepunt, break-even, eindsaldo, €0; de laatste zes als
@@ -228,7 +245,7 @@ breedte; de grafiek en de balken ontbreken dan (gemeld als 'niet gevonden').
 
 Dia 4 'Verkoopscenario's' (sjabloon v18 via `tools/pptx_v18_scenarios.py`) komt alleen in de presentatie als er op tab
 Scenario's een scenario is ingevuld en *Naar PowerPoint* op ja staat (Model `vs_pp_aan`); anders haalt de macro de dia weg en
-staan de scenariolijnen in de cashflowgrafiek op '(uit)'. De dia heeft een kopje, een titel over het scenario met de diepste
+staan de scenariolijnen in de cashflowgrafiek op '(uit)' (die hebben daarnaast hun eigen schakelaar, standaard uit). De dia heeft een kopje, een titel over het scenario met de diepste
 financiering, een kaart per scenario (Basis en ingevulde scenario's: max. financiering, dieptepunt, break-even, verkocht bij
 start bouw tegen de norm, verschil met de Basis), een legenda en de grafiek `VS_GRAFIEK` (blok HF). `SchikDiaScenarios` haalt
 lege kaarten en legenda-regels weg en verdeelt de breedte; `SchikGrafiekVS` zet de waarde-as op de hulpcellen

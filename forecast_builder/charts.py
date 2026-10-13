@@ -59,7 +59,7 @@ BT_H_CM = 10.05   # bouwtermijnengrafiek: 19 Dashboard-rijen (koprijen + per ter
 VSW_NAMEN = {"kwartaal": LY.FIX["kwartaal"], "realisatie": LY.M["g_realisatie"], "basis": LY.M["g_stand"], "dal0": LY.M["g_punt_dal"]}
 VSW_NAMEN.update({f"vs{s}": LY.vs_col(s, "g") for s in range(1, LY.N_VS + 1)})
 VSW_NAMEN.update({f"dal{s}": LY.vs_col(s, "gdal") for s in range(1, LY.N_VS + 1)})
-VS_NAMEN = {f"g_vs{s}": LY.vs_col(s, "g") for s in range(1, LY.N_VS + 1)}     # cashflowgrafiek op het Dashboard (alle periodes)
+VS_NAMEN = {f"g_vs{s}": LY.vs_col(s, "gcf") for s in range(1, LY.N_VS + 1)}   # cashflowgrafiek op het Dashboard (alle periodes; schakelaar)
 
 
 def grafieken(jaar_min=2020, jaar_max=None):

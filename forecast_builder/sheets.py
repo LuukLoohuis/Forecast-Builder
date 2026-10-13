@@ -1042,8 +1042,8 @@ def bouw_model(wb):
                    f'=(MIN(0,{h("dal_basis")},{h("dal_vorig")})-0.24*(MAX(0,{h("top_basis")},{h("top_vorig")})-MIN(0,{h("dal_basis")},{h("dal_vorig")})))/1000000'),
         "kc_max": ("Dia 2 grafiek: as-maximum (€ mln)",
                    f'=(MAX(0,{h("top_basis")},{h("top_vorig")})+0.12*(MAX(0,{h("top_basis")},{h("top_vorig")})-MIN(0,{h("dal_basis")},{h("dal_vorig")})))/1000000'),
-        "lasten_max": ("Grootste lasten (Dashboard): hoogste bedrag (€)",
-                       "=MAX(0," + ",".join(f'N({dabs(f"last{i}_bedrag")})' for i in range(1, LY.N_LASTEN + 1)) + ")"),
+        "lasten_max": ("Grootste lasten (dia 2): hoogste bedrag (€)",
+                       "=MAX(0," + ",".join(f'N({h(f"kl{i}_bedrag")})' for i in range(1, LY.N_LASTEN + 1)) + ")"),
     }
     for naam, (label, formule) in hulp.items():
         r = H[naam]
@@ -1135,14 +1135,15 @@ def bouw_dashboard(wb, data):
     put(ws, "B43", "Cashflow per kwartaal · balken: opbrengsten en kosten · lijnen: cumulatieve cashflow, vorige prognose (stippel), "
                    "scenariolijn (geel) · € mln", f=F_SECTION)
     # scenario's van tab Scenario's (sinds v18): een gekleurd blokje per ingevuld scenario, in de kleur van de lijn in de grafiek
-    put(ws, "Q43", "scenario's:", f=F_NOTE8, al=AL_RIGHT)
+    put(ws, "Q43", f'=IF({hm("vs_cf")}=1,"scenario\'s:","")', f=F_NOTE8, al=AL_RIGHT)
     for s_, col in zip(range(1, LY.N_VS + 1), ("R", "S", "T")):
         cel = f"{col}43"
-        put(ws, cel, f'=IF({hm(f"vs{s_}_aan")}=1,"Scenario {s_}","")', f=font(8, True, "FFFFFF"), fl=fill(LY.VS_KLEUREN[s_]),
+        put(ws, cel, f'=IF({hm(f"vs{s_}_cf")}=1,"Scenario {s_}","")', f=font(8, True, "FFFFFF"), fl=fill(LY.VS_KLEUREN[s_]),
             al=Alignment(horizontal="center", vertical="center", shrink_to_fit=True))
         ws.conditional_formatting.add(cel, FormulaRule(formula=[f'{cel}=""'], fill=PatternFill(fill_type="solid", bgColor="FFFFFF", fgColor="FFFFFF")))
-    ws["Q43"].comment = _comment("Scenario's van tab Scenario's (start bouw, verkoop en transport): elk ingevuld scenario staat als lijn "
-                                 "in de cashflowgrafiek, in de kleur van het blokje. Namen en uitkomsten staan op tab Scenario's.")
+    ws["Q43"].comment = _comment("Scenario's van tab Scenario's (start bouw, verkoop en transport): met 'Lijnen in de cashflowgrafiek' = ja "
+                                 "staat elk ingevuld scenario als lijn in deze grafiek (en op dia 3), in de kleur van het blokje. "
+                                 "Namen en uitkomsten staan op tab Scenario's.")
     put(ws, "B69", VERKOOP_TITEL, f=F_SECTION)
     put(ws, f"B{LY.D_ROW_BT}", "Bouwtermijnen per woningtype · kwartaal waarin de termijn vervalt (tab Woningtypes) · per termijn een baan per type "
                                "in de typekleur · lichtrood = vorige prognose (blok 4, fees: blok 6) · grijs = gerealiseerd · DAEB: fee-termijnen per component · "
@@ -1422,7 +1423,8 @@ def bouw_dashboard(wb, data):
     ws.merge_cells(f"W{r + 1}:Y{r + 1}")
     put(ws, LY.D["lasten_kop"], P.get("lasten_kop") or "GROOTSTE LASTEN", f=F_YELLOW, fl=FL_YELLOW, al=AL_LEFT)
     put(ws, f"Z{r + 1}", "de drie kostenposten die de financieringsbehoefte het meest bepalen (bv. grond, honoraria, aansluitkosten), "
-                         "grootste eerst; alle drie leeg = kaart niet op de dia", f=F_NOTE8, al=AL_VCENTER)
+                         "grootste eerst; alle drie leeg = automatisch de drie grootste posten t/m het dieptepunt van tab CF kosten "
+                         "(zonder posten daar: kaart niet op de dia)", f=F_NOTE8, al=AL_VCENTER)
     lasten = list(P.get("lasten") or [])
     for i in range(1, LY.N_LASTEN + 1):
         rij = r + 1 + i
@@ -1431,8 +1433,10 @@ def bouw_dashboard(wb, data):
         ws.merge_cells(f"W{rij}:X{rij}")
         put(ws, LY.D[f"last{i}_naam"], naam or None, f=F_YELLOW, fl=FL_YELLOW, al=AL_LEFT)
         put(ws, LY.D[f"last{i}_bedrag"], bedrag if bedrag not in (None, "") else None, f=F_YELLOW, fl=FL_YELLOW, nf=FMT_INT, al=AL_CENTER)
-        b = f'N({dabs(f"last{i}_bedrag")})'
-        put(ws, f"Z{rij}", f'=IF({b}=0,"",{eur_m(b)}&IF({hm("kosten_totaal")}>0," · "&FIXED({b}/{hm("kosten_totaal")}*100,0)&"% van de kosten",""))',
+        b = hm(f"kl{i}_bedrag")
+        put(ws, f"Z{rij}", f'=IF({b}=0,"",IF({hm("kl_bron")}=1,"automatisch: "&{hm(f"kl{i}_naam")}&" "&{eur_m(b)}'
+                           f'&IF({hm("kf_dal_tot")}>0," · "&FIXED({b}/{hm("kf_dal_tot")}*100,0)&"% van de kosten t/m het dieptepunt (tab CF kosten)",""),'
+                           f'{eur_m(b)}&IF({hm("kosten_totaal")}>0," · "&FIXED({b}/{hm("kosten_totaal")}*100,0)&"% van de kosten","")))',
             f=F_NOTE8, al=AL_VCENTER)
 
     # ---- validaties -------------------------------------------------------------------
@@ -1628,13 +1632,15 @@ def bouw_powerpoint(wb, data):
         (2, "  normstreep", f'=N({dabs("norm")})', None, "KPI6_NORM"),
         (2, "Verkocht · balk", f'=IF({hm("woningen")}=0,0,{hm("verkocht_actuals")}/{hm("woningen")})', None, "KPI7_BALK_V"),
         (2, "Getransporteerd · balk", f'=IF({hm("woningen")}=0,0,{hm("transport_actuals")}/{hm("woningen")})', None, "KPI7_BALK_T"),
-        # grootste lasten (Dashboard-sectie): kaart KPI9 met drie regels naam, bedrag en balk (aandeel van het hoogste bedrag);
-        # zonder lasten haalt de macro de kaart van de dia (SchikDia2)
-        (2, "Grootste lasten · kop", f'=IF(TRIM({dabs("lasten_kop")}&"")="","GROOTSTE LASTEN",UPPER(TRIM({dabs("lasten_kop")}&"")))', None, "KPI9_LABEL"),
+        # grootste lasten: kaart KPI9 met drie regels naam, bedrag en balk (aandeel van het hoogste bedrag); uit de Dashboard-sectie,
+        # of als die leeg is de drie grootste posten t/m het dieptepunt van tab CF kosten (hulpcellen kl*); zonder lasten haalt de
+        # macro de kaart van de dia (SchikDia2)
+        (2, "Grootste lasten · kop", f'=IF(OR(TRIM({dabs("lasten_kop")}&"")="",UPPER(TRIM({dabs("lasten_kop")}&""))="GROOTSTE LASTEN"),'
+                                     f'IF({hm("kl_bron")}=1,"LASTEN T/M DIEPTEPUNT","GROOTSTE LASTEN"),UPPER(TRIM({dabs("lasten_kop")}&"")))', None, "KPI9_LABEL"),
         *[regel for i in range(1, LY.N_LASTEN + 1) for regel in (
-            (2, f"  last {i} · naam", f'=TRIM({dabs(f"last{i}_naam")}&"")', None, f"KPI9_NAAM{i}"),
-            (2, f"  last {i} · bedrag", f'=IF(N({dabs(f"last{i}_bedrag")})=0,"",{eur_m("N(" + dabs(f"last{i}_bedrag") + ")")})', None, f"KPI9_BEDRAG{i}"),
-            (2, f"  last {i} · balk", f'=IF({hm("lasten_max")}<=0,0,MAX(0,N({dabs(f"last{i}_bedrag")}))/{hm("lasten_max")})', None, f"KPI9_BALK{i}"))],
+            (2, f"  last {i} · naam", f'=IF(LEN({hm(f"kl{i}_naam")})>24,LEFT({hm(f"kl{i}_naam")},23)&"…",{hm(f"kl{i}_naam")})', None, f"KPI9_NAAM{i}"),
+            (2, f"  last {i} · bedrag", f'=IF({hm(f"kl{i}_bedrag")}=0,"",{eur_m(hm(f"kl{i}_bedrag"))})', None, f"KPI9_BEDRAG{i}"),
+            (2, f"  last {i} · balk", f'=IF({hm("lasten_max")}<=0,0,MAX(0,{hm(f"kl{i}_bedrag")})/{hm("lasten_max")})', None, f"KPI9_BALK{i}"))],
         (2, "Grafiek · bijschrift vorige prognose", f'=IF({hm("vorig_aanwezig")}=1,"vorige prognose","")', None, "GRAFIEK_LEGENDA_VORIG"),
         (3, "Titel", f'="Dieptepunt "&{eur_mln(dal)}&" in "&{hm("dal_basis_kw")}&", eindsaldo "&{eur_mln(eind)}&" in "&{hm("laatste_kw")}', None, "CF_TITEL"),
         (3, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&": "&{eur_mln(hm("stand_nu"))}&" · balken: opbrengsten en kosten per kwartaal · lijn: cumulatieve cashflow"'
@@ -1726,9 +1732,9 @@ def bouw_powerpoint(wb, data):
          f"grafiek cashflow · plakken: {LY.PP_BLOK['cf']}7 t/m {L(ws[LY.PP_BLOK['cf'] + '1'].column + LY.PP_CF_KOL - 1)}, laatste periode "
          f"(kolom 8 = scenariolijn, 9-11 = scenario's van tab Scenario's; '(uit)' = reeks niet in de presentatie; tot v17 stond dit blok op G7)",
          ["Kwartaal", "Voorfinanciering", "Positief saldo", "Opbrengsten", "Kosten", "Cumulatieve cashflow", "Vorige prognose", f"={hm('lbl_scenario')}"]
-         + [f'=IF({hm(f"vs{s_}_pp")}=1,{hm(f"vs{s_}_leg")},"Scenario {s_} (uit)")' for s_ in range(1, LY.N_VS + 1)],
+         + [f'=IF(AND({hm("vs_pp")}=1,{hm(f"vs{s_}_cf")}=1),{hm(f"vs{s_}_leg")},"Scenario {s_} (uit)")' for s_ in range(1, LY.N_VS + 1)],
          [FIX["kwartaal"], M["g_voorfinanciering"], M["g_positief_saldo"], M["g_opbrengsten"], M["g_kosten"], M["g_stand"], M["g_vorige"], M["g_scenario"]]
-         + [LY.vs_col(s_, "g") for s_ in range(1, LY.N_VS + 1)], "0.0"),
+         + [LY.vs_col(s_, "gcf") for s_ in range(1, LY.N_VS + 1)], "0.0"),
         # dia 4 'Verkoopscenario's' (sinds v18): jaartal bij het eerste kwartaal van elk jaar, Basis, scenario 1..3 en de dieptepunten
         # (één-punts-reeksen, label = bedrag); tijdvak vanaf 1 januari van het actuals-jaar, zoals de verkoopgrafiek
         (LY.PP_BLOK["vs"], "DIA 4 · VERKOOPSCENARIO'S · € mln",

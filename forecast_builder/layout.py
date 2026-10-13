@@ -275,6 +275,7 @@ H = {
     "vs_aan": 152, "vs_pp": 153, "vs_pp_aan": 154, "vs_min": 155, "vs_max": 156, "vs_stap": 157, "vs_titel": 158, "vs_subtitel": 159,
     "vs_eind_tekst": 160, "vs_slechtst": 161, "vs_sb_mee": 162, "vs_sel": 163, "vs_typesel": 164, "vs0_leg": 165, "vs0_sub": 166,
     "vs0_delta": 167, "vs0_lbl_dal": 168, "vs_kicker": 169, "vs0_dal_pos": 170, "vs_nu_pos": 171, "vs_tr_tekst": 172,
+    "vs_cf": 173,                   # scenariolijnen ook in de cashflowgrafiek (Dashboard en dia 3), schakelaar op tab Scenario's
 }
 
 
@@ -396,14 +397,17 @@ SC_TAB = "Scenario's"
 SC_BLAD = "'Scenario''s'"                                 # tabbladnaam in formules
 SC_COL = [3, 5, 7, 9]                                     # Basis, scenario 1..3: twee kolommen per scenario (C:D, E:F, G:H, I:J)
 SC_R_NAAM, SC_R_SB, SC_R_VV, SC_R_TV = 17, 18, 19, 20     # invoerrijen
-SC_R_PP = 22                                              # Naar PowerPoint (ja/nee)
+SC_R_PP = 22                                              # Naar PowerPoint (ja/nee): dia 4
 SC_CEL_PP = "C22"
-SC_R_FOUT = 23                                            # controle per scenario (tekst)
-SC_CEL_SEL = "C41"                                        # tabel per termijn: scenario (Basis / Scenario 1..3)
-SC_CEL_TYPE = "I41"                                       # tabel per termijn: woningtype (alle types / naam)
+SC_R_CF = 23                                              # lijnen in de cashflowgrafiek (ja/nee): Dashboard en dia 3
+SC_CEL_CF = "C23"
+SC_R_FOUT = 24                                            # controle per scenario (tekst)
+SC_CEL_SEL = "C42"                                        # tabel per termijn: scenario (Basis / Scenario 1..3)
+SC_CEL_TYPE = "I42"                                       # tabel per termijn: woningtype (alle types / naam)
 SC_N_KW = 24                                              # kwartalen in de tabel per termijn (vanaf 1 januari van het actuals-jaar)
 SC_LABELS = {"naam": "Naam", "sb": "Start bouw (hele project)", "vv": "Verkoop vanaf · het verkooptempo schuift mee",
-             "tv": "Transport vanaf · nooit vóór de verkoop", "pp": "Naar PowerPoint"}
+             "tv": "Transport vanaf · nooit vóór de verkoop", "pp": "Naar PowerPoint (dia Verkoopscenario's)",
+             "cf": "Lijnen in de cashflowgrafiek"}
 
 
 def sc_in(s, veld):
@@ -415,11 +419,13 @@ def sc_in(s, veld):
 VS_COL1 = PT_COL1 + len(PT) + 1
 VS_G = {}                                                 # gedeelde kolommen
 _c = VS_COL1
-for _naam in ["kpre", "kpost", "vnd", "tnd"]:             # kosten vóór / vanaf start bouw (cumulatief), verkocht / transport niet-DAEB
+# kosten vóór / vanaf start bouw (cumulatief), verkocht / transport niet-DAEB; prognosekosten van de posten op tab CF kosten die
+# meeschuiven met de start bouw (cksb) of met de verkoop (ckv), cumulatief
+for _naam in ["kpre", "kpost", "vnd", "tnd", "cksb", "ckv"]:
     VS_G[_naam] = L(_c)
     _c += 1
 _c += 1
-VS_AGG = ["pv", "pt", "psb", "qf", "model", "cumo", "opbr", "kcum", "kosten", "rente", "sraw", "stand", "pos", "tnd", "g", "gdal"]
+VS_AGG = ["pv", "pt", "psb", "qf", "model", "cumo", "opbr", "kcum", "kosten", "rente", "sraw", "stand", "pos", "tnd", "g", "gdal", "gcf"]
 VS_TB = ["vc", "tc", "vv", "vx"]                          # per type: verkocht cum, transport cum, termijnen vervallen, extra's vervallen
 _VS = {}
 for _s in range(1, N_VS + 1):
@@ -478,7 +484,7 @@ def tm_rng(row):
 # hulpcellen per scenario (vs1_*, vs2_*, ...): invoer (kwartaalindex, 0 = leeg of ongeldig), verschuivingen, naam, uitkomst, teksten
 VS_VELDEN = ["in_sb", "in_vv", "in_tv", "fout", "aan", "d_sb", "sb", "vv", "d_v", "tv", "d_t", "naam", "kop", "leg", "dal", "dal_pos",
              "dal_kw", "be_pos", "be", "eind", "rente", "vbsb", "vbsb_pct", "et_pos", "et", "d_fin", "d_be", "sub", "delta", "lbl_dal",
-             "kaart", "pp"]
+             "kaart", "pp", "cf"]
 _r = 180
 for _s in range(1, N_VS + 1):
     for _veld in VS_VELDEN:
@@ -498,3 +504,37 @@ VS_KADER = (0.40, 2.74, 9.55, 5.00)
 VS_PLOT = (0.80, 2.82, 9.42, 4.70)
 VS_PLOT_X = round((VS_PLOT[0] - VS_KADER[0]) / (VS_KADER[2] - VS_KADER[0]), 4)
 VS_PLOT_W = round((VS_PLOT[2] - VS_PLOT[0]) / (VS_KADER[2] - VS_KADER[0]), 4)
+
+# tab CF kosten (sinds v19): kosten per post en per periode, zoals het FO-tabblad 'CF - kosten' (blok 'Onderdelen'); per post
+# 'schuift mee met' (start bouw / verkoop / vast) voor de scenario's op tab Scenario's, en de kosten t/m het dieptepunt (grootste
+# lasten op dia 2). Kolom = periode van het Model (1..60, zoals de rijen op tab Invoer); gerealiseerd = één bedrag in kolom E.
+KF_TAB = "CF kosten"
+KF_BLAD = "'CF kosten'"
+N_KF = 20                                                 # kostenposten
+KF_R_POS = 6                                              # verborgen: positie van de periode boven elke kolom
+KF_R_KOP = 7
+KF_R1 = 8
+KF_RN = KF_R1 + N_KF - 1
+KF_R_TOT, KF_R_INV, KF_R_VERSCHIL, KF_R_CONTROLE = KF_RN + 1, KF_RN + 2, KF_RN + 3, KF_RN + 4
+KF_C = {"naam": "B", "mee": "C", "totaal": "D", "real": "E", "dal": "F", "code": "G", "sleutel": "H"}
+KF_COL1 = 9                                               # kolom I = periode 1
+KF_MEE = ["start bouw", "verkoop", "vast"]
+KF_LABEL_KOP = "Kostenpost"
+
+
+def kf_rng(veld):
+    """Absoluut bereik van een kolom van de posten op tab CF kosten (met tabbladnaam)."""
+    c = KF_C[veld]
+    return f"{KF_BLAD}!${c}${KF_R1}:${c}${KF_RN}"
+
+
+def kf_blok():
+    """Absoluut bereik van alle periodekolommen van de posten (N_KF rijen x 60 kolommen)."""
+    return f"{KF_BLAD}!${L(KF_COL1)}${KF_R1}:${L(KF_COL1 + ROWN - ROW1)}${KF_RN}"
+
+
+_r = 285
+for _naam in ["kf_aan", "kf_sb_tot", "kf_v_tot", "vs_v_mee", "kf_tekst", "kf_tekst_kort", "kf_dal_tot", "kf_verschil", "kf_controle",
+              "kl_bron", "kl1_naam", "kl1_bedrag", "kl2_naam", "kl2_bedrag", "kl3_naam", "kl3_bedrag"]:
+    H[_naam] = _r
+    _r += 1

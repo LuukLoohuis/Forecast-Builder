@@ -58,7 +58,7 @@ def foutcellen(wb):
     na_ok |= {LY.m_col(blok, k) for blok in ("gv", "gt") for k in range(1, LY.N_TYPES + 1)}   # lege typeblokken: NA()
     na_ok |= set(LY.BT.values())                                                            # bouwtermijnentabel: NA() buiten de gebruikte rijen
     na_ok |= set(LY.PT.values())                                                            # grafiek per type: NA() voorbij de laatste periode
-    na_ok |= {LY.vs_col(s, k) for s in range(1, LY.N_VS + 1) for k in ("g", "gdal")}         # scenariolijnen: NA() waar gelijk aan de Basis
+    na_ok |= {LY.vs_col(s, k) for s in range(1, LY.N_VS + 1) for k in ("g", "gdal", "gcf")}  # scenariolijnen: NA() waar gelijk aan de Basis
     fouten = []
     for ws in wb.worksheets:
         for row in ws.iter_rows():
@@ -445,6 +445,7 @@ def test_dia2_grafiekblok_balken_en_lasten(tmp, basis):
     assert D.lees_werkboek(paden[0]).params["lasten"] == lasten
     p = D.voorbeeld()
     p.params["lasten"] = []
+    p.kosten_posten = []                    # anders komen de lasten automatisch van tab CF kosten (test_cf_kosten_en_schakelaar)
     wb = bouw_en_bereken(p, tmp, "zonder_lasten")
     pp2 = wb["PowerPoint"]
     leeg = {pp2[f"F{r}"].value: pp2[f"D{r}"].value for r in range(LY.PP_KPI_ROW1, LY.PP_KPI_ROW1 + 80) if pp2[f"F{r}"].value}
@@ -479,7 +480,8 @@ def test_verkoopscenarios(basis):
     assert hb("vs2_rente") > 0 and abs(hb("vs2_eind") - (hb("eind_basis") - hb("vs2_rente") + hb("rente_basis_tot"))) < 1
     assert hb("vs2_dal") < hb("dal_basis") and hb("vs2_d_be") == 1 and hb("vs2_vbsb_pct") >= hb("verk_bij_start_pct")
     assert (hb("vs1_d_sb"), hb("vs1_d_v")) == (0, 4)
-    assert abs(hb("vs1_eind") - hb("eind_basis")) < 1 and hb("vs1_vbsb_pct") < hb("verk_bij_start_pct")
+    assert abs(hb("vs1_eind") - (hb("eind_basis") - hb("vs1_rente") + hb("rente_basis_tot"))) < 1
+    assert hb("vs1_vbsb_pct") < hb("verk_bij_start_pct")
     for s in (1, 2):
         lijn, g = stand(LY.vs_col(s, "stand")), stand(LY.vs_col(s, "g"))
         afwijkend = [i for i in range(n) if abs(lijn[i] - basislijn[i]) > 1]
@@ -493,12 +495,13 @@ def test_verkoopscenarios(basis):
     # PowerPoint: cashflowgrafiek met de ingevulde scenario's, dia 4 zonder kaart en legenda voor scenario 3
     c0 = pp[LY.PP_BLOK["cf"] + "1"].column
     koppen = [pp.cell(7, c0 + j).value for j in range(LY.PP_CF_KOL)]
-    assert koppen[-3:] == [hb("vs1_leg"), hb("vs2_leg"), "Scenario 3 (uit)"]
+    assert koppen[-3:] == [f"Scenario {s} (uit)" for s in (1, 2, 3)]                 # lijnen in de cashflowgrafiek: standaard uit
+    assert hb("vs_cf") == 0 and stand(LY.vs_col(1, "gcf")) == ["#N/A"] * n
     assert hb("vs1_leg") == "Scenario 1 · verkoop Q1 ’28" and hb("vs2_leg") == "Scenario 2 · Later starten"
     regels = _pp_regels(pp, 4)
     assert all(regels[f"VS_K3_{veld}"] is None for veld in ("NAAM", "SUB", "WAARDE", "LABEL", "DAL", "BE", "VERKOCHT", "DELTA"))
     assert regels["VS_LEG3"] is None and regels["VS_LEG1"] == hb("vs1_leg") and regels["VS_K2_NAAM"] == "Scenario 2 · Later starten"
-    assert regels["VS_TITEL"].startswith("Later starten: financiering tot −€17")
+    assert regels["VS_TITEL"].startswith("Later starten: financiering tot −€18")
     assert regels["VS_K2_DELTA"].endswith("extra financiering · break-even 1 kwartaal later")
     assert any(str(k).startswith("SC_") for k in _pp_regels(pp, 5))                   # de scenario-dia schoof van 4 naar 5
 
@@ -531,3 +534,97 @@ def test_leeg_werkboek_zonder_fouten(tmp):
     m = wb["Model"]
     hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
     assert (hb("vs_aan"), hb("vs_pp_aan")) == (0, 0) and hb("vs_max") > hb("vs_min")
+
+
+def _verwacht_scenariokosten(basis_kosten, posten, n_act, d_sb, d_v):
+    """Python-referentie voor de kosten per periode in een scenario met posten op tab CF kosten: de prognose van de posten op
+    'start bouw' schuift d_sb periodes, die op 'verkoop' d_v; wat vóór de eerste prognoseperiode zou vallen komt in die periode,
+    wat na de laatste zou vallen in de laatste; gerealiseerde periodes blijven gelijk."""
+    n = len(basis_kosten)
+    uit = list(basis_kosten)
+    for post in posten:
+        d = {"start bouw": d_sb, "verkoop": d_v}.get(post["mee"], 0)
+        if not d:
+            continue
+        for i, b in enumerate(post["bedragen"][:n]):
+            if not b or i < n_act:
+                continue
+            j = min(n - 1, max(n_act, i + d))
+            uit[i] -= b
+            uit[j] += b
+    return uit
+
+
+def test_cf_kosten(basis, tmp):
+    """Tab CF kosten: in een scenario schuiven alleen de posten op 'start bouw' (met de start bouw) en 'verkoop' (met de verkoop)
+    mee; de rest blijft staan. De tab sluit per prognosekwartaal aan op tab Invoer, telt de kosten t/m het dieptepunt en wordt bij
+    inlezen teruggelezen."""
+    m, kf = basis["Model"], basis[LY.KF_TAB]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    n, pa = hb("n"), hb("pos_actuals")
+    posten = D.voorbeeld().kosten_posten
+    basis_kosten = [m[f"{LY.FIX['kosten']}{LY.ROW1 + i}"].value for i in range(n)]
+    assert hb("kf_aan") == 1 and hb("kf_verschil") == 0 and hb("kf_controle").startswith("✓")
+    som = lambda mee: sum(b or 0 for p_ in posten if p_["mee"] == mee for b in p_["bedragen"][pa:])  # noqa: E731
+    assert abs(hb("kf_sb_tot") - som("start bouw")) < 1 and abs(hb("kf_v_tot") - som("verkoop")) < 1
+    for s in (1, 2):
+        kosten_s = [m[f"{LY.vs_col(s, 'kosten')}{LY.ROW1 + i}"].value for i in range(n)]
+        verwacht = _verwacht_scenariokosten(basis_kosten, posten, pa, hb(f"vs{s}_d_sb"), hb(f"vs{s}_d_v"))
+        assert max(abs(a - b) for a, b in zip(kosten_s, verwacht)) < 1, (s, kosten_s, verwacht)
+        assert abs(sum(kosten_s) - sum(basis_kosten)) < 1                     # alleen het moment verandert
+    # scenario 2 (start bouw +2): honoraria en AK blijven staan, dus het eerste prognosekwartaal houdt alleen die posten
+    assert abs(m[f"{LY.vs_col(2, 'kosten')}{LY.ROW1 + pa}"].value
+               - sum((p_["bedragen"][pa] or 0) for p_ in posten if p_["mee"] != "start bouw")) < 1
+    assert "schuift mee met de start bouw" in hb("kf_tekst") and hb("vs_subtitel").endswith(hb("kf_tekst_kort"))
+    # kosten t/m het dieptepunt per post (gerealiseerd + prognose t/m de dieptepuntpositie) en de top 5 op de tab
+    dal = hb("vs0_dal_pos")
+    tm_dal = {p_["naam"]: (p_["gerealiseerd"] or 0) + sum(b or 0 for b in p_["bedragen"][pa:dal]) for p_ in posten}
+    rijen = {kf[f"B{r}"].value: r for r in range(LY.KF_R1, LY.KF_RN + 1) if kf[f"B{r}"].value}
+    for naam, r in rijen.items():
+        assert abs(kf[f"{LY.KF_C['dal']}{r}"].value - tm_dal[naam]) < 1, naam
+    assert abs(hb("kf_dal_tot") - sum(tm_dal.values())) < 1
+    r_top = LY.KF_R_CONTROLE + 5
+    top = [kf[f"B{r_top + k}"].value for k in range(3)]
+    assert top == sorted(tm_dal, key=lambda k: -tm_dal[k])[:3]
+    assert hb("kl_bron") == 0 and hb("kl1_naam") == "Grondkosten"           # Dashboard-lasten gaan voor
+    # ronde reis: de posten (naam, keuze, gerealiseerd, bedragen) komen terug bij inlezen
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "kosten_rond"), None, caches=False)
+    terug = D.lees_werkboek(paden[0]).kosten_posten
+    assert [(k["naam"], k["mee"], k["gerealiseerd"]) for k in terug] == [(k["naam"], k["mee"], k["gerealiseerd"]) for k in posten]
+    for a, b in zip(posten, terug):
+        assert b["bedragen"][:n] == a["bedragen"] and not any(b["bedragen"][n:])
+
+
+def test_cf_kosten_en_schakelaar(tmp):
+    """Lijnen in de cashflowgrafiek = ja: de ingevulde scenario's staan als lijn in de cashflowgrafiek (Dashboard en dia 3, met de
+    blokjes op het Dashboard). Zonder lasten op het Dashboard komen de drie grootste posten t/m het dieptepunt van tab CF kosten
+    op dia 2. Zonder posten op tab CF kosten schuiven, zoals voorheen, alle kosten vanaf de geplande start bouw mee."""
+    p = D.voorbeeld()
+    p.params["vs_cf"] = "ja"
+    p.params["lasten"] = []
+    wb = bouw_en_bereken(p, tmp, "vs_cf_ja")
+    m, pp, d = wb["Model"], wb["PowerPoint"], wb["Dashboard"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    n = hb("n")
+    assert hb("vs_cf") == 1 and [hb(f"vs{s}_cf") for s in (1, 2, 3)] == [1, 1, 0]
+    c0 = pp[LY.PP_BLOK["cf"] + "1"].column
+    assert [pp.cell(7, c0 + j).value for j in range(LY.PP_CF_KOL)][-3:] == [hb("vs1_leg"), hb("vs2_leg"), "Scenario 3 (uit)"]
+    g, gcf = (([m[f"{LY.vs_col(2, k)}{LY.ROW1 + i}"].value for i in range(n)]) for k in ("g", "gcf"))
+    assert g == gcf and any(v != "#N/A" for v in g)
+    assert [d[f"{c}43"].value for c in "QRST"] == ["scenario's:", "Scenario 1", "Scenario 2", None]
+    # grootste lasten automatisch uit tab CF kosten
+    regels = _pp_regels(pp, 2)
+    assert hb("kl_bron") == 1 and regels["KPI9_LABEL"] == "LASTEN T/M DIEPTEPUNT"
+    namen = [hb(f"kl{i}_naam") for i in (1, 2, 3)]
+    assert namen == ["Grondkosten", "Direct doorbelaste projectkosten", "Aanneemsom"]
+    assert regels["KPI9_NAAM2"] == "Direct doorbelaste proj…" and regels["KPI9_NAAM1"] == "Grondkosten"
+    assert abs(regels["KPI9_BALK1"] - 1) < 1e-12 and 0 < regels["KPI9_BALK3"] < regels["KPI9_BALK2"] < 1
+    assert d["Z77"].value.startswith("automatisch: Grondkosten")
+    # zonder posten: de oude regel (alles vanaf de geplande start bouw schuift mee) en de oude tekst
+    p2 = D.voorbeeld()
+    p2.kosten_posten = []
+    wb2 = bouw_en_bereken(p2, tmp, "zonder_posten")
+    m2 = wb2["Model"]
+    hb2 = lambda naam: m2[f"BY{LY.H[naam]}"].value  # noqa: E731
+    assert hb2("kf_aan") == 0 and hb2("kf_tekst_kort") == "kosten vanaf start bouw schuiven mee met de start bouw"
+    assert abs(hb2("vs2_dal") - (-17424665.2328)) < 1 and abs(hb2("vs1_eind") - hb2("eind_basis")) < 1

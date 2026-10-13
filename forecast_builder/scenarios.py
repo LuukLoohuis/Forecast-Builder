@@ -11,8 +11,9 @@ Rekenregels (Model, gebied vanaf layout.VS_COL1; per scenario, per woningtype):
   * bouwtermijnen en extra's per bouwkwartaal vervallen vanaf de start bouw van het scenario (d_sb kwartalen verschoven); bij
     transport betaalt de koper de grondtermijn plus alle vervallen termijnen (zoals in het FO, tab 'CF - opbrengsten');
   * fees (DAEB) schuiven mee met de start bouw (alleen de prognose);
-  * kosten: gelijk zolang de start bouw gelijk blijft; anders schuiven alle kosten vanaf de geplande start bouw d_sb kwartalen mee
-    (de kosten daarvóór blijven staan);
+  * kosten: met posten op tab CF kosten (kosten.py) schuiven alleen de prognosekosten van de posten op 'start bouw' d_sb kwartalen
+    mee en die op 'verkoop' d_v kwartalen; zonder posten blijven de kosten gelijk zolang de start bouw gelijk blijft, en schuiven
+    anders alle kosten vanaf de geplande start bouw d_sb kwartalen mee (de kosten daarvóór blijven staan);
   * opbrengsten = je eigen cashflow + het verschil volgens de termijnen (zoals de scenariolijn); rente zoals in de basis;
   * de laatste periode krijgt alles wat er nog niet is (zoals bij de knoppen op het Dashboard).
 Een scenario zonder wijziging is precies de Basis.
@@ -166,8 +167,14 @@ def bouw_model_scenarios(ws):
             f[c("cumo")] = (f'=IF({leeg},"",IF({h("model_aan")}=1,{CUM}{r}+{c("model")}{r}-{M["model_basis"]}{r},'
                             f'IF({prog},{CUM}{r},MAX({h("cum_opbr_actuals")},IF({c("pt")}{r}=0,0,N(INDEX({_rng(CUM)},{c("pt")}{r})))))))')
             f[c("opbr")] = f'=IF({leeg},"",IF({FASE}{r}="Realisatie",{OPB}{r},{c("cumo")}{r}-N({c("cumo")}{p})))'
-            f[c("kcum")] = (f'=IF({leeg},"",IF(OR({prog},{d_sb}=0),{CUM}{r}-{STAND}{r},'
-                            f'{kp}{r}+IF({c("psb")}{r}=0,0,N(INDEX({_rng(G["kpost"])},{c("psb")}{r})))))')
+            # kosten: met posten op tab CF kosten schuiven alleen die op 'start bouw' (d_sb) en 'verkoop' (d_v) mee: basis - eigen
+            # cumulatieve curve + verschoven curve (psb / pv = positie van het verschoven kwartaal; vóór de eerste periode 0, na de
+            # laatste de laatste); zonder posten schuiven alle kosten vanaf de geplande start bouw mee
+            per_post = (f'{CUM}{r}-{STAND}{r}-N({G["cksb"]}{r})+IF({c("psb")}{r}=0,0,N(INDEX({_rng(G["cksb"])},{c("psb")}{r})))'
+                        f'-N({G["ckv"]}{r})+IF({c("pv")}{r}=0,0,N(INDEX({_rng(G["ckv"])},{c("pv")}{r})))')
+            alles = f'{kp}{r}+IF({c("psb")}{r}=0,0,N(INDEX({_rng(G["kpost"])},{c("psb")}{r})))'
+            f[c("kcum")] = (f'=IF({leeg},"",IF({prog},{CUM}{r}-{STAND}{r},IF({h("kf_aan")}=1,'
+                            f'IF(AND({d_sb}=0,{d_v}=0),{CUM}{r}-{STAND}{r},{per_post}),IF({d_sb}=0,{CUM}{r}-{STAND}{r},{alles}))))')
             f[c("kosten")] = f'=IF({leeg},"",{c("kcum")}{r}-N({c("kcum")}{p}))'
             eind = f'IF({h("rente_tm_start")}=1,{h(f"vs{s}_sb")},99999)'
             f[c("rente")] = (f'=IF({leeg},"",IF(AND({FASE}{r}="Prognose",{h("rente")}>0,{IDX}{r}<{eind}),'
@@ -181,6 +188,7 @@ def bouw_model_scenarios(ws):
             anders = (f'OR(ABS({st}{r}-{sb_basis}{r})>1,ABS(N({st}{p})-N({sb_basis}{p}))>1,'
                       f'ABS(N({st}{r + 1})-N({sb_basis}{r + 1}))>1)')
             f[c("g")] = f'=IF({leeg},NA(),IF({h(f"vs{s}_aan")}=0,NA(),IF({anders},{st}{r}/1000000,NA())))'
+            f[c("gcf")] = f'=IF({h(f"vs{s}_cf")}=1,{c("g")}{r},NA())'              # cashflowgrafiek: alleen met de schakelaar op ja
             f[c("gdal")] = (f'=IF({leeg},NA(),IF(AND({h(f"vs{s}_aan")}=1,${NR}{r}={h(f"vs{s}_dal_pos")},'
                             f'OR(ABS({h(f"vs{s}_dal")}-{h("dal_basis")})>1,{h(f"vs{s}_dal_pos")}<>{h("vs0_dal_pos")})),{st}{r}/1000000,NA()))')
         # ---- selectie (tabel per termijn) ----
@@ -278,7 +286,9 @@ def bouw_model_scenarios(ws):
                    f'=IF(OR({h("vs_tr_plan")}>=99999,{h("start_idx")}>=99999),0,{h("vs_tr_plan")}-{h("start_idx")})'),
         "vs_aan": ("Scenario's: aantal ingevuld", "=" + "+".join(S(s, "aan") for s in alle)),
         "vs_pp": ("Scenario's: Naar PowerPoint (1/0)", f'=IF(LOWER(TRIM({LY.SC_BLAD}!${LY.SC_CEL_PP[0]}${LY.SC_CEL_PP[1:]}&""))="nee",0,1)'),
-        "vs_pp_aan": ("Scenario's: dia en lijnen in PowerPoint (1/0)", f'=IF(AND({h("vs_pp")}=1,{h("vs_aan")}>0),1,0)'),
+        "vs_pp_aan": ("Scenario's: dia 4 in PowerPoint (1/0)", f'=IF(AND({h("vs_pp")}=1,{h("vs_aan")}>0),1,0)'),
+        "vs_cf": ("Scenario's: lijnen in de cashflowgrafiek (1/0; alleen 'ja' zet ze aan)",
+                  f'=IF(LOWER(TRIM({LY.SC_BLAD}!${LY.SC_CEL_CF[0]}${LY.SC_CEL_CF[1:]}&""))="ja",1,0)'),
         "vs_stap": ("Scenario-grafiek: stap van de waarde-as (€ mln)", f"={stap}"),
         "vs_min": ("Scenario-grafiek: as-minimum (€ mln)", f'={h("vs_stap")}*INT(({lo}/1000000-0.08*{spreid})/{h("vs_stap")})'),
         "vs_max": ("Scenario-grafiek: as-maximum (€ mln)", f'=-{h("vs_stap")}*INT(-({hi}/1000000+0.04*{spreid})/{h("vs_stap")})'),
@@ -291,8 +301,7 @@ def bouw_model_scenarios(ws):
         "vs_sb_mee": ("Scenario's: een scenario verschuift de start bouw (1/0)",
                       "=IF(OR(" + ",".join(f"AND({S(s, 'aan')}=1,{S(s, 'd_sb')}<>0)" for s in alle) + "),1,0)"),
         "vs_subtitel": ("Scenario's: ondertitel",
-                        f'="Cumulatieve cashflow per scenario · transport nooit vóór de verkoop · "'
-                        f'&IF({h("vs_sb_mee")}=1,"kosten vanaf start bouw schuiven mee met de start bouw","kosten gelijk in alle scenario\'s")'),
+                        f'="Cumulatieve cashflow per scenario · transport nooit vóór de verkoop · "&{h("kf_tekst_kort")}'),
         "vs_eind_tekst": ("Scenario's: eindsaldo",
                           f'="eindsaldo Basis "&{eur_m(h("eind_basis"))}&IF({h("vs_aan")}=0,"",IF(AND(ABS({eind_min}-{h("eind_basis")})<50000,'
                           f'ABS({eind_max}-{h("eind_basis")})<50000)," · gelijk in alle scenario\'s"," · scenario\'s "&{eur_m(eind_min)}&" tot "&{eur_m(eind_max)}))'),
@@ -372,7 +381,8 @@ def bouw_model_scenarios(ws):
                              f'&IF({S(s, "d_fin")}>0," extra"," minder")&" financiering")&" · "&{be_tekst}'),
             f"vs{s}_lbl_dal": (f"Scenario {s}: label dieptepunt", f"={eur_m(S(s, 'dal'))}"),
             f"vs{s}_kaart": (f"Scenario {s}: naam op de kaart (dia)", f'=IF({naam_in}<>"","Scenario {s} · "&{naam_in},"Scenario {s}")'),
-            f"vs{s}_pp": (f"Scenario {s}: in PowerPoint (1/0)", f'=IF(AND({h("vs_pp")}=1,{S(s, "aan")}=1),1,0)'),
+            f"vs{s}_pp": (f"Scenario {s}: op dia 4 (1/0)", f'=IF(AND({h("vs_pp")}=1,{S(s, "aan")}=1),1,0)'),
+            f"vs{s}_cf": (f"Scenario {s}: lijn in de cashflowgrafiek (1/0)", f'=IF(AND({h("vs_cf")}=1,{S(s, "aan")}=1),1,0)'),
         })
     for naam, (label, formule) in hulp.items():
         r = H[naam]
@@ -391,8 +401,8 @@ def bouw_model_scenarios(ws):
 # =============================================================================
 KAART_COL = [3, 8, 13, 18]          # kaarten: C:F, H:K, M:P, R:U
 R_KAART = 5                         # kleurstreep; daaronder zeven regels
-R_S1, R_S2 = 14, 25                 # sectie 1 (invoer) en sectie 2 (uitkomst)
-R_S4 = 40                           # sectie 4 (tabel per termijn)
+R_S1, R_S2 = 14, 26                 # sectie 1 (invoer) en sectie 2 (uitkomst)
+R_S4 = 41                           # sectie 4 (tabel per termijn)
 GRAFIEK_COL = 12                    # kolom L: grafiek rechts van sectie 1 en 2
 CHIP_RIJ = R_S1 + 1
 
@@ -443,8 +453,9 @@ def bouw_tab(wb, data):
     put(ws, "B2", f"={hm('vs_titel')}", f=font(14, True, TXT), al=AL_VCENTER)
     ws.merge_cells("B3:V3")
     put(ws, "B3", '="Basis = je planning (tab Invoer en Woningtypes) · bij transport betaalt de koper de grondtermijn plus alle vervallen '
-                  'bouwtermijnen, daarna elke termijn in zijn bouwkwartaal · "&IF(' + hm("vs_sb_mee") + '=1,"kosten vanaf start bouw schuiven mee '
-                  'met de start bouw","kosten gelijk zolang de start bouw gelijk blijft")', f=font(10, False, TXT2))
+                  'bouwtermijnen, daarna elke termijn in zijn bouwkwartaal · "&' + hm("kf_tekst"), f=font(10, False, TXT2),
+        al=Alignment(horizontal="left", vertical="top", wrap_text=True))
+    ws.row_dimensions[3].height = 28
 
     # ---- kaarten ----------------------------------------------------------------------------------------------------------------
     for r, hgt in ((R_KAART, 4), (R_KAART + 1, 18), (R_KAART + 2, 12), (R_KAART + 3, 28), (R_KAART + 4, 14), (R_KAART + 5, 14),
@@ -543,10 +554,20 @@ def bouw_tab(wb, data):
     dv_jn.add(cel_pp)
     c_noot = L(LY.SC_COL[1])
     ws.merge_cells(f"{c_noot}{LY.SC_R_PP}:{L(LY.SC_COL[-1] + 1)}{LY.SC_R_PP}")
-    put(ws, f"{c_noot}{LY.SC_R_PP}", "ja = dia Verkoopscenario's en lijnen in de cashflowdia · nee = alleen hier in Excel · "
+    put(ws, f"{c_noot}{LY.SC_R_PP}", "ja = de ingevulde scenario's op de dia Verkoopscenario's · nee = alleen hier in Excel · "
                                      "zonder ingevuld scenario komt er niets in PowerPoint", f=F_NOTE8,
         al=Alignment(horizontal="left", vertical="center", wrap_text=True, indent=1))
     ws.row_dimensions[LY.SC_R_PP].height = 24
+    # lijnen in de cashflowgrafiek (Dashboard en dia 3): los aan/uit, standaard uit (rustiger grafiek)
+    put(ws, f"B{LY.SC_R_CF}", LY.SC_LABELS["cf"], f=F_CALC9, al=AL_LEFT, bd=BD_RIJ)
+    cel_cf = _paar(ws, LY.SC_R_CF, 0, params.get("vs_cf") or "nee", f=F_INPUT, fl=FL_INPUT, al=AL_CENTER, bd=BD_RIJ)
+    assert cel_cf == LY.SC_CEL_CF
+    dv_jn.add(cel_cf)
+    ws.merge_cells(f"{c_noot}{LY.SC_R_CF}:{L(LY.SC_COL[-1] + 1)}{LY.SC_R_CF}")
+    put(ws, f"{c_noot}{LY.SC_R_CF}", "ja = de ingevulde scenario's ook als lijn in de cashflowgrafiek (Dashboard en dia 3) · "
+                                     "nee = alleen de Basis in die grafiek", f=F_NOTE8,
+        al=Alignment(horizontal="left", vertical="center", wrap_text=True, indent=1))
+    ws.row_dimensions[LY.SC_R_CF].height = 24
     put(ws, f"B{LY.SC_R_FOUT}", "Controle", f=F_NOTE8, al=AL_LEFT)
     ws.row_dimensions[LY.SC_R_FOUT].height = 24
     for s in range(1, N_VS + 1):

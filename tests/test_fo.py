@@ -97,6 +97,26 @@ def maak_fo(pad):
     wo["B47"], wo["D47"] = "Onvoorzien", 50000
     wo["B48"], wo["C48"] = "bij start bouw", 1.0; wo.cell(48, kd[(2027, 2)]).value = 50000
     wo["B49"] = "AK fee (toelichting)"
+    # CF - kosten: per type een termijnblok (wordt niet gelezen) en het blok 'Onderdelen': 'Actuals' samengevoegd boven H:J, de
+    # jaartallen boven de kwartalen (K = 2026 Q1 .. R = 2027 Q4); rijen tot de eerste lege
+    wk = wb.create_sheet("CF - kosten")
+    wk["F3"], wk["G3"] = "# won", 10
+    wk["B4"] = "Termijnen <300K"
+    _kopregels(wk, 4)
+    wk["B5"], wk["C5"] = "Aanvang bouw", 0.1
+    wk["B49"], wk["D49"] = "Totaal kosten", 9999
+    wk["H51"] = "Actuals"
+    wk.merge_cells("H51:J51")
+    wk["K51"], wk["O51"] = 2026, 2027
+    wk["B52"], wk["D52"] = "Onderdelen", "€"
+    for i, c in enumerate("KLMNOPQR"):
+        wk[f"{c}52"] = KW[i % 4]
+    wk["B53"], wk["D53"], wk["J53"] = "Grondkosten", 1000, 1000
+    wk["B54"], wk["M54"], wk["N54"], wk["O54"], wk["R54"] = "Aanneemsom", 50, 200, 300, 100   # Q3 '26 = actuals, Q4 '27 na de laatste periode
+    wk["B55"], wk["I55"], wk["N55"], wk["O55"] = "Promotiekosten", 5, 10, 10
+    wk["B56"], wk["H56"], wk["I56"], wk["P56"] = "Honoraria", 20, 30, 40
+    wk["E56"] = 0.05                                                  # percentage in een tussenkolom telt niet mee
+    wk["B58"], wk["D58"] = "Check:", 0
     wb.save(pad)
 
 
@@ -128,6 +148,16 @@ def test_lees_fo():
     assert p.verkocht[3] == [3, None] and p.verkocht[4] == [7, None] and p.verkocht[5] == [None, 20]
     # transport van de rij Koopsom: 7 in Q4 '26, 3 in Q1 '27
     assert p.transport[4] == [7, None] and p.transport[5] == [3, None]
+    # CF - kosten (blok Onderdelen): gerealiseerd = kolommen onder 'Actuals' + kwartalen t/m actuals; na de laatste periode in de laatste
+    kp = {k["naam"]: k for k in p.kosten_posten}
+    assert list(kp) == ["Grondkosten", "Aanneemsom", "Promotiekosten", "Honoraria"]
+    assert [kp[n]["mee"] for n in kp] == ["vast", "start bouw", "verkoop", "vast"]
+    assert [kp[n]["gerealiseerd"] for n in kp] == [1000, 50, 5, 50]
+    assert kp["Grondkosten"]["bedragen"] == [None] * 8
+    assert kp["Aanneemsom"]["bedragen"] == [None, None, None, None, 200, 300, None, 100]
+    assert kp["Promotiekosten"]["bedragen"] == [None, None, None, None, 10, 10, None, None]
+    assert kp["Honoraria"]["bedragen"] == [None, None, None, None, None, None, 40, None]
+    assert [w for w in p.fo["waarschuwingen"] if "CF - kosten" in w and "Aanneemsom" in w and "laatste periode" in w]
 
 
 def test_binnen_limiet():
@@ -173,4 +203,5 @@ def test_vorige_prognose_uit_ouder_fo():
     assert (p.types[0].vorig_start_jaar, p.types[0].vorig_start_kw) == (2026, 4)
     assert (p.types[1].vorig_start_jaar, p.types[1].vorig_start_kw) == (2027, 2)
     assert p.types[1].fee_vorig[:2] == ["actuals", "2026 Q3"] and p.types[1].fee_vorig[5] == "2026 Q4" and p.types[1].fee_vorig[2] is None
-    assert p.fo["vorig_bestand"] == "fo_vorig.xlsx" and [w for w in p.fo["waarschuwingen"] if "toelichting" not in w] == []
+    assert p.fo["vorig_bestand"] == "fo_vorig.xlsx"
+    assert [w for w in p.fo["waarschuwingen"] if "toelichting" not in w and "CF - kosten" not in w] == []
