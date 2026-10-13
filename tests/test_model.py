@@ -628,3 +628,43 @@ def test_cf_kosten_en_schakelaar(tmp):
     hb2 = lambda naam: m2[f"BY{LY.H[naam]}"].value  # noqa: E731
     assert hb2("kf_aan") == 0 and hb2("kf_tekst_kort") == "kosten vanaf start bouw schuiven mee met de start bouw"
     assert abs(hb2("vs2_dal") - (-17424665.2328)) < 1 and abs(hb2("vs1_eind") - hb2("eind_basis")) < 1
+
+
+def test_cf_kosten_controle_en_dieptepunt_in_realisatie(tmp):
+    """Actuals een half jaar verder zonder de posten bij te werken: het dieptepunt (Q1 '27) ligt dan in de realisatie, dus de tab en
+    dia 2 noemen het 'gerealiseerd t/m' (het FO geeft de gerealiseerde kosten als één bedrag per post); de controle meldt dat kolom E
+    niet meer aansluit, en bedragen na de laatste periode gaan voor in de melding en tellen niet mee in het totaal."""
+    p = D.voorbeeld()
+    p.params["actuals_jaar"], p.params["actuals_kw"] = 2027, 2
+    p.params["lasten"] = []
+    p.kosten_posten = [dict(k) for k in p.kosten_posten]
+    p.kosten_posten.append({"naam": "Na de looptijd", "mee": "vast", "gerealiseerd": None,
+                            "bedragen": [None] * len(p.periodes) + [5000]})
+    wb = bouw_en_bereken(p, tmp, "dal_in_realisatie")
+    m, kf = wb["Model"], wb[LY.KF_TAB]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    assert hb("vs0_dal_pos") <= hb("pos_actuals") and hb("kf_dal_real") == 1
+    assert hb("kf_dal_lbl") == f'gerealiseerd t/m {hb("kw_actuals")}' and kf[f"{LY.KF_C['dal']}{LY.KF_R_KOP}"].value == hb("kf_dal_lbl")
+    assert _pp_regels(wb["PowerPoint"], 2)["KPI9_LABEL"] == "GEREALISEERDE LASTEN"
+    rij = next(r for r in range(LY.KF_R1, LY.KF_RN + 1) if kf[f"B{r}"].value == "Na de looptijd")
+    assert kf[f"{LY.KF_C['totaal']}{rij}"].value == 0 and hb("kf_buiten") == 5000
+    assert hb("kf_real_gap") > 1000 and hb("kf_controle").startswith("Let op: er staan bedragen")
+    # zonder de post na de looptijd: de melding over kolom E
+    p.kosten_posten.pop()
+    wb2 = bouw_en_bereken(p, tmp, "dal_in_realisatie2")
+    hb2 = lambda naam: wb2["Model"][f"BY{LY.H[naam]}"].value  # noqa: E731
+    assert hb2("kf_buiten") == 0 and hb2("kf_controle").startswith("Let op: gerealiseerd t/m")
+
+
+def test_cf_kosten_lege_keuze_is_vast(tmp):
+    """Een lege 'schuift mee met' rekent het Model als vast; teruglezen (build.py --from) houdt hem vast in plaats van de standaard
+    op de naam."""
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "lege_keuze"), None, caches=False)
+    wb = load_workbook(paden[0])
+    kf = wb[LY.KF_TAB]
+    rij = next(r for r in range(LY.KF_R1, LY.KF_RN + 1) if kf[f"B{r}"].value == "Aanneemsom")
+    kf[f"{LY.KF_C['mee']}{rij}"].value = None
+    pad = os.path.join(tmp, "lege_keuze_aangepast.xlsx")
+    wb.save(pad)
+    terug = {k["naam"]: k["mee"] for k in D.lees_werkboek(pad).kosten_posten}
+    assert terug["Aanneemsom"] == "vast" and terug["Aansluitkosten"] == "start bouw"

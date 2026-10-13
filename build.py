@@ -153,10 +153,10 @@ def main():
 
     if args.fo:
         from forecast_builder import fo
-        project = fo.lees_fo(args.fo)
-        if args.bron:                                   # knoppen (Dashboard) uit een bestaand werkboek overnemen
+        oud = D.lees_werkboek(args.bron) if args.bron else None
+        project = fo.lees_fo(args.fo, actuals=(oud.params.get("actuals_jaar"), oud.params.get("actuals_kw")) if oud else None)
+        if oud is not None:                             # knoppen (Dashboard) uit een bestaand werkboek overnemen
             uit_fo = ("actuals_jaar", "actuals_kw") if "actuals" in project.fo else ()
-            oud = D.lees_werkboek(args.bron)
             project.params.update({k: v for k, v in oud.params.items() if k not in uit_fo})
             mee = {k["naam"].lower(): k["mee"] for k in oud.kosten_posten if k.get("mee")}    # tab CF kosten: eigen keuze per post houden
             for post in project.kosten_posten:

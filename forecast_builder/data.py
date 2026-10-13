@@ -386,7 +386,8 @@ def _lees_kosten(ws, p):
         if naam is None or not str(naam).strip():
             continue
         mee = _v(ws, f"{C['mee']}{r}")
-        posten.append({"naam": str(naam).strip(), "mee": str(mee).strip() if mee else standaard_mee(str(naam)),
+        mee = str(mee).strip() if mee is not None else ""
+        posten.append({"naam": str(naam).strip(), "mee": mee or "vast",                  # leeg rekent het Model als vast
                        "gerealiseerd": _num(_v(ws, f"{C['real']}{r}")),
                        "bedragen": [_num(_v(ws, f"{L(LY.KF_COL1 + i)}{r}")) for i in range(LY.ROWN - LY.ROW1 + 1)]})
     p.kosten_posten = posten

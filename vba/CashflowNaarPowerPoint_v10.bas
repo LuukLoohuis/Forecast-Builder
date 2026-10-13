@@ -133,6 +133,7 @@ Private foStap As String                             ' laatste deelstap van 'Oph
 Private Const IDX_MIN As Long = 7961                 ' 1990*4+1: kleinste kwartaalindex die IsJaar toelaat
 Private Const IDX_MAX As Long = 8404                 ' 2100*4+4
 Private Const MAX_PERIODES As Long = 60
+Private Const LIJST_MAX As Long = 200                ' Ophalen uit FO: regels per type vóór het samenvoegen (BinnenLimiet)
 Private Const TITEL As String = "Naar PowerPoint"
 
 ' typeblokken (zelfde getallen als forecast_builder/layout.py)
@@ -2129,20 +2130,14 @@ Private Function ZoekPlanningRij(ws As Worksheet, r1 As Long, r2 As Long, naam A
     Next r
 End Function
 
-Private Sub SchrijfVerdeeld(wsT As Worksheet, ws As Worksheet, rBron As Long, idxKol() As Long, idxStart As Long, naam As String, _
-                            waarde As Double, col As Long, ByRef rij As Long, rMax As Long, ByRef waarschuwing As String)
-    ' schrijft naam / waarde / bouwkwartaal in rij 'rij' van het typeblok (kolommen col, col+1, col+2); staat de termijn in het FO
-    ' over meer kwartalen verdeeld, dan evenredig gesplitst in meer rijen (naam (1/2), (2/2) ...)
+Private Sub VoegVerdeeldToe(ws As Worksheet, rBron As Long, idxKol() As Long, idxStart As Long, naam As String, waarde As Double, _
+                            lNaam() As String, lW() As Double, lKw() As Variant, ByRef nL As Long)
+    ' naam / waarde / bouwkwartaal achteraan de lijst; staat de termijn in het FO over meer kwartalen verdeeld, dan evenredig
+    ' gesplitst in meer regels (naam (1/2), (2/2) ...). BinnenLimiet brengt de lijst daarna terug tot de rijen van het typeblok.
     Dim c As Long, som As Double, n As Long, i As Long, deel As Double
     som = SomRij(ws, rBron, idxKol)
     If som = 0 Or idxStart = 0 Then
-        If rij > rMax Then
-            waarschuwing = waarschuwing & "- te veel termijnen voor '" & naam & "': niet alles overgenomen." & vbCrLf
-            Exit Sub
-        End If
-        wsT.Cells(rij, col).Value = naam
-        wsT.Cells(rij, col + 1).Value = waarde
-        rij = rij + 1
+        VoegToe lNaam, lW, lKw, nL, naam, waarde, Empty
         Exit Sub
     End If
     For c = LBound(idxKol) To UBound(idxKol)
@@ -2153,19 +2148,113 @@ Private Sub SchrijfVerdeeld(wsT As Worksheet, ws As Worksheet, rBron As Long, id
     For c = LBound(idxKol) To UBound(idxKol)
         If idxKol(c) > 0 Then
             If Getal(ws.Cells(rBron, c).Value) <> 0 Then
-                If rij > rMax Then
-                    waarschuwing = waarschuwing & "- te veel termijnen voor '" & naam & "': niet alles overgenomen." & vbCrLf
-                    Exit Sub
-                End If
                 i = i + 1
                 deel = Getal(ws.Cells(rBron, c).Value) / som
-                wsT.Cells(rij, col).Value = naam & IIf(n > 1, " (" & i & "/" & n & ")", "")
-                wsT.Cells(rij, col + 1).Value = Round(waarde * deel, IIf(Abs(waarde) > 1, 2, 6))     ' bedragen op centen, percentages op 6 decimalen
-                wsT.Cells(rij, col + 2).Value = idxKol(c) - idxStart + 1
-                rij = rij + 1
+                VoegToe lNaam, lW, lKw, nL, naam & IIf(n > 1, " (" & i & "/" & n & ")", ""), _
+                        Round(waarde * deel, IIf(Abs(waarde) > 1, 2, 6)), idxKol(c) - idxStart + 1      ' bedragen op centen, percentages op 6 decimalen
             End If
         End If
     Next c
+End Sub
+
+Private Sub VoegToe(lNaam() As String, lW() As Double, lKw() As Variant, ByRef nL As Long, naam As String, waarde As Double, kw As Variant)
+    If nL >= UBound(lNaam) Then Exit Sub
+    nL = nL + 1
+    lNaam(nL) = naam
+    lW(nL) = waarde
+    lKw(nL) = kw
+End Sub
+
+Private Function BasisNaam(lab As String) As String
+    ' 'Casco (2/3)' -> 'Casco'; zonder achtervoegsel (i/n): ""
+    Dim p As Long, t As String, s As Long
+    p = InStrRev(lab, " (")
+    If p = 0 Or Right$(lab, 1) <> ")" Then Exit Function
+    t = Mid$(lab, p + 2, Len(lab) - p - 2)
+    s = InStr(t, "/")
+    If s < 2 Or s = Len(t) Then Exit Function
+    If Not IsNumeric(Left$(t, s - 1)) Or Not IsNumeric(Mid$(t, s + 1)) Then Exit Function
+    If InStr(t, ".") > 0 Or InStr(t, ",") > 0 Or InStr(t, " ") > 0 Then Exit Function
+    BasisNaam = Left$(lab, p - 1)
+End Function
+
+Private Sub BinnenLimiet(lNaam() As String, lW() As Double, lKw() As Variant, ByRef nL As Long, nMax As Long, typeNaam As String, _
+                         wat As String, ByRef waarschuwing As String)
+    ' de lijst terugbrengen tot nMax regels, zoals fo.py _binnen_limiet: van de termijn met de meeste delen (bij gelijk aantal de
+    ' eerste) gaat het kleinste deel op in het grootste deel (kwartaal van het grootste), daarna nummert hij de delen opnieuw; zonder
+    ' gesplitste termijnen om samen te voegen vallen de laatste regels weg (met een melding)
+    Dim i As Long, j As Long, b As String, bBest As String, nBest As Long, cnt As Long, eerste As Boolean
+    Dim klein As Long, groot As Long, k As Long, n As Long, samen As String
+    Do While nL > nMax
+        bBest = ""
+        nBest = 0
+        For i = 1 To nL
+            b = BasisNaam(lNaam(i))
+            If Len(b) > 0 Then
+                eerste = True
+                For j = 1 To i - 1
+                    If BasisNaam(lNaam(j)) = b Then eerste = False
+                Next j
+                If eerste Then
+                    cnt = 0
+                    For j = i To nL
+                        If BasisNaam(lNaam(j)) = b Then cnt = cnt + 1
+                    Next j
+                    If cnt > 1 And cnt > nBest Then
+                        bBest = b
+                        nBest = cnt
+                    End If
+                End If
+            End If
+        Next i
+        If nBest = 0 Then
+            waarschuwing = waarschuwing & "- " & typeNaam & ": " & nL & " " & wat & " in het FO, ruimte voor " & nMax & "; de laatste zijn niet overgenomen." & vbCrLf
+            nL = nMax
+            Exit Do
+        End If
+        klein = 0
+        For i = 1 To nL
+            If BasisNaam(lNaam(i)) = bBest Then
+                If klein = 0 Then
+                    klein = i
+                ElseIf Abs(lW(i)) < Abs(lW(klein)) Then
+                    klein = i
+                End If
+            End If
+        Next i
+        groot = 0
+        For i = 1 To nL
+            If i <> klein And BasisNaam(lNaam(i)) = bBest Then
+                If groot = 0 Then
+                    groot = i
+                ElseIf Abs(lW(i)) > Abs(lW(groot)) Then
+                    groot = i
+                End If
+            End If
+        Next i
+        lW(groot) = Round(lW(groot) + lW(klein), 6)
+        For i = klein To nL - 1
+            lNaam(i) = lNaam(i + 1)
+            lW(i) = lW(i + 1)
+            lKw(i) = lKw(i + 1)
+        Next i
+        nL = nL - 1
+        If InStr(samen, "'" & bBest & "'") = 0 Then samen = samen & IIf(Len(samen) > 0, ", ", "") & "'" & bBest & "'"
+        n = 0
+        For i = 1 To nL
+            If BasisNaam(lNaam(i)) = bBest Then n = n + 1
+        Next i
+        k = 0
+        For i = 1 To nL
+            If BasisNaam(lNaam(i)) = bBest Then
+                k = k + 1
+                If n = 1 Then lNaam(i) = bBest Else lNaam(i) = bBest & " (" & k & "/" & n & ")"
+            End If
+        Next i
+    Loop
+    If Len(samen) > 0 Then
+        waarschuwing = waarschuwing & "- " & typeNaam & ": meer dan " & nMax & " " & wat & " na het splitsen over kwartalen; kleinste delen samengevoegd bij het grootste deel van " & samen & "." & vbCrLf
+    End If
 End Sub
 
 Private Sub SchrijfAantallen(ws As Worksheet, r As Long, idxKol() As Long, cAct As Long, wsI As Worksheet, colI As Long, rijVan() As Long, idxAct As Long)
@@ -2215,9 +2304,11 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
     Dim blok() As Long, omzet() As Long, k As Long, kT As Long, col As Long, naam As String, aantal As Double
     Dim idxKol() As Long, cAct As Long, idxKolO() As Long, cActO As Long, idxStart As Long, rPlan1 As Long, rPlan2 As Long
     Dim ro As Long, lab As String, ll As String, pct As Variant, eur As Variant, pw As Variant, koopPw As Double, koopsom As Double
-    Dim rTermijn As Long, rExtra As Long, rp As Long, rFee As Long, rFeeMax As Long, nComp As Long, isDaeb As Boolean, inFee As Boolean
+    Dim rp As Long, rFee As Long, rFeeMax As Long, nComp As Long, isDaeb As Boolean, inFee As Boolean
     Dim compRij As Boolean, kV As Long
     Dim termNaam(1 To 20) As String, termPct(1 To 20) As Double, termPw(1 To 20) As Double, termRij(1 To 20) As Long, nTerm As Long, i As Long
+    Dim lNaam(1 To LIJST_MAX) As String, lW(1 To LIJST_MAX) As Double, lKw(1 To LIJST_MAX) As Variant, nL As Long      ' termijnen
+    Dim xNaam(1 To LIJST_MAX) As String, xW(1 To LIJST_MAX) As Double, xKw(1 To LIJST_MAX) As Variant, nX As Long      ' extra's
     ReDim blok(1 To MAX_TYPES)
     ReDim omzet(1 To MAX_TYPES)
     foStap = "blokken zoeken op '" & wsO.Name & "'"
@@ -2274,8 +2365,8 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
         KolomKaart wsO, ro, idxKolO, cActO
         koopPw = 0
         nTerm = 0
-        rTermijn = TYPE_RIJ_T1
-        rExtra = TYPE_RIJ_X1
+        nL = 0
+        nX = 0
         isDaeb = False
         inFee = False
         nComp = 0
@@ -2341,15 +2432,11 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
                 rp = ZoekPlanningRij(wsO, rPlan1, rPlan2, lab, idxKol)
                 If rp = 0 And SomRij(wsO, r, idxKolO) <> 0 Then rp = r
                 If rp = 0 Or ActWaarde(wsO, r, cActO) <> 0 Then
-                    If rExtra <= TYPE_RIJ_XN Then
-                        wsT.Cells(rExtra, col).Value = lab
-                        wsT.Cells(rExtra, col + 1).Value = Getal(pw)
-                        rExtra = rExtra + 1
-                    End If
+                    VoegToe xNaam, xW, xKw, nX, lab, Getal(pw), Empty
                 ElseIf rp = r Then
-                    SchrijfVerdeeld wsT, wsO, rp, idxKolO, idxStart, lab, Getal(pw), col, rExtra, TYPE_RIJ_XN, waarschuwing
+                    VoegVerdeeldToe wsO, rp, idxKolO, idxStart, lab, Getal(pw), xNaam, xW, xKw, nX
                 Else
-                    SchrijfVerdeeld wsT, wsO, rp, idxKol, idxStart, lab, Getal(pw), col, rExtra, TYPE_RIJ_XN, waarschuwing
+                    VoegVerdeeldToe wsO, rp, idxKol, idxStart, lab, Getal(pw), xNaam, xW, xKw, nX
                 End If
             End If
             r = r + 1
@@ -2372,10 +2459,23 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
             For i = 1 To nTerm
                 rp = ZoekPlanningRij(wsO, rPlan1, rPlan2, termNaam(i), idxKol)
                 If rp > 0 Then
-                    SchrijfVerdeeld wsT, wsO, rp, idxKol, idxStart, termNaam(i), termPct(i), col, rTermijn, TYPE_RIJ_TN, waarschuwing
+                    VoegVerdeeldToe wsO, rp, idxKol, idxStart, termNaam(i), termPct(i), lNaam, lW, lKw, nL
                 Else
-                    SchrijfVerdeeld wsT, wsO, termRij(i), idxKolO, idxStart, termNaam(i), termPct(i), col, rTermijn, TYPE_RIJ_TN, waarschuwing
+                    VoegVerdeeldToe wsO, termRij(i), idxKolO, idxStart, termNaam(i), termPct(i), lNaam, lW, lKw, nL
                 End If
+            Next i
+            ' meer delen dan rijen: kleinste delen samenvoegen bij het grootste deel van dezelfde termijn (zoals fo.py _binnen_limiet)
+            BinnenLimiet lNaam, lW, lKw, nL, TYPE_RIJ_TN - TYPE_RIJ_T1 + 1, naam, "bouwtermijnen", waarschuwing
+            BinnenLimiet xNaam, xW, xKw, nX, TYPE_RIJ_XN - TYPE_RIJ_X1 + 1, naam, "extra's", waarschuwing
+            For i = 1 To nL
+                wsT.Cells(TYPE_RIJ_T1 + i - 1, col).Value = lNaam(i)
+                wsT.Cells(TYPE_RIJ_T1 + i - 1, col + 1).Value = lW(i)
+                wsT.Cells(TYPE_RIJ_T1 + i - 1, col + 2).Value = lKw(i)
+            Next i
+            For i = 1 To nX
+                wsT.Cells(TYPE_RIJ_X1 + i - 1, col).Value = xNaam(i)
+                wsT.Cells(TYPE_RIJ_X1 + i - 1, col + 1).Value = xW(i)
+                wsT.Cells(TYPE_RIJ_X1 + i - 1, col + 2).Value = xKw(i)
             Next i
         End If
 Volgende:
@@ -2427,6 +2527,7 @@ Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPe
     wsC.Range(wsC.Cells(KOST_RIJ1, KOST_COL1), wsC.Cells(KOST_RIJ1 + KOST_N - 1, KOST_COL1 + MAX_PERIODES - 1)).ClearContents
     Set wsK = ZoekBlad(wbF, "CF - kosten")
     If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF-kosten")
+    If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF kosten")
     If wsK Is Nothing Then
         waarschuwing = waarschuwing & "- tabblad 'CF - kosten' ontbreekt: tab CF kosten blijft leeg (in een scenario met een andere start bouw schuiven dan alle kosten vanaf de geplande start bouw mee)." & vbCrLf
         Exit Function
@@ -2479,12 +2580,15 @@ Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPe
         End If
         foStap = "post '" & naam & "' (rij " & r & ")"
         ruw = 0
-        For c = 3 To c1 - 1
-            If act(c) Then ruw = ruw + Getal(wsK.Cells(r, c).Value)
+        For c = 3 To c1 - 1                                             ' alleen echte getallen (zoals fo.py; tekst telt niet)
+            If act(c) Then
+                If IsGetal(wsK.Cells(r, c).Value) Then ruw = ruw + CDbl(wsK.Cells(r, c).Value)
+            End If
         Next c
         For c = c1 To UBound(idxKol)
             If idxKol(c) > 0 Then
-                v = Getal(wsK.Cells(r, c).Value)
+                v = 0
+                If IsGetal(wsK.Cells(r, c).Value) Then v = CDbl(wsK.Cells(r, c).Value)
                 If v <> 0 Then
                     If idxKol(c) <= idxAct Then
                         ruw = ruw + v                                       ' kwartaal t/m actuals: gerealiseerd
@@ -2502,9 +2606,15 @@ Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPe
                 End If
             End If
         Next c
+        For kol = KOST_COL1 To KOST_COL1 + MAX_PERIODES - 1             ' op centen, na het optellen (zoals fo.py)
+            If IsGetal(wsC.Cells(KOST_RIJ1 + n, kol).Value) Then wsC.Cells(KOST_RIJ1 + n, kol).Value = Round(CDbl(wsC.Cells(KOST_RIJ1 + n, kol).Value), 2)
+        Next kol
+        ' de keuze die er al stond voor een post met dezelfde naam blijft (leeg = vast, zoals het Model rekent); nieuwe posten: op de naam
         mee = StandaardMee(naam)
         For i = 1 To KOST_N
-            If Len(oudMee(i)) > 0 And oudNaam(i) = LCase$(naam) Then mee = oudMee(i)
+            If Len(oudNaam(i)) > 0 And oudNaam(i) = LCase$(naam) Then
+                If Len(oudMee(i)) > 0 Then mee = oudMee(i) Else mee = "vast"
+            End If
         Next i
         wsC.Cells(KOST_RIJ1 + n, 2).Value = naam
         wsC.Cells(KOST_RIJ1 + n, 3).Value = mee

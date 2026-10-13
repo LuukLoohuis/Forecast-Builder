@@ -182,10 +182,14 @@ def _idx(j, q):
     return j * 4 + q
 
 
-def lees_fo(pad):
+def lees_fo(pad, actuals=None):
+    """actuals = (jaar, kwartaal) als terugval wanneer 'FO - actuals' geen kwartaal geeft (build.py --fo --from: die van het
+    werkboek, zoals de macro de Dashboard-cellen houdt); bepaalt ook de grens gerealiseerd/prognose op tab CF kosten."""
     wb = load_workbook(pad, data_only=True)
     p = ProjectData()
     p.params = dict(PARAM_STANDAARD)
+    if actuals and actuals[0] and actuals[1]:
+        p.params["actuals_jaar"], p.params["actuals_kw"] = int(actuals[0]), int(actuals[1])
     p.fo = {"bestand": os.path.basename(pad), "datum": datetime.now().strftime("%d-%m-%Y %H:%M"), "waarschuwingen": []}
     waarschuwingen = p.fo["waarschuwingen"]
 
@@ -398,7 +402,7 @@ def _lees_kosten(wb, periode_van, idx_act, n_per, waarschuwingen):
         waarschuwingen.append("tabblad 'CF - kosten' ontbreekt: tab CF kosten blijft leeg (in een scenario met een andere start bouw "
                               "schuiven dan alle kosten vanaf de geplande start bouw mee).")
         return []
-    r_q = next((r for r in range(1, wk.max_row + 1) if _txt(wk.cell(r, 2).value).lower() == "onderdelen"), None)
+    r_q = next((r for r in range(2, wk.max_row + 1) if _txt(wk.cell(r, 2).value).lower() == "onderdelen"), None)
     kaart, _ = _kolomkaart(wk, r_q) if r_q else ({}, None)
     if not kaart:
         waarschuwingen.append("'CF - kosten': blok 'Onderdelen' met kwartalen niet gevonden: tab CF kosten blijft leeg.")

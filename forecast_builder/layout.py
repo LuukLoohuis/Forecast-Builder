@@ -535,6 +535,7 @@ def kf_blok():
 
 _r = 285
 for _naam in ["kf_aan", "kf_sb_tot", "kf_v_tot", "vs_v_mee", "kf_tekst", "kf_tekst_kort", "kf_dal_tot", "kf_verschil", "kf_controle",
-              "kl_bron", "kl1_naam", "kl1_bedrag", "kl2_naam", "kl2_bedrag", "kl3_naam", "kl3_bedrag"]:
+              "kl_bron", "kl1_naam", "kl1_bedrag", "kl2_naam", "kl2_bedrag", "kl3_naam", "kl3_bedrag",
+              "kf_dal_real", "kf_dal_lbl", "kf_real_gap", "kf_buiten"]:
     H[_naam] = _r
     _r += 1

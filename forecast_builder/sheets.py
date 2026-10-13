@@ -1435,7 +1435,7 @@ def bouw_dashboard(wb, data):
         put(ws, LY.D[f"last{i}_bedrag"], bedrag if bedrag not in (None, "") else None, f=F_YELLOW, fl=FL_YELLOW, nf=FMT_INT, al=AL_CENTER)
         b = hm(f"kl{i}_bedrag")
         put(ws, f"Z{rij}", f'=IF({b}=0,"",IF({hm("kl_bron")}=1,"automatisch: "&{hm(f"kl{i}_naam")}&" "&{eur_m(b)}'
-                           f'&IF({hm("kf_dal_tot")}>0," · "&FIXED({b}/{hm("kf_dal_tot")}*100,0)&"% van de kosten t/m het dieptepunt (tab CF kosten)",""),'
+                           f'&IF({hm("kf_dal_tot")}>0," · "&FIXED({b}/{hm("kf_dal_tot")}*100,0)&"% van de kosten "&{hm("kf_dal_lbl")}&" (tab CF kosten)",""),'
                            f'{eur_m(b)}&IF({hm("kosten_totaal")}>0," · "&FIXED({b}/{hm("kosten_totaal")}*100,0)&"% van de kosten","")))',
             f=F_NOTE8, al=AL_VCENTER)
 
@@ -1636,7 +1636,8 @@ def bouw_powerpoint(wb, data):
         # of als die leeg is de drie grootste posten t/m het dieptepunt van tab CF kosten (hulpcellen kl*); zonder lasten haalt de
         # macro de kaart van de dia (SchikDia2)
         (2, "Grootste lasten · kop", f'=IF(OR(TRIM({dabs("lasten_kop")}&"")="",UPPER(TRIM({dabs("lasten_kop")}&""))="GROOTSTE LASTEN"),'
-                                     f'IF({hm("kl_bron")}=1,"LASTEN T/M DIEPTEPUNT","GROOTSTE LASTEN"),UPPER(TRIM({dabs("lasten_kop")}&"")))', None, "KPI9_LABEL"),
+                                     f'IF({hm("kl_bron")}=1,IF({hm("kf_dal_real")}=1,"GEREALISEERDE LASTEN","LASTEN T/M DIEPTEPUNT"),"GROOTSTE LASTEN"),'
+                                     f'UPPER(TRIM({dabs("lasten_kop")}&"")))', None, "KPI9_LABEL"),
         *[regel for i in range(1, LY.N_LASTEN + 1) for regel in (
             (2, f"  last {i} · naam", f'=IF(LEN({hm(f"kl{i}_naam")})>24,LEFT({hm(f"kl{i}_naam")},23)&"…",{hm(f"kl{i}_naam")})', None, f"KPI9_NAAM{i}"),
             (2, f"  last {i} · bedrag", f'=IF({hm(f"kl{i}_bedrag")}=0,"",{eur_m(hm(f"kl{i}_bedrag"))})', None, f"KPI9_BEDRAG{i}"),

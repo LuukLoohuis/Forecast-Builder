@@ -205,3 +205,24 @@ def test_vorige_prognose_uit_ouder_fo():
     assert p.types[1].fee_vorig[:2] == ["actuals", "2026 Q3"] and p.types[1].fee_vorig[5] == "2026 Q4" and p.types[1].fee_vorig[2] is None
     assert p.fo["vorig_bestand"] == "fo_vorig.xlsx"
     assert [w for w in p.fo["waarschuwingen"] if "toelichting" not in w and "CF - kosten" not in w] == []
+
+
+def test_kosten_randgevallen():
+    """'CF - kosten': een blok 'Onderdelen' in rij 1 (zonder jaarrij erboven) geeft een melding en geen crash; zonder 'FO - actuals'
+    bepaalt de terugval-actuals (build.py --fo --from: die van het werkboek) de grens gerealiseerd/prognose."""
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "fo.xlsx")
+        maak_fo(pad)
+        from openpyxl import load_workbook
+        wb = load_workbook(pad)
+        del wb["FO - actuals"]
+        wk = wb["CF - kosten"]
+        wb.save(pad)
+        p = fo.lees_fo(pad, actuals=(2026, 4))
+        assert (p.params["actuals_jaar"], p.params["actuals_kw"]) == (2026, 4)
+        kp = {k["naam"]: k for k in p.kosten_posten}
+        assert kp["Aanneemsom"]["gerealiseerd"] == 250 and kp["Aanneemsom"]["bedragen"][4] is None   # Q4 '26 nu gerealiseerd
+        wk.delete_rows(1, 51)                                          # 'Onderdelen' komt in rij 1
+        wb.save(pad)
+        p = fo.lees_fo(pad)
+    assert p.kosten_posten == [] and [w for w in p.fo["waarschuwingen"] if "Onderdelen" in w]

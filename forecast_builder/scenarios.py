@@ -564,8 +564,8 @@ def bouw_tab(wb, data):
     assert cel_cf == LY.SC_CEL_CF
     dv_jn.add(cel_cf)
     ws.merge_cells(f"{c_noot}{LY.SC_R_CF}:{L(LY.SC_COL[-1] + 1)}{LY.SC_R_CF}")
-    put(ws, f"{c_noot}{LY.SC_R_CF}", "ja = de ingevulde scenario's ook als lijn in de cashflowgrafiek (Dashboard en dia 3) · "
-                                     "nee = alleen de Basis in die grafiek", f=F_NOTE8,
+    put(ws, f"{c_noot}{LY.SC_R_CF}", "ja = de ingevulde scenario's ook als lijn in de cashflowgrafiek (Dashboard, en dia 3 als Naar "
+                                     "PowerPoint op ja staat) · nee = alleen de Basis in die grafiek", f=F_NOTE8,
         al=Alignment(horizontal="left", vertical="center", wrap_text=True, indent=1))
     ws.row_dimensions[LY.SC_R_CF].height = 24
     put(ws, f"B{LY.SC_R_FOUT}", "Controle", f=F_NOTE8, al=AL_LEFT)

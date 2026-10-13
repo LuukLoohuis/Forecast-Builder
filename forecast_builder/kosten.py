@@ -83,7 +83,7 @@ def bouw_tab(wb, data):
     rk = LY.KF_R_KOP
     koppen = [(C["naam"], LY.KF_LABEL_KOP, AL_LEFT), (C["mee"], "Schuift mee met", AL_CENTER), (C["totaal"], "Totaal", AL_RIGHT),
               (C["real"], f'="Gerealiseerd t/m "&{hm("kw_actuals")}', AL_RIGHT_WRAP),
-              (C["dal"], f'="t/m dieptepunt "&{hm("dal_basis_kw")}', AL_RIGHT_WRAP), (C["code"], "code", AL_RIGHT),
+              (C["dal"], f'={hm("kf_dal_lbl")}', AL_RIGHT_WRAP), (C["code"], "code", AL_RIGHT),
               (C["sleutel"], "sleutel", AL_RIGHT)]
     for col, t, al in koppen:
         put(ws, f"{col}{rk}", t, f=F_HDR8, fl=FL_HDR, al=al)
@@ -107,7 +107,7 @@ def bouw_tab(wb, data):
         put(ws, f"{C['mee']}{r}", (post.get("mee") or standaard_mee(post.get("naam"))) if post.get("naam") else None,
             f=F_INPUT, fl=FL_INPUT, al=AL_CENTER, bd=BD_RIJ)
         rij = f"{L(LY.KF_COL1)}{r}:{c_last}{r}"
-        put(ws, f"{C['totaal']}{r}", f'=IF(TRIM({C["naam"]}{r}&"")="","",N({C["real"]}{r})+SUMIF({pos_rij},">"&{pa},{rij}))',
+        put(ws, f"{C['totaal']}{r}", f'=IF(TRIM({C["naam"]}{r}&"")="","",N({C["real"]}{r})+SUMIFS({rij},{pos_rij},">"&{pa},{pos_rij},"<="&{n}))',
             f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT, bd=BD_RIJ)
         put(ws, f"{C['real']}{r}", post.get("gerealiseerd") or None, f=F_INPUT, fl=FL_INPUT, nf=FMT_INT, al=AL_RIGHT, bd=BD_RIJ)
         put(ws, f"{C['dal']}{r}", f'=IF(TRIM({C["naam"]}{r}&"")="","",N({C["real"]}{r})+IF({dal_pos}<={pa},0,'
@@ -141,13 +141,16 @@ def bouw_tab(wb, data):
     ws.conditional_formatting.add(rng_v, FormulaRule(formula=[f'AND(ISNUMBER({L(LY.KF_COL1)}{rv}),ABS({L(LY.KF_COL1)}{rv})>=1000)'],
                                                      font=font(9, True, RED)))
     put(ws, f"B{rc}", f"={hm('kf_controle')}", f=font(9, True, GREEN), al=AL_LEFT)
-    ws.conditional_formatting.add(f"B{rc}", FormulaRule(formula=[f"{hm('kf_verschil')}>=1000"], font=font(9, True, RED)))
+    ws.conditional_formatting.add(f"B{rc}", FormulaRule(formula=[f"OR({hm('kf_verschil')}>=1000,{hm('kf_buiten')}>=1)"], font=font(9, True, RED)))
 
     # ---- 2 · waar bestaat de financieringsbehoefte uit -------------------------------------------------------------------------
     r2 = rc + 3
-    put(ws, f"B{r2}", f'="2 · WAAR BESTAAT DE MAX. FINANCIERINGSBEHOEFTE UIT · kosten t/m het dieptepunt van de Basis ("&{hm("dal_basis_kw")}&")"',
-        f=F_SECTION)
-    for col, t, al in (("B", "Kostenpost", AL_LEFT), ("C", "Schuift mee met", AL_CENTER), ("D", "t/m dieptepunt", AL_RIGHT),
+    # ligt het dieptepunt in de realisatie, dan kan het niet per post: het FO geeft de gerealiseerde kosten als één bedrag per post
+    put(ws, f"B{r2}", f'="2 · WAAR BESTAAT DE MAX. FINANCIERINGSBEHOEFTE UIT · kosten "&{hm("kf_dal_lbl")}&IF({hm("kf_dal_real")}=1,'
+                      f'" (het dieptepunt "&{hm("dal_basis_kw")}&" ligt in de realisatie; het FO geeft de gerealiseerde kosten als één bedrag per post)",'
+                      f'" van de Basis")', f=F_SECTION)
+    for col, t, al in (("B", "Kostenpost", AL_LEFT), ("C", "Schuift mee met", AL_CENTER),
+                       ("D", f'=IF({hm("kf_dal_real")}=1,"gerealiseerd","t/m dieptepunt")', AL_RIGHT),
                        ("E", "aandeel", AL_RIGHT), ("F", "dia 2", AL_CENTER)):
         put(ws, f"{col}{r2 + 1}", t, f=F_HDR8, fl=FL_HDR, al=al)
     sleutels = LY.kf_rng("sleutel")
@@ -163,7 +166,7 @@ def bouw_tab(wb, data):
         if k <= 3:
             ws.conditional_formatting.add(f"B{r}:F{r}", FormulaRule(formula=[f"AND({hm('kl_bron')}=1,$B{r}<>\"\")"], fill=TOP_FL))
     r = r2 + 7
-    put(ws, f"B{r}", "Kosten t/m dieptepunt (alle posten)", f=F_BOLD9, al=AL_LEFT, bd=BD_TOP)
+    put(ws, f"B{r}", f'="Kosten "&{hm("kf_dal_lbl")}&" (alle posten)"', f=F_BOLD9, al=AL_LEFT, bd=BD_TOP)
     put(ws, f"D{r}", f"={hm('kf_dal_tot')}", f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT, bd=BD_TOP)
     for col in ("C", "E", "F"):
         put(ws, f"{col}{r}", None, bd=BD_TOP)
@@ -206,6 +209,8 @@ def bouw_model(ws):
     oud = f'IF({sb_mee}=1,"kosten vanaf start bouw schuiven mee met de start bouw","kosten gelijk in alle scenario\'s")'
     handmatig = ",".join(f'TRIM({dabs(f"last{i}_naam")}&"")<>"",N({dabs(f"last{i}_bedrag")})<>0' for i in range(1, LY.N_LASTEN + 1))
     sleutels = LY.kf_rng("sleutel")
+    kfb = f"{LY.KF_BLAD}!"
+    C = LY.KF_C
     hulp = {
         "kf_aan": ("CF kosten: posten ingevuld (1/0)", f'=IF(COUNTIF({LY.kf_rng("naam")},"?*")>0,1,0)'),
         "kf_sb_tot": ("CF kosten: prognose die meeschuift met de start bouw (€)", f'=IF({n}=0,0,N(INDEX({rng(G["cksb"])},{n})))'),
@@ -220,16 +225,28 @@ def bouw_model(ws):
                           f'=IF({h("kf_aan")}=0,{oud},IF(AND(NOT({deel_sb}),NOT({deel_v})),"kosten gelijk in alle scenario\'s",'
                           f'IF({deel_sb},"bouwkosten "&{eur_m(sb_tot)}&" schuiven mee met de start bouw","")'
                           f'&IF(AND({deel_sb},{deel_v}),", ","")&IF({deel_v},IF({deel_sb},"","kosten ")&{eur_m(v_tot)}&" met de verkoop","")))'),
-        "kf_dal_tot": ("CF kosten: kosten t/m het dieptepunt van de Basis (€)", f'=SUM({LY.kf_rng("dal")})'),
-        "kf_verschil": ("CF kosten: grootste verschil met tab Invoer in een prognosekwartaal (€)",
-                        f'=IF({h("kf_aan")}=0,0,MAX(0,'
-                        + f'MAX({LY.KF_BLAD}!${L(LY.KF_COL1)}${LY.KF_R_VERSCHIL}:${L(LY.KF_COL1 + ROWN - ROW1)}${LY.KF_R_VERSCHIL}),'
-                        + f'-MIN({LY.KF_BLAD}!${L(LY.KF_COL1)}${LY.KF_R_VERSCHIL}:${L(LY.KF_COL1 + ROWN - ROW1)}${LY.KF_R_VERSCHIL})))'),
+        "kf_dal_real": ("CF kosten: dieptepunt van de Basis ligt in de realisatie (1/0)", f'=IF({h("vs0_dal_pos")}<={h("pos_actuals")},1,0)'),
+        "kf_dal_lbl": ("CF kosten: kosten t/m ... (label)",
+                       f'=IF({h("kf_dal_real")}=1,"gerealiseerd t/m "&{h("kw_actuals")},"t/m dieptepunt "&{h("dal_basis_kw")})'),
+        "kf_dal_tot": ("CF kosten: kosten t/m het dieptepunt van de Basis (€; in de realisatie: gerealiseerd t/m actuals)",
+                       f'=SUM({LY.kf_rng("dal")})'),
+        "kf_real_gap": ("CF kosten: verschil gerealiseerd (kolom E) met tab Invoer t/m actuals (€)",
+                        f'=IF({h("kf_aan")}=0,0,ABS(N({kfb}${C["real"]}${LY.KF_R_TOT})-N({kfb}${C["real"]}${LY.KF_R_INV})))'),
+        "kf_buiten": ("CF kosten: bedragen in kolommen na de laatste periode (€, tellen niet mee)",
+                      f'=IF({h("kf_aan")}=0,0,ABS(SUM({blok})-SUM({kfb}${L(LY.KF_COL1)}${LY.KF_R_TOT}:${L(LY.KF_COL1 + ROWN - ROW1)}${LY.KF_R_TOT})))'),
+        "kf_verschil": ("CF kosten: grootste verschil met tab Invoer: gerealiseerd of een prognosekwartaal (€)",
+                        f'=IF({h("kf_aan")}=0,0,MAX(0,{h("kf_real_gap")},'
+                        + f'MAX({kfb}${L(LY.KF_COL1)}${LY.KF_R_VERSCHIL}:${L(LY.KF_COL1 + ROWN - ROW1)}${LY.KF_R_VERSCHIL}),'
+                        + f'-MIN({kfb}${L(LY.KF_COL1)}${LY.KF_R_VERSCHIL}:${L(LY.KF_COL1 + ROWN - ROW1)}${LY.KF_R_VERSCHIL})))'),
         "kf_controle": ("CF kosten: controletekst",
                         f'=IF({h("kf_aan")}=0,"Leeg: in een scenario met een andere start bouw schuiven alle kosten vanaf de geplande start bouw mee.",'
-                        f'IF({h("kf_verschil")}<1000,"✓ Elk prognosekwartaal sluit aan op de kosten op tab Invoer.",'
-                        f'"Let op: een prognosekwartaal wijkt tot "&{eur_m(h("kf_verschil"))}&" af van tab Invoer. De Basis volgt tab Invoer; '
-                        f'de posten bepalen alleen wat er in een scenario verschuift."))'),
+                        f'IF({h("kf_buiten")}>=1,"Let op: er staan bedragen ("&{eur_m(h("kf_buiten"))}&") in kolommen na de laatste periode van tab '
+                        f'Invoer; die tellen niet mee. Zet ze in de laatste periode.",'
+                        f'IF({h("kf_verschil")}<1000,"✓ Gerealiseerd en elk prognosekwartaal sluiten aan op de kosten op tab Invoer.",'
+                        f'IF({h("kf_real_gap")}>=1000,"Let op: gerealiseerd t/m "&{h("kw_actuals")}&" wijkt €"&FIXED({h("kf_real_gap")},0)&'
+                        f'" af van tab Invoer (actuals verschoven? werk kolom E bij of haal opnieuw op uit het FO). De Basis volgt tab Invoer.",'
+                        f'"Let op: een prognosekwartaal wijkt tot €"&FIXED({h("kf_verschil")},0)&" af van tab Invoer. De Basis volgt tab Invoer; '
+                        f'de posten bepalen alleen wat er in een scenario verschuift."))))'),
         "kl_bron": ("Grootste lasten dia 2: 1 = automatisch uit tab CF kosten, 0 = Dashboard (ingevuld gaat voor)",
                     f"=IF(OR({handmatig}),0,IF({h('kf_aan')}=1,1,0))"),
     }
@@ -243,5 +260,5 @@ def bouw_model(ws):
         r = H[naam]
         put(ws, f"{LY.M_HULP_LABEL}{r}", label, f=F_NOTE8)
         put(ws, f"{LY.M_HULP}{r}", formule, f=F_CALC, al=AL_LEFT_TOP)
-    for naam in ("kf_sb_tot", "kf_v_tot", "kf_dal_tot", "kf_verschil") + tuple(f"kl{i}_bedrag" for i in range(1, LY.N_LASTEN + 1)):
+    for naam in ("kf_sb_tot", "kf_v_tot", "kf_dal_tot", "kf_verschil", "kf_real_gap", "kf_buiten") + tuple(f"kl{i}_bedrag" for i in range(1, LY.N_LASTEN + 1)):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = FMT_INT
