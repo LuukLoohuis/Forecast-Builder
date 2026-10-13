@@ -100,10 +100,26 @@ def maak_fo(pad):
     # CF - kosten: per type een termijnblok (wordt niet gelezen) en het blok 'Onderdelen': 'Actuals' samengevoegd boven H:J, de
     # jaartallen boven de kwartalen (K = 2026 Q1 .. R = 2027 Q4); rijen tot de eerste lege
     wk = wb.create_sheet("CF - kosten")
+    # termijnblokken per type (zelfde titel als op 'CF - opbrengsten'): bedrag per woning in E, woningen per kwartaal; rijen tot 'Aanneemsom'
     wk["F3"], wk["G3"] = "# won", 10
-    wk["B4"] = "Termijnen <300K"
-    _kopregels(wk, 4)
-    wk["B5"], wk["C5"] = "Aanvang bouw", 0.1
+    wk["B4"] = "Termijnen 1 - Rijwoning"
+    kk = _kopregels(wk, 4)
+    wk["B5"], wk["C5"], wk["E5"] = "Start bouw", 0.2, 20000
+    wk.cell(5, kk[(2027, 1)]).value = 10
+    wk["B6"], wk["C6"], wk["E6"] = "Casco", 0.5, 50000
+    wk.cell(6, kk[(2027, 2)]).value, wk.cell(6, kk[(2027, 3)]).value = 6, 4
+    wk["B7"], wk["C7"], wk["E7"] = "Oplevering", 0.3, 30000
+    wk.cell(7, kk[(2027, 4)]).value = 10
+    wk["B8"], wk["C8"] = "Kopersmeerwerk 25%", 0.25                   # geen bedrag per woning: telt niet mee
+    wk.cell(8, kk[(2027, 2)]).value = 10
+    wk["B9"], wk["B10"] = "Aanneemsom", "Meerwerk"
+    wk["F12"], wk["G12"] = "# won", 20
+    wk["B13"] = "Termijnen 3 - DAEB"
+    kd = _kopregels(wk, 13)
+    wk["B14"], wk["E14"] = "Bouw DAEB", 100000
+    wk.cell(14, 10).value = 5                                          # al gebouwd (kolom actuals)
+    wk.cell(14, kd[(2027, 2)]).value = 15
+    wk["B15"] = "Aanneemsom"
     wk["B49"], wk["D49"] = "Totaal kosten", 9999
     wk["H51"] = "Actuals"
     wk.merge_cells("H51:J51")
@@ -158,6 +174,9 @@ def test_lees_fo():
     assert kp["Promotiekosten"]["bedragen"] == [None, None, None, None, 10, 10, None, None]
     assert kp["Honoraria"]["bedragen"] == [None, None, None, None, None, None, 40, None]
     assert [w for w in p.fo["waarschuwingen"] if "CF - kosten" in w and "Aanneemsom" in w and "laatste periode" in w]
+    # bouwkosten per termijn (blok 7): bedrag = per woning x woningen per kwartaal, bouwkwartaal t.o.v. start bouw van het type
+    assert p.types[0].bouwkosten == [("Start bouw", 200000, 1), ("Casco (1/2)", 300000, 2), ("Casco (2/2)", 200000, 3), ("Oplevering", 300000, 4)]
+    assert p.types[1].bouwkosten == [("Bouw DAEB (1/2)", 500000, -2), ("Bouw DAEB (2/2)", 1500000, 1)]   # actuals in het actuals-kwartaal
 
 
 def test_binnen_limiet():

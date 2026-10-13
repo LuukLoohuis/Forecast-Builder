@@ -164,6 +164,12 @@ def vergelijk(project_fo, project_macro):
                 chk(f"type {k} {wat} {i} waarde", x[1], y[1])
                 chk(f"type {k} {wat} {i} kwartaal", x[2], y[2])
         chk(f"type {k} fee_comp", [c for c in ta.fee_comp if c[1] is not None], [c for c in tb.fee_comp if c[1] is not None])
+        bk_b = [b for b in tb.bouwkosten if b[0]]
+        chk(f"type {k} bouwkosten (aantal)", len(ta.bouwkosten), len(bk_b))
+        for i, (x, y) in enumerate(zip(ta.bouwkosten, bk_b)):
+            chk(f"type {k} bouwkosten {i} naam", x[0], y[0])
+            chk(f"type {k} bouwkosten {i} bedrag", float(x[1] or 0), float(y[1] or 0))
+            chk(f"type {k} bouwkosten {i} kwartaal", x[2], y[2])
         chk(f"type {k} fee_termijnen", [c for c in ta.fee_termijnen if c[1] is not None], [c for c in tb.fee_termijnen if c[1] is not None])
     for i in range(min(len(a.periodes), len(per_b))):
         for k in range(min(len(a.types), len(b.types))):

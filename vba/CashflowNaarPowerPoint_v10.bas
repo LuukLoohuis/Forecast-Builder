@@ -59,7 +59,9 @@ Option Explicit
 '       FOKosten; zelfde regels als fo.py _lees_kosten) en zet 'schuift mee met' op de naam van de post (StandaardMee), of houdt de
 '       keuze die er voor een post met dezelfde naam al stond. De scenariolijnen in de cashflowgrafiek hebben een eigen schakelaar
 '       op tab Scenario's (kop '(uit)' in blok BLOK_CF); de grootste lasten op dia 2 komen zonder Dashboard-invoer uit tab CF kosten
-'       (tab PowerPoint, geen macrowijziging).
+'       (tab PowerPoint, geen macrowijziging). Tab Woningtypes blok 7: bouwkosten per termijn (aannemer) uit het termijnblok met
+'       dezelfde titel op 'CF - kosten' (KostenBlok, VoegBouwkostenToe; zoals fo.py _lees_bouwkosten). Meer dan tien termijnen na
+'       het splitsen over kwartalen: kleinste delen samengevoegd (BinnenLimiet, zoals fo.py _binnen_limiet).
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -156,6 +158,8 @@ Private Const TYPE_RIJ_F1 As Long = 54        ' fee-termijnen: mijlpaal (1), bed
 Private Const TYPE_RIJ_FN As Long = 63
 Private Const TYPE_RIJ_VF1 As Long = 68       ' blok 6: kwartaal per fee-termijn volgens de vorige prognose (kolom 3)
 Private Const TYPE_RIJ_VFN As Long = 77
+Private Const TYPE_RIJ_B1 As Long = 82        ' blok 7 (sinds v19): bouwkosten per termijn (aannemer): termijn, bedrag €, bouwkwartaal
+Private Const TYPE_RIJ_BN As Long = 91
 Private Const TYPE_RIJ_AANTAL As Long = 8
 Private Const INVOER_COL1 As Long = 12        ' kolom L: eerste paar (verkocht, transport) op tabblad Invoer
 Private Const INVOER_BREEDTE As Long = 2
@@ -346,6 +350,7 @@ Private Function BlokLeeg(wsT As Worksheet, wsI As Worksheet, pos As Long) As Bo
     If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_FC1, c + 1), wsT.Cells(TYPE_RIJ_FCN, c + 1))) > 0 Then Exit Function
     If Application.WorksheetFunction.CountA(wsT.Range(wsT.Cells(TYPE_RIJ_F1, c + 1), wsT.Cells(TYPE_RIJ_FN, c + 2))) > 0 Then Exit Function
     If Application.WorksheetFunction.CountA(wsT.Range(wsT.Cells(TYPE_RIJ_VF1, c + 2), wsT.Cells(TYPE_RIJ_VFN, c + 2))) > 0 Then Exit Function
+    If Application.WorksheetFunction.Count(wsT.Range(wsT.Cells(TYPE_RIJ_B1, c + 1), wsT.Cells(TYPE_RIJ_BN, c + 2))) > 0 Then Exit Function
     c = INVOER_COL1 + (pos - 1) * INVOER_BREEDTE
     If Application.WorksheetFunction.Count(wsI.Range(wsI.Cells(INVOER_RIJ1, c), wsI.Cells(INVOER_RIJN, c + INVOER_BREEDTE - 1))) > 0 Then Exit Function
     BlokLeeg = True
@@ -384,6 +389,7 @@ Private Sub InvoerLeegmaken(ws As Worksheet, col As Long, breedte As Long)
         ws.Range(ws.Cells(TYPE_RIJ_FC1, col + 1), ws.Cells(TYPE_RIJ_FCN, col + 1)).ClearContents
         ws.Range(ws.Cells(TYPE_RIJ_F1, col + 1), ws.Cells(TYPE_RIJ_FN, col + 2)).ClearContents
         ws.Range(ws.Cells(TYPE_RIJ_VF1, col + 2), ws.Cells(TYPE_RIJ_VFN, col + 2)).ClearContents
+        ws.Range(ws.Cells(TYPE_RIJ_B1, col), ws.Cells(TYPE_RIJ_BN, col + 2)).ClearContents
     Else
         ws.Range(ws.Cells(INVOER_RIJ1, col), ws.Cells(INVOER_RIJN, col + breedte - 1)).ClearContents
     End If
@@ -1538,7 +1544,7 @@ End Function
 '                        (verkocht per kwartaal; 'actuals' = al verkocht)
 ' -------------------------------------------------------------------------------------
 Public Sub UitFOOphalen()
-    Dim pad As Variant, wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet
+    Dim pad As Variant, wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet, wsK As Worksheet
     Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
     Dim stap As String, bericht As String, nPer As Long, nTyp As Long, nKost As Long, k As Long, r As Long, waarschuwing As String
     Dim idxAct As Long, aJaar As Long, aKw As Long, zelfGeopend As Boolean, foutNr As Long, foutOms As String
@@ -1642,7 +1648,10 @@ Public Sub UitFOOphalen()
         InvoerLeegmaken wsT, TYPE_COL1 + (k - 1) * TYPE_BREEDTE, TYPE_BREEDTE
         InvoerLeegmaken wsI, INVOER_COL1 + (k - 1) * INVOER_BREEDTE, INVOER_BREEDTE
     Next k
-    nTyp = FOTypen(wsO, wsT, wsI, rijVan, idxAct, waarschuwing)
+    Set wsK = ZoekBlad(wbF, "CF - kosten")
+    If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF-kosten")
+    If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF kosten")
+    nTyp = FOTypen(wsO, wsT, wsI, wsK, rijVan, idxAct, waarschuwing)
 
     stap = "kosten per post (CF - kosten)"
     nKost = FOKosten(wbF, rijVan, idxAct, nPer, waarschuwing)
@@ -2257,6 +2266,69 @@ Private Sub BinnenLimiet(lNaam() As String, lW() As Double, lKw() As Variant, By
     End If
 End Sub
 
+Private Function KostenBlok(wsK As Worksheet, titel As String, ByRef heeft As Boolean) As Long
+    ' rij van het termijnblok op 'CF - kosten' met deze titel ('Termijnen ...' in kolom B, '# won' in de rij erboven; de eerste bij
+    ' dubbele titels); heeft = er is minstens één termijnblok
+    Dim r As Long, c As Long, rMax As Long, b As String, won As Boolean
+    rMax = wsK.UsedRange.Rows.Count + wsK.UsedRange.Row
+    For r = 2 To rMax
+        b = LCase$(TekstVan(wsK.Cells(r, 2).Value))
+        If Left$(b, 10) = "termijnen " Then
+            won = False
+            For c = 2 To 12
+                If Left$(LCase$(TekstVan(wsK.Cells(r - 1, c).Value)), 5) = "# won" Then won = True
+            Next c
+            If won Then
+                heeft = True
+                If KostenBlok = 0 And b = LCase$(Trim$(titel)) Then KostenBlok = r
+            End If
+        End If
+    Next r
+End Function
+
+Private Sub VoegBouwkostenToe(ws As Worksheet, r As Long, idxKol() As Long, cAct As Long, idxAct As Long, idxStart As Long, naam As String, _
+                              pw As Double, aantal As Double, lNaam() As String, lW() As Double, lKw() As Variant, ByRef nL As Long)
+    ' bouwkosten van één termijn (bedrag per woning pw x aantal woningen per kwartaal): wat t/m actuals ligt (kolom actuals en
+    ' kwartalen t/m het actuals-kwartaal) als één deel in het actuals-kwartaal, daarna elk kwartaal een eigen deel ('(1/3)' ...);
+    ' zonder planning: pw x aantal woningen, zonder bouwkwartaal. Zelfde regels als fo.py _lees_bouwkosten.
+    Dim c As Long, v As Double, ruw As Double, n As Long, i As Long, kw As Variant
+    If cAct > 0 Then
+        If IsGetal(ws.Cells(r, cAct).Value) Then ruw = CDbl(ws.Cells(r, cAct).Value)
+    End If
+    For c = LBound(idxKol) To UBound(idxKol)
+        If idxKol(c) > 0 Then
+            v = 0
+            If IsGetal(ws.Cells(r, c).Value) Then v = CDbl(ws.Cells(r, c).Value)
+            If v <> 0 Then
+                If idxKol(c) <= idxAct Then ruw = ruw + v Else n = n + 1
+            End If
+        End If
+    Next c
+    If ruw <> 0 Then n = n + 1
+    If n = 0 Then
+        VoegToe lNaam, lW, lKw, nL, naam, Round(pw * aantal, 2), Empty
+        Exit Sub
+    End If
+    If ruw <> 0 Then
+        i = 1
+        kw = Empty
+        If idxStart > 0 Then kw = idxAct - idxStart + 1
+        VoegToe lNaam, lW, lKw, nL, naam & IIf(n > 1, " (1/" & n & ")", ""), Round(pw * ruw, 2), kw
+    End If
+    For c = LBound(idxKol) To UBound(idxKol)
+        If idxKol(c) > idxAct Then
+            v = 0
+            If IsGetal(ws.Cells(r, c).Value) Then v = CDbl(ws.Cells(r, c).Value)
+            If v <> 0 Then
+                i = i + 1
+                kw = Empty
+                If idxStart > 0 Then kw = idxKol(c) - idxStart + 1
+                VoegToe lNaam, lW, lKw, nL, naam & IIf(n > 1, " (" & i & "/" & n & ")", ""), Round(pw * v, 2), kw
+            End If
+        End If
+    Next c
+End Sub
+
 Private Sub SchrijfAantallen(ws As Worksheet, r As Long, idxKol() As Long, cAct As Long, wsI As Worksheet, colI As Long, rijVan() As Long, idxAct As Long)
     ' kwartaalcellen (en de kolom 'actuals' in het actuals-kwartaal) van rij r naar de kolom colI op tab Invoer, opgeteld bij wat er staat
     Dim c As Long, v As Double, rI As Long
@@ -2298,13 +2370,17 @@ Private Function RijVoor(rijVan() As Long, idx As Long) As Long
     Next i
 End Function
 
-Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, rijVan() As Long, idxAct As Long, ByRef waarschuwing As String) As Long
-    ' blokken op 'CF - opbrengsten' -> typeblokken op Woningtypes en verkocht/transport op Invoer
+Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, wsK As Worksheet, rijVan() As Long, idxAct As Long, _
+                         ByRef waarschuwing As String) As Long
+    ' blokken op 'CF - opbrengsten' -> typeblokken op Woningtypes en verkocht/transport op Invoer; wsK = 'CF - kosten' (of Nothing):
+    ' het termijnblok met dezelfde titel -> blok 7 (bouwkosten per termijn)
     Dim rMax As Long, r As Long, b As String, nBlok As Long, nOmzet As Long, rVerkoop As Long
     Dim blok() As Long, omzet() As Long, k As Long, kT As Long, col As Long, naam As String, aantal As Double
     Dim idxKol() As Long, cAct As Long, idxKolO() As Long, cActO As Long, idxStart As Long, rPlan1 As Long, rPlan2 As Long
     Dim ro As Long, lab As String, ll As String, pct As Variant, eur As Variant, pw As Variant, koopPw As Double, koopsom As Double
     Dim rp As Long, rFee As Long, rFeeMax As Long, nComp As Long, isDaeb As Boolean, inFee As Boolean
+    Dim bNaam(1 To LIJST_MAX) As String, bW(1 To LIJST_MAX) As Double, bKw(1 To LIJST_MAX) As Variant, nB As Long        ' bouwkosten
+    Dim rK As Long, idxKolK() As Long, cActK As Long, heeftK As Boolean, pwK As Double, labK As String
     Dim compRij As Boolean, kV As Long
     Dim termNaam(1 To 20) As String, termPct(1 To 20) As Double, termPw(1 To 20) As Double, termRij(1 To 20) As Long, nTerm As Long, i As Long
     Dim lNaam(1 To LIJST_MAX) As String, lW(1 To LIJST_MAX) As Double, lKw(1 To LIJST_MAX) As Variant, nL As Long      ' termijnen
@@ -2358,6 +2434,34 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, r
         ' termijnnamen en extra-namen van het sjabloon leegmaken (het FO levert zijn eigen namen)
         wsT.Range(wsT.Cells(TYPE_RIJ_T1, col), wsT.Cells(TYPE_RIJ_TN, col + 2)).ClearContents
         wsT.Range(wsT.Cells(TYPE_RIJ_X1, col), wsT.Cells(TYPE_RIJ_XN, col + 2)).ClearContents
+        ' blok 7: bouwkosten per termijn uit het termijnblok met dezelfde titel op 'CF - kosten' (zoals fo.py _lees_bouwkosten)
+        wsT.Range(wsT.Cells(TYPE_RIJ_B1, col), wsT.Cells(TYPE_RIJ_BN, col + 2)).ClearContents
+        nB = 0
+        If Not wsK Is Nothing Then
+            heeftK = False
+            rK = KostenBlok(wsK, TekstVan(wsO.Cells(blok(k), 2).Value), heeftK)
+            If rK > 0 Then
+                foStap = "type " & kT & " (" & naam & "): bouwkosten vanaf rij " & rK & " van '" & wsK.Name & "'"
+                KolomKaart wsK, rK, idxKolK, cActK
+                r = rK + 1
+                Do While Len(TekstVan(wsK.Cells(r, 2).Value)) > 0
+                    labK = TekstVan(wsK.Cells(r, 2).Value)
+                    If LCase$(Left$(labK, 10)) = "aanneemsom" Or LCase$(Left$(labK, 8)) = "meerwerk" Then Exit Do
+                    pwK = 0
+                    If IsGetal(wsK.Cells(r, 5).Value) Then pwK = CDbl(wsK.Cells(r, 5).Value)
+                    If pwK <> 0 Then VoegBouwkostenToe wsK, r, idxKolK, cActK, idxAct, idxStart, labK, pwK, aantal, bNaam, bW, bKw, nB
+                    r = r + 1
+                Loop
+                BinnenLimiet bNaam, bW, bKw, nB, TYPE_RIJ_BN - TYPE_RIJ_B1 + 1, naam, "bouwkosten-termijnen", waarschuwing
+                For i = 1 To nB
+                    wsT.Cells(TYPE_RIJ_B1 + i - 1, col).Value = bNaam(i)
+                    wsT.Cells(TYPE_RIJ_B1 + i - 1, col + 1).Value = bW(i)
+                    wsT.Cells(TYPE_RIJ_B1 + i - 1, col + 2).Value = bKw(i)
+                Next i
+            ElseIf heeftK Then
+                waarschuwing = waarschuwing & "- 'CF - kosten': geen termijnblok '" & TekstVan(wsO.Cells(blok(k), 2).Value) & "' voor " & naam & ": geen bouwkosten per termijn." & vbCrLf
+            End If
+        End If
         If k > nOmzet Then GoTo Volgende
         ' omzetblok: koopsom, termijnen, extra's, fees
         ro = omzet(k)

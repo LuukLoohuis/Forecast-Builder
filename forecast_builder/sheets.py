@@ -82,6 +82,13 @@ def bouw_woningtypes(wb, data):
         put(ws, f"B{LY.WT_R_X1 + i}", f"Extra opbrengst {i + 1}", f=F_NOTE, al=AL_VCENTER)
     put(ws, f"B{LY.WT_R_X_TOTAAL}", "Totaal extra per woning (€)", f=F_NOTE, al=AL_VCENTER)
     put(ws, f"B{LY.WT_R_X_TOTAAL2}", "Koopsom + extra per woning (€)", f=F_NOTE, al=AL_VCENTER)
+    put(ws, f"B{LY.WT_R_B_TITEL}", "7 · BOUWKOSTEN PER TERMIJN (AANNEMER) · per termijn het bedrag voor alle woningen van het type en het "
+                                   "bouwkwartaal (zoals de bouwtermijnen) · uit FO 'CF - kosten' via Ophalen uit FO · voor de uitsplitsing op tab "
+                                   "CF kosten (blok 3) en tab Scenario's (blok 4); de kosten in de cashflow komen uit tab Invoer", f=F_SECTION)
+    put(ws, f"B{LY.WT_R_B_KOP}", "Termijn · bedrag (€) · bouwkwartaal", f=F_NOTE, al=AL_VCENTER)
+    for i in range(LY.N_TERMIJNEN):
+        put(ws, f"B{LY.WT_R_B1 + i}", f"Bouwkosten-termijn {i + 1}", f=F_NOTE, al=AL_VCENTER)
+    put(ws, f"B{LY.WT_R_B_TOTAAL}", "Totaal bouwkosten (aanneemsom) · laatste bouwkwartaal", f=F_BOLD9, al=AL_VCENTER)
     put(ws, f"B{LY.WT_R_V_TITEL}", "4 · VORIGE PROGNOSE · start bouw volgens de vorige prognose: de lichtrode blokjes in de bouwtermijnengrafiek "
                                    "(Dashboard en dia 5) · leeg = geen vorige prognose", f=F_SECTION)
     put(ws, f"B{LY.WT_R_VSTARTJAAR}", "Start bouw vorige prognose · jaar", f=F_NOTE, al=AL_VCENTER)
@@ -287,6 +294,20 @@ def bouw_woningtypes(wb, data):
         ws.conditional_formatting.add(f"{c0}{LY.WT_R_VF1}:{c2}{LY.WT_R_VFN}",
                                       FormulaRule(formula=[f"NOT({daeb})"], font=Font(name=ARIAL, color="B0B6BE"),
                                                   fill=PatternFill(fill_type="solid", bgColor="F2F3F5", fgColor="F2F3F5")))
+        # blok 7: bouwkosten per termijn (wat de aannemer krijgt), voor alle woningen van het type
+        put(ws, f"{c0}{LY.WT_R_B_KOP}", "termijn", f=F_HDR, fl=FL_HDR, al=AL_LEFT)
+        put(ws, f"{c1}{LY.WT_R_B_KOP}", "€", f=F_HDR, fl=FL_HDR, al=AL_RIGHT)
+        put(ws, f"{c2}{LY.WT_R_B_KOP}", "kw", f=F_HDR, fl=FL_HDR, al=AL_RIGHT)
+        for i in range(LY.N_TERMIJNEN):
+            r = LY.WT_R_B1 + i
+            bn, eur, kw = t.bouwkosten[i] if i < len(t.bouwkosten) else (None, None, None)
+            put(ws, f"{c0}{r}", bn, f=F_INPUT, fl=FL_INPUT)
+            put(ws, f"{c1}{r}", eur, f=F_INPUT, fl=FL_INPUT, nf=FMT_INT)
+            put(ws, f"{c2}{r}", kw, f=F_INPUT, fl=FL_INPUT, nf="0")
+            dv_kw.add(f"{c2}{r}")
+        put(ws, f"{c1}{LY.WT_R_B_TOTAAL}", f"=SUM({c1}{LY.WT_R_B1}:{c1}{LY.WT_R_BN})", f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT)
+        put(ws, f"{c2}{LY.WT_R_B_TOTAAL}", f'=IF(COUNT({c2}{LY.WT_R_B1}:{c2}{LY.WT_R_BN})=0,"",MAX({c2}{LY.WT_R_B1}:{c2}{LY.WT_R_BN}))',
+            f=F_BOLD9, nf="0", al=AL_RIGHT)
     # rood als de bouwtermijnen niet optellen tot 100% (van de aanneemsom) of tot 100% − grondtermijn (van de koopsom); per blok, relatief
     c0, c1 = L(LY.wt_col(1, 0)), L(LY.wt_col(1, 1))
     ws.conditional_formatting.add(

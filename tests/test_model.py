@@ -602,6 +602,7 @@ def test_cf_kosten_en_schakelaar(tmp):
     p = D.voorbeeld()
     p.params["vs_cf"] = "ja"
     p.params["lasten"] = []
+    p.params["vs_sel"] = "Scenario 2"                        # tabel per termijn: 'Later starten' (start bouw twee kwartalen later)
     wb = bouw_en_bereken(p, tmp, "vs_cf_ja")
     m, pp, d = wb["Model"], wb["PowerPoint"], wb["Dashboard"]
     hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
@@ -620,6 +621,15 @@ def test_cf_kosten_en_schakelaar(tmp):
     assert regels["KPI9_NAAM2"] == "Direct doorbelaste proj…" and regels["KPI9_NAAM1"] == "Grondkosten"
     assert abs(regels["KPI9_BALK1"] - 1) < 1e-12 and 0 < regels["KPI9_BALK3"] < regels["KPI9_BALK2"] < 1
     assert d["Z77"].value.startswith("automatisch: Grondkosten")
+    # bouwkosten per termijn in de tabel van scenario 2: twee kwartalen later dan de Basis (zelfde bedragen)
+    sc, kf = wb[LY.SC_TAB], wb[LY.KF_TAB]
+    r_pos, r_tot = _scenario_rij(sc, "positie in het Model"), _scenario_rij(sc, "Totaal bouwkosten volgens termijnen")
+    basis_tot = [kf.cell(LY.KF_R_BK_TOT, LY.KF_COL1 + i).value or 0 for i in range(n)]
+    kolommen = [(sc.cell(r_pos, 3 + j).value, sc.cell(r_tot, 3 + j).value) for j in range(LY.SC_N_KW) if sc.cell(r_pos, 3 + j).value not in (None, "")]
+    for (pos, v) in kolommen:
+        verwacht = kf.cell(LY.KF_R_BK_TOT, LY.KF_COL1 + pos - 3).value if pos - 3 >= 0 else 0
+        assert abs(v - (verwacht or 0) / 1000) < 1e-6, (pos, v, verwacht)
+    assert sum(v for _, v in kolommen) * 1000 == pytest.approx(sum(basis_tot[:n - 2]))   # de laatste twee kwartalen schuiven buiten de tabel
     # zonder posten: de oude regel (alles vanaf de geplande start bouw schuift mee) en de oude tekst
     p2 = D.voorbeeld()
     p2.kosten_posten = []
@@ -668,3 +678,46 @@ def test_cf_kosten_lege_keuze_is_vast(tmp):
     wb.save(pad)
     terug = {k["naam"]: k["mee"] for k in D.lees_werkboek(pad).kosten_posten}
     assert terug["Aanneemsom"] == "vast" and terug["Aansluitkosten"] == "start bouw"
+
+
+def _scenario_rij(sc, label):
+    return next(r for r in range(1, 200) if isinstance(sc[f"B{r}"].value, str) and sc[f"B{r}"].value.startswith(label))
+
+
+def test_bouwkosten_per_termijn(basis, tmp):
+    """Woningtypes blok 7 (bouwkosten per termijn): tab CF kosten blok 3 telt ze per type en per kwartaal op (Basis) en sluit aan op
+    de post Aanneemsom; tab Scenario's zet ze per termijn naast de bouwtermijnen van de koper; bij inlezen komen ze terug."""
+    m, kf, sc = basis["Model"], basis[LY.KF_TAB], basis[LY.SC_TAB]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    n = hb("n")
+    p = D.voorbeeld()
+    idx = [per["jaar"] * 4 + int(per["kw"][1]) for per in p.periodes]
+    per_kw = [0.0] * n
+    for k, t in enumerate(p.types, start=1):
+        rij = LY.KF_R_BK1 + k - 1
+        tot = sum(b for _, b, _ in t.bouwkosten)
+        assert (kf[f"{LY.KF_C['totaal']}{rij}"].value or 0) == tot, t.naam
+        for _, b, kw in t.bouwkosten:
+            i = idx.index(t.start_jaar * 4 + t.start_kw + kw - 1)
+            per_kw[i] += b
+            assert abs(kf.cell(rij, LY.KF_COL1 + i).value - sum(b2 for _, b2, kw2 in t.bouwkosten if kw2 == kw)) < 1
+    aanneemsom = next(k for k in p.kosten_posten if k["naam"] == "Aanneemsom")["bedragen"]
+    assert [round(x) for x in per_kw] == [round(a or 0) for a in aanneemsom]
+    assert hb("kf_bk_verschil") == 0 and hb("kf_bk_controle").startswith("✓") and hb("kf_bk_tot") == sum(per_kw)
+    # tab Scenario's (gekozen: scenario 1, start bouw zoals gepland): totaal per kwartaal = Basis; koper - aannemer
+    r_pos = _scenario_rij(sc, "positie in het Model")
+    r_tot = _scenario_rij(sc, "Totaal bouwkosten volgens termijnen")
+    r_saldo = _scenario_rij(sc, "Bouwtermijnen koper")
+    r_k1 = r_pos + 7                                         # eerste bouwtermijn van de koper (na verkocht, getransporteerd, lege rij, grond)
+    for j in range(LY.SC_N_KW):
+        pos = sc.cell(r_pos, 3 + j).value
+        if pos in (None, ""):
+            break
+        assert abs(sc.cell(r_tot, 3 + j).value - per_kw[pos - 1] / 1000) < 1e-6, j
+        koper = sum(sc.cell(r, 3 + j).value or 0 for r in range(r_k1, r_k1 + LY.N_TERMIJNEN))
+        assert abs(sc.cell(r_saldo, 3 + j).value - (koper - sc.cell(r_tot, 3 + j).value)) < 1e-6, j
+    assert sc[f"B{r_tot - LY.N_TERMIJNEN}"].value == "Aanvang bouw"
+    # ronde reis
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "bk_rond"), None, caches=False)
+    terug = D.lees_werkboek(paden[0])
+    assert [t.bouwkosten for t in terug.types] == [t.bouwkosten for t in p.types]

@@ -82,6 +82,7 @@ class TypeData:
     fee_comp: list = field(default_factory=list)    # [(componentnaam, totaal €)] (maximaal N_FEE_COMP)
     fee_termijnen: list = field(default_factory=list)   # [(mijlpaal, bedrag € (> 1) of % (<= 1), kwartaal)] per rij (N_TERMIJNEN rijen, None = leeg)
     fee_vorig: list = field(default_factory=list)   # kwartaal per fee-termijn volgens de vorige prognose (blok 6; None = zoals nu)
+    bouwkosten: list = field(default_factory=list)  # blok 7: [(termijn, bedrag € voor het hele type, bouwkwartaal)] (wat de aannemer krijgt)
 
 
 @dataclass
@@ -178,7 +179,31 @@ def voorbeeld():
     # twee scenario's: de resterende verkoop een jaar later, en de bouw een half jaar later starten
     p.params["vs"] = [{"vv": "Q1 2028"}, {"naam": "Later starten", "sb": "Q3 2027"}]
     p.kosten_posten = _voorbeeld_kostenposten(kosten, 12)
+    _voorbeeld_bouwkosten(p, next(k for k in p.kosten_posten if k["naam"] == "Aanneemsom")["bedragen"])
     return p
+
+
+BK_NAMEN = ["Aanvang bouw", "Fundering", "Ruwe vloer", "Casco", "Gevel", "Dak waterdicht", "Afbouw", "Oplevering"]
+
+
+def _voorbeeld_bouwkosten(p, aanneemsom):
+    """Blok 7 (bouwkosten per termijn) voor het voorbeeld: de post Aanneemsom van tab CF kosten per kwartaal verdeeld over de types
+    die dan al gestart zijn (naar koopsom x aantal x (1 - grondtermijn)), per type één termijn per bouwkwartaal. Per kwartaal is de
+    som precies de post Aanneemsom, zoals in een FO."""
+    idx = [per["jaar"] * 4 + int(per["kw"][1]) for per in p.periodes]
+    koop = [t for t in p.types if t.soort != "DAEB" and t.koopsom]
+    gewicht = {id(t): t.aantal * t.koopsom * (1 - (t.grond_pct or 0)) for t in koop}
+    for i, b in enumerate(aanneemsom):
+        if not b:
+            continue
+        actief = [t for t in koop if t.start_jaar * 4 + t.start_kw <= idx[i]]
+        totaal = sum(gewicht[id(t)] for t in actief)
+        rest = b
+        for n, t in enumerate(actief):
+            deel = rest if n == len(actief) - 1 else round(b * gewicht[id(t)] / totaal)
+            rest -= deel
+            kw = idx[i] - (t.start_jaar * 4 + t.start_kw) + 1
+            t.bouwkosten.append((BK_NAMEN[kw - 1] if kw <= len(BK_NAMEN) else f"Bouwkwartaal {kw}", deel, kw))
 
 
 def _voorbeeld_kostenposten(kosten, n_act):
@@ -281,6 +306,7 @@ def _lees_v2(wb):
     heeft_vorig = isinstance(_v(wt, f"B{LY.WT_R_V_TITEL}"), str) and _v(wt, f"B{LY.WT_R_V_TITEL}").startswith("4 ·")     # blok 4 sinds v7
     heeft_fees = isinstance(_v(wt, f"B{LY.WT_R_D_TITEL}"), str) and _v(wt, f"B{LY.WT_R_D_TITEL}").startswith("5 ·")      # blok 5 sinds v8
     heeft_vf = isinstance(_v(wt, f"B{LY.WT_R_VF_TITEL}"), str) and _v(wt, f"B{LY.WT_R_VF_TITEL}").startswith("6 ·")      # blok 6 sinds v9
+    heeft_bk = isinstance(_v(wt, f"B{LY.WT_R_B_TITEL}"), str) and _v(wt, f"B{LY.WT_R_B_TITEL}").startswith("7 ·")        # blok 7 sinds v19
     for k in range(1, LY.N_TYPES + 1):
         c0, c1, c2 = (L(LY.wt_col(k, o)) for o in range(3))
         naam = _v(wt, f"{c0}{LY.WT_R_NAAM}")
@@ -308,9 +334,15 @@ def _lees_v2(wb):
             td.fee_termijnen = [(_v(wt, f"{c0}{r}"), _v(wt, f"{c1}{r}"), _v(wt, f"{c2}{r}")) for r in range(LY.WT_R_FT1, LY.WT_R_FTN + 1)]
         if heeft_vf:
             td.fee_vorig = [_v(wt, f"{c2}{r}") for r in range(LY.WT_R_VF1, LY.WT_R_VFN + 1)]
+        if heeft_bk:
+            for r in range(LY.WT_R_B1, LY.WT_R_BN + 1):
+                bn, eur, kw = _v(wt, f"{c0}{r}"), _v(wt, f"{c1}{r}"), _v(wt, f"{c2}{r}")
+                if bn is None and eur is None and kw is None:
+                    continue
+                td.bouwkosten.append((bn, eur, kw))
         p.types.append(td)
     # lege blokken aan het eind weglaten
-    while p.types and not p.types[-1].naam and p.types[-1].aantal is None:
+    while p.types and not p.types[-1].naam and p.types[-1].aantal is None and not p.types[-1].bouwkosten:
         p.types.pop()
     namen = [t.termijnen[i][0] for t in p.types for i in range(len(t.termijnen)) if t.termijnen[i][0]]
     if namen:

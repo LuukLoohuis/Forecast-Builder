@@ -354,6 +354,7 @@ def lees_fo(pad, actuals=None):
                 t.fee_termijnen = rijen
             t._transport = transport
         t._blok = k                                   # positie van het blok in het FO (ook lege blokken tellen mee in het verkooptempo)
+        t._titel = _txt(wo.cell(r0, 2).value)         # bloktitel: zelfde titel op 'CF - kosten' (termijnblok van de bouwkosten)
         p.types.append(t)
     p.types = [t for t in p.types if (t.aantal or 0) > 0]
     # verkoop per kwartaal per type (blok Verkooptempo: rijen in dezelfde volgorde als de typen) en transport
@@ -366,6 +367,7 @@ def lees_fo(pad, actuals=None):
             verkocht[i] = _tellingen(wo, r, kaart_v, c_act_v)   # kwartaalcellen tellen op tot het aantal; 'actuals' = al verkocht
             r += 1
             i += 1
+    _lees_bouwkosten(wb, p.types, idx_act, waarschuwingen)
     typen_namen = [t.naam for t in p.types]
     nT = len(p.types)
     p.verkocht = [[None] * nT for _ in range(n_per)]
@@ -387,12 +389,69 @@ def lees_fo(pad, actuals=None):
             i = pos_act if jj is None else periode_van.get(_idx(jj, q))
             if i is not None:
                 zet(p.transport, k, i, v)
-        for attr in ("_transport", "_blok"):
+        for attr in ("_transport", "_blok", "_titel"):
             if hasattr(t, attr):
                 delattr(t, attr)
     p.fo["typen"] = typen_namen
     p.kosten_posten = _lees_kosten(wb, periode_van, idx_act, n_per, waarschuwingen)
     return p
+
+
+def _lees_bouwkosten(wb, types, idx_act, waarschuwingen):
+    """FO-tabblad 'CF - kosten': per type het termijnblok met dezelfde titel als op 'CF - opbrengsten' ('Termijnen ...', met
+    '# won' in de rij erboven): per termijn de naam en het bedrag per woning (kolom E) en het aantal woningen per kwartaal (de
+    bouwplanning) -> TypeData.bouwkosten [(termijn, bedrag €, bouwkwartaal t.o.v. start bouw)]. Wat t/m actuals ligt (kolom 'actuals'
+    en kwartalen t/m het actuals-kwartaal) wordt één deel in het actuals-kwartaal, elk later kwartaal een eigen deel ('(1/3)' ...);
+    meer dan tien regels: kleinste delen samengevoegd (_binnen_limiet). Rijen tot 'Aanneemsom'/'Meerwerk' of de eerste lege rij;
+    termijnen zonder bedrag per woning (kopersmeerwerk) tellen niet mee."""
+    wk = _zoek_blad(wb, "CF - kosten", "CF-kosten", "CF kosten")
+    if wk is None:
+        return
+    blokken = {}
+    for r in range(2, wk.max_row + 1):
+        b = _txt(wk.cell(r, 2).value).lower()
+        if b.startswith("termijnen ") and any(_txt(wk.cell(r - 1, c).value).lower().startswith("# won") for c in range(2, 13)):
+            blokken.setdefault(b, r)
+    for t in types:
+        titel = getattr(t, "_titel", "") or ""
+        r0 = blokken.get(titel.lower())
+        if r0 is None:
+            if blokken:
+                waarschuwingen.append(f"'CF - kosten': geen termijnblok '{titel}' voor {t.naam}: geen bouwkosten per termijn.")
+            continue
+        kaart, c_act = _kolomkaart(wk, r0)
+        idx_start = _idx(t.start_jaar, t.start_kw) if t.start_jaar and t.start_kw else None
+        rijen = []
+        r = r0 + 1
+        while _txt(wk.cell(r, 2).value):
+            lab = _txt(wk.cell(r, 2).value)
+            if lab.lower().startswith("aanneemsom") or lab.lower().startswith("meerwerk"):
+                break
+            pw = _num(wk.cell(r, 5).value)
+            if pw:
+                real = (_num(wk.cell(r, c_act).value) or 0.0) if c_act else 0.0
+                later = []
+                for c, (j, q) in sorted(kaart.items()):
+                    v = _num(wk.cell(r, c).value)
+                    if not v:
+                        continue
+                    if _idx(j, q) <= idx_act:
+                        real += v
+                    else:
+                        later.append((_idx(j, q), v))
+                delen = ([(idx_act, real)] if real else []) + later
+                if not delen:
+                    rijen.append((lab, round(pw * (t.aantal or 0), 2), None))
+                for i, (idx, v) in enumerate(delen):
+                    suffix = f" ({i + 1}/{len(delen)})" if len(delen) > 1 else ""
+                    rijen.append((lab + suffix, round(pw * v, 2), idx - idx_start + 1 if idx_start else None))
+            r += 1
+        try:
+            t.bouwkosten = _binnen_limiet(rijen, LY.N_TERMIJNEN, t.naam, "bouwkosten-termijnen", waarschuwingen)
+        except ValueError:                             # niets om samen te voegen: de laatste vallen weg (zoals de macro)
+            waarschuwingen.append(f"{t.naam}: {len(rijen)} bouwkosten-termijnen in het FO, ruimte voor {LY.N_TERMIJNEN}; "
+                                  f"de laatste zijn niet overgenomen.")
+            t.bouwkosten = rijen[:LY.N_TERMIJNEN]
 
 
 def _lees_kosten(wb, periode_van, idx_act, n_per, waarschuwingen):

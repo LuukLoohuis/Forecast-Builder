@@ -176,6 +176,53 @@ def bouw_tab(wb, data):
                          f'geen lasten ingevuld.","Dia 2 toont de grootste lasten die je op het Dashboard hebt ingevuld; maak die leeg om deze '
                          f'top 3 te gebruiken.")', f=F_NOTE8)
 
+    # ---- 3 · uitsplitsing van de aanneemsom per type (Woningtypes blok 7, Basis) -------------------------------------------------
+    r3 = LY.KF_R_BK
+    put(ws, f"B{r3}", "3 · UITSPLITSING AANNEEMSOM PER TYPE · uit tab Woningtypes blok 7 (bouwkosten per termijn, Basis) · per termijn en "
+                      "per scenario: tab Scenario's blok 4", f=F_SECTION)
+    for col, t, al in ((C["naam"], "Type", AL_LEFT), (C["mee"], "termijnen", AL_CENTER), (C["totaal"], "Totaal", AL_RIGHT)):
+        put(ws, f"{col}{r3 + 1}", t, f=F_HDR8, fl=FL_HDR, al=al)
+    for col in (C["real"], C["dal"]):
+        put(ws, f"{col}{r3 + 1}", None, fl=FL_HDR)
+    for i in range(N_PER):
+        put(ws, f"{L(LY.KF_COL1 + i)}{r3 + 1}", f"={L(LY.KF_COL1 + i)}{LY.KF_R_KOP}", f=F_HDR8, fl=FL_HDR, al=AL_RIGHT)
+    idx_rng = f"Model!${FIX['idx']}${ROW1}:${FIX['idx']}${ROWN}"
+    for k in range(1, LY.N_TYPES + 1):
+        rk = LY.KF_R_BK1 + k - 1
+        tm = LY.TM[k]
+        bedragen = f"Model!${tm}${LY.TM_R_BKA}:${tm}${LY.TM_R_BKA + LY.N_TERMIJNEN - 1}"
+        kws = f"Model!${tm}${LY.TM_R_BKK}:${tm}${LY.TM_R_BKK + LY.N_TERMIJNEN - 1}"
+        start = f"Model!${LY.m_col('verv', k)}$6"
+        put(ws, f"{C['naam']}{rk}", f'=IF(SUM({bedragen})=0,"",IF(TRIM({LY.wt_ref(LY.WT_R_NAAM, k)}&"")="","Type {k}",TRIM({LY.wt_ref(LY.WT_R_NAAM, k)}&"")))',
+            f=F_CALC9, al=AL_LEFT, bd=BD_RIJ)
+        put(ws, f"{C['mee']}{rk}", f'=IF(SUM({bedragen})=0,"",COUNTIF({bedragen},"<>0"))', f=F_CALC9, al=AL_CENTER, bd=BD_RIJ)
+        put(ws, f"{C['totaal']}{rk}", f'=IF(SUM({bedragen})=0,"",SUM({bedragen}))', f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT, bd=BD_RIJ)
+        for i in range(N_PER):
+            put(ws, f"{L(LY.KF_COL1 + i)}{rk}",
+                f'=IF(OR({i + 1}>{n},SUM({bedragen})=0),"",SUMPRODUCT((({start}+{kws}-1)=INDEX({idx_rng},{i + 1}))*{bedragen}))',
+                f=F_CALC9, nf=FMT_INT, al=AL_RIGHT, bd=BD_RIJ)
+    rt3, rp3, rv3, rc3 = LY.KF_R_BK_TOT, LY.KF_R_BK_POST, LY.KF_R_BK_VERSCHIL, LY.KF_R_BK_CONTROLE
+    put(ws, f"B{rt3}", "Totaal uitsplitsing", f=F_BOLD9, al=AL_LEFT, bd=BD_TOP)
+    put(ws, f"{C['totaal']}{rt3}", f"=SUM({C['totaal']}{LY.KF_R_BK1}:{C['totaal']}{rt3 - 1})", f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT, bd=BD_TOP)
+    put(ws, f"B{rp3}", "Post Aanneemsom (blok 1)", f=F_CALC9, al=AL_LEFT)
+    put(ws, f"{C['totaal']}{rp3}", f'=SUMIF({C["naam"]}{R1}:{C["naam"]}{RN},"*aanneemsom*",{C["totaal"]}{R1}:{C["totaal"]}{RN})',
+        f=F_CALC9, nf=FMT_INT, al=AL_RIGHT)
+    put(ws, f"B{rv3}", "Verschil uitsplitsing − post (prognose)", f=F_CALC9, al=AL_LEFT)
+    for i in range(N_PER):
+        col = L(LY.KF_COL1 + i)
+        put(ws, f"{col}{rt3}", f'=IF({i + 1}>{n},"",SUM({col}{LY.KF_R_BK1}:{col}{rt3 - 1}))', f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT, bd=BD_TOP)
+        put(ws, f"{col}{rp3}", f'=IF({i + 1}>{n},"",SUMIF(${C["naam"]}${R1}:${C["naam"]}${RN},"*aanneemsom*",{col}{R1}:{col}{RN}))',
+            f=F_CALC9, nf=FMT_INT, al=AL_RIGHT)
+        put(ws, f"{col}{rv3}", f'=IF(OR({i + 1}>{n},{i + 1}<={pa}),"",{col}{rt3}-{col}{rp3})', f=F_CALC9, nf=FMT_INT, al=AL_RIGHT)
+    ws.conditional_formatting.add(f"{L(LY.KF_COL1)}{rv3}:{c_last}{rv3}",
+                                  FormulaRule(formula=[f'AND(ISNUMBER({L(LY.KF_COL1)}{rv3}),ABS({L(LY.KF_COL1)}{rv3})>=1000)'], font=font(9, True, RED)))
+    ws.conditional_formatting.add(f"{L(LY.KF_COL1)}{LY.KF_R_BK1}:{c_last}{rt3}",
+                                  FormulaRule(formula=[f"{L(LY.KF_COL1)}${LY.KF_R_POS}<={pa}"], fill=GRIJS_FL))
+    put(ws, f"B{rc3}", f"={hm('kf_bk_controle')}", f=font(9, True, GREEN), al=AL_LEFT)
+    ws.conditional_formatting.add(f"B{rc3}", FormulaRule(formula=[f"{hm('kf_bk_verschil')}>=1000"], font=font(9, True, RED)))
+    ws.conditional_formatting.add(f"B{rc3}", FormulaRule(formula=[f"{hm('kf_bk_tot')}=0"], font=font(9, False, TXT3)))
+    r = rc3
+
     ws.print_area = f"A1:{L(LY.KF_COL1 + 23)}{r + 2}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
@@ -247,6 +294,16 @@ def bouw_model(ws):
                         f'" af van tab Invoer (actuals verschoven? werk kolom E bij of haal opnieuw op uit het FO). De Basis volgt tab Invoer.",'
                         f'"Let op: een prognosekwartaal wijkt tot €"&FIXED({h("kf_verschil")},0)&" af van tab Invoer. De Basis volgt tab Invoer; '
                         f'de posten bepalen alleen wat er in een scenario verschuift."))))'),
+        "kf_bk_tot": ("CF kosten blok 3: bouwkosten per termijn, alle types (€, Woningtypes blok 7)",
+                      f"=SUM({LY.KF_BLAD}!${C['totaal']}${LY.KF_R_BK1}:${C['totaal']}${LY.KF_R_BK_TOT - 1})"),
+        "kf_bk_verschil": ("CF kosten blok 3: grootste verschil met de post Aanneemsom in een prognosekwartaal (€)",
+                           f'=IF({h("kf_bk_tot")}=0,0,MAX(0,MAX({kfb}${L(LY.KF_COL1)}${LY.KF_R_BK_VERSCHIL}:${L(LY.KF_COL1 + ROWN - ROW1)}${LY.KF_R_BK_VERSCHIL}),'
+                           f'-MIN({kfb}${L(LY.KF_COL1)}${LY.KF_R_BK_VERSCHIL}:${L(LY.KF_COL1 + ROWN - ROW1)}${LY.KF_R_BK_VERSCHIL})))'),
+        "kf_bk_controle": ("CF kosten blok 3: controletekst",
+                           f'=IF({h("kf_bk_tot")}=0,"Nog geen bouwkosten per termijn: Ophalen uit FO vult tab Woningtypes blok 7 (of vul ze daar zelf in).",'
+                           f'IF({h("kf_bk_verschil")}<1000,"✓ De uitsplitsing sluit per prognosekwartaal aan op de post Aanneemsom.",'
+                           f'"Let op: de uitsplitsing wijkt tot €"&FIXED({h("kf_bk_verschil")},0)&" af van de post Aanneemsom in blok 1 '
+                           f'(andere planning of bedragen?). De scenario\'s verschuiven de post; de uitsplitsing is ter informatie."))'),
         "kl_bron": ("Grootste lasten dia 2: 1 = automatisch uit tab CF kosten, 0 = Dashboard (ingevuld gaat voor)",
                     f"=IF(OR({handmatig}),0,IF({h('kf_aan')}=1,1,0))"),
     }
@@ -260,5 +317,5 @@ def bouw_model(ws):
         r = H[naam]
         put(ws, f"{LY.M_HULP_LABEL}{r}", label, f=F_NOTE8)
         put(ws, f"{LY.M_HULP}{r}", formule, f=F_CALC, al=AL_LEFT_TOP)
-    for naam in ("kf_sb_tot", "kf_v_tot", "kf_dal_tot", "kf_verschil", "kf_real_gap", "kf_buiten") + tuple(f"kl{i}_bedrag" for i in range(1, LY.N_LASTEN + 1)):
+    for naam in ("kf_sb_tot", "kf_v_tot", "kf_dal_tot", "kf_verschil", "kf_real_gap", "kf_buiten", "kf_bk_tot", "kf_bk_verschil") + tuple(f"kl{i}_bedrag" for i in range(1, LY.N_LASTEN + 1)):
         ws[f"{LY.M_HULP}{H[naam]}"].number_format = FMT_INT

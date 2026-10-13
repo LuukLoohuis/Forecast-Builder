@@ -71,6 +71,14 @@ WT_R_VF_TITEL = 66
 WT_R_VF_KOP = 67
 WT_R_VF1 = 68
 WT_R_VFN = WT_R_VF1 + N_TERMIJNEN - 1          # 77
+# blok 7 (sinds v19): bouwkosten per termijn (wat de aannemer krijgt): per termijn de naam, het bedrag in € voor alle woningen van
+# het type en het bouwkwartaal t.o.v. start bouw (zoals de bouwtermijnen); uit FO 'CF - kosten' (termijnblokken per type). Alleen
+# voor de uitsplitsing (tab CF kosten blok 3, tab Scenario's blok 4); de kosten in de cashflow komen uit tab Invoer en tab CF kosten
+WT_R_B_TITEL = 80
+WT_R_B_KOP = 81
+WT_R_B1 = 82
+WT_R_BN = WT_R_B1 + N_TERMIJNEN - 1            # 91
+WT_R_B_TOTAAL = 92
 WT_LASTCOL = WT_COL1 + N_TYPES * WT_W - 1  # AH bij 10 types
 WT_RANGE_END = "ZZ"   # positionele bereiken lopen tot ZZ: invoegen/verwijderen van kolommen kan ze niet breken
 
@@ -459,6 +467,7 @@ _c += N_TYPES + 2
 VS_LAST = _c - 1
 TM_R_NAAM, TM_R_A, TM_R_KW = 75, 85, 95                   # j = 1..N_TERMIJNEN onder elkaar
 TM_R_SEL, TM_R_AG = 106, 107
+TM_R_BKN, TM_R_BKA, TM_R_BKK = 110, 120, 130              # bouwkosten per termijn (Woningtypes blok 7): naam, bedrag (€), bouwkwartaal
 
 
 def vs_col(s, naam, k=None):
@@ -519,6 +528,11 @@ KF_R_TOT, KF_R_INV, KF_R_VERSCHIL, KF_R_CONTROLE = KF_RN + 1, KF_RN + 2, KF_RN +
 KF_C = {"naam": "B", "mee": "C", "totaal": "D", "real": "E", "dal": "F", "code": "G", "sleutel": "H"}
 KF_COL1 = 9                                               # kolom I = periode 1
 KF_MEE = ["start bouw", "verkoop", "vast"]
+# blok 3: uitsplitsing van de aanneemsom per type (uit Woningtypes blok 7, Basis) met de controle tegen de post Aanneemsom
+KF_R_BK = KF_R_CONTROLE + 16                              # titel; koprij eronder, dan N_TYPES rijen, totaal, post, verschil, controle
+KF_R_BK1 = KF_R_BK + 2
+KF_R_BK_TOT = KF_R_BK1 + N_TYPES
+KF_R_BK_POST, KF_R_BK_VERSCHIL, KF_R_BK_CONTROLE = KF_R_BK_TOT + 1, KF_R_BK_TOT + 2, KF_R_BK_TOT + 3
 KF_LABEL_KOP = "Kostenpost"
 
 
@@ -536,6 +550,6 @@ def kf_blok():
 _r = 285
 for _naam in ["kf_aan", "kf_sb_tot", "kf_v_tot", "vs_v_mee", "kf_tekst", "kf_tekst_kort", "kf_dal_tot", "kf_verschil", "kf_controle",
               "kl_bron", "kl1_naam", "kl1_bedrag", "kl2_naam", "kl2_bedrag", "kl3_naam", "kl3_bedrag",
-              "kf_dal_real", "kf_dal_lbl", "kf_real_gap", "kf_buiten"]:
+              "kf_dal_real", "kf_dal_lbl", "kf_real_gap", "kf_buiten", "kf_bk_tot", "kf_bk_verschil", "kf_bk_controle"]:
     H[_naam] = _r
     _r += 1

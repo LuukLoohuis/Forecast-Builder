@@ -248,6 +248,20 @@ def bouw_model_scenarios(ws):
         eerste = ArrayFormula(f"{TM['label']}{rn}", f'=IF({tsel}=0,IFERROR(INDEX({rij},MATCH(TRUE,{rij}<>"",0)),""),INDEX({rij},{tsel}))')
         put(ws, f"{TM['label']}{rn}", eerste, f=F_CALC)
         put(ws, f"{TM['label']}{ra}", f'=IF({TM["label"]}{rn}<>"",{TM["label"]}{rn},IF(SUM({tm_rng(ra)})>0,"Termijn {j}",""))', f=F_CALC)
+    # ---- bouwkosten per termijn (Woningtypes blok 7): per termijn j en type k naam, bedrag (€; 0 zonder bouwkwartaal), bouwkwartaal --
+    put(ws, f"{TM[1]}{LY.TM_R_BKN - 1}", "bouwkosten per termijn (tab Woningtypes blok 7, wat de aannemer krijgt): naam, bedrag (€) en "
+                                         "bouwkwartaal per termijn (rij) en type (kolom)", f=F_NOTE8)
+    for j in range(1, LY.N_TERMIJNEN + 1):
+        rn, ra, rk = LY.TM_R_BKN + j - 1, LY.TM_R_BKA + j - 1, LY.TM_R_BKK + j - 1
+        for k in range(1, N_TYPES + 1):
+            naam_jk, eur_jk, kw_jk = (LY.wt_ref(LY.WT_R_B1 + j - 1, k, o) for o in range(3))
+            put(ws, f"{TM[k]}{rn}", f'=IF(TRIM({naam_jk}&"")="","",TRIM({naam_jk}&""))', f=F_CALC)
+            put(ws, f"{TM[k]}{ra}", f'=IF(ISNUMBER({kw_jk}),N({eur_jk}),0)', f=F_CALC, nf=FMT_INT)
+            put(ws, f"{TM[k]}{rk}", f'=IF(ISNUMBER({kw_jk}),{kw_jk},0)', f=F_CALC, nf="0")
+        rij = tm_rng(rn)
+        eerste = ArrayFormula(f"{TM['label']}{rn}", f'=IF({tsel}=0,IFERROR(INDEX({rij},MATCH(TRUE,{rij}<>"",0)),""),INDEX({rij},{tsel}))')
+        put(ws, f"{TM['label']}{rn}", eerste, f=F_CALC)
+        put(ws, f"{TM['label']}{ra}", f'=IF({TM["label"]}{rn}<>"",{TM["label"]}{rn},IF(SUM({tm_rng(ra)})>0,"Bouwkosten-termijn {j}",""))', f=F_CALC)
     for k in range(1, N_TYPES + 1):
         put(ws, f"{TM[k]}{LY.TM_R_SEL}", f"=IF(OR({tsel}=0,{tsel}={k}),1,0)", f=F_CALC, nf="0")
         put(ws, f"{TM[k]}{LY.TM_R_AG}", f'=IF(N({m_col("fee", k)}$5)=1,0,N({m_col("tcum", k)}$6)*N({m_col("tup", k)}$6))', f=F_CALC, nf=FMT_INT)
@@ -695,11 +709,14 @@ def bouw_tab(wb, data):
     FMT_K = f'#,##0;{MINUS}#,##0;"–"'
     r = r_kop + 1
     r_eerste = None
+    rijen_koper = []                                       # rijen van de bouwtermijnen van de koper (voor koper - aannemer)
     for regel in tabel:
         if regel is None:
             r += 1
             continue
         label, col, deel, nf, ih = regel
+        if ih:
+            rijen_koper.append(r)
         put(ws, f"B{r}", label, f=F_CALC, al=AL_LEFT)
         if r_eerste is None and deel == 1000:
             r_eerste = r
@@ -731,6 +748,45 @@ def bouw_tab(wb, data):
                      "in de cashflow = je eigen cashflow plus het verschil volgens de termijnen", f=F_NOTE8)
     # grijze kolommen voor de gerealiseerde kwartalen
     ws.conditional_formatting.add(f"C{r_kop + 1}:{L(2 + LY.SC_N_KW)}{r - 1}",
+                                  FormulaRule(formula=[f'AND(C${r_pos}<>"",C${r_pos}<={hm("pos_actuals")})'],
+                                              fill=PatternFill(fill_type="solid", bgColor="F2F3F5", fgColor="F2F3F5")))
+    # ---- bouwkosten per termijn (aannemer, Woningtypes blok 7) voor hetzelfde scenario en woningtype, naast wat de koper betaalt ----
+    r += 2
+    put(ws, f"B{r}", "BOUWKOSTEN PER TERMIJN (AANNEMER) · zelfde scenario en woningtype · tab Woningtypes blok 7 · schuift mee met de "
+                     "start bouw · x € 1.000", f=F_SECTION)
+    r += 1
+    r_bk1 = r
+    sel_ts = f"Model!{sel_rng('ts', 6, abs_=True)}"
+    gekozen = f"Model!{tm_rng(LY.TM_R_SEL)}"
+    for j in range(1, LY.N_TERMIJNEN + 1):
+        bedrag, kw = f"Model!{tm_rng(LY.TM_R_BKA + j - 1)}", f"Model!{tm_rng(LY.TM_R_BKK + j - 1)}"
+        put(ws, f"B{r}", f"=Model!${LY.TM['label']}${LY.TM_R_BKA + j - 1}", f=F_CALC, al=AL_LEFT)
+        for jj in range(LY.SC_N_KW):
+            c = L(3 + jj)
+            pos = f"{c}${r_pos}"
+            put(ws, f"{c}{r}", f'=IF({pos}="","",SUMPRODUCT({gekozen}*{bedrag}*(({sel_ts}+{kw}-1)={model(IDX, pos)}))/1000)',
+                f=F_CALC, nf=FMT_K, al=AL_RIGHT)
+        r += 1
+    r_bkn = r - 1
+    regels = [("Totaal bouwkosten volgens termijnen", lambda c: f"SUM({c}{r_bk1}:{c}{r_bkn})", True),
+              ("Bouwtermijnen koper − aannemer", lambda c: f"SUM({c}{rijen_koper[0]}:{c}{rijen_koper[-1]})-{c}{r_bkn + 1}", False)]
+    for label, formule, vet in regels:
+        put(ws, f"B{r}", label, f=font(8, vet, TXT), al=AL_LEFT, bd=Border(top=side("thin", LINE)) if vet else None)
+        for jj in range(LY.SC_N_KW):
+            c = L(3 + jj)
+            put(ws, f"{c}{r}", f'=IF({c}${r_pos}="","",{formule(c)})', f=font(8, vet, TXT), nf=FMT_K, al=AL_RIGHT,
+                bd=Border(top=side("thin", LINE)) if vet else None)
+        r += 1
+    put(ws, f"B{r}", f'="  idem, opgeteld vanaf "&C{r_kop}', f=font(8, True, TXT), al=AL_LEFT)
+    for jj in range(LY.SC_N_KW):
+        c = L(3 + jj)
+        vorige = f"+N({L(2 + jj)}{r})" if jj else ""
+        put(ws, f"{c}{r}", f'=IF({c}${r_pos}="","",{c}{r - 1}{vorige})', f=font(8, True, TXT), nf=FMT_K, al=AL_RIGHT)
+    ws.conditional_formatting.add(f"C{r}:{L(2 + LY.SC_N_KW)}{r}", FormulaRule(formula=[f'AND(ISNUMBER(C{r}),C{r}<-0.5)'], font=Font(name=ARIAL, bold=True, color=RED)))
+    r += 1
+    put(ws, f"B{r}", "koper = de bouwtermijnen in de tabel hierboven (zonder grond, extra's en fees) · aannemer = bouwkosten in hun bouwkwartaal · "
+                     "rood = de bouw is tot dan voorgefinancierd", f=F_NOTE8)
+    ws.conditional_formatting.add(f"C{r_bk1}:{L(2 + LY.SC_N_KW)}{r - 1}",
                                   FormulaRule(formula=[f'AND(C${r_pos}<>"",C${r_pos}<={hm("pos_actuals")})'],
                                               fill=PatternFill(fill_type="solid", bgColor="F2F3F5", fgColor="F2F3F5")))
     r += 2
