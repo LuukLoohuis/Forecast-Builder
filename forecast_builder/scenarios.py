@@ -787,7 +787,8 @@ def bouw_tab(wb, data):
             idx = model(IDX, f"{c}${r_pos}")
             per_type = f"SUMPRODUCT({bed_k}*({kwartaal(ts_k, tb_k, kw_k)}={idx}))"
             per_termijn = f"SUMPRODUCT({gekozen}*{bedrag}*({kwartaal(sel_ts, basis_ts, kw)}={idx}))"
-            put(ws, f"{c}{r}", f'=IF({c}${r_pos}="","",IF({tsel_}=0,{per_type},{per_termijn})/1000)', f=F_CALC, nf=FMT_K, al=AL_RIGHT)
+            put(ws, f"{c}{r}", f'=IF(OR({c}${r_pos}="",$B{r}=""),"",IF({tsel_}=0,{per_type},{per_termijn})/1000)', f=F_CALC, nf=FMT_K,
+                al=AL_RIGHT)
         r += 1
     r_bkn = r - 1
 
@@ -813,12 +814,14 @@ def bouw_tab(wb, data):
         put(ws, f"{c}{r}", f'=IF({pos}="","",({koper_cum})/1000-{aannemer_nd(c, "<=")})', f=font(8, True, TXT), nf=FMT_K, al=AL_RIGHT)
     ws.conditional_formatting.add(f"C{r}:{L(2 + LY.SC_N_KW)}{r}", FormulaRule(formula=[f'AND(ISNUMBER(C{r}),C{r}<-0.5)'], font=Font(name=ARIAL, bold=True, color=RED)))
     r += 1
-    put(ws, f"B{r}", "alle types: een rij per type · één type: een rij per termijn · gerealiseerde delen blijven in hun kwartaal · koper = de "
-                     "bouwtermijnen in de tabel hierboven (zonder grond, extra's en fees) · aannemer = bouwkosten in hun bouwkwartaal; in koper − "
-                     "aannemer zonder DAEB-typen (die hebben geen bouwtermijnen van kopers) · rood = de bouw is tot dan voorgefinancierd", f=F_NOTE8)
     ws.conditional_formatting.add(f"C{r_bk1}:{L(2 + LY.SC_N_KW)}{r - 1}",
                                   FormulaRule(formula=[f'AND(C${r_pos}<>"",C${r_pos}<={hm("pos_actuals")})'],
                                               fill=PatternFill(fill_type="solid", bgColor="F2F3F5", fgColor="F2F3F5")))
+    put(ws, f"B{r}", "alle types: een rij per type · één type: een rij per termijn · gerealiseerde delen blijven in hun kwartaal · aannemer = "
+                     "bouwkosten in hun bouwkwartaal", f=F_NOTE8)
+    r += 1
+    put(ws, f"B{r}", "koper = de bouwtermijnen in de tabel hierboven (zonder grond, extra's en fees) · koper − aannemer zonder DAEB-typen (die "
+                     "hebben geen bouwtermijnen van kopers) · rood = de bouw is tot dan voorgefinancierd", f=F_NOTE8)
     r += 2
     for titel, basis_col, naam in (("VERGELIJKING · opbrengsten in de cashflow per kwartaal · x € 1.000", OPB, "opbr"),
                                    ("VERGELIJKING · cumulatieve cashflow · x € 1.000", M["stand_basis"], "stand")):
