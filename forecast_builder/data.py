@@ -45,6 +45,12 @@ PARAM_STANDAARD = {
     # grootste lasten voor dia 2 (Dashboard-sectie): kop van de kaart en tot drie (naam, bedrag in €); leeg = kaart niet op de dia
     "lasten_kop": "GROOTSTE LASTEN",
     "lasten": (),
+    # scenario's (tab Scenario's, sinds v18): per scenario een dict met naam, sb (start bouw), vv (verkoop vanaf), tv (transport vanaf)
+    # als tekst ('Q3 2027'); leeg = zoals de planning. vs_pp = Naar PowerPoint (ja/nee); vs_sel / vs_type = keuze in de tabel per termijn
+    "vs": (),
+    "vs_pp": "ja",
+    "vs_sel": "Scenario 1",
+    "vs_type": "alle types",
 }
 
 
@@ -154,6 +160,8 @@ def voorbeeld():
         p.transport.append(rij_t)
     p.params["actuals_jaar"], p.params["actuals_kw"] = 2026, 4
     p.params["lasten"] = [("Grondkosten", 7900000), ("Honoraria", 3200000), ("Aansluitkosten", 800000)]
+    # twee scenario's: de resterende verkoop een jaar later, en de bouw een half jaar later starten
+    p.params["vs"] = [{"vv": "Q1 2028"}, {"naam": "Later starten", "sb": "Q3 2027"}]
     return p
 
 
@@ -318,4 +326,35 @@ def _lees_v2(wb):
         rij = next((r for r in range(1, 120) if _v(d, f"V{r}") == label), None)
         if rij is not None and _v(d, f"W{rij}") not in (None, ""):
             p.fo[{"opbr": "opbrengsten"}.get(naam[3:], naam[3:])] = _v(d, f"W{rij}")
+    if LY.SC_TAB in wb.sheetnames:
+        _lees_scenarios(wb[LY.SC_TAB], p)
     return p
+
+
+def _lees_scenarios(ws, p):
+    """Tab Scenario's (sinds v18): invoer per scenario op het label in kolom B (naam, start bouw, verkoop vanaf, transport vanaf),
+    de schakelaar Naar PowerPoint en de keuze in de tabel per termijn."""
+    rijen = {}
+    for r in range(1, 60):
+        t = _v(ws, f"B{r}")
+        if isinstance(t, str) and t.strip() and t.strip() not in rijen:
+            rijen[t.strip()] = r
+    tekst = lambda v: None if v in (None, "") else str(v).strip()  # noqa: E731
+    vs = []
+    for s in range(1, LY.N_VS + 1):
+        col = L(LY.SC_COL[s])
+        d = {}
+        for veld in ("naam", "sb", "vv", "tv"):
+            r = rijen.get(LY.SC_LABELS[veld])
+            if r is not None and tekst(_v(ws, f"{col}{r}")):
+                d[veld] = tekst(_v(ws, f"{col}{r}"))
+        vs.append(d)
+    while vs and not vs[-1]:
+        vs.pop()
+    p.params["vs"] = vs
+    r = rijen.get(LY.SC_LABELS["pp"])
+    if r is not None and tekst(_v(ws, f"C{r}")):
+        p.params["vs_pp"] = tekst(_v(ws, f"C{r}"))
+    for naam, cel in (("vs_sel", LY.SC_CEL_SEL), ("vs_type", LY.SC_CEL_TYPE)):
+        if tekst(_v(ws, cel)):
+            p.params[naam] = tekst(_v(ws, cel))

@@ -29,6 +29,10 @@ TXT = "666666"
 TXT_LIGHT = "7A7A7A"
 LABEL_BORDER = "E3E6EA"
 
+# scenario's van tab Scenario's: Basis en scenario 1..3 (zelfde als layout.VS_KLEUREN; gekozen zodat ze naast de groene en rode
+# balken, de stippellijn van de vorige prognose en de gele scenariolijn te onderscheiden zijn)
+VS_KLEUREN = ["002060", "6250D6", "C2399B", "7A2E6E"]
+
 # vaste kleuren per woningtype (blok 1..10), ook gebruikt voor de cel-legenda op het Dashboard
 TYPEKLEUREN = ["2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "008300", "4A3AA7", "8A9A1B", "1F8A8A", "8C6D3F"]   # 8: olijf (rood = vorige prognose)
 
@@ -232,6 +236,13 @@ def cashflow(r, lbl, scenario=True):
     if scenario:
         lines.append(ser_line(7, "=" + lbl["scenario_naam"], kw, r["scenario"], AMBER, 2.25))
         nxt = 8
+    # scenario's van tab Scenario's (sinds v18): een lijn per scenario, alleen waar het van de basis afwijkt; geen legenda-regel
+    # (de gekleurde blokjes boven de grafiek op het Dashboard noemen de ingevulde scenario's)
+    for s_ in range(1, len(VS_KLEUREN)):
+        if f"vs{s_}" in r:
+            lines.append(ser_line(nxt, f"Scenario {s_}", kw, r[f"vs{s_}"], VS_KLEUREN[s_], 1.75))
+            verborgen.append(nxt)
+            nxt += 1
     punten = [ser_punt(nxt, "=" + lbl["nu"], kw, r["punt_nu"], NAVY, "t"),
               ser_punt(nxt + 1, "=" + lbl["dal"], kw, r["punt_dal"], RED_LINE, "b"),
               ser_punt(nxt + 2, "=" + lbl["eind_basis"], kw, r["eind_basis"], NAVY, "l")]
@@ -522,3 +533,20 @@ def type_paneel(r, hoogte_cm=PT_H_CM, legenda=False):
         leg = legend([n0 + 1, n0 + 2, n0 + 3]).replace('<c:legendPos val="t"/>', '<c:legendPos val="b"/>').replace('sz="800"', 'sz="700"')
         xml = xml.replace('<c:plotVisOnly val="0"/>', f'{leg}<c:plotVisOnly val="0"/>')
     return xml
+
+
+
+# ---------------------------------------------------------------------------------------------
+#  Scenario's (tab Scenario's): cumulatieve cashflow per scenario
+# ---------------------------------------------------------------------------------------------
+def scenarios(r, lbl):
+    """Lijn per scenario (Basis navy, scenario 1..3 in hun kleur, alleen waar ze van de Basis afwijken), dieptepunt als stip met het
+    bedrag als label (reeksnaam uit een cel), gerealiseerde kwartalen als grijs vlak. Geen legenda: de gekleurde blokjes boven de
+    grafiek op het tabblad noemen de scenario's."""
+    kw = r["kwartaal"]
+    lines = [ser_line(1, "Basis", kw, r["basis"], NAVY, 2.5)]
+    lines += [ser_line(1 + s_, f"Scenario {s_}", kw, r[f"vs{s_}"], VS_KLEUREN[s_], 2) for s_ in range(1, len(VS_KLEUREN))]
+    n = len(VS_KLEUREN)
+    punten = [ser_punt(1 + n + s_, "=" + lbl[f"dal{s_}"], kw, r[f"dal{s_}"], VS_KLEUREN[s_], "b") for s_ in range(len(VS_KLEUREN))]
+    groepen = [grp_waas(0, kw, r["realisatie"]), grp_line(lines + punten)]
+    return chart_space(groepen, [cat_ax(AX1, AX2), val_ax(AX2, AX1, FMT_MLN)] + assen_waas(), "", na_als_leeg=True)

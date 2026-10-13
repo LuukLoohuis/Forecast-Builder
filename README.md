@@ -1,8 +1,8 @@
 # Forecast-Builder
 
-Bouwt het werkboek **Cashflow_scenario** (Dashboard · Invoer · Woningtypes · Model · PowerPoint) met Python/openpyxl.
-Het werkboek rekent scenario's (downside/upside) uit bovenop je eigen projectcashflow en vult met één knop
-het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v17.pptx`).
+Bouwt het werkboek **Cashflow_scenario** (Dashboard · Scenario's · Invoer · Woningtypes · Model · PowerPoint) met Python/openpyxl.
+Het werkboek rekent scenario's (downside/upside en verkoopscenario's) uit bovenop je eigen projectcashflow en vult met één knop
+het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v18.pptx`).
 
 ## Wat zit erin
 
@@ -11,6 +11,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v17.pptx`).
 | `build.py` | opdrachtregel: bouwt `out/Cashflow_scenario.xlsx` (en `.xlsm` als er een VBA-bron is) |
 | `forecast_builder/layout.py` | vaste indeling: kolommen, rijen, hulpcellen, capaciteit (`N_TYPES = 10`) |
 | `forecast_builder/sheets.py` | alle tabbladen en formules |
+| `forecast_builder/scenarios.py` | tab Scenario's en de Modelkolommen van de verkoopscenario's |
 | `forecast_builder/data.py` | projectgegevens: inlezen uit een bestaand werkboek (oude of nieuwe indeling) of het ingebouwde voorbeeld |
 | `forecast_builder/charts.py` | grafiek-XML voor het Dashboard |
 | `forecast_builder/package.py` | nabewerking: grafieken en VBA in het bestand zetten |
@@ -26,6 +27,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v17.pptx`).
 | `tools/pptx_v15_pertype.py` | sjabloon v14 → v15: lichtblauwe 'Vorige prognose' (dia 3), vernieuwde grafiek per woningtype (dia 8) |
 | `tools/pptx_v16_verkooppct.py` | sjabloon v15 → v16: dia 6 met het cumulatieve percentage als lijn met labels, blok van 30 kolommen, tijdvak vanaf het actuals-jaar |
 | `tools/pptx_v14_daeb.py` | dia 8 'Opbrengsten per woningtype' (PT_GRAFIEK; de macro maakt per type een kopie) en herkleurde dia 5/6: vorige prognose lichtrood (v13 → v14) |
+| `tools/pptx_v18_scenarios.py` | sjabloon v17 → v18: nieuwe dia 4 'Verkoopscenario's' (kaarten, legenda, VS_GRAFIEK) en drie scenariolijnen in de cashflowgrafiek op dia 3; `--simuleer` doet na wat de macro doet |
 | `tools/pptx_v17_kerncijfers.py` | sjabloon v16 → v17: dia 2 'kerncijfers' in het nieuwe ontwerp (tegels, tijdlijnband met de kleine cashflowgrafiek KPI_GRAFIEK, kaarten met balken, grootste lasten); `--simuleer` doet na wat de macro doet |
 
 ## Bouwen
@@ -41,8 +43,9 @@ python build.py --leeg --out out/Cashflow_scenario_leeg   # leeg sjabloon: geen 
 Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`
 geschreven (`forecast_builder/vbabuild.py`, op basis van `vba/vbaProject_template.bin` met de documentmodules en
 projectinstellingen). Importeren in de VBA-editor is dus niet nodig. Bij het openen zet `KnoppenControleren`
-de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v17.pptx` naast het werkboek
-(of vul het pad in op tab PowerPoint). Sjabloon v17 maak je van v16 met `python3 tools/pptx_v17_kerncijfers.py v16.pptx v17.pptx`.
+de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v18.pptx` naast het werkboek
+(of vul het pad in op tab PowerPoint). Sjabloon v18 maak je van v17 met `python3 tools/pptx_v18_scenarios.py v17.pptx v18.pptx`
+(v17 van v16 met `tools/pptx_v17_kerncijfers.py`).
 
 `--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken), dus een
 bijgewerkt werkboek genereer je later opnieuw zonder gegevens over te typen.
@@ -77,6 +80,20 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   keuzecel: gestapelde kolommen per kwartaal met grondtermijn, bouwtermijnen en extra's (koop) of de fees per component
   (DAEB), cumulatieve lijn, chips per onderdeel; Model-selectieblok `pt_*`, benoemde bereiken `g_pt_*`). Een grijs vlak
   markeert de gerealiseerde kwartalen.
+* **Scenario's** – verkoopscenario's naast de Basis (je planning). Per scenario (tot drie) vul je alleen in wat anders is:
+  *start bouw* (hele project), *verkoop vanaf* (het verkooptempo schuift mee) en *transport vanaf* (leeg = net zo ver na
+  start bouw als in de planning; nooit vóór de verkoop), plus een naam (leeg = automatisch, bv. 'Verkoop Q2 ’28'). Kwartalen
+  kies je uit de keuzelijst of typ je ('Q2 2028', '2028 Q2'); een lege kolom staat uit. Het tabblad toont kaarten per scenario
+  (max. financiering, dieptepunt, break-even, verkocht bij start bouw tegen de norm, verschil met de Basis), de uitkomst per
+  scenario, de grafiek met de cumulatieve cashflow per scenario (een lijn alleen waar hij van de Basis afwijkt, dieptepunt als
+  stip) en de opbrengsten per termijn en per kwartaal voor een gekozen scenario en woningtype (zoals 'CF - opbrengsten' in het FO).
+  Rekenregels: verkoop per type schuift met het verschil tussen *verkoop vanaf* en de eerste geplande verkoop; transport volgt
+  de geplande transportcurve, verschoven, en nooit meer dan er verkocht is; bouwtermijnen en extra's schuiven met de start bouw
+  en worden bij transport ingehaald (grond + alle vervallen termijnen); kosten vanaf de geplande start bouw schuiven mee met de
+  start bouw; rente rekent zoals bij de scenariolijn. Een scenario zonder invoer is precies de Basis. **Naar PowerPoint** (ja/nee)
+  bepaalt of de ingevulde scenario's op dia 4 en als lijnen in de cashflowgrafiek komen; zonder ingevuld scenario komt er niets
+  in PowerPoint (de macro haalt dia 4 weg). De Dashboard-cashflowgrafiek toont de scenariolijnen ook. Model: kolommen vanaf LK
+  (per scenario een blok, `layout.vs_col`), hulpcellen `vs_*` en `vs<s>_*` (BY145 e.v.), benoemde bereiken `g_vs<s>` en `g_vsw_*`.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
@@ -101,16 +118,17 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   transport cum, transport cum up/down/scenariolijn, termijnen, en per type verkocht en getransporteerd per kwartaal voor
   de grafiek, benoemde bereiken `g_v<k>`/`g_t<k>`).
 * **PowerPoint** – teksten, tabellen en grafiekblokken voor de dia's; kolom F = vormnaam op de dia. Blokken (kop in rij 7):
-  cashflow (G, dia 3, acht kolommen; de achtste (N) is de scenariolijn, in het sjabloon een reeks op kolom H van het
-  gegevensblad; staat de lijn uit, dan luidt de kop '… (uit)' en haalt de macro die reeks uit de grafiek), scenario's (P,
-  dia 4), bouwtermijnen (AA, dia 5: 108 kolommen = termijn + 107 reeksen (stapel 1: onzichtbaar, grijs, onzichtbaar,
+  cashflow (GT, dia 3, elf kolommen; de achtste is de scenariolijn, in het sjabloon een reeks op kolom H van het
+  gegevensblad, de laatste drie zijn de verkoopscenario's (kolom I..K); staat een lijn uit, dan luidt de kop '… (uit)' en
+  haalt de macro die reeks uit de grafiek), verkoopscenario's (HF, dia 4: negen kolommen = jaarlabel, Basis, scenario 1..3,
+  dieptepunt Basis en scenario 1..3; tijdvak vanaf het actuals-jaar), scenario's (P, dia 5), bouwtermijnen (AA, dia 6: 108 kolommen = termijn + 107 reeksen (stapel 1: onzichtbaar, grijs, onzichtbaar,
   vorige prognose per type, grijs, onzichtbaar, 16 jaarblokjes; stapel 2: onzichtbaar, huidige planning per type,
   onzichtbaar, 64 kwartaalblokjes), tot 132 rijen, Model!BY96 = aantal rijen, waarden in kwartaalindex; koppen '(uit)' =
-  reeks niet in de presentatie), verkoop en transport per type (EF, dia 6: 30 kolommen = kwartaal, verkocht en
+  reeks niet in de presentatie), verkoop en transport per type (EF, dia 7: 30 kolommen = kwartaal, verkocht en
   getransporteerd per type, totalen, mijlpalen, realisatie, cumulatief % en label voor verkocht en voor transport; alleen
   de periodes vanaf het actuals-jaar (Model!BY131/BY132); twee grafieken lezen hetzelfde blok), van verkoop naar omzet (FK,
-  dia 7), opbrengsten per woningtype (FQ, dia 8: 10 kolommen = kwartaal, zes reeksen, totaal per kwartaal (label boven de stapel), eindpunt (label met het totaal), realisatie; alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY127/BY128); het type uit de keuzecel;
-  de macro zet per type de keuzecel, rekent door en vult een kopie van dia 8); tabellen vanaf GB. De bouwtermijnentabel
+  dia 8), opbrengsten per woningtype (FQ, dia 9: 10 kolommen = kwartaal, zes reeksen, totaal per kwartaal (label boven de stapel), eindpunt (label met het totaal), realisatie; alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY127/BY128); het type uit de keuzecel;
+  de macro zet per type de keuzecel, rekent door en vult een kopie van dia 9); tabellen vanaf GB. De bouwtermijnentabel
   staat in het Model (kolommen vanaf FX: raster van alle type × termijn-combinaties (bij DAEB de fee-termijnen) met
   groepsnaam, bedrag, kwartaalindex, rang en positie, daarna de compacte lijst met de koprijen, de banen en de
   stapelsegmenten voor de grafiek), gevolgd door het selectieblok van de grafiek per type.
@@ -176,11 +194,11 @@ rente staan in de hulpcellen en op tab PowerPoint (blok *extra knoppen en scenar
 In het PowerPoint-sjabloon (sinds v11, `tools/pptx_scenario_line.py`) staat de lijn ook in de cashflowgrafiek op
 dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam uit het werkboek.
 
-### Dia's en sjabloon v17
+### Dia's en sjabloon v18
 
-Dia 1 titel · 2 kerncijfers (tegels, tijdlijnband met kleine cashflowgrafiek, kaarten met balken) · 3 cashflow per kwartaal (met scenariolijn) · 4 scenario's · 5 bouwtermijnen per woningtype
-(tijdlijn) met de tabel woningtypes · 6 verkoop en transport per kwartaal (twee panelen) · 7 van verkoop naar omzet ·
-8 opbrengsten per woningtype (de macro maakt per type met aantal > 0 een kopie van deze dia en haalt dia 8 zelf weg).
+Dia 1 titel · 2 kerncijfers (tegels, tijdlijnband met kleine cashflowgrafiek, kaarten met balken) · 3 cashflow per kwartaal (met scenariolijn en verkoopscenario's) · 4 verkoopscenario's · 5 scenario's · 6 bouwtermijnen per woningtype
+(tijdlijn) met de tabel woningtypes · 7 verkoop en transport per kwartaal (twee panelen) · 8 van verkoop naar omzet ·
+9 opbrengsten per woningtype (de macro maakt per type met aantal > 0 een kopie van deze dia en haalt dia 9 zelf weg).
 De macro *Naar PowerPoint* vult alle teksten, tabellen en grafieken: per grafiek schrijft hij het blok van tab PowerPoint
 in het gegevensblad van de grafiek op de dia en zet de reeksen op de juiste kolommen; reeksen met een kop die op '(uit)'
 eindigt haalt hij weg (scenariolijn uit; typen zonder termijnen en jaren buiten het bereik in de bouwtermijnengrafiek);
@@ -207,6 +225,15 @@ waarde-as op de hulpcellen `kc_min`/`kc_max`, het grijze vlak t/m het actuals-kw
 stip, of rechts als het links niet past); de x van een kwartaal volgt uit het vaste tekenvlak (`layout.KC_PLOT`). Met een ouder
 sjabloon (v15/v16) werkt de knop nog: de bandbreedtekaart (KPI5) en de voetnoot gaan weg en de overige kaarten verdelen de
 breedte; de grafiek en de balken ontbreken dan (gemeld als 'niet gevonden').
+
+Dia 4 'Verkoopscenario's' (sjabloon v18 via `tools/pptx_v18_scenarios.py`) komt alleen in de presentatie als er op tab
+Scenario's een scenario is ingevuld en *Naar PowerPoint* op ja staat (Model `vs_pp_aan`); anders haalt de macro de dia weg en
+staan de scenariolijnen in de cashflowgrafiek op '(uit)'. De dia heeft een kopje, een titel over het scenario met de diepste
+financiering, een kaart per scenario (Basis en ingevulde scenario's: max. financiering, dieptepunt, break-even, verkocht bij
+start bouw tegen de norm, verschil met de Basis), een legenda en de grafiek `VS_GRAFIEK` (blok HF). `SchikDiaScenarios` haalt
+lege kaarten en legenda-regels weg en verdeelt de breedte; `SchikGrafiekVS` zet de waarde-as op de hulpcellen
+`vs_min`/`vs_max`/`vs_stap` en het grijze vlak t/m het actuals-kwartaal (vast tekenvlak `layout.VS_PLOT`). Instellingen van
+tab PowerPoint staan sinds v18 op C130/D130 (sjabloon) en D131 (naam).
 
 ## Controle
 

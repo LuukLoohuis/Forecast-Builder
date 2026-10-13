@@ -75,7 +75,17 @@ def test_blokconstanten_volgen_de_layout():
     assert 'Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, "")' in src
     assert const("CEL_AS_MIN") == f"{LY.M_HULP}{LY.H['t_first']}" and const("CEL_AS_MAX") == f"{LY.M_HULP}{LY.H['t_end']}"
     assert const("KOL_BT") == str(LY.PP_BT_KOL)
-    for regel in (f'Array("CF_GRAFIEK", "{LY.PP_BLOK["cf"]}7", 8, "")', f'Array("SC_GRAFIEK", "{LY.PP_BLOK["sc"]}7", 10, "")',
+    # v18: cashflowblok met de drie scenariolijnen, blok van dia 4 en de hulpcellen van tab Scenario's
+    assert const("BLOK_CF") == LY.PP_BLOK["cf"] + "7" and int(const("KOL_CF")) == LY.PP_CF_KOL
+    assert const("BLOK_VS") == LY.PP_BLOK["vs"] + "7" and int(const("KOL_VS")) == LY.PP_VS_KOL and int(const("N_VS")) == LY.N_VS
+    for naam, hulp in (("CEL_VS_PP", "vs_pp_aan"), ("CEL_VS_MIN", "vs_min"), ("CEL_VS_MAX", "vs_max"), ("CEL_VS_STAP", "vs_stap"),
+                       ("CEL_VS_NU", "vs_nu_pos")):
+        assert const(naam) == f"{LY.M_HULP}{LY.H[hulp]}", naam
+    for naam, waarde in (("VS_PLOT_X", LY.VS_PLOT_X), ("VS_PLOT_W", LY.VS_PLOT_W)):
+        m = re.search(rf"^Private Const {naam} As Double = ([0-9.]+)", src, flags=re.M)
+        assert m and abs(float(m.group(1)) - waarde) < 1e-4, naam
+    assert 'Array("CF_GRAFIEK", BLOK_CF, KOL_CF, "")' in src and 'Array("VS_GRAFIEK", BLOK_VS, KOL_VS, CEL_VP_N)' in src
+    for regel in (f'Array("SC_GRAFIEK", "{LY.PP_BLOK["sc"]}7", 10, "")',
                   f'Array("BT_GRAFIEK", "{LY.PP_BLOK["bt"]}7", KOL_BT, "{LY.M_HULP}{LY.H["bt_n"]}")',
                   f'Array("VP1_GRAFIEK", "{LY.PP_BLOK["vp"]}7", KOL_VP, CEL_VP_N)', f'Array("VP2_GRAFIEK", "{LY.PP_BLOK["vp"]}7", KOL_VP, CEL_VP_N)',
                   f'Array("VO_GRAFIEK", "{LY.PP_BLOK["vo"]}7", 5, "")', f'Array("SC_TABEL", "{LY.PP_TABEL_SC}", 9, 4, 0)',
@@ -95,6 +105,23 @@ def test_dia2_geschikt_na_de_teksten():
     # v17: balken na het schikken, de grafiek van dia 2 na het vullen geschikt, '(uit)'-reeksen ook in KPI_GRAFIEK
     assert body.index("SchikDia2 pres, wsP") < body.index("VulBalken pres, wsP") < body.index("t = Tabellen()")
     assert 'If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch' in procs["VulGrafiekVorm"]
-    assert 'Or vorm = "KPI_GRAFIEK" Then VerwijderUitgezetteReeksen' in procs["VulGrafiekVorm"]
+    assert 'Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" Then VerwijderUitgezetteReeksen' in procs["VulGrafiekVorm"]
     assert "If IsBalkregel(vorm) Then" in procs["VulTeksten"] and "RichtingKleur(richting)" in procs["VulBalken"]
     assert 'RegelVanVorm(wsP, "KPI" & k & "_NAAM1")' in procs["SchikDia2"] and "GRAFIEK_LEGENDA_VORIG_LIJN" in procs["SchikDia2"]
+
+
+def test_dia_scenarios_alleen_als_ze_aan_staan():
+    """Dia 4 'Verkoopscenario's' (sjabloon v18): zonder ingevuld scenario of met Naar PowerPoint = nee (Model!vs_pp_aan = 0) haalt
+    de macro de dia weg en slaat hij de VS_-teksten en VS_GRAFIEK over; anders verdwijnen de lege kaarten en legenda-regels en
+    schikt SchikGrafiekVS de as en het grijze vlak. De scenariolijnen in de cashflowgrafiek gaan weg via de kop '(uit)'."""
+    src = open(BAS, encoding="utf-8").read()
+    procs = _procedures(src)
+    body = procs["NaarPowerPoint"]
+    assert body.index("VulTeksten pres, wsP, mist") < body.index("SchikDiaScenarios pres, wsP") < body.index("t = Tabellen()")
+    assert 'If CStr(g(i)(0)) <> "VS_GRAFIEK" Or VsDiaAan() Then' in body
+    assert 'Left$(vorm, 3) = "VS_" And Not VsDiaAan()' in procs["VulTeksten"]
+    assert "VsDiaAan()" in procs["SchikDiaScenarios"] and ".Delete" in procs["SchikDiaScenarios"]
+    assert '"VS_K" & k & "_WAARDE"' in procs["SchikDiaScenarios"] and '"VS_LEG" & k' in procs["SchikDiaScenarios"]
+    assert 'If vorm = "VS_GRAFIEK" Then SchikGrafiekVS shp, ch' in procs["VulGrafiekVorm"]
+    assert '"VS_REALISATIE"' in procs["SchikGrafiekVS"] and "CEL_VS_NU" in procs["SchikGrafiekVS"]
+    assert "CEL_VS_PP" in procs["VsDiaAan"]

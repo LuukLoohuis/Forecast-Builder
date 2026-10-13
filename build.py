@@ -19,7 +19,7 @@ import tempfile
 from openpyxl import Workbook
 from openpyxl.workbook.defined_name import DefinedName
 
-from forecast_builder import cache, charts, data as D, layout as LY, package, sheets
+from forecast_builder import cache, charts, data as D, layout as LY, package, scenarios, sheets
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 VBA_BAS = os.path.join(HIER, "vba", "CashflowNaarPowerPoint_v10.bas")
@@ -38,7 +38,7 @@ def vba_bin_maken(template_pad=None, bas_pad=VBA_BAS):
             template = f.read()
     with open(bas_pad, encoding="utf-8", newline="") as f:
         bron = f.read().replace("\r\n", "\n").replace("\n", "\r\n")   # VBA-bron wordt met CRLF opgeslagen
-    codenames = ["shDashboard", "shInvoer", "shWoningtypes", "shModel", "shPowerPoint"]   # werkbladen in het werkboek
+    codenames = ["shDashboard", "shScenarios", "shInvoer", "shWoningtypes", "shModel", "shPowerPoint"]   # werkbladen in het werkboek
     return vbabuild.build_vbaproject(template, {VBA_MODULE: bron}, documentmodules=codenames)
 
 
@@ -69,9 +69,11 @@ def bouw_werkboek(project):
     wb.remove(wb.active)
     wb.code_name = "ThisWorkbook"
     ws_dash = sheets.bouw_dashboard(wb, project)
+    scenarios.bouw_tab(wb, project)                    # tab Scenario's direct na het Dashboard
     sheets.bouw_invoer(wb, project)
     sheets.bouw_woningtypes(wb, project)
     sheets.bouw_model(wb)
+    scenarios.bouw_model_scenarios(wb["Model"])
     sheets.bouw_powerpoint(wb, project)
     # benoemde bereiken voor de grafieken: zo lang als er periodes zijn
     for naam, col in LY.M.items():
@@ -94,6 +96,15 @@ def bouw_werkboek(project):
         wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${LY.PT[key]}${LY.ROW1},Model!{LY.h('pt_start')}-1,0,MAX(1,Model!{LY.h('pt_n')}),1)")
     for naam, col in (("g_pt_kwartaal", LY.FIX["kwartaal"]), ("g_pt_realisatie", LY.M["g_realisatie"])):
         wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${col}${LY.ROW1},Model!{LY.h('pt_start')}-1,0,MAX(1,Model!{LY.h('pt_n')}),1)")
+    # scenario's (tab Scenario's): lijnen in de cashflowgrafiek (alle periodes), grafiek op de tab (vanaf het actuals-jaar) en de
+    # keuzelijst met kwartalen na de actuals
+    for naam, col in charts.VS_NAMEN.items():
+        wb.defined_names[naam] = DefinedName(naam, attr_text=f"OFFSET(Model!${col}${LY.ROW1},0,0,MAX(1,Model!{LY.h('n')}),1)")
+    for key, col in charts.VSW_NAMEN.items():
+        wb.defined_names[f"g_vsw_{key}"] = DefinedName(f"g_vsw_{key}", attr_text=f"OFFSET(Model!${col}${LY.ROW1},{venster}")
+    wb.defined_names["vs_kwartalen"] = DefinedName("vs_kwartalen", attr_text=(
+        f"OFFSET(Model!${LY.FIX['kwartaal_vol']}${LY.ROW1},Model!{LY.h('pos_actuals')},0,"
+        f"MAX(1,Model!{LY.h('n')}-Model!{LY.h('pos_actuals')}),1)"))
     charts.plaats_grafieken(ws_dash, wb, jaar_min_van(project), jaar_max_van(project))
     wb.calculation.fullCalcOnLoad = True
     return wb

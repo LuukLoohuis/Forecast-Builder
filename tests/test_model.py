@@ -58,6 +58,7 @@ def foutcellen(wb):
     na_ok |= {LY.m_col(blok, k) for blok in ("gv", "gt") for k in range(1, LY.N_TYPES + 1)}   # lege typeblokken: NA()
     na_ok |= set(LY.BT.values())                                                            # bouwtermijnentabel: NA() buiten de gebruikte rijen
     na_ok |= set(LY.PT.values())                                                            # grafiek per type: NA() voorbij de laatste periode
+    na_ok |= {LY.vs_col(s, k) for s in range(1, LY.N_VS + 1) for k in ("g", "gdal")}         # scenariolijnen: NA() waar gelijk aan de Basis
     fouten = []
     for ws in wb.worksheets:
         for row in ws.iter_rows():
@@ -448,3 +449,85 @@ def test_dia2_grafiekblok_balken_en_lasten(tmp, basis):
     pp2 = wb["PowerPoint"]
     leeg = {pp2[f"F{r}"].value: pp2[f"D{r}"].value for r in range(LY.PP_KPI_ROW1, LY.PP_KPI_ROW1 + 80) if pp2[f"F{r}"].value}
     assert leeg["KPI9_NAAM1"] is None and leeg["KPI9_BALK1"] == 0 and wb["Model"][f"BY{LY.H['lasten_max']}"].value == 0
+
+
+def _pp_regels(pp, dia):
+    regels, r = {}, LY.PP_KPI_ROW1
+    while pp[f"C{r}"].value:
+        if pp[f"B{r}"].value == dia:
+            regels[pp[f"F{r}"].value] = pp[f"D{r}"].value
+        r += 1
+    return regels
+
+
+def test_verkoopscenarios(basis):
+    """Tab Scenario's: een leeg scenario is precies de Basis; later starten (start bouw +2 kw) verandert het eindsaldo alleen met de
+    extra rente; later verkopen (verkoop +4 kw) verandert de lijn maar niet het eindsaldo. De lijn staat alleen waar het scenario
+    afwijkt; dia 4 en de cashflowgrafiek tonen alleen ingevulde scenario's."""
+    m, pp = basis["Model"], basis["PowerPoint"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    n = hb("n")
+    rij = lambda i: LY.ROW1 + i  # noqa: E731
+    stand = lambda col: [m[f"{col}{rij(i)}"].value for i in range(n)]  # noqa: E731
+    basislijn = stand(LY.M["stand_basis"])
+    # voorbeeld: scenario 1 verkoop Q1 2028, scenario 2 'Later starten' start bouw Q3 2027, scenario 3 leeg
+    assert [hb(f"vs{s}_aan") for s in (1, 2, 3)] == [1, 1, 0] and hb("vs_pp_aan") == 1
+    assert max(abs(a - b) for a, b in zip(stand(LY.vs_col(3, "stand")), basislijn)) < 1e-6
+    assert stand(LY.vs_col(3, "g")) == ["#N/A"] * n
+    assert (hb("vs3_dal"), hb("vs3_eind"), hb("vs3_rente")) == (hb("dal_basis"), hb("eind_basis"), 0)
+    assert (hb("vs2_d_sb"), hb("vs2_d_v"), hb("vs2_d_t")) == (2, 0, 2)
+    assert hb("vs2_rente") > 0 and abs(hb("vs2_eind") - (hb("eind_basis") - hb("vs2_rente") + hb("rente_basis_tot"))) < 1
+    assert hb("vs2_dal") < hb("dal_basis") and hb("vs2_d_be") == 1 and hb("vs2_vbsb_pct") >= hb("verk_bij_start_pct")
+    assert (hb("vs1_d_sb"), hb("vs1_d_v")) == (0, 4)
+    assert abs(hb("vs1_eind") - hb("eind_basis")) < 1 and hb("vs1_vbsb_pct") < hb("verk_bij_start_pct")
+    for s in (1, 2):
+        lijn, g = stand(LY.vs_col(s, "stand")), stand(LY.vs_col(s, "g"))
+        afwijkend = [i for i in range(n) if abs(lijn[i] - basislijn[i]) > 1]
+        assert afwijkend, s
+        for i in range(n):                                   # zichtbaar = afwijkend of naast een afwijkend kwartaal
+            zichtbaar = any(abs(j - i) <= 1 for j in afwijkend)
+            assert (g[i] != "#N/A") == zichtbaar, (s, i)
+            if zichtbaar:
+                assert abs(g[i] - lijn[i] / 1e6) < 1e-6, (s, i)
+        assert lijn[:min(afwijkend) - 1] == basislijn[:min(afwijkend) - 1]      # de gedeelde geschiedenis blijft van de Basis
+    # PowerPoint: cashflowgrafiek met de ingevulde scenario's, dia 4 zonder kaart en legenda voor scenario 3
+    c0 = pp[LY.PP_BLOK["cf"] + "1"].column
+    koppen = [pp.cell(7, c0 + j).value for j in range(LY.PP_CF_KOL)]
+    assert koppen[-3:] == [hb("vs1_leg"), hb("vs2_leg"), "Scenario 3 (uit)"]
+    assert hb("vs1_leg") == "Scenario 1 · verkoop Q1 ’28" and hb("vs2_leg") == "Scenario 2 · Later starten"
+    regels = _pp_regels(pp, 4)
+    assert all(regels[f"VS_K3_{veld}"] is None for veld in ("NAAM", "SUB", "WAARDE", "LABEL", "DAL", "BE", "VERKOCHT", "DELTA"))
+    assert regels["VS_LEG3"] is None and regels["VS_LEG1"] == hb("vs1_leg") and regels["VS_K2_NAAM"] == "Scenario 2 · Later starten"
+    assert regels["VS_TITEL"].startswith("Later starten: financiering tot −€17")
+    assert regels["VS_K2_DELTA"].endswith("extra financiering · break-even 1 kwartaal later")
+    assert any(str(k).startswith("SC_") for k in _pp_regels(pp, 5))                   # de scenario-dia schoof van 4 naar 5
+
+
+def test_scenarios_niet_naar_powerpoint(tmp):
+    """Naar PowerPoint = nee: de scenario's rekenen op het tabblad, maar dia 4 krijgt geen tekst (de macro haalt hem weg) en de
+    scenariolijnen in de cashflowgrafiek staan op '(uit)'. De invoer op tab Scenario's wordt bij inlezen teruggelezen."""
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "vs_rond"), None, caches=False)
+    terug = D.lees_werkboek(paden[0]).params
+    assert terug["vs"] == D.voorbeeld().params["vs"] and terug["vs_pp"] == "ja"
+    p = D.voorbeeld()
+    p.params["vs_pp"] = "nee"
+    wb = bouw_en_bereken(p, tmp, "vs_nee")
+    m, pp = wb["Model"], wb["PowerPoint"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    assert hb("vs_aan") == 2 and hb("vs_pp_aan") == 0 and hb("vs2_dal") < hb("dal_basis")
+    c0 = pp[LY.PP_BLOK["cf"] + "1"].column
+    assert [pp.cell(7, c0 + j).value for j in range(LY.PP_CF_KOL)][-3:] == [f"Scenario {s} (uit)" for s in (1, 2, 3)]
+    regels = _pp_regels(pp, 4)
+    assert all(regels[f"VS_K{s}_WAARDE"] is None and regels[f"VS_LEG{s}"] is None for s in (1, 2, 3))
+
+
+def test_leeg_werkboek_zonder_fouten(tmp):
+    """Het lege sjabloon (build.py --leeg: geen periodes, geen woningtypes) rekent zonder foutwaarden buiten de bedoelde #N/A;
+    zonder scenario komt er niets van tab Scenario's in PowerPoint."""
+    wb = bouw_en_bereken(D.leeg(), tmp, "leeg")
+    fout = [f"{ws.title}!{c.coordinate}={c.value}" for ws in wb.worksheets for row in ws.iter_rows() for c in row
+            if isinstance(c.value, str) and c.value.startswith("#") and c.value != "#N/A"]
+    assert fout == []
+    m = wb["Model"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    assert (hb("vs_aan"), hb("vs_pp_aan")) == (0, 0) and hb("vs_max") > hb("vs_min")

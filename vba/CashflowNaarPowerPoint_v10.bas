@@ -48,6 +48,15 @@ Option Explicit
 '       grootste lasten (KPI9_NAAM1..3, _BEDRAG1..3, _SPOOR1..3/_BALK1..3; Dashboard-sectie 'GROOTSTE LASTEN'). VulBalken zet de
 '       balkbreedtes (aandeel in kolom D), SchikGrafiekDia2 de waarde-as (Model!BY142..BY143), het grijze vlak GRAFIEK_REALISATIE
 '       en het nu-blok (TL_NU_LABEL, KPI4_WAARDE, KPI4_SUB) op het 'nu'-kwartaal; instellingen op D76/D77; sjabloon v17.
+'  v18: scenario's van tab Scenario's (start bouw, verkoop en transport per scenario): dia 4 'Verkoopscenario's' (sjabloon v18,
+'       tools/pptx_v18_scenarios.py) met een kaart per scenario, legenda en VS_GRAFIEK (blok BLOK_VS, KOL_VS kolommen, tijdvak vanaf
+'       het actuals-jaar zoals de verkoopgrafiek); de cashflowgrafiek (dia 3) krijgt de scenariolijnen erbij: blok BLOK_CF met KOL_CF
+'       kolommen (tot v17: G7, 8 kolommen). SchikDiaScenarios haalt de dia weg als er geen scenario is ingevuld of Naar PowerPoint =
+'       nee (Model!BY154 = 0), en anders de kaarten en legenda-regels van lege scenario's, en verdeelt de rest; SchikGrafiekVS zet de
+'       waarde-as (Model!BY155..BY157) en het grijze vlak VS_REALISATIE t/m het 'nu'-kwartaal. Instellingen nu op D130/D131
+'       (meer KPI-regels); de dia's na dia 3 schuiven een nummer op; sjabloon v18.
+'  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
+'  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer en Woningtypes vanuit een FO-werkboek (zie v14 hierboven)
 '  VorigePrognoseUitFO  vult blok 4 en 6 (vorige prognose) vanuit een ouder FO
 '  PlanningBewarenAlsVorig  zet de huidige planning in blok 4 en 6
@@ -64,9 +73,9 @@ Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
 Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFIEK: kwartaalindex 1 jan eerste jaar (Model, t_first)
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
-Private Const CEL_SJABLOON As String = "D76"
-Private Const CEL_NAAM As String = "D77"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v17.pptx"
+Private Const CEL_SJABLOON As String = "D130"
+Private Const CEL_NAAM As String = "D131"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v18.pptx"
 Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
@@ -88,6 +97,19 @@ Private Const CEL_KC_MAX As String = "BY143"
 Private Const CEL_POS_ACTUALS As String = "BY10"
 Private Const KC_PLOT_X As Double = 0.0217
 Private Const KC_PLOT_W As Double = 0.9217
+' v18: cashflowgrafiek met de scenariolijnen (dia 3) en dia 4 'Verkoopscenario's'
+Private Const BLOK_CF As String = "GT7"
+Private Const KOL_CF As Long = 11
+Private Const BLOK_VS As String = "HF7"
+Private Const KOL_VS As Long = 9
+Private Const N_VS As Long = 3                     ' scenario's naast de Basis (kaarten VS_K1..VS_K3, legenda VS_LEG1..3)
+Private Const CEL_VS_PP As String = "BY154"        ' Model: dia 4 en de scenariolijnen in PowerPoint (1/0)
+Private Const CEL_VS_MIN As String = "BY155"       ' Model: waarde-as van VS_GRAFIEK (€ mln) en de stap
+Private Const CEL_VS_MAX As String = "BY156"
+Private Const CEL_VS_STAP As String = "BY157"
+Private Const CEL_VS_NU As String = "BY171"        ' Model: positie van het 'nu'-kwartaal in het tijdvak van VS_GRAFIEK
+Private Const VS_PLOT_X As Double = 0.0437
+Private Const VS_PLOT_W As Double = 0.9421
 ' FO-koppeling (Dashboard): bestand, actuals t/m, opbrengsten en kosten totaal uit '1. Cashflow', datum; actuals-knop W5/X5
 Private Const CEL_FO_BESTAND As String = "W69"
 Private Const CEL_FO_ACTUALS As String = "W70"
@@ -143,10 +165,14 @@ Private Function Grafieken() As Variant
     ' VP1/VP2 (dia 6): verkocht en getransporteerd per kwartaal, beide panelen lezen hetzelfde blok van 26 kolommen
     ' KPI (dia 2): kleine cashflowgrafiek, blok BLOK_KC met KOL_KC kolommen (één-punts-reeksen voor nu, dieptepunt, break-even,
     '   eindsaldo en €0; na het vullen zet SchikGrafiekDia2 de as, het grijze vlak en het nu-blok)
-    Grafieken = Array(Array("CF_GRAFIEK", "G7", 8, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
+    ' VS (dia 4, sinds v18): verkoopscenario's, blok BLOK_VS (jaartal, Basis, scenario 1..3, dieptepunten), tijdvak vanaf het
+    '   actuals-jaar (aantal rijen CEL_VP_N); '(uit)' = scenario niet in PowerPoint; na het vullen zet SchikGrafiekVS as en grijs vlak.
+    '   CF heeft sinds v18 elf kolommen (BLOK_CF): de laatste drie zijn de scenario's (in sjabloon v17 ongebruikt)
+    Grafieken = Array(Array("CF_GRAFIEK", BLOK_CF, KOL_CF, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
                       Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
                       Array("VP1_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), Array("VP2_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), _
-                      Array("VO_GRAFIEK", "FK7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, ""))
+                      Array("VO_GRAFIEK", "FK7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, ""), _
+                      Array("VS_GRAFIEK", BLOK_VS, KOL_VS, CEL_VP_N))
 End Function
 
 Private Function Tabellen() As Variant
@@ -389,6 +415,9 @@ Public Sub NaarPowerPoint()
     SchikDia2 pres, wsP
     VulBalken pres, wsP
 
+    stap = "dia verkoopscenario's schikken"
+    SchikDiaScenarios pres, wsP
+
     stap = "tabellen vullen"
     t = Tabellen()
     For i = LBound(t) To UBound(t)
@@ -406,7 +435,10 @@ Public Sub NaarPowerPoint()
         Else
             nG = n
         End If
-        VulGrafiek pres, CStr(g(i)(0)), wsP.Range(CStr(g(i)(1))), nG, CLng(g(i)(2)), mist, fouten
+        ' de dia met VS_GRAFIEK is weg als er geen scenario in PowerPoint komt (SchikDiaScenarios)
+        If CStr(g(i)(0)) <> "VS_GRAFIEK" Or VsDiaAan() Then
+            VulGrafiek pres, CStr(g(i)(0)), wsP.Range(CStr(g(i)(1))), nG, CLng(g(i)(2)), mist, fouten
+        End If
     Next i
 
     stap = "dia per woningtype"
@@ -583,6 +615,8 @@ Private Sub VulTeksten(pres As Object, wsP As Worksheet, ByRef mist As String)
         vorm = Trim$(CelTekst(wsP.Range("F" & r)))
         If IsBalkregel(vorm) Then
             ' niets: balk
+        ElseIf Left$(vorm, 3) = "VS_" And Not VsDiaAan() Then
+            ' niets: dia 4 (verkoopscenario's) gaat weg
         ElseIf Len(vorm) > 0 Then
             Set shp = ZoekVorm(pres, vorm)
             If shp Is Nothing Then
@@ -972,6 +1006,185 @@ Private Sub SchikGrafiekDia2(shp As Object, ch As Object)
     On Error GoTo 0
 End Sub
 
+Private Function VsDiaAan() As Boolean
+    ' dia 4 'Verkoopscenario's' en de scenariolijnen in de cashflowdia: alleen als er op tab Scenario's een scenario is ingevuld
+    ' en Naar PowerPoint op ja staat (Model!BY154 = 1)
+    Dim v As Variant
+    On Error Resume Next
+    v = ThisWorkbook.Worksheets(SH_MODEL).Range(CEL_VS_PP).Value
+    If IsError(v) Then Exit Function
+    If IsNumeric(v) Then VsDiaAan = (CDbl(v) = 1)
+End Function
+
+Private Function ModelGetal(cel As String, ByRef ok As Boolean) As Double
+    ' getal uit een cel op tabblad Model; ok = False bij leeg, fout of tekst
+    Dim v As Variant
+    ok = False
+    On Error Resume Next
+    v = ThisWorkbook.Worksheets(SH_MODEL).Range(cel).Value
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+    If Not IsNumeric(v) Then Exit Function
+    ModelGetal = CDbl(v)
+    ok = True
+End Function
+
+Private Sub SchikDiaScenarios(pres As Object, wsP As Worksheet)
+    ' dia 4 'Verkoopscenario's' (sjabloon v18), na het vullen van de teksten. Komt er geen scenario in PowerPoint (niets ingevuld op
+    ' tab Scenario's, of Naar PowerPoint = nee), dan gaat de hele dia weg. Anders gaan de kaart (VS_Kk_*) en de legenda-regel
+    ' (VS_LEGk, VS_LEGk_LIJN) weg van elk scenario waarvan de regel VS_Kk_WAARDE op tab PowerPoint leeg is; de overige kaarten
+    ' verdelen de breedte van het kaartenblok (van de linkerrand van de eerste tot de rechterrand van de laatste kaart) met dezelfde
+    ' tussenruimte, en de legenda-regels schuiven aan op de plekken uit het sjabloon. Teksten in een kaart houden hun afstand tot
+    ' beide randen (en rekken dus mee), de accentstreep schuift alleen mee. Fouten worden stil overgeslagen.
+    Dim dia As Object, shp As Object, k As Long, j As Long, rW As Long, n As Long, nBlijft As Long, t As Long
+    Dim links(0 To N_VS) As Double, breed(0 To N_VS) As Double, legL(0 To N_VS) As Double
+    Dim blijft(0 To N_VS) As Boolean, bestaat(0 To N_VS) As Boolean
+    Dim bLinks As Double, bRechts As Double, tussen As Double, w As Double, doelL As Double, mL As Double, mR As Double, dx As Double
+    Dim prefix As String
+    On Error Resume Next
+    Set shp = ZoekVorm(pres, "VS_GRAFIEK")
+    If shp Is Nothing Then Set shp = ZoekVorm(pres, "VS_K0_KAART")
+    If shp Is Nothing Then Exit Sub
+    Set dia = shp.Parent
+    If dia Is Nothing Then Exit Sub
+    If Not VsDiaAan() Then
+        dia.Delete
+        Exit Sub
+    End If
+    bLinks = 1E+20
+    bRechts = -1E+20
+    tussen = -1
+    For k = 0 To N_VS
+        Set shp = Nothing
+        Set shp = VormOpDia(dia, "VS_K" & k & "_KAART")
+        If Not shp Is Nothing Then
+            bestaat(k) = True
+            links(k) = shp.Left
+            breed(k) = shp.Width
+            If links(k) < bLinks Then bLinks = links(k)
+            If links(k) + breed(k) > bRechts Then bRechts = links(k) + breed(k)
+            If k = 0 Then
+                blijft(k) = True
+            Else
+                rW = RegelVanVorm(wsP, "VS_K" & k & "_WAARDE")
+                blijft(k) = False
+                If rW > 0 Then blijft(k) = (Len(CelTekst(wsP.Range("D" & rW))) > 0)
+            End If
+            n = n + 1
+            If blijft(k) Then nBlijft = nBlijft + 1
+        End If
+        Set shp = Nothing
+        Set shp = VormOpDia(dia, "VS_LEG" & k & "_LIJN")
+        If Not shp Is Nothing Then legL(k) = shp.Left
+    Next k
+    For k = 1 To N_VS
+        If bestaat(k) And bestaat(k - 1) Then
+            If tussen < 0 Or links(k) - (links(k - 1) + breed(k - 1)) < tussen Then tussen = links(k) - (links(k - 1) + breed(k - 1))
+        End If
+    Next k
+    If tussen < 0 Then tussen = 0
+    If n = 0 Or nBlijft = 0 Or nBlijft = n Then Exit Sub
+
+    ' kaarten en legenda-regels van lege scenario's weg
+    For k = 1 To N_VS
+        If bestaat(k) And Not blijft(k) Then
+            prefix = "VS_K" & k & "_"
+            For j = dia.Shapes.Count To 1 Step -1
+                Set shp = dia.Shapes(j)
+                If Left$(shp.Name, Len(prefix)) = prefix Or shp.Name = "VS_LEG" & k Or shp.Name = "VS_LEG" & k & "_LIJN" Then shp.Delete
+            Next j
+        End If
+    Next k
+
+    ' de overige kaarten gelijk verdelen, legenda-regels op de plekken van links af
+    w = (bRechts - bLinks - (nBlijft - 1) * tussen) / nBlijft
+    t = 0
+    For k = 0 To N_VS
+        If bestaat(k) And blijft(k) Then
+            doelL = bLinks + t * (w + tussen)
+            prefix = "VS_K" & k & "_"
+            For j = 1 To dia.Shapes.Count
+                Set shp = dia.Shapes(j)
+                If Left$(shp.Name, Len(prefix)) = prefix Then
+                    mL = shp.Left - links(k)
+                    mR = links(k) + breed(k) - (shp.Left + shp.Width)
+                    If shp.Name = prefix & "ACCENT" Then
+                        shp.Left = doelL + mL
+                    ElseIf w - mL - mR > 1 Then
+                        shp.Left = doelL + mL
+                        shp.Width = w - mL - mR
+                    End If
+                End If
+            Next j
+            dx = legL(t) - legL(k)
+            If dx <> 0 Then
+                Set shp = Nothing
+                Set shp = VormOpDia(dia, "VS_LEG" & k & "_LIJN")
+                If Not shp Is Nothing Then shp.Left = shp.Left + dx
+                Set shp = Nothing
+                Set shp = VormOpDia(dia, "VS_LEG" & k)
+                If Not shp Is Nothing Then shp.Left = shp.Left + dx
+            End If
+            t = t + 1
+        End If
+    Next k
+    On Error GoTo 0
+End Sub
+
+Private Sub SchikGrafiekVS(shp As Object, ch As Object)
+    ' VS_GRAFIEK (dia 4, sjabloon v18), na het vullen: de waarde-as op Model!BY155..BY157 (minimum, maximum, stap), het grijze vlak
+    ' VS_REALISATIE (met het label VS_REAL_LBL) van de linkerrand van het tekenvlak tot het 'nu'-kwartaal (positie in het tijdvak:
+    ' Model!BY171; x van kwartaal i (1..n) = links + breedte x (VS_PLOT_X + VS_PLOT_W x (i - 1) / (n - 1)), het tekenvlak staat vast
+    ' in het sjabloon (manualLayout, layout.VS_PLOT)). Geen gerealiseerd kwartaal in het tijdvak: vlak en label onzichtbaar.
+    ' Fouten worden stil overgeslagen.
+    Dim vMin As Double, vMax As Double, stap As Double, okMin As Boolean, okMax As Boolean, okStap As Boolean, ax As Object
+    Dim dia As Object, vlak As Object, lbl As Object, n As Long, posNu As Long, plotL As Double, xNu As Double
+    On Error Resume Next
+    vMin = ModelGetal(CEL_VS_MIN, okMin)
+    vMax = ModelGetal(CEL_VS_MAX, okMax)
+    stap = ModelGetal(CEL_VS_STAP, okStap)
+    If okMin And okMax Then
+        If vMax > vMin Then
+            Set ax = Nothing
+            Set ax = ch.Axes(2, 1)
+            If Not ax Is Nothing Then
+                ax.MaximumScale = vMax
+                Err.Clear
+                ax.MinimumScale = vMin
+                Err.Clear
+                ax.MaximumScale = vMax
+                Err.Clear
+                ax.MinimumScaleIsAuto = False
+                ax.MaximumScaleIsAuto = False
+                If okStap And stap > 0 Then ax.MajorUnit = stap
+                Err.Clear
+            End If
+        End If
+    End If
+    Set dia = shp.Parent
+    If dia Is Nothing Then Exit Sub
+    n = AantalRijen(CEL_VP_N, MAX_RIJEN)
+    posNu = AantalRijen(CEL_VS_NU, MAX_RIJEN)
+    plotL = shp.Left + shp.Width * VS_PLOT_X
+    Set vlak = VormOpDia(dia, "VS_REALISATIE")
+    Set lbl = VormOpDia(dia, "VS_REAL_LBL")
+    If posNu < 1 Or n < 2 Or posNu > n Then
+        If Not vlak Is Nothing Then vlak.Visible = 0
+        If Not lbl Is Nothing Then lbl.Visible = 0
+    ElseIf Not vlak Is Nothing Then
+        xNu = plotL + shp.Width * VS_PLOT_W * (posNu - 1) / (n - 1)
+        vlak.Left = plotL
+        If xNu - plotL < 1 Then
+            vlak.Visible = 0
+            If Not lbl Is Nothing Then lbl.Visible = 0
+        Else
+            vlak.Visible = -1
+            vlak.Width = xNu - plotL
+        End If
+    End If
+    On Error GoTo 0
+End Sub
+
 Private Sub VulTabel(pres As Object, vorm As String, kop As Range, nRijen As Long, nKol As Long, overslaan As Boolean, _
                      ByRef mist As String, ByRef fouten As String)
     Dim shp As Object, tbl As Object, r As Long, c As Long, rij As Long
@@ -1138,9 +1351,10 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     Next i
     ' reeksen met '(uit)' in de kop gaan weg: de scenariolijn in de cashflowgrafiek, in de bouwtermijnengrafiek de typen
     ' zonder termijnen en de jaren buiten het bereik, in de grafiek per type de onderdelen die het type niet heeft
-    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
+    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
     If vorm = "BT_GRAFIEK" Then ZetTijdAs ch
     If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch
+    If vorm = "VS_GRAFIEK" Then SchikGrafiekVS shp, ch
     wbE.Close
     Set wbE = Nothing
     Exit Sub
@@ -2212,7 +2426,8 @@ Public Sub ControleerSjabloon()
         If ZoekVorm(pres, CStr(lijst(i)(0))) Is Nothing Then mist = mist & CStr(lijst(i)(0)) & vbCrLf
     Next i
     ' hulpvormen van dia 5 (kaarten) en dia 2 (grijs vlak, nu-blok, sporen): zonder die vormen vult de knop wel, maar schikt hij niet
-    lijst = Array("VT_KAART", "VT_TABELKAART", "GRAFIEK_REALISATIE", "TL_NU_LABEL", "KPI6_SPOOR", "KPI7_SPOOR_V", "KPI7_SPOOR_T", "KPI9_SPOOR1")
+    lijst = Array("VT_KAART", "VT_TABELKAART", "GRAFIEK_REALISATIE", "TL_NU_LABEL", "KPI6_SPOOR", "KPI7_SPOOR_V", "KPI7_SPOOR_T", "KPI9_SPOOR1", _
+                  "VS_REALISATIE", "VS_K0_KAART", "VS_LEG0_LIJN")
     For i = LBound(lijst) To UBound(lijst)
         If ZoekVorm(pres, CStr(lijst(i))) Is Nothing Then hulp = hulp & CStr(lijst(i)) & vbCrLf
     Next i
@@ -2221,7 +2436,7 @@ Public Sub ControleerSjabloon()
     pres.Close
     On Error GoTo 0
     If Len(hulp) > 0 Then
-        hulp = vbCrLf & "Hulpvormen (dia 2 en 5) die niet gevonden zijn (die dia's worden dan niet automatisch geschikt):" & vbCrLf & hulp
+        hulp = vbCrLf & "Hulpvormen (dia 2, 4 en 6) die niet gevonden zijn (die dia's worden dan niet automatisch geschikt):" & vbCrLf & hulp
     End If
     If Len(mist) = 0 Then
         MsgBox "Alles compleet: alle " & aantal & " vormnamen staan in het sjabloon." & hulp, _

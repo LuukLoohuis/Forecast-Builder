@@ -151,6 +151,11 @@ def _patch_chart(xml, model, n):
     for key in ["label"] + LY.BT_REEKSEN:
         kolom[f"g_bt_{key}"] = LY.BT[key]
         lengte[f"g_bt_{key}"] = max(1, bt_n)
+    # scenario's (tab Scenario's): lijnen in de cashflowgrafiek (alle periodes) en de grafiek op de tab (tijdvak vanaf het actuals-jaar)
+    from .charts import VS_NAMEN, VSW_NAMEN
+    kolom.update(VS_NAMEN)
+    for key, col in VSW_NAMEN.items():
+        kolom[f"g_vsw_{key}"], lengte[f"g_vsw_{key}"], start[f"g_vsw_{key}"] = col, vp_n, LY.ROW1 + vp_start - 1
 
     def reeks(naam):
         col = kolom.get(naam)

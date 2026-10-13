@@ -1132,8 +1132,17 @@ def bouw_dashboard(wb, data):
           f'="diepste dal van "&{eur_m("MIN(" + hm("dal_up") + "," + hm("dal_down") + ")")}&" tot "&{eur_m("MAX(" + hm("dal_up") + "," + hm("dal_down") + ")")}', size=16)
 
     put(ws, "B14", "Scenario's · cumulatieve cashflow: basis (donkerblauw) met de band tussen downside en upside · grijs vlak = gerealiseerde kwartalen · € mln", f=F_SECTION)
-    put(ws, "B43", "Cashflow per kwartaal · balken: opbrengsten en kosten · lijn: cumulatieve cashflow · stippellijn: vorige prognose · "
-                   "gele lijn: scenariolijn (knoppen rechts, kolom Scenario) · grijs vlak = gerealiseerd · € mln", f=F_SECTION)
+    put(ws, "B43", "Cashflow per kwartaal · balken: opbrengsten en kosten · lijnen: cumulatieve cashflow, vorige prognose (stippel), "
+                   "scenariolijn (geel) · € mln", f=F_SECTION)
+    # scenario's van tab Scenario's (sinds v18): een gekleurd blokje per ingevuld scenario, in de kleur van de lijn in de grafiek
+    put(ws, "Q43", "scenario's:", f=F_NOTE8, al=AL_RIGHT)
+    for s_, col in zip(range(1, LY.N_VS + 1), ("R", "S", "T")):
+        cel = f"{col}43"
+        put(ws, cel, f'=IF({hm(f"vs{s_}_aan")}=1,"Scenario {s_}","")', f=font(8, True, "FFFFFF"), fl=fill(LY.VS_KLEUREN[s_]),
+            al=Alignment(horizontal="center", vertical="center", shrink_to_fit=True))
+        ws.conditional_formatting.add(cel, FormulaRule(formula=[f'{cel}=""'], fill=PatternFill(fill_type="solid", bgColor="FFFFFF", fgColor="FFFFFF")))
+    ws["Q43"].comment = _comment("Scenario's van tab Scenario's (start bouw, verkoop en transport): elk ingevuld scenario staat als lijn "
+                                 "in de cashflowgrafiek, in de kleur van het blokje. Namen en uitkomsten staan op tab Scenario's.")
     put(ws, "B69", VERKOOP_TITEL, f=F_SECTION)
     put(ws, f"B{LY.D_ROW_BT}", "Bouwtermijnen per woningtype · kwartaal waarin de termijn vervalt (tab Woningtypes) · per termijn een baan per type "
                                "in de typekleur · lichtrood = vorige prognose (blok 4, fees: blok 6) · grijs = gerealiseerd · DAEB: fee-termijnen per component · "
@@ -1494,6 +1503,53 @@ def bouw_dashboard(wb, data):
 # =============================================================================
 #  POWERPOINT
 # =============================================================================
+def _vs_regels():
+    """KPI-regels van dia 4 'Verkoopscenario's' (sjabloon v18): kopje, titel, ondertitel, vier kaarten (Basis en scenario 1..3:
+    naam, regel verkoop/transport/rente, max. financiering, label, dieptepunt, break-even, verkocht bij start bouw, regel onderaan),
+    legenda, eindsaldo en voetnoot. Een scenario dat niet in PowerPoint komt (niet ingevuld, of Naar PowerPoint = nee) heeft lege
+    teksten: de macro haalt die kaart en zijn legenda-regel weg (SchikDiaScenarios) en verdeelt de rest."""
+    norm = dabs("norm")
+    regels = [
+        (4, "Kopje", f"={hm('vs_kicker')}", None, "VS_KICKER"),
+        (4, "Titel", f"={hm('vs_titel')}", None, "VS_TITEL"),
+        (4, "Ondertitel", f"={hm('vs_subtitel')}", None, "VS_SUBTITEL"),
+        (4, "Kaart Basis · naam", "Basis", None, "VS_K0_NAAM"),
+        (4, "  verkoop · transport · rente", f"={hm('vs0_sub')}", None, "VS_K0_SUB"),
+        (4, "  max. financiering", f"={eur_m(hm('dal_basis'))}", None, "VS_K0_WAARDE"),
+        (4, "  label", "MAX. FINANCIERING", None, "VS_K0_LABEL"),
+        (4, "  dieptepunt", f'="dieptepunt "&{hm("dal_basis_kw")}', None, "VS_K0_DAL"),
+        (4, "  break-even", f'="break-even "&IF({hm("be_basis")}="","niet bereikt",{hm("be_basis")})', None, "VS_K0_BE"),
+        (4, "  verkocht bij start bouw", f'="verkocht bij start bouw "&FIXED({hm("verk_bij_start_pct")}*100,0)&"%"',
+         f'=IF({hm("verk_bij_start_pct")}>={norm},"op norm","onder norm")', "VS_K0_VERKOCHT"),
+        (4, "  regel onderaan", f"={hm('vs0_delta')}", None, "VS_K0_DELTA"),
+    ]
+    for s in range(1, LY.N_VS + 1):
+        pp = hm(f"vs{s}_pp")
+        als = lambda f: f'=IF({pp}=1,{f},"")'  # noqa: E731
+        S = lambda veld: hm(f"vs{s}_{veld}")  # noqa: E731
+        regels += [
+            (4, f"Kaart scenario {s} · naam (leeg = kaart weg)", als(S("kaart")), None, f"VS_K{s}_NAAM"),
+            (4, "  verkoop · transport · rente", als(S("sub")), None, f"VS_K{s}_SUB"),
+            (4, "  max. financiering", als(eur_m(S("dal"))), None, f"VS_K{s}_WAARDE"),
+            (4, "  label", als('"MAX. FINANCIERING"'), None, f"VS_K{s}_LABEL"),
+            (4, "  dieptepunt", als(f'"dieptepunt "&{S("dal_kw")}'), None, f"VS_K{s}_DAL"),
+            (4, "  break-even", als(f'"break-even "&IF({S("be")}="","niet bereikt",{S("be")})'), None, f"VS_K{s}_BE"),
+            (4, "  verkocht bij start bouw", als(f'"verkocht bij start bouw "&FIXED({S("vbsb_pct")}*100,0)&"%"'),
+             f'=IF({pp}=0,"",IF({S("vbsb_pct")}>={norm},"op norm","onder norm"))', f"VS_K{s}_VERKOCHT"),
+            (4, "  verschil met de Basis", als(S("delta")), None, f"VS_K{s}_DELTA"),
+        ]
+    regels.append((4, "Legenda Basis", f"={hm('vs0_leg')}", None, "VS_LEG0"))
+    for s in range(1, LY.N_VS + 1):
+        regels.append((4, f"Legenda scenario {s}", f'=IF({hm(f"vs{s}_pp")}=1,{hm(f"vs{s}_leg")},"")', None, f"VS_LEG{s}"))
+    regels += [
+        (4, "Eindsaldo", f"={hm('vs_eind_tekst')}", None, "VS_EIND_LBL"),
+        (4, "Voetnoot", f'="norm verkocht bij start bouw "&FIXED({norm}*100,0)&"% · bij transport betaalt de koper grond + vervallen termijnen · "'
+                        f'&IF({hm("vs_tr_plan")}>=99999,"geen transport gepland",IF({hm("vs_gap")}=0,"transport in het kwartaal van start bouw",'
+                        f'"transport "&{hm("vs_gap")}&" kw na start bouw")&", zoals gepland")', None, "VS_NOOT"),
+    ]
+    return regels
+
+
 def bouw_powerpoint(wb, data):
     ws = wb.create_sheet("PowerPoint")
     ws.sheet_properties.codeName = "shPowerPoint"
@@ -1506,7 +1562,7 @@ def bouw_powerpoint(wb, data):
         widths.setdefault(L(c), 13)
     for c in range(c_t0 + 1, c_t0 + 8):
         widths[L(c)] = 14
-    for c in range(ws[LY.PP_BLOK["kc"] + "1"].column, ws[LY.PP_BLOK["kc"] + "1"].column + LY.PP_KC_KOL):
+    for c in range(ws[LY.PP_BLOK["kc"] + "1"].column, ws[LY.PP_BLOK["vs"] + "1"].column + LY.PP_VS_KOL):
         widths[L(c)] = 13
     for col, w in widths.items():
         ws.column_dimensions[col].width = w
@@ -1588,24 +1644,25 @@ def bouw_powerpoint(wb, data):
         (3, "Blokje dieptepunt", f'={eur_m(dal)}&" · "&{hm("dal_basis_kw")}', None, "CF_DAL_WAARDE"),
         (3, "Blokje eindsaldo", f'={eur_m(eind)}&" · "&{hm("laatste_kw")}', None, "CF_EIND_WAARDE"),
         (3, "Blokje break-even", f'=IF({hm("be_basis")}="","niet bereikt",{hm("be_basis")})', None, "CF_BE_WAARDE"),
-        (4, "Titel", f'="Eindsaldo tussen "&{eur_mln(hm("eind_down"))}&" en "&{eur_mln(hm("eind_up"))}&", basis "&{eur_mln(eind)}', None, "SC_TITEL"),
-        (4, "Ondertitel", f'="Basis = eigen cashflow"&IF({rb}=1," + rente","")&" · band = ruimte tussen downside en upside · "'
+        *_vs_regels(),
+        (5, "Titel", f'="Eindsaldo tussen "&{eur_mln(hm("eind_down"))}&" en "&{eur_mln(hm("eind_up"))}&", basis "&{eur_mln(eind)}', None, "SC_TITEL"),
+        (5, "Ondertitel", f'="Basis = eigen cashflow"&IF({rb}=1," + rente","")&" · band = ruimte tussen downside en upside · "'
                           f'&IF({hm("model_aan")}=1,"verschuiving via grondtermijn en bouwtermijnen per woningtype","verschuiving van alle prognose-opbrengsten")'
                           f'&IF({hm("rente")}>0," · "&{hm("rente_tekst")},"")', None, "SC_SUBTITEL"),
-        (5, "Titel", f'="Bouwtermijnen per woningtype · start bouw "&{hm("start_tekst")}&" (vroegste type)"', None, "BT_TITEL"),
-        (5, "Ondertitel", f'="Typekleur = huidige planning · lichtrood = vorige prognose · grijs = gerealiseerd t/m "&{hm("kw_actuals")}'
+        (6, "Titel", f'="Bouwtermijnen per woningtype · start bouw "&{hm("start_tekst")}&" (vroegste type)"', None, "BT_TITEL"),
+        (6, "Ondertitel", f'="Typekleur = huidige planning · lichtrood = vorige prognose · grijs = gerealiseerd t/m "&{hm("kw_actuals")}'
                           f'&" · "&{hm("bt_uniek")}&" termijnen, "&{hm("bt_types")}&" woningtypes"', None, "BT_SUBTITEL"),
-        (6, "Titel", f'={hm("verkocht_actuals")}&" van "&{hm("woningen")}&" woningen verkocht, "&{hm("transport_actuals")}&" getransporteerd"', None, "VP_TITEL"),
-        (6, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&": verkocht "&TEXT(IF({hm("woningen")}=0,0,{hm("verkocht_actuals")}/{hm("woningen")}),"0%")'
+        (7, "Titel", f'={hm("verkocht_actuals")}&" van "&{hm("woningen")}&" woningen verkocht, "&{hm("transport_actuals")}&" getransporteerd"', None, "VP_TITEL"),
+        (7, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&": verkocht "&TEXT(IF({hm("woningen")}=0,0,{hm("verkocht_actuals")}/{hm("woningen")}),"0%")'
                           f'&", getransporteerd "&TEXT(IF({hm("woningen")}=0,0,{hm("transport_actuals")}/{hm("woningen")}),"0%")'
                           f'&IF({hm("vp_tekst")}="",""," · per type: "&{hm("vp_tekst")})&" · uitverkocht in "&{hm("uitverkocht")}'
                           f'&" · laatste transport in "&{hm("alles_transport")}', None, "VP_SUBTITEL"),
-        (7, "Titel", f'="Uitverkocht in "&{hm("uitverkocht")}&", alles getransporteerd in "&{hm("alles_transport")}', None, "VO_TITEL"),
-        (7, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
-        (7, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),
-        (7, "Laatste kwartaal", f"={hm('laatste_kw')}", None, "VO_STAT3_WAARDE"),
-        (8, "Titel", f"={hm('pt_titel')}", None, "PT_TITEL"),
-        (8, "Ondertitel", f"={hm('pt_subtitel')}", None, "PT_SUBTITEL"),
+        (8, "Titel", f'="Uitverkocht in "&{hm("uitverkocht")}&", alles getransporteerd in "&{hm("alles_transport")}', None, "VO_TITEL"),
+        (8, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
+        (8, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),
+        (8, "Laatste kwartaal", f"={hm('laatste_kw')}", None, "VO_STAT3_WAARDE"),
+        (9, "Titel", f"={hm('pt_titel')}", None, "PT_TITEL"),
+        (9, "Ondertitel", f"={hm('pt_subtitel')}", None, "PT_SUBTITEL"),
     ]
     for i, (dia, onderdeel, tekst, richting, vorm) in enumerate(kpi):
         r = LY.PP_KPI_ROW1 + i
@@ -1620,25 +1677,22 @@ def bouw_powerpoint(wb, data):
     assert LY.PP_KPI_ROW1 + len(kpi) - 1 <= r_s - 2, "KPI-regels lopen tot in de instellingen (de rij erboven moet leeg blijven)"
     put(ws, f"C{r_s}", LY.PP_LABEL_SJABLOON, f=F_NOTE)
     put(ws, LY.PP_CEL_SJABLOON, data.params.get("sjabloon") or None, f=F_INPUT, fl=FL_INPUT, al=AL_LEFT_TOP)
-    put(ws, f"E{r_s}", "leeg = Kwartaal_Template_cashflow_v17.pptx in dezelfde map als dit bestand; anders het volledige pad", f=F_NOTE8)
+    put(ws, f"E{r_s}", "leeg = Kwartaal_Template_cashflow_v18.pptx in dezelfde map als dit bestand; anders het volledige pad", f=F_NOTE8)
     put(ws, f"C{r_s + 1}", "Naam nieuwe presentatie", f=F_NOTE)
     put(ws, LY.PP_CEL_NAAM, f'="Cashflow update Q"&{dabs("actuals_kw")}&" "&{dabs("actuals_jaar")}', f=F_CALC9, al=AL_LEFT_TOP)
     put(ws, f"E{r_s + 1}", "de knop zet er datum en tijd achter en bewaart naast dit bestand", f=F_NOTE8)
 
     # ---- grafiekblokken (kop in rij 7, één rij per periode) ------------------------------
     blokken = [
-        (LY.PP_BLOK["cf"], "DIA 3 · CASHFLOW PER KWARTAAL · € mln", "grafiek cashflow · plakken: G7 t/m N, laatste periode (kolom N = scenariolijn; sjabloon v11)",
-         ["Kwartaal", "Voorfinanciering", "Positief saldo", "Opbrengsten", "Kosten", "Cumulatieve cashflow", "Vorige prognose", f"={hm('lbl_scenario')}"],
-         [FIX["kwartaal"], M["g_voorfinanciering"], M["g_positief_saldo"], M["g_opbrengsten"], M["g_kosten"], M["g_stand"], M["g_vorige"], M["g_scenario"]], "0.0"),
-        (LY.PP_BLOK["sc"], "DIA 4 · SCENARIO'S · € mln", "grafiek scenario's · plakken: P7 t/m Y, laatste periode",
+        (LY.PP_BLOK["sc"], "DIA 5 · SCENARIO'S · € mln", "grafiek scenario's · plakken: P7 t/m Y, laatste periode",
          ["Kwartaal", "Band onder", "Bandbreedte", "Downside", "Upside", "Basis", f"={hm('lbl_nu')}", f"={hm('lbl_dal')}", f"={hm('lbl_eind_up')}", f"={hm('lbl_eind_down')}"],
          [FIX["kwartaal"], M["g_band_onder"], M["g_bandbreedte"], M["g_downside"], M["g_upside"], M["g_stand"], M["g_punt_nu"], M["g_punt_dal"], M["g_eind_upside"], M["g_eind_downside"]], "0.0"),
-        (LY.PP_BLOK["bt"], "DIA 5 · BOUWTERMIJNEN · tijd in kwartaalindex (jaar × 4 + kwartaal)",
+        (LY.PP_BLOK["bt"], "DIA 6 · BOUWTERMIJNEN · tijd in kwartaalindex (jaar × 4 + kwartaal)",
          f"grafiek bouwtermijnen · koprijen jaar/kwartaal, daarna per termijn een baan per type · plakken: AA7 t/m {L(26 + LY.PP_BT_KOL)}, "
          f"laatste rij ({hm('bt_n')} rijen) · '(uit)' = reeks niet in de presentatie",
          ["Termijn"] + [LY.BT_SEG_NAMEN.get(x, f"=Model!${LY.BT[x]}$7") for x in LY.BT_REEKSEN],
          [LY.BT["label"]] + [LY.BT[x] for x in LY.BT_REEKSEN], "0.00"),
-        (LY.PP_BLOK["vp"], "DIA 6 · VERKOOP EN TRANSPORT PER WONINGTYPE · aantal woningen", f"twee grafieken (verkocht / getransporteerd) lezen dit blok · plakken: {LY.PP_BLOK['vp']}7 t/m {L(ws[LY.PP_BLOK['vp'] + '1'].column + 25)}, laatste periode",
+        (LY.PP_BLOK["vp"], "DIA 7 · VERKOOP EN TRANSPORT PER WONINGTYPE · aantal woningen", f"twee grafieken (verkocht / getransporteerd) lezen dit blok · plakken: {LY.PP_BLOK['vp']}7 t/m {L(ws[LY.PP_BLOK['vp'] + '1'].column + 25)}, laatste periode",
          ["Kwartaal"] + [f"=Model!${m_col('gv', k)}$7" for k in range(1, N_TYPES + 1)] + [f"=Model!${m_col('gt', k)}$7" for k in range(1, N_TYPES + 1)]
          + ["Verkocht", "Getransporteerd", f"={hm('lbl_uitverkocht')}", f"={hm('lbl_alles_transport')}", "Realisatie",
             "Verkocht cumulatief %", "Label verkocht %", "Getransporteerd cumulatief %", "Label transport %"],
@@ -1646,11 +1700,11 @@ def bouw_powerpoint(wb, data):
          + [M["g_verkocht"], M["g_getransporteerd"], M["g_punt_uitverkocht"], M["g_punt_alles_transport"], M["g_realisatie"],
             M["g_verkocht_pct"], M["g_verkocht_pct_lbl"], M["g_getransporteerd_pct"], M["g_getransporteerd_pct_lbl"]],
          [FMT_INT] * 26 + ["0%"] * 4),
-        (LY.PP_BLOK["vo"], "DIA 7 · VAN VERKOOP NAAR OMZET · cumulatief %", f"grafiek verkoop naar omzet · plakken: {LY.PP_BLOK['vo']}7 t/m {L(ws[LY.PP_BLOK['vo'] + '1'].column + 4)}, laatste periode",
+        (LY.PP_BLOK["vo"], "DIA 8 · VAN VERKOOP NAAR OMZET · cumulatief %", f"grafiek verkoop naar omzet · plakken: {LY.PP_BLOK['vo']}7 t/m {L(ws[LY.PP_BLOK['vo'] + '1'].column + 4)}, laatste periode",
          ["Kwartaal", "Verkocht", "Getransporteerd", "Opbrengsten ontvangen", "Kosten gemaakt"],
          [FIX["kwartaal"], M["g_verkocht_pct"], M["g_getransporteerd_pct"], M["g_opbrengsten_pct"], M["g_kosten_pct"]], FMT_PCT0),
-        (LY.PP_BLOK["pt"], "DIA 8 · OPBRENGSTEN PER WONINGTYPE · € mln", f"grafiek per woningtype (het type uit de keuzecel op het Dashboard; de macro maakt per type een "
-         f"kopie van dia 8) · plakken: {LY.PP_BLOK['pt']}7 t/m {L(ws[LY.PP_BLOK['pt'] + '1'].column + LY.PP_PT_KOL - 1)}, laatste periode · '(uit)' = reeks niet in de presentatie",
+        (LY.PP_BLOK["pt"], "DIA 9 · OPBRENGSTEN PER WONINGTYPE · € mln", f"grafiek per woningtype (het type uit de keuzecel op het Dashboard; de macro maakt per type een "
+         f"kopie van dia 9) · plakken: {LY.PP_BLOK['pt']}7 t/m {L(ws[LY.PP_BLOK['pt'] + '1'].column + LY.PP_PT_KOL - 1)}, laatste periode · '(uit)' = reeks niet in de presentatie",
          ["Kwartaal"] + [f'=IF({hm("pt_lbl_" + x)}="","(uit)",{hm("pt_lbl_" + x)})' for x in LY.PT_REEKSEN] + ["Realisatie"],
          [FIX["kwartaal"]] + [LY.PT[x] for x in LY.PT_REEKSEN] + [M["g_realisatie"]], "0.00"),
         # dia 2 (sjabloon v17): kleine cashflowgrafiek. Kolom A = jaartal bij het eerste kwartaal van elk jaar (en bij de eerste
@@ -1666,10 +1720,30 @@ def bouw_powerpoint(wb, data):
           lambda nr, n_ref: f'=IF({nr}>{n_ref},NA(),IF({nr}={hm("be_basis_pos")},INDEX(Model!${M["g_stand"]}${ROW1}:${M["g_stand"]}${ROWN},{nr}),NA()))',
           M["g_eind_basis"],
           lambda nr, n_ref: f'=IF({nr}>{n_ref},NA(),IF({nr}=1,0,NA()))'], "0.00"),
+        # dia 3 (sinds v18 met de scenario's van tab Scenario's): 11 kolommen, de laatste drie = scenario 1..3 ('(uit)' = niet in de
+        # presentatie: niet ingevuld, of Naar PowerPoint = nee)
+        (LY.PP_BLOK["cf"], "DIA 3 · CASHFLOW PER KWARTAAL · € mln",
+         f"grafiek cashflow · plakken: {LY.PP_BLOK['cf']}7 t/m {L(ws[LY.PP_BLOK['cf'] + '1'].column + LY.PP_CF_KOL - 1)}, laatste periode "
+         f"(kolom 8 = scenariolijn, 9-11 = scenario's van tab Scenario's; '(uit)' = reeks niet in de presentatie; tot v17 stond dit blok op G7)",
+         ["Kwartaal", "Voorfinanciering", "Positief saldo", "Opbrengsten", "Kosten", "Cumulatieve cashflow", "Vorige prognose", f"={hm('lbl_scenario')}"]
+         + [f'=IF({hm(f"vs{s_}_pp")}=1,{hm(f"vs{s_}_leg")},"Scenario {s_} (uit)")' for s_ in range(1, LY.N_VS + 1)],
+         [FIX["kwartaal"], M["g_voorfinanciering"], M["g_positief_saldo"], M["g_opbrengsten"], M["g_kosten"], M["g_stand"], M["g_vorige"], M["g_scenario"]]
+         + [LY.vs_col(s_, "g") for s_ in range(1, LY.N_VS + 1)], "0.0"),
+        # dia 4 'Verkoopscenario's' (sinds v18): jaartal bij het eerste kwartaal van elk jaar, Basis, scenario 1..3 en de dieptepunten
+        # (één-punts-reeksen, label = bedrag); tijdvak vanaf 1 januari van het actuals-jaar, zoals de verkoopgrafiek
+        (LY.PP_BLOK["vs"], "DIA 4 · VERKOOPSCENARIO'S · € mln",
+         f"grafiek verkoopscenario's · plakken: {LY.PP_BLOK['vs']}7 t/m {L(ws[LY.PP_BLOK['vs'] + '1'].column + LY.PP_VS_KOL - 1)}, laatste periode "
+         f"(vanaf het actuals-jaar) · '(uit)' = reeks niet in de presentatie",
+         ["Kwartaal", f"={hm('vs0_leg')}"] + [f'=IF({hm(f"vs{s_}_pp")}=1,{hm(f"vs{s_}_leg")},"Scenario {s_} (uit)")' for s_ in range(1, LY.N_VS + 1)]
+         + ["dieptepunt Basis"] + [f'=IF({hm(f"vs{s_}_pp")}=1,"dieptepunt scenario {s_}","dieptepunt scenario {s_} (uit)")' for s_ in range(1, LY.N_VS + 1)],
+         [lambda nr, n_ref: (f'=IF({nr}>{n_ref},"",IFERROR(IF(OR({nr}=1,INDEX(Model!${FIX["kw"]}${ROW1}:${FIX["kw"]}${ROWN},{nr}+{hm("vp_start")}-1)=1),'
+                             f'INT((INDEX(Model!${FIX["idx"]}${ROW1}:${FIX["idx"]}${ROWN},{nr}+{hm("vp_start")}-1)-1)/4),""),""))'),   # leeg werkboek: geen fout
+          M["g_stand"]] + [LY.vs_col(s_, "g") for s_ in range(1, LY.N_VS + 1)]
+         + [M["g_punt_dal"]] + [LY.vs_col(s_, "gdal") for s_ in range(1, LY.N_VS + 1)], "0.00"),
     ]
     # het blok van de grafiek per type begint bij de eerste getoonde periode (pt_start) en telt pt_n rijen
-    offset_van = {LY.PP_BLOK["pt"]: f"{hm('pt_start')}-1", LY.PP_BLOK["vp"]: f"{hm('vp_start')}-1"}
-    n_ref_van = {LY.PP_BLOK["pt"]: hm("pt_n"), LY.PP_BLOK["vp"]: hm("vp_n")}
+    offset_van = {LY.PP_BLOK["pt"]: f"{hm('pt_start')}-1", LY.PP_BLOK["vp"]: f"{hm('vp_start')}-1", LY.PP_BLOK["vs"]: f"{hm('vp_start')}-1"}
+    n_ref_van = {LY.PP_BLOK["pt"]: hm("pt_n"), LY.PP_BLOK["vp"]: hm("vp_n"), LY.PP_BLOK["vs"]: hm("vp_n")}
     blauw = side("medium", PP_BORDER)
     for col0, titel, sub, koppen, bronnen, nf in blokken:
         c0 = ws[f"{col0}1"].column
@@ -1703,13 +1777,14 @@ def bouw_powerpoint(wb, data):
     ws.conditional_formatting.add(f"G{LY.PP_KPI_ROW1}:{L(c_t0 - 1)}{LY.PP_KPI_ROW1 + LY.BT_N - 1}",
                                   FormulaRule(formula=[f"ISERROR(G{LY.PP_KPI_ROW1})"], font=Font(name=ARIAL, color="D0D3D8")))
     c_kc = ws[LY.PP_BLOK["kc"] + "1"].column
-    ws.conditional_formatting.add(f"{L(c_kc)}{LY.PP_KPI_ROW1}:{L(c_kc + LY.PP_KC_KOL - 1)}{LY.PP_KPI_ROW1 + LY.N_PERIODS - 1}",
+    c_eind = ws[LY.PP_BLOK["vs"] + "1"].column + LY.PP_VS_KOL - 1
+    ws.conditional_formatting.add(f"{L(c_kc)}{LY.PP_KPI_ROW1}:{L(c_eind)}{LY.PP_KPI_ROW1 + LY.N_PERIODS - 1}",
                                   FormulaRule(formula=[f"ISERROR({L(c_kc)}{LY.PP_KPI_ROW1})"], font=Font(name=ARIAL, color="D0D3D8")))
 
     # ---- tabellen (kolom T0 = eerste tabelkolom) --------------------------------------------
     T0 = "".join(ch for ch in LY.PP_TABEL_SC if ch.isalpha())
     T1, T2, T3, T4 = (L(c_t0 + j) for j in (1, 2, 3, 4))
-    put(ws, f"{T0}4", "DIA 4 · TABEL SCENARIO'S", f=F_SECTION)
+    put(ws, f"{T0}4", "DIA 5 · TABEL SCENARIO'S", f=F_SECTION)
     for col, t in ((T0, None), (T1, "Downside"), (T2, "Basis"), (T3, "Upside")):
         put(ws, f"{col}7", t, f=F_HDR, fl=FL_HDR, al=AL_LEFT_WRAP if col == T0 else AL_RIGHT_WRAP)
 
@@ -1736,7 +1811,7 @@ def bouw_powerpoint(wb, data):
             put(ws, f"{col}{r}", v, f=F_CALC9, al=AL_RIGHT)
     # extra knoppen en de scenariolijn: niet in de tabel op dia 4 (die heeft 9 rijen), wel om over te nemen
     r_extra = LY.PP_TABEL_VT_ROW + N_TYPES + 3
-    put(ws, f"{T0}{r_extra}", "DIA 4 · EXTRA KNOPPEN EN SCENARIOLIJN (niet in de tabel op de dia)", f=F_SECTION)
+    put(ws, f"{T0}{r_extra}", "DIA 5 · EXTRA KNOPPEN EN SCENARIOLIJN (niet in de tabel op de dia)", f=F_SECTION)
     for col, t in ((T0, None), (T1, "Downside"), (T2, "Basis"), (T3, "Upside"), (T4, f"={hm('scn_naam')}")):
         put(ws, f"{col}{r_extra + 1}", t, f=F_HDR, fl=FL_HDR, al=AL_LEFT_WRAP if col == T0 else AL_RIGHT_WRAP)
     dal_scn = f'{eur_m(hm("dal_scn"))}&" · "&{hm("dal_scn_kw")}'
@@ -1762,7 +1837,7 @@ def bouw_powerpoint(wb, data):
         for col, v in ((T1, a), (T2, b), (T3, c), (T4, d_)):
             put(ws, f"{col}{r}", v, f=F_CALC9, al=AL_RIGHT)
 
-    put(ws, f"{T0}{LY.PP_TABEL_VT_ROW - 1}", "DIA 5 · TABEL WONINGTYPES", f=F_SECTION)
+    put(ws, f"{T0}{LY.PP_TABEL_VT_ROW - 1}", "DIA 6 · TABEL WONINGTYPES", f=F_SECTION)
     r0 = LY.PP_TABEL_VT_ROW
     for j, t in enumerate(["Type", "Aantal", "Verkocht t/m nu", "Getransporteerd t/m nu", "Start bouw", "Bij start bouw", "In %", "Norm"]):
         put(ws, f"{L(c_t0 + j)}{r0}", t, f=F_HDR, fl=FL_HDR, al=AL_LEFT_WRAP if j == 0 else AL_RIGHT_WRAP)

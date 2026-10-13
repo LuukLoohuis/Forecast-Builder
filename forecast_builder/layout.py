@@ -270,6 +270,11 @@ H = {
     "opbr_daeb": 134, "woningen_daeb": 135, "marge": 136, "marge_nd": 137, "marge_tekst": 138, "marge_split": 139,
     # dia 2 (sjabloon v17): as-grenzen van de kleine cashflowgrafiek (€ mln; de VBA leest kc_min/kc_max) en de grootste lasten
     "top_basis": 140, "top_vorig": 141, "kc_min": 142, "kc_max": 143, "lasten_max": 144,
+    # scenario's (tab Scenario's, sinds v18): planning, schakelaar, as van de scenariografiek, teksten; per scenario hieronder
+    "vs_vnd_act": 145, "vs_tnd_act": 146, "vs_vv_pos": 147, "vs_vv_plan": 148, "vs_tr_pos": 149, "vs_tr_plan": 150, "vs_gap": 151,
+    "vs_aan": 152, "vs_pp": 153, "vs_pp_aan": 154, "vs_min": 155, "vs_max": 156, "vs_stap": 157, "vs_titel": 158, "vs_subtitel": 159,
+    "vs_eind_tekst": 160, "vs_slechtst": 161, "vs_sb_mee": 162, "vs_sel": 163, "vs_typesel": 164, "vs0_leg": 165, "vs0_sub": 166,
+    "vs0_delta": 167, "vs0_lbl_dal": 168, "vs_kicker": 169, "vs0_dal_pos": 170, "vs_nu_pos": 171, "vs_tr_tekst": 172,
 }
 
 
@@ -370,8 +375,8 @@ PP_TABEL_VT_ROW = 18           # kop in BR18, daaronder N_TYPES rijen
 PP_KC_KOL = 8
 _kc = _pt + PP_PT_KOL + 1 + 9                                    # GK: na de tabel woningtypes (8 kolommen vanaf GB)
 PP_BLOK["kc"] = L(_kc)
-PP_CEL_SJABLOON = "D76"        # (de VBA leest dezelfde cellen: CEL_SJABLOON / CEL_NAAM; data.py zoekt op het label in kolom C)
-PP_CEL_NAAM = "D77"
+PP_CEL_SJABLOON = "D130"       # (de VBA leest dezelfde cellen: CEL_SJABLOON / CEL_NAAM; data.py zoekt op het label in kolom C)
+PP_CEL_NAAM = "D131"           # (tot v17: D76/D77; sinds v18 lager, er zijn meer KPI-regels door de dia Verkoopscenario's)
 PP_LABEL_SJABLOON = "Sjabloon (pptx)"
 # dia 2: grafiekkader en tekenvlak van KPI_GRAFIEK in inch (links, boven, rechts, onder), zoals tools/pptx_v17_kerncijfers.py ze
 # zet (manualLayout); de VBA rekent met de fracties KC_PLOT_X/KC_PLOT_W de x van het 'nu'-kwartaal uit (grijs vlak, nu-blok)
@@ -379,3 +384,117 @@ KC_KADER = (0.30, 2.58, 9.50, 3.98)
 KC_PLOT = (0.50, 2.76, 8.98, 3.98)
 KC_PLOT_X = round((KC_PLOT[0] - KC_KADER[0]) / (KC_KADER[2] - KC_KADER[0]), 4)
 KC_PLOT_W = round((KC_PLOT[2] - KC_PLOT[0]) / (KC_KADER[2] - KC_KADER[0]), 4)
+
+
+# ---- Scenario's (sinds v18): start bouw, verkoop en transport per scenario --------------------------------------------------------
+# Tab 'Scenario's': per scenario alleen invullen wat anders is dan de planning (leeg = automatisch). Het rekenwerk staat in het Model
+# vanaf VS_COL1: per scenario verschoven verkoop (vc) en transport (tc) per type, bouwtermijnen (vv) en extra's (vx) met de start
+# bouw van het scenario, en de kolommen opbrengsten, kosten, rente en stand zoals bij de scenariolijn.
+N_VS = 3                                                  # scenario's naast de Basis
+VS_KLEUREN = ["002060", "6250D6", "C2399B", "7A2E6E"]     # Basis (navy) en scenario 1..3: zelfde kleur op tab, Dashboard en dia's
+SC_TAB = "Scenario's"
+SC_BLAD = "'Scenario''s'"                                 # tabbladnaam in formules
+SC_COL = [3, 5, 7, 9]                                     # Basis, scenario 1..3: twee kolommen per scenario (C:D, E:F, G:H, I:J)
+SC_R_NAAM, SC_R_SB, SC_R_VV, SC_R_TV = 17, 18, 19, 20     # invoerrijen
+SC_R_PP = 22                                              # Naar PowerPoint (ja/nee)
+SC_CEL_PP = "C22"
+SC_R_FOUT = 23                                            # controle per scenario (tekst)
+SC_CEL_SEL = "C41"                                        # tabel per termijn: scenario (Basis / Scenario 1..3)
+SC_CEL_TYPE = "I41"                                       # tabel per termijn: woningtype (alle types / naam)
+SC_N_KW = 24                                              # kwartalen in de tabel per termijn (vanaf 1 januari van het actuals-jaar)
+SC_LABELS = {"naam": "Naam", "sb": "Start bouw (hele project)", "vv": "Verkoop vanaf · het verkooptempo schuift mee",
+             "tv": "Transport vanaf · nooit vóór de verkoop", "pp": "Naar PowerPoint"}
+
+
+def sc_in(s, veld):
+    """Absolute verwijzing naar de invoercel van scenario s (1..N_VS) op tab Scenario's; veld: naam, sb, vv, tv."""
+    rij = {"naam": SC_R_NAAM, "sb": SC_R_SB, "vv": SC_R_VV, "tv": SC_R_TV}[veld]
+    return f"{SC_BLAD}!${L(SC_COL[s])}${rij}"
+
+
+VS_COL1 = PT_COL1 + len(PT) + 1
+VS_G = {}                                                 # gedeelde kolommen
+_c = VS_COL1
+for _naam in ["kpre", "kpost", "vnd", "tnd"]:             # kosten vóór / vanaf start bouw (cumulatief), verkocht / transport niet-DAEB
+    VS_G[_naam] = L(_c)
+    _c += 1
+_c += 1
+VS_AGG = ["pv", "pt", "psb", "qf", "model", "cumo", "opbr", "kcum", "kosten", "rente", "sraw", "stand", "pos", "tnd", "g", "gdal"]
+VS_TB = ["vc", "tc", "vv", "vx"]                          # per type: verkocht cum, transport cum, termijnen vervallen, extra's vervallen
+_VS = {}
+for _s in range(1, N_VS + 1):
+    for _naam in VS_AGG:
+        _VS[(_s, _naam)] = L(_c)
+        _c += 1
+    for _blok in VS_TB:
+        for _k in range(1, N_TYPES + 1):
+            _VS[(_s, _blok, _k)] = L(_c)
+            _c += 1
+    _c += 1
+# selectie voor de tabel per termijn (keuze scenario en woningtype op tab Scenario's): per type transport (ts; rij 6 = start bouw),
+# extra's (xs) en fees (fs) van het gekozen scenario; cumulatief per termijn (tj1..), grond, extra's, fees, verkocht, getransporteerd;
+# opbrengsten, kosten en stand van het gekozen scenario; inhaal per termijn (ih1..: termijn die al vervallen was bij transport)
+SEL_TB = ["ts", "xs", "fs"]
+SEL = {}
+for _blok in SEL_TB:
+    for _k in range(1, N_TYPES + 1):
+        SEL[(_blok, _k)] = L(_c)
+        _c += 1
+for _naam in (["vj", "trj", "gj", "xj", "fj", "osel", "ksel", "ssel"] + [f"tj{_j}" for _j in range(1, N_TERMIJNEN + 1)]
+              + [f"ih{_j}" for _j in range(1, N_TERMIJNEN + 1)]):
+    SEL[_naam] = L(_c)
+    _c += 1
+_c += 1
+# termijnmatrix (rijen onder de periodes): per termijn j en type k de naam, het bedrag per woning (€) en het bouwkwartaal;
+# kolom 'label' = rijnaam in de tabel; rij TM_R_SEL = 1 voor de gekozen typen, TM_R_AG = grondtermijn per woning (€)
+TM = {_k: L(_c + _k - 1) for _k in range(1, N_TYPES + 1)}
+TM["label"] = L(_c + N_TYPES)
+_c += N_TYPES + 2
+VS_LAST = _c - 1
+TM_R_NAAM, TM_R_A, TM_R_KW = 75, 85, 95                   # j = 1..N_TERMIJNEN onder elkaar
+TM_R_SEL, TM_R_AG = 106, 107
+
+
+def vs_col(s, naam, k=None):
+    """Kolomletter in het Model: aggregaat `naam` van scenario s, of (met k) typeblok `naam` (vc/tc/vv/vx) voor type k."""
+    return _VS[(s, naam)] if k is None else _VS[(s, naam, k)]
+
+
+def vs_rng(s, blok, row, abs_=False):
+    """Rijbereik van typeblok `blok` van scenario s in rij `row` (type 1..N)."""
+    a, b = vs_col(s, blok, 1), vs_col(s, blok, N_TYPES)
+    return f"${a}${row}:${b}${row}" if abs_ else f"{a}{row}:{b}{row}"
+
+
+def sel_rng(blok, row, abs_=False):
+    a, b = SEL[(blok, 1)], SEL[(blok, N_TYPES)]
+    return f"${a}${row}:${b}${row}" if abs_ else f"{a}{row}:{b}{row}"
+
+
+def tm_rng(row):
+    return f"${TM[1]}${row}:${TM[N_TYPES]}${row}"
+
+
+# hulpcellen per scenario (vs1_*, vs2_*, ...): invoer (kwartaalindex, 0 = leeg of ongeldig), verschuivingen, naam, uitkomst, teksten
+VS_VELDEN = ["in_sb", "in_vv", "in_tv", "fout", "aan", "d_sb", "sb", "vv", "d_v", "tv", "d_t", "naam", "kop", "leg", "dal", "dal_pos",
+             "dal_kw", "be_pos", "be", "eind", "rente", "vbsb", "vbsb_pct", "et_pos", "et", "d_fin", "d_be", "sub", "delta", "lbl_dal",
+             "kaart", "pp"]
+_r = 180
+for _s in range(1, N_VS + 1):
+    for _veld in VS_VELDEN:
+        H[f"vs{_s}_{_veld}"] = _r
+        _r += 1
+
+# PowerPoint: cashflowgrafiek (dia 3) met de scenariolijnen: blok van 11 kolommen (tot v17 8 kolommen vanaf G7); dia 4
+# 'Verkoopscenario's': grafiekblok (kwartaal/jaartal, Basis, scenario 1..3, dieptepunt Basis en scenario 1..3), tijdvak vanaf
+# 1 januari van het actuals-jaar (vp_start, vp_n), zoals de verkoopgrafiek
+PP_CF_KOL = 11
+PP_VS_KOL = 9
+PP_BLOK["cf"] = L(_kc + PP_KC_KOL + 1)                    # GT
+PP_BLOK["vs"] = L(_kc + PP_KC_KOL + 1 + PP_CF_KOL + 1)     # HF
+# dia 4: grafiekkader en tekenvlak van VS_GRAFIEK in inch (zoals tools/pptx_v18_scenarios.py ze zet); de VBA rekent met de fracties
+# VS_PLOT_X/VS_PLOT_W de x van het 'nu'-kwartaal uit (grijs vlak VS_REALISATIE)
+VS_KADER = (0.40, 2.74, 9.55, 5.00)
+VS_PLOT = (0.80, 2.82, 9.42, 4.70)
+VS_PLOT_X = round((VS_PLOT[0] - VS_KADER[0]) / (VS_KADER[2] - VS_KADER[0]), 4)
+VS_PLOT_W = round((VS_PLOT[2] - VS_PLOT[0]) / (VS_KADER[2] - VS_KADER[0]), 4)
