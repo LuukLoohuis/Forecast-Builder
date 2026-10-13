@@ -637,6 +637,10 @@ def test_cf_kosten_en_schakelaar(tmp):
     m2 = wb2["Model"]
     hb2 = lambda naam: m2[f"BY{LY.H[naam]}"].value  # noqa: E731
     assert hb2("kf_aan") == 0 and hb2("kf_tekst_kort") == "kosten vanaf start bouw schuiven mee met de start bouw"
+    # blok 3 zonder post Aanneemsom: niets om mee te vergelijken (geen rode melding, lege verschilrij)
+    kf2 = wb2[LY.KF_TAB]
+    assert hb2("kf_bk_post") == 0 and hb2("kf_bk_verschil") == 0 and hb2("kf_bk_controle").startswith("Geen post")
+    assert all(kf2.cell(LY.KF_R_BK_VERSCHIL, LY.KF_COL1 + i).value in (None, "") for i in range(hb2("n")))
     assert abs(hb2("vs2_dal") - (-17424665.2328)) < 1 and abs(hb2("vs1_eind") - hb2("eind_basis")) < 1
 
 
@@ -716,8 +720,81 @@ def test_bouwkosten_per_termijn(basis, tmp):
         assert abs(sc.cell(r_tot, 3 + j).value - per_kw[pos - 1] / 1000) < 1e-6, j
         koper = sum(sc.cell(r, 3 + j).value or 0 for r in range(r_k1, r_k1 + LY.N_TERMIJNEN))
         assert abs(sc.cell(r_saldo, 3 + j).value - (koper - sc.cell(r_tot, 3 + j).value)) < 1e-6, j
-    assert sc[f"B{r_tot - LY.N_TERMIJNEN}"].value == "Aanvang bouw"
+    # alle types: een rij per type; de termijnnamen staan in de termijnmatrix (die gebruikt de tabel bij één gekozen type)
+    assert [sc[f"B{r_tot - LY.N_TERMIJNEN + k}"].value or None for k in range(len(p.types))] == [t.naam if t.bouwkosten else None for t in p.types]
+    assert m[f"{LY.TM['label']}{LY.TM_R_BKA}"].value == "Aanvang bouw"
     # ronde reis
     paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "bk_rond"), None, caches=False)
     terug = D.lees_werkboek(paden[0])
     assert [t.bouwkosten for t in terug.types] == [t.bouwkosten for t in p.types]
+
+
+def test_bouwkosten_scenario_en_controle(tmp):
+    """Randgevallen van de bouwkosten per termijn. Tab Scenario's, scenario 'Later starten': een gerealiseerd deel (vóór start bouw,
+    in het actuals-kwartaal) blijft staan, de rest schuift twee kwartalen op; DAEB telt mee in de bouwkosten maar niet in koper −
+    aannemer; de cumulatieve rij telt vanaf het begin van het project. Tab CF kosten blok 3: een deel na de laatste periode staat in
+    de laatste periode, een deel zonder bouwkwartaal geeft een melding."""
+    p = D.voorbeeld()
+    p.params["vs_sel"] = "Scenario 2"
+    ia = p.params["actuals_jaar"] * 4 + p.params["actuals_kw"]
+    idx = [per["jaar"] * 4 + int(per["kw"][1]) for per in p.periodes]
+    t0, t1 = p.types[0], p.types[1]
+    s0, s1 = t0.start_jaar * 4 + t0.start_kw, t1.start_jaar * 4 + t1.start_kw
+    assert s0 > ia
+    t0.bouwkosten = list(t0.bouwkosten) + [("Voorbereiding", 500000, ia - s0 + 1), ("Zonder kw", 70000, None)]
+    t1.bouwkosten = list(t1.bouwkosten) + [("Nazorg", 100000, idx[-1] + 2 - s1 + 1)]
+    kd = next(k for k, t in enumerate(p.types) if t.soort == "DAEB")
+    p.types[kd].bouwkosten = [("Bouw DAEB", 1000000, 2)]
+    wb = bouw_en_bereken(p, tmp, "bk_scenario")
+    m, kf, sc = wb["Model"], wb[LY.KF_TAB], wb[LY.SC_TAB]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    n, d_sb = hb("n"), hb("vs2_d_sb")
+    assert d_sb == 2
+    # CF kosten blok 3: elk type telt over de periodes op tot zijn totaal (ook 'Nazorg' na de laatste periode)
+    for k in range(1, len(p.types) + 1):
+        rij = LY.KF_R_BK1 + k - 1
+        perioden = sum(kf.cell(rij, LY.KF_COL1 + i).value or 0 for i in range(n))
+        assert abs(perioden - (kf[f"{LY.KF_C['totaal']}{rij}"].value or 0)) < 1, k
+    laatste = sum(b for _, b, kw in t1.bouwkosten if s1 + kw - 1 >= idx[-1])
+    assert laatste >= 100000 and abs(kf.cell(LY.KF_R_BK1 + 1, LY.KF_COL1 + n - 1).value - laatste) < 1
+    assert abs(hb("kf_bk_buiten") - 70000) < 1
+    assert hb("kf_bk_controle").startswith("Let op: €") and "geen bouwkwartaal" in hb("kf_bk_controle")
+    # tab Scenario's (scenario 2, alle types): een rij per type
+    r_pos, r_tot = _scenario_rij(sc, "positie in het Model"), _scenario_rij(sc, "Totaal bouwkosten volgens termijnen")
+    r_saldo, r_cum = _scenario_rij(sc, "Bouwtermijnen koper"), _scenario_rij(sc, "  idem, cumulatief")
+    r_bk1 = r_tot - LY.N_TERMIJNEN
+    assert sc[f"B{r_bk1}"].value == t0.naam and sc[f"B{r_bk1 + kd}"].value == p.types[kd].naam
+    kol = [(3 + j, sc.cell(r_pos, 3 + j).value) for j in range(LY.SC_N_KW) if sc.cell(r_pos, 3 + j).value not in (None, "")]
+    idx_van = {c: idx[pos - 1] for c, pos in kol}
+    waarde = lambda r, c: sc.cell(r, c).value or 0  # noqa: E731
+    c_act = next(c for c, q in idx_van.items() if q == ia)
+    assert abs(waarde(r_bk1, c_act) - 500) < 1e-6                          # Voorbereiding blijft in het actuals-kwartaal staan
+    kw1 = sum(b for _, b, kw in t0.bouwkosten if kw == 1) / 1000
+    c_sb = next(c for c, q in idx_van.items() if q == s0 + d_sb)
+    assert abs(waarde(r_bk1, c_sb) - kw1) < 1e-6                           # de eerste termijn schuift mee met de start bouw
+    assert abs(sum(waarde(r_bk1 + kd, c) for c, _ in kol) - 1000) < 1e-6
+    r_k1 = r_pos + 7
+    vorige = None
+    for c, _ in kol:
+        koper = sum(waarde(r, c) for r in range(r_k1, r_k1 + LY.N_TERMIJNEN))
+        assert abs(waarde(r_saldo, c) - (koper - (waarde(r_tot, c) - waarde(r_bk1 + kd, c)))) < 1e-6, c
+        if vorige is not None:
+            assert abs(waarde(r_cum, c) - waarde(r_cum, vorige) - waarde(r_saldo, c)) < 1e-6, c
+        vorige = c
+    # laatste kolom: alle bouwtermijnen van de koper t/m dat kwartaal min alle bouwkosten (niet-DAEB) t/m dat kwartaal
+    c_last, pos_last = kol[-1]
+    koper_cum = sum(m[f"{LY.SEL[f'tj{j}']}{LY.ROW1 + pos_last - 1}"].value or 0 for j in range(1, LY.N_TERMIJNEN + 1))
+    aannemer = 0
+    for t in p.types:
+        if t.soort == "DAEB" or not t.start_jaar:
+            continue
+        st = t.start_jaar * 4 + t.start_kw
+        for _, b, kw in t.bouwkosten:
+            if kw is None:
+                continue
+            q = st + kw - 1
+            if q > ia:
+                q = max(ia + 1, q + d_sb)
+            if q <= idx[pos_last - 1]:
+                aannemer += b
+    assert abs(waarde(r_cum, c_last) - (koper_cum - aannemer) / 1000) < 1e-3

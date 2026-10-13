@@ -2266,10 +2266,10 @@ Private Sub BinnenLimiet(lNaam() As String, lW() As Double, lKw() As Variant, By
     End If
 End Sub
 
-Private Function KostenBlok(wsK As Worksheet, titel As String, ByRef heeft As Boolean) As Long
-    ' rij van het termijnblok op 'CF - kosten' met deze titel ('Termijnen ...' in kolom B, '# won' in de rij erboven; de eerste bij
-    ' dubbele titels); heeft = er is minstens één termijnblok
-    Dim r As Long, c As Long, rMax As Long, b As String, won As Boolean
+Private Function KostenBlok(wsK As Worksheet, titel As String, nr As Long, ByRef heeft As Boolean) As Long
+    ' rij van het termijnblok op 'CF - kosten' met deze titel ('Termijnen ...' in kolom B, '# won' in de rij erboven; bij dubbele
+    ' titels het nr-de blok); heeft = er is minstens één termijnblok
+    Dim r As Long, c As Long, rMax As Long, b As String, won As Boolean, n As Long
     rMax = wsK.UsedRange.Rows.Count + wsK.UsedRange.Row
     For r = 2 To rMax
         b = LCase$(TekstVan(wsK.Cells(r, 2).Value))
@@ -2280,7 +2280,10 @@ Private Function KostenBlok(wsK As Worksheet, titel As String, ByRef heeft As Bo
             Next c
             If won Then
                 heeft = True
-                If KostenBlok = 0 And b = LCase$(Trim$(titel)) Then KostenBlok = r
+                If KostenBlok = 0 And b = LCase$(Trim$(titel)) Then
+                    n = n + 1
+                    If n = nr Then KostenBlok = r
+                End If
             End If
         End If
     Next r
@@ -2289,8 +2292,9 @@ End Function
 Private Sub VoegBouwkostenToe(ws As Worksheet, r As Long, idxKol() As Long, cAct As Long, idxAct As Long, idxStart As Long, naam As String, _
                               pw As Double, aantal As Double, lNaam() As String, lW() As Double, lKw() As Variant, ByRef nL As Long)
     ' bouwkosten van één termijn (bedrag per woning pw x aantal woningen per kwartaal): wat t/m actuals ligt (kolom actuals en
-    ' kwartalen t/m het actuals-kwartaal) als één deel in het actuals-kwartaal, daarna elk kwartaal een eigen deel ('(1/3)' ...);
-    ' zonder planning: pw x aantal woningen, zonder bouwkwartaal. Zelfde regels als fo.py _lees_bouwkosten.
+    ' kwartalen t/m het actuals-kwartaal) als één deel in het actuals-kwartaal ('x (gerealiseerd)': BinnenLimiet voegt daar niets
+    ' bij), daarna elk kwartaal een eigen deel ('(1/3)' ...); zonder planning: pw x aantal woningen, zonder bouwkwartaal.
+    ' Zelfde regels als fo.py _lees_bouwkosten.
     Dim c As Long, v As Double, ruw As Double, n As Long, i As Long, kw As Variant
     If cAct > 0 Then
         If IsGetal(ws.Cells(r, cAct).Value) Then ruw = CDbl(ws.Cells(r, cAct).Value)
@@ -2304,16 +2308,14 @@ Private Sub VoegBouwkostenToe(ws As Worksheet, r As Long, idxKol() As Long, cAct
             End If
         End If
     Next c
-    If ruw <> 0 Then n = n + 1
-    If n = 0 Then
+    If n = 0 And ruw = 0 Then
         VoegToe lNaam, lW, lKw, nL, naam, Round(pw * aantal, 2), Empty
         Exit Sub
     End If
     If ruw <> 0 Then
-        i = 1
         kw = Empty
         If idxStart > 0 Then kw = idxAct - idxStart + 1
-        VoegToe lNaam, lW, lKw, nL, naam & IIf(n > 1, " (1/" & n & ")", ""), Round(pw * ruw, 2), kw
+        VoegToe lNaam, lW, lKw, nL, naam & IIf(n > 0, " (gerealiseerd)", ""), Round(pw * ruw, 2), kw
     End If
     For c = LBound(idxKol) To UBound(idxKol)
         If idxKol(c) > idxAct Then
@@ -2380,7 +2382,7 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, w
     Dim ro As Long, lab As String, ll As String, pct As Variant, eur As Variant, pw As Variant, koopPw As Double, koopsom As Double
     Dim rp As Long, rFee As Long, rFeeMax As Long, nComp As Long, isDaeb As Boolean, inFee As Boolean
     Dim bNaam(1 To LIJST_MAX) As String, bW(1 To LIJST_MAX) As Double, bKw(1 To LIJST_MAX) As Variant, nB As Long        ' bouwkosten
-    Dim rK As Long, idxKolK() As Long, cActK As Long, heeftK As Boolean, pwK As Double, labK As String
+    Dim rK As Long, idxKolK() As Long, cActK As Long, heeftK As Boolean, pwK As Double, labK As String, nrK As Long
     Dim compRij As Boolean, kV As Long
     Dim termNaam(1 To 20) As String, termPct(1 To 20) As Double, termPw(1 To 20) As Double, termRij(1 To 20) As Long, nTerm As Long, i As Long
     Dim lNaam(1 To LIJST_MAX) As String, lW(1 To LIJST_MAX) As Double, lKw(1 To LIJST_MAX) As Variant, nL As Long      ' termijnen
@@ -2439,7 +2441,11 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, w
         nB = 0
         If Not wsK Is Nothing Then
             heeftK = False
-            rK = KostenBlok(wsK, TekstVan(wsO.Cells(blok(k), 2).Value), heeftK)
+            nrK = 1                               ' dubbele titels: het n-de blok met deze titel (ook lege blokken tellen, zoals fo.py)
+            For i = 1 To k - 1
+                If LCase$(TekstVan(wsO.Cells(blok(i), 2).Value)) = LCase$(TekstVan(wsO.Cells(blok(k), 2).Value)) Then nrK = nrK + 1
+            Next i
+            rK = KostenBlok(wsK, TekstVan(wsO.Cells(blok(k), 2).Value), nrK, heeftK)
             If rK > 0 Then
                 foStap = "type " & kT & " (" & naam & "): bouwkosten vanaf rij " & rK & " van '" & wsK.Name & "'"
                 KolomKaart wsK, rK, idxKolK, cActK
@@ -2459,7 +2465,8 @@ Private Function FOTypen(wsO As Worksheet, wsT As Worksheet, wsI As Worksheet, w
                     wsT.Cells(TYPE_RIJ_B1 + i - 1, col + 2).Value = bKw(i)
                 Next i
             ElseIf heeftK Then
-                waarschuwing = waarschuwing & "- 'CF - kosten': geen termijnblok '" & TekstVan(wsO.Cells(blok(k), 2).Value) & "' voor " & naam & ": geen bouwkosten per termijn." & vbCrLf
+                waarschuwing = waarschuwing & "- 'CF - kosten': geen termijnblok '" & TekstVan(wsO.Cells(blok(k), 2).Value) & "'" & _
+                               IIf(nrK > 1, " (nr. " & nrK & ")", "") & " voor " & naam & ": geen bouwkosten per termijn." & vbCrLf
             End If
         End If
         If k > nOmzet Then GoTo Volgende

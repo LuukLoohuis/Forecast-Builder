@@ -147,6 +147,8 @@ def bouw_woningtypes(wb, data):
     dv_kw = DataValidation(type="whole", operator="between", formula1="1", formula2="60", allow_blank=True, error="Bouwkwartaal: heel getal 1 t/m 60.")
     dv_kwx = DataValidation(type="whole", operator="between", formula1="0", formula2="60", allow_blank=True,
                             error="Bouwkwartaal: heel getal 1 t/m 60; leeg of 0 = bij notarieel transport.")
+    dv_bkw = DataValidation(type="whole", operator="between", formula1="-60", formula2="60", allow_blank=True,
+                            error="Bouwkwartaal: heel getal -60 t/m 60 (0 of lager = vóór start bouw).")
     dv_pct = DataValidation(type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True, error="Percentage tussen 0% en 100%.")
     dv_soort = DataValidation(type="list", formula1='"niet-DAEB,DAEB"', allow_blank=True, error="Kies niet-DAEB of DAEB (leeg = niet-DAEB).")
     dv_eur = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True, error="Bedrag in euro's (of een percentage van 1 of kleiner).")
@@ -161,17 +163,20 @@ def bouw_woningtypes(wb, data):
     dv_vkw.promptTitle = "Kwartaal vorige prognose"
     dv_vkw.prompt = ("Kwartaal van deze termijn volgens de vorige prognose, zelfde schrijfwijze als in blok 5 ('2026 Q4', bouwkwartaal of "
                      "'actuals'). Leeg = zoals nu; een bouwkwartaal schuift mee met de start bouw van blok 4.")
-    for dv in (dv_kw4, dv_kw, dv_kwx, dv_pct, dv_soort, dv_eur):
+    for dv in (dv_kw4, dv_kw, dv_kwx, dv_bkw, dv_pct, dv_soort, dv_eur):
         dv.showErrorMessage = True
         dv.errorTitle = "Ongeldige invoer"
     for dv, titel, tekst in ((dv_kw, "Bouwkwartaal", "Kwartaal waarin de termijn vervalt, geteld vanaf start bouw van dit type: 1 = kwartaal van start bouw, "
                                                       "2 = het kwartaal erna, enz. Verschuift mee als start bouw verschuift."),
                              (dv_kwx, "Bouwkwartaal", "Kwartaal waarin het binnenkomt, geteld vanaf start bouw van dit type (1 = kwartaal van start bouw). "
-                                                       "Leeg of 0 = bij notarieel transport.")):
+                                                       "Leeg of 0 = bij notarieel transport."),
+                             (dv_bkw, "Bouwkwartaal", "Kwartaal waarin de aannemer dit krijgt, geteld vanaf start bouw van dit type: 1 = kwartaal van "
+                                                       "start bouw, 0 = het kwartaal ervoor, -1 = twee ervoor (gerealiseerd vóór start bouw). "
+                                                       "Verschuift mee als start bouw verschuift.")):
         dv.showInputMessage = True
         dv.promptTitle = titel
         dv.prompt = tekst
-    for dv in (dv_kw4, dv_kw, dv_kwx, dv_pct, dv_soort, dv_eur, dv_fkw, dv_vkw):
+    for dv in (dv_kw4, dv_kw, dv_kwx, dv_bkw, dv_pct, dv_soort, dv_eur, dv_fkw, dv_vkw):
         ws.add_data_validation(dv)
 
     totaal_cellen = []
@@ -304,7 +309,7 @@ def bouw_woningtypes(wb, data):
             put(ws, f"{c0}{r}", bn, f=F_INPUT, fl=FL_INPUT)
             put(ws, f"{c1}{r}", eur, f=F_INPUT, fl=FL_INPUT, nf=FMT_INT)
             put(ws, f"{c2}{r}", kw, f=F_INPUT, fl=FL_INPUT, nf="0")
-            dv_kw.add(f"{c2}{r}")
+            dv_bkw.add(f"{c2}{r}")
         put(ws, f"{c1}{LY.WT_R_B_TOTAAL}", f"=SUM({c1}{LY.WT_R_B1}:{c1}{LY.WT_R_BN})", f=F_BOLD9, nf=FMT_INT, al=AL_RIGHT)
         put(ws, f"{c2}{LY.WT_R_B_TOTAAL}", f'=IF(COUNT({c2}{LY.WT_R_B1}:{c2}{LY.WT_R_BN})=0,"",MAX({c2}{LY.WT_R_B1}:{c2}{LY.WT_R_BN}))',
             f=F_BOLD9, nf="0", al=AL_RIGHT)

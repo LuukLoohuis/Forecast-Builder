@@ -466,7 +466,7 @@ TM["label"] = L(_c + N_TYPES)
 _c += N_TYPES + 2
 VS_LAST = _c - 1
 TM_R_NAAM, TM_R_A, TM_R_KW = 75, 85, 95                   # j = 1..N_TERMIJNEN onder elkaar
-TM_R_SEL, TM_R_AG = 106, 107
+TM_R_SEL, TM_R_AG, TM_R_SELND = 106, 107, 108           # TM_R_SELND = gekozen én niet-DAEB (koper − aannemer)
 TM_R_BKN, TM_R_BKA, TM_R_BKK = 110, 120, 130              # bouwkosten per termijn (Woningtypes blok 7): naam, bedrag (€), bouwkwartaal
 
 
@@ -550,6 +550,7 @@ def kf_blok():
 _r = 285
 for _naam in ["kf_aan", "kf_sb_tot", "kf_v_tot", "vs_v_mee", "kf_tekst", "kf_tekst_kort", "kf_dal_tot", "kf_verschil", "kf_controle",
               "kl_bron", "kl1_naam", "kl1_bedrag", "kl2_naam", "kl2_bedrag", "kl3_naam", "kl3_bedrag",
-              "kf_dal_real", "kf_dal_lbl", "kf_real_gap", "kf_buiten", "kf_bk_tot", "kf_bk_verschil", "kf_bk_controle"]:
+              "kf_dal_real", "kf_dal_lbl", "kf_real_gap", "kf_buiten", "kf_bk_tot", "kf_bk_verschil", "kf_bk_controle",
+              "kf_bk_buiten", "kf_bk_post"]:
     H[_naam] = _r
     _r += 1

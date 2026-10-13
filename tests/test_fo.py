@@ -176,7 +176,7 @@ def test_lees_fo():
     assert [w for w in p.fo["waarschuwingen"] if "CF - kosten" in w and "Aanneemsom" in w and "laatste periode" in w]
     # bouwkosten per termijn (blok 7): bedrag = per woning x woningen per kwartaal, bouwkwartaal t.o.v. start bouw van het type
     assert p.types[0].bouwkosten == [("Start bouw", 200000, 1), ("Casco (1/2)", 300000, 2), ("Casco (2/2)", 200000, 3), ("Oplevering", 300000, 4)]
-    assert p.types[1].bouwkosten == [("Bouw DAEB (1/2)", 500000, -2), ("Bouw DAEB (2/2)", 1500000, 1)]   # actuals in het actuals-kwartaal
+    assert p.types[1].bouwkosten == [("Bouw DAEB (gerealiseerd)", 500000, -2), ("Bouw DAEB", 1500000, 1)]   # actuals in het actuals-kwartaal
 
 
 def test_binnen_limiet():
@@ -191,6 +191,70 @@ def test_binnen_limiet():
         assert False, "ValueError verwacht"
     except ValueError as e:
         assert "11 bouwtermijnen" in str(e)
+    # afkappen=True (bouwkosten, zoals de macro): eerst samenvoegen, dan de laatste rijen weg, met beide meldingen
+    meldingen = []
+    uit = fo._binnen_limiet(rijen + [("T9", 0.01, 13)], 10, "Rijwoning", "bouwkosten-termijnen", meldingen, afkappen=True)
+    assert uit == [("A", 0.3, 3)] + rijen[3:12]
+    assert len(meldingen) == 2 and "niet overgenomen" in meldingen[0] and "samengevoegd" in meldingen[1]
+
+
+def maak_fo_bouwkosten(pad):
+    """maak_fo met lastige termijnblokken op 'CF - kosten': Rijwoning en DAEB hebben dezelfde bloktitel ('Termijnen <300K', naam in
+    kolom C); Rijwoning heeft 14 regels (Casco over twee kwartalen plus T1..T10), DAEB een gerealiseerd deel en elf latere delen."""
+    from openpyxl import load_workbook
+    maak_fo(pad)
+    wb = load_workbook(pad)
+    wo, wk = wb["CF - opbrengsten"], wb["CF - kosten"]
+    for r, naam in ((5, "Rijwoning"), (18, "DAEB")):
+        wo.cell(r, 2).value, wo.cell(r, 3).value = "Termijnen <300K", naam
+    for r in range(3, 49):
+        for c in range(2, 27):
+            wk.cell(r, c).value = None
+    wk["F3"], wk["G3"] = "# won", 10
+    wk["B4"], wk["C4"] = "Termijnen <300K", "Rijwoning"
+    kk = _kopregels(wk, 4)
+    wk["B5"], wk["E5"] = "Start bouw", 20000
+    wk.cell(5, kk[(2027, 1)]).value = 10
+    wk["B6"], wk["E6"] = "Casco", 50000
+    wk.cell(6, kk[(2027, 2)]).value, wk.cell(6, kk[(2027, 3)]).value = 6, 4
+    wk["B7"], wk["E7"] = "Oplevering", 30000
+    wk.cell(7, kk[(2027, 4)]).value = 10
+    for i in range(1, 11):
+        wk.cell(7 + i, 2).value, wk.cell(7 + i, 5).value = f"T{i}", 1000 * i
+        wk.cell(7 + i, kk[(2028, 1)]).value = 10
+    wk["B18"] = "Aanneemsom"
+    wk["F21"], wk["G21"] = "# won", 20
+    wk["B22"], wk["C22"] = "Termijnen <300K", "DAEB"
+    kd = _kopregels(wk, 22)
+    wk["B23"], wk["E23"] = "Bouw DAEB", 100000
+    wk.cell(23, 10).value = 5                                          # kolom actuals
+    wk.cell(23, kd[(2026, 3)]).value = 1                               # t/m het actuals-kwartaal: ook gerealiseerd
+    for j, q in [(2026, 4)] + [(2027, q) for q in range(1, 5)] + [(2028, q) for q in range(1, 5)]:
+        wk.cell(23, kd[(j, q)]).value = 1
+    wk["B24"], wk["E24"] = "Afbouw DAEB", 10000
+    wk.cell(24, kd[(2027, 2)]).value, wk.cell(24, kd[(2027, 3)]).value = 10, 10
+    wk["B25"] = "Aanneemsom"
+    wb.save(pad)
+
+
+def test_bouwkosten_randgevallen():
+    """Dubbele bloktitels: het n-de type met die titel krijgt het n-de termijnblok. Meer dan tien regels: eerst samenvoegen, dan
+    afkappen (zoals de macro). Het gerealiseerde deel ('(gerealiseerd)') doet niet mee in het samenvoegen, zodat er geen prognose
+    in de realisatie belandt."""
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "fo.xlsx")
+        maak_fo_bouwkosten(pad)
+        p = fo.lees_fo(pad)
+    rij, daeb = p.types[0], p.types[1]
+    assert (rij.naam, daeb.naam) == ("Rijwoning", "DAEB")
+    assert rij.bouwkosten == ([("Start bouw", 200000, 1), ("Casco", 500000, 2), ("Oplevering", 300000, 4)]
+                              + [(f"T{i}", 10000 * i, 5) for i in range(1, 8)])
+    w = p.fo["waarschuwingen"]
+    assert [x for x in w if "Rijwoning: 13 bouwkosten-termijnen" in x] and [x for x in w if "Rijwoning" in x and "Casco" in x]
+    assert not [x for x in w if "geen termijnblok" in x]
+    assert len(daeb.bouwkosten) == 10 and daeb.bouwkosten[0] == ("Bouw DAEB (gerealiseerd)", 600000, -2)
+    assert sum(b for _, b, _ in daeb.bouwkosten) == 600000 + 9 * 100000 + 200000
+    assert all(kw >= 0 for _, _, kw in daeb.bouwkosten[1:])                    # na actuals (Q3 '26): kw -1 en later
 
 
 def maak_fo_vorig(pad_vorig):

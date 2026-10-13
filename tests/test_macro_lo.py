@@ -12,7 +12,7 @@ sys.path.insert(0, HIER)
 
 from forecast_builder import fo, data as D  # noqa: E402
 import macro_lo  # noqa: E402
-from test_fo import maak_fo, maak_fo_vorig  # noqa: E402
+from test_fo import maak_fo, maak_fo_bouwkosten, maak_fo_vorig  # noqa: E402
 
 
 @pytest.mark.skipif(not macro_lo.beschikbaar(), reason="pyuno of soffice ontbreekt")
@@ -81,3 +81,20 @@ def test_macro_veel_termijnen_samengevoegd():
         assert melding.startswith("KLAAR:") and "samengevoegd" in melding, melding
         verschillen = macro_lo.vergelijk(p, D.lees_werkboek(uit))
     assert verschillen == [], "\n".join(verschillen)
+
+
+@pytest.mark.skipif(not macro_lo.beschikbaar(), reason="pyuno of soffice ontbreekt")
+def test_macro_bouwkosten_randgevallen():
+    """Bouwkosten per termijn: dubbele bloktitels, samenvoegen en afkappen boven tien regels en het gerealiseerde deel: de macro
+    zet hetzelfde neer als fo.lees_fo (zie test_fo.test_bouwkosten_randgevallen)."""
+    with tempfile.TemporaryDirectory() as d:
+        fo_pad = os.path.join(d, "fo.xlsx")
+        maak_fo_bouwkosten(fo_pad)
+        p = fo.lees_fo(fo_pad)
+        uit = os.path.join(d, "uit.xlsx")
+        melding = macro_lo.voer_uit(fo_pad, uit, werkmap=d)
+        assert melding.startswith("KLAAR:") and "samengevoegd" in melding and "niet overgenomen" in melding, melding
+        p_macro = D.lees_werkboek(uit)
+        verschillen = macro_lo.vergelijk(p, p_macro)
+    assert verschillen == [], "\n".join(verschillen)
+    assert p_macro.types[1].bouwkosten[0] == ("Bouw DAEB (gerealiseerd)", 600000, -2)

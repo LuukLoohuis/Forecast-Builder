@@ -88,8 +88,10 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   (max. financiering, dieptepunt, break-even, verkocht bij start bouw tegen de norm, verschil met de Basis), de uitkomst per
   scenario, de grafiek met de cumulatieve cashflow per scenario (een lijn alleen waar hij van de Basis afwijkt, dieptepunt als
   stip) en de opbrengsten per termijn en per kwartaal voor een gekozen scenario en woningtype (zoals 'CF - opbrengsten' in het FO),
-  met daaronder de bouwkosten per termijn (wat de aannemer krijgt, Woningtypes blok 7, verschoven met de start bouw van het
-  scenario) en 'bouwtermijnen koper − aannemer', ook opgeteld: rood = de bouw is tot dan voorgefinancierd.
+  met daaronder de bouwkosten (wat de aannemer krijgt, Woningtypes blok 7; bij alle types een rij per type, bij één type een rij
+  per termijn; verschoven met de start bouw van het scenario, gerealiseerde delen blijven in hun kwartaal) en 'bouwtermijnen
+  koper − aannemer' per kwartaal en cumulatief vanaf het begin van het project (DAEB-typen tellen daarin niet mee: die hebben
+  geen bouwtermijnen van kopers): rood = de bouw is tot dan voorgefinancierd.
   Rekenregels: verkoop per type schuift met het verschil tussen *verkoop vanaf* en de eerste geplande verkoop; transport volgt
   de geplande transportcurve, verschoven, en nooit meer dan er verkocht is; bouwtermijnen en extra's schuiven met de start bouw
   en worden bij transport ingehaald (grond + alle vervallen termijnen); kosten: met posten op tab CF kosten schuiven alleen de
@@ -109,8 +111,10 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   bepalen alleen wat er in een scenario verschuift (Model: cumulatieve prognose per soort in de kolommen `cksb`/`ckv`; scenario =
   basis − eigen curve + verschoven curve; wat vóór het eerste prognosekwartaal zou vallen komt daarin, wat na de laatste periode
   zou vallen in de laatste). Blok 2 telt per post de kosten t/m het dieptepunt van de Basis; de drie grootste gaan naar dia 2 als
-  het Dashboard geen lasten heeft. Blok 3 splitst de aanneemsom uit per type en per kwartaal (uit tab Woningtypes blok 7) en
-  vergelijkt die met de post Aanneemsom.
+  het Dashboard geen lasten heeft. Blok 3 splitst de aanneemsom uit per type en per kwartaal (uit tab Woningtypes blok 7; wat
+  na de laatste periode valt in de laatste, zoals de posten) en vergelijkt die met de post(en) met 'aanneemsom' in de naam; zonder
+  zo'n post is de uitsplitsing ter informatie, en bouwkosten zonder bouwkwartaal (of van een type zonder start bouw) geven een
+  melding.
 * **Invoer** – je eigen cashflow (B:J, plakken als waarden) en per woningtype twee kolommen naast elkaar:
   verkocht | transport (vanaf kolom L). Rijen (kwartalen) mag je verwijderen of invoegen en lege rijen tellen niet
   mee: het Model leest de i-de gevulde rij (kolom Bronrij, een matrixformule), dus grafieken en KPI's volgen vanzelf.
@@ -130,8 +134,9 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   grafiek per woningtype; de knoppen en de koopsomknop raken ze niet (ze staan in alle vier de modelkolommen gelijk, dus
   scenario's, rente en standen veranderen niet). Een project mag DAEB en niet-DAEB mengen; DAEB-woningen tellen niet mee in
   'verkocht bij start bouw'. Blok 7: bouwkosten per termijn (wat de aannemer krijgt): per termijn de naam, het bedrag in € voor
-  alle woningen van het type en het bouwkwartaal t.o.v. start bouw, zoals de bouwtermijnen; 'Ophalen uit FO' vult het uit de
-  termijnblokken op 'CF - kosten'. Alleen voor de uitsplitsing: de kosten in de cashflow komen uit tab Invoer en tab CF kosten.
+  alle woningen van het type en het bouwkwartaal t.o.v. start bouw, zoals de bouwtermijnen (0 of lager = vóór start bouw, bv.
+  al gerealiseerd); 'Ophalen uit FO' vult het uit de termijnblokken op 'CF - kosten'. Alleen voor de uitsplitsing: de kosten in
+  de cashflow komen uit tab Invoer en tab CF kosten.
 * **Model** – rekenblad. Kolommen A:L uit de invoer (B = bronrij op Invoer), M:BU model, scenario's, scenariolijn, rente en
   grafiekkolommen, BX:BY hulpcellen (BY8 = aantal periodes, de VBA leest die cel), vanaf CA de typeblokken (verkocht cum,
   transport cum, transport cum up/down/scenariolijn, termijnen, en per type verkocht en getransporteerd per kwartaal voor
@@ -162,7 +167,7 @@ macro `UitFOOphalen`) en `python3 build.py --fo FO.xlsx` (module `forecast_build
 | `1. Cashflow` | koprij 'Jaar' (ergens in A1:F30); daarachter Q, kosten, % kosten, omzet, % omzet, CF, CF x 1000, CF vorig; 'Totaal:' onder de tabel | tab Invoer B:J; Dashboard FO-cellen (totalen) |
 | `FO - actuals` | laatste boekjaar/kwartaal met een boeking (kolommen Boekjaar, Q, Waarde/TrVal) | Dashboard 'Actuals t/m' |
 | `CF - opbrengsten` | per type: blok 'Termijnen k - naam' (of 'Termijnen <300K' met de naam in de cel ernaast) met '# won' erboven (bouwplanning: aantal woningen per termijn per kwartaal), blok 'Omzet HVG Termijnen' (Koopsom = grond + ontwikkeling per woning; termijnen in %, € en € per woning; kopersmeerwerk, kadastrale kosten, overige) en blok 'Verkooptempo' (verkocht per kwartaal, kolom 'actuals' = al verkocht) | tab Woningtypes: naam, aantal, koopsom per woning (grond + termijnen, excl. btw, incl. KAO-opties), grondtermijn %, start bouw, bouwtermijnen (naam, %, bouwkwartaal; een termijn die het FO over meer kwartalen verdeelt wordt gesplitst in '(1/2)', '(2/2)'; komen er dan meer dan tien regels, dan gaan de kleinste delen op in het grootste deel van dezelfde termijn, in de macro en in Python), extra's per woning (kwartaal uit de planning, of bij transport); tab Invoer: verkocht en transport per kwartaal (transport = de tellingen op de rij Koopsom) |
-| `CF - kosten`, termijnblokken | per type een blok met dezelfde titel als op 'CF - opbrengsten' ('Termijnen ...', '# won' in de rij erboven): per termijn het bedrag per woning (kolom E) en het aantal woningen per kwartaal, tot de rij 'Aanneemsom' | tab Woningtypes blok 7: termijn, bedrag (per woning × woningen) en bouwkwartaal; wat t/m actuals ligt is één deel in het actuals-kwartaal, elk later kwartaal een eigen deel ('(1/3)' …); meer dan tien: kleinste delen samengevoegd |
+| `CF - kosten`, termijnblokken | per type een blok met dezelfde titel als op 'CF - opbrengsten' ('Termijnen ...', '# won' in de rij erboven): per termijn het bedrag per woning (kolom E) en het aantal woningen per kwartaal, tot de rij 'Aanneemsom' | tab Woningtypes blok 7: termijn, bedrag (per woning × woningen) en bouwkwartaal; wat t/m actuals ligt is één deel in het actuals-kwartaal ('… (gerealiseerd)'), elk later kwartaal een eigen deel ('(1/3)' …); meer dan tien: kleinste latere delen samengevoegd (nooit bij het gerealiseerde deel), daarna vallen de laatste weg; dubbele bloktitels: het n-de type met die titel krijgt het n-de blok |
 | `CF - kosten` | blok 'Onderdelen' (label in kolom B; kwartalen Q1..Q4 met de jaartallen erboven): per post de naam, het gerealiseerde bedrag (kolommen onder 'Actuals', ook samengevoegd; anders de kolom vóór het eerste kwartaal; kwartalen t/m actuals tellen mee) en de prognose per kwartaal, tot de eerste rij zonder label of 'Totaal' | tab CF kosten (maximaal 20 posten; bedragen na de laatste periode van '1. Cashflow' in de laatste periode) |
 | idem, DAEB | in het omzetblok van een type: een rij met een fee-label ('AK fee', 'Bijkomende kosten'; 'Onvoorzien' wordt overgeslagen) en alleen een totaal in € (geen %, geen kwartalen) is een fee-component; elke rij daarna met een % of € én een kwartaal of 'actuals' is een termijn van die component, wat het label ook is ('na akkoord SO', 'bij start bouw', …) | blok 5 (soort DAEB, componenten, termijnen; koopsom, bouwtermijnen en extra's leeg) — op basis van het fee-overzicht van de gebruiker; nog niet getoetst op een echt DAEB-FO |
 

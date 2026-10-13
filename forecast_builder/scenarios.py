@@ -264,9 +264,11 @@ def bouw_model_scenarios(ws):
         put(ws, f"{TM['label']}{ra}", f'=IF({TM["label"]}{rn}<>"",{TM["label"]}{rn},IF(SUM({tm_rng(ra)})>0,"Bouwkosten-termijn {j}",""))', f=F_CALC)
     for k in range(1, N_TYPES + 1):
         put(ws, f"{TM[k]}{LY.TM_R_SEL}", f"=IF(OR({tsel}=0,{tsel}={k}),1,0)", f=F_CALC, nf="0")
+        put(ws, f"{TM[k]}{LY.TM_R_SELND}", f'=IF(AND(OR({tsel}=0,{tsel}={k}),N({m_col("fee", k)}$5)<>1),1,0)', f=F_CALC, nf="0")
         put(ws, f"{TM[k]}{LY.TM_R_AG}", f'=IF(N({m_col("fee", k)}$5)=1,0,N({m_col("tcum", k)}$6)*N({m_col("tup", k)}$6))', f=F_CALC, nf=FMT_INT)
     put(ws, f"{TM['label']}{LY.TM_R_SEL}", "← gekozen typen (1/0)", f=F_NOTE8)
     put(ws, f"{TM['label']}{LY.TM_R_AG}", "← grondtermijn per woning (€)", f=F_NOTE8)
+    put(ws, f"{TM['label']}{LY.TM_R_SELND}", "← gekozen en niet-DAEB (1/0), voor koper − aannemer", f=F_NOTE8)
 
     # ---- hulpcellen -------------------------------------------------------------------------------------------------------
     kwv = _rng(KWV)
@@ -756,20 +758,45 @@ def bouw_tab(wb, data):
                      "start bouw · x € 1.000", f=F_SECTION)
     r += 1
     r_bk1 = r
-    sel_ts = f"Model!{sel_rng('ts', 6, abs_=True)}"
+    tsel_ = hm("vs_typesel")
+    ia = hm("idx_actuals")
+    sel_ts = f"Model!{sel_rng('ts', 6, abs_=True)}"                 # start bouw per type in het gekozen scenario
+    basis_ts = f"Model!{LY.m_range_abs('verv', 6)}"                 # start bouw per type in de Basis
     gekozen = f"Model!{tm_rng(LY.TM_R_SEL)}"
+    gekozen_nd = f"Model!{tm_rng(LY.TM_R_SELND)}"
+    blok_a = f"Model!${LY.TM[1]}${LY.TM_R_BKA}:${LY.TM[N_TYPES]}${LY.TM_R_BKA + LY.N_TERMIJNEN - 1}"
+    blok_k = f"Model!${LY.TM[1]}${LY.TM_R_BKK}:${LY.TM[N_TYPES]}${LY.TM_R_BKK + LY.N_TERMIJNEN - 1}"
+
+    def kwartaal(ts, tb, kw):
+        """kwartaalindex van een deel in het gekozen scenario: in de Basis start bouw + kw - 1; wat daar t/m actuals valt
+        (gerealiseerd) blijft staan, de rest schuift mee met de start bouw van het scenario, niet vóór het kwartaal na actuals"""
+        pb = f"({tb}+{kw}-1)"
+        q = f"({pb}+({pb}>{ia})*({ts}-{tb}))"
+        return f"({q}+({pb}>{ia})*({q}<={ia})*({ia}+1-{q}))"
+
+    # alle types: één rij per type (de termijnen van de typen lopen niet gelijk op); één type: één rij per termijn
     for j in range(1, LY.N_TERMIJNEN + 1):
         bedrag, kw = f"Model!{tm_rng(LY.TM_R_BKA + j - 1)}", f"Model!{tm_rng(LY.TM_R_BKK + j - 1)}"
-        put(ws, f"B{r}", f"=Model!${LY.TM['label']}${LY.TM_R_BKA + j - 1}", f=F_CALC, al=AL_LEFT)
+        bed_k = f"Model!${LY.TM[j]}${LY.TM_R_BKA}:${LY.TM[j]}${LY.TM_R_BKA + LY.N_TERMIJNEN - 1}"
+        kw_k = f"Model!${LY.TM[j]}${LY.TM_R_BKK}:${LY.TM[j]}${LY.TM_R_BKK + LY.N_TERMIJNEN - 1}"
+        ts_k, tb_k = f"Model!${LY.SEL[('ts', j)]}$6", f"Model!${m_col('verv', j)}$6"
+        put(ws, f"B{r}", f'=IF({tsel_}=0,IF(SUM({bed_k})=0,"",Model!${m_col("gv", j)}$7&""),Model!${LY.TM["label"]}${LY.TM_R_BKA + j - 1})',
+            f=F_CALC, al=AL_LEFT)
         for jj in range(LY.SC_N_KW):
             c = L(3 + jj)
-            pos = f"{c}${r_pos}"
-            put(ws, f"{c}{r}", f'=IF({pos}="","",SUMPRODUCT({gekozen}*{bedrag}*(({sel_ts}+{kw}-1)={model(IDX, pos)}))/1000)',
-                f=F_CALC, nf=FMT_K, al=AL_RIGHT)
+            idx = model(IDX, f"{c}${r_pos}")
+            per_type = f"SUMPRODUCT({bed_k}*({kwartaal(ts_k, tb_k, kw_k)}={idx}))"
+            per_termijn = f"SUMPRODUCT({gekozen}*{bedrag}*({kwartaal(sel_ts, basis_ts, kw)}={idx}))"
+            put(ws, f"{c}{r}", f'=IF({c}${r_pos}="","",IF({tsel_}=0,{per_type},{per_termijn})/1000)', f=F_CALC, nf=FMT_K, al=AL_RIGHT)
         r += 1
     r_bkn = r - 1
+
+    def aannemer_nd(c, op):
+        """bouwkosten van de gekozen niet-DAEB-typen in (op '=') of t/m (op '<=') het kwartaal van kolom c, x 1.000"""
+        return f"SUMPRODUCT({gekozen_nd}*{blok_a}*({kwartaal(sel_ts, basis_ts, blok_k)}{op}{model(IDX, c + '$' + str(r_pos))}))/1000"
+
     regels = [("Totaal bouwkosten volgens termijnen", lambda c: f"SUM({c}{r_bk1}:{c}{r_bkn})", True),
-              ("Bouwtermijnen koper − aannemer", lambda c: f"SUM({c}{rijen_koper[0]}:{c}{rijen_koper[-1]})-{c}{r_bkn + 1}", False)]
+              ("Bouwtermijnen koper − aannemer", lambda c: f"SUM({c}{rijen_koper[0]}:{c}{rijen_koper[-1]})-{aannemer_nd(c, '=')}", False)]
     for label, formule, vet in regels:
         put(ws, f"B{r}", label, f=font(8, vet, TXT), al=AL_LEFT, bd=Border(top=side("thin", LINE)) if vet else None)
         for jj in range(LY.SC_N_KW):
@@ -777,15 +804,18 @@ def bouw_tab(wb, data):
             put(ws, f"{c}{r}", f'=IF({c}${r_pos}="","",{formule(c)})', f=font(8, vet, TXT), nf=FMT_K, al=AL_RIGHT,
                 bd=Border(top=side("thin", LINE)) if vet else None)
         r += 1
-    put(ws, f"B{r}", f'="  idem, opgeteld vanaf "&C{r_kop}', f=font(8, True, TXT), al=AL_LEFT)
+    # cumulatief vanaf het begin van het project: ook wat vóór deze tabel valt (de SEL-kolommen van de koper zijn al cumulatief)
+    put(ws, f"B{r}", "  idem, cumulatief vanaf het begin", f=font(8, True, TXT), al=AL_LEFT)
     for jj in range(LY.SC_N_KW):
         c = L(3 + jj)
-        vorige = f"+N({L(2 + jj)}{r})" if jj else ""
-        put(ws, f"{c}{r}", f'=IF({c}${r_pos}="","",{c}{r - 1}{vorige})', f=font(8, True, TXT), nf=FMT_K, al=AL_RIGHT)
+        pos = f"{c}${r_pos}"
+        koper_cum = "+".join(f"N({model(LY.SEL[f'tj{j}'], pos)})" for j in range(1, LY.N_TERMIJNEN + 1))
+        put(ws, f"{c}{r}", f'=IF({pos}="","",({koper_cum})/1000-{aannemer_nd(c, "<=")})', f=font(8, True, TXT), nf=FMT_K, al=AL_RIGHT)
     ws.conditional_formatting.add(f"C{r}:{L(2 + LY.SC_N_KW)}{r}", FormulaRule(formula=[f'AND(ISNUMBER(C{r}),C{r}<-0.5)'], font=Font(name=ARIAL, bold=True, color=RED)))
     r += 1
-    put(ws, f"B{r}", "koper = de bouwtermijnen in de tabel hierboven (zonder grond, extra's en fees) · aannemer = bouwkosten in hun bouwkwartaal · "
-                     "rood = de bouw is tot dan voorgefinancierd", f=F_NOTE8)
+    put(ws, f"B{r}", "alle types: een rij per type · één type: een rij per termijn · gerealiseerde delen blijven in hun kwartaal · koper = de "
+                     "bouwtermijnen in de tabel hierboven (zonder grond, extra's en fees) · aannemer = bouwkosten in hun bouwkwartaal; in koper − "
+                     "aannemer zonder DAEB-typen (die hebben geen bouwtermijnen van kopers) · rood = de bouw is tot dan voorgefinancierd", f=F_NOTE8)
     ws.conditional_formatting.add(f"C{r_bk1}:{L(2 + LY.SC_N_KW)}{r - 1}",
                                   FormulaRule(formula=[f'AND(C${r_pos}<>"",C${r_pos}<={hm("pos_actuals")})'],
                                               fill=PatternFill(fill_type="solid", bgColor="F2F3F5", fgColor="F2F3F5")))
