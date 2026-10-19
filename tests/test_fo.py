@@ -152,8 +152,8 @@ def test_lees_fo():
     daeb = p.types[1]
     assert daeb.soort == "DAEB" and daeb.koopsom is None and daeb.termijnen == []
     assert daeb.fee_comp == [("AK fee", 1000000), ("Bijkomende kosten (excl. AK)", 500000)]
-    assert daeb.fee_termijnen[0] == ("na akkoord SO", 0.3, "actuals")
-    assert daeb.fee_termijnen[1] == ("na omgevingsvergunning", 0.7, "2026 Q4")
+    assert daeb.fee_termijnen[0] == ("na akkoord SO", 300000, "actuals")            # bedragen uit de cellen (€), niet het %
+    assert daeb.fee_termijnen[1] == ("na omgevingsvergunning", 700000, "2026 Q4")
     assert daeb.fee_termijnen[2] == ("", None, None)
     assert daeb.fee_termijnen[5] == ("na tekenen TKO", 500000, "2027 Q2") and daeb.fee_termijnen[6] == ("", None, None)
     assert daeb.extras == [] and len(daeb.fee_termijnen) == 10
@@ -162,8 +162,8 @@ def test_lees_fo():
     assert not [w for w in p.fo["waarschuwingen"] if "FO - actuals" in w]
     # verkocht: actuals (3) in het actuals-kwartaal Q3 '26 (periode-index 3), 7 in Q4 '26; DAEB 20 in Q1 '27 (tweede kolom)
     assert p.verkocht[3] == [3, None] and p.verkocht[4] == [7, None] and p.verkocht[5] == [None, 20]
-    # transport van de rij Koopsom: 7 in Q4 '26, 3 in Q1 '27
-    assert p.transport[4] == [7, None] and p.transport[5] == [3, None]
+    # transport van de rij Koopsom: 7 in Q4 '26, 3 in Q1 '27; DAEB heeft geen transport in het FO: transport = verkoop
+    assert p.transport[4] == [7, None] and p.transport[5] == [3, 20]
     # CF - kosten (blok Onderdelen): gerealiseerd = kolommen onder 'Actuals' + kwartalen t/m actuals; na de laatste periode in de laatste
     kp = {k["naam"]: k for k in p.kosten_posten}
     assert list(kp) == ["Grondkosten", "Aanneemsom", "Promotiekosten", "Honoraria"]
@@ -255,6 +255,72 @@ def test_bouwkosten_randgevallen():
     assert len(daeb.bouwkosten) == 10 and daeb.bouwkosten[0] == ("Bouw DAEB (gerealiseerd)", 600000, -2)
     assert sum(b for _, b, _ in daeb.bouwkosten) == 600000 + 9 * 100000 + 200000
     assert all(kw >= 0 for _, _, kw in daeb.bouwkosten[1:])                    # na actuals (Q3 '26): kw -1 en later
+
+
+def maak_fo_daeb(pad, vorig=False):
+    """maak_fo, maar DAEB als los blok 'Opbrengsten DAEB' onderaan 'CF - opbrengsten' (zoals in het echte FO): boven de koprij per
+    component de naam (C) en het totaal (E) en 'Startbouw' boven een kwartaal; daaronder de termijnen met het component-voorvoegsel,
+    in twee groepen. Geen termijnblok en geen omzetblok voor DAEB; aantal en verkoop op tabblad 'Verkooptempo' (rij 'Corporatie').
+    vorig=True: een ouder FO (start bouw en twee termijnen een kwartaal eerder)."""
+    from openpyxl import load_workbook
+    maak_fo(pad)
+    wb = load_workbook(pad)
+    wo = wb["CF - opbrengsten"]
+    for r in list(range(17, 20)) + [25] + list(range(40, 50)):        # DAEB-type uit maak_fo weg (termijnblok, verkooptempo, omzetblok)
+        for c in range(2, 30):
+            wo.cell(r, c).value = None
+    kq = _kopregels(wo, 56)
+    wo["C54"], wo["E54"] = "AK", 950000
+    wo["C55"], wo["E55"] = "Bijkomende kosten ex. AK", 500000
+    wo.cell(54, kq[(2027, 1) if vorig else (2027, 2)]).value = "Startbouw"
+    wo["B56"] = "Opbrengsten DAEB"
+    wo["B57"], wo["C57"], wo["J57"] = "AK fee na akkoord SO", 0.3, 250000             # alleen actuals (ander bedrag dan 30%)
+    wo["B58"], wo["C58"], wo["J58"] = "AK fee na akkoord VO", 0.3, 150000             # deels ontvangen, de rest in Q4 '26
+    wo.cell(58, kq[(2026, 4)]).value = 150000
+    wo["B59"], wo["C59"] = "AK fee na akkoord DO", 0.4                                 # over twee kwartalen
+    for q in ((2026, 4), (2027, 1)) if vorig else ((2027, 1), (2027, 2)):
+        wo.cell(59, kq[q]).value = 200000
+    wo["B61"], wo["C61"] = "Bijkomende kosten na tekenen TKO", 0.5
+    wo.cell(61, kq[(2027, 1) if vorig else (2027, 2)]).value = 250000
+    wo["B62"], wo["C62"] = "Gevelsluiting", 0.5                                         # zonder voorvoegsel: component van de groep
+    wo.cell(62, kq[(2027, 3)]).value = 250000
+    wo["B66"] = "Totaal opbrengsten"
+    wv = wb.create_sheet("Verkooptempo")
+    kv = _kopregels(wv, 3)
+    wv["A3"], wv["B3"] = "Verkooptempo", "Aantal"
+    wv["A4"], wv["B4"] = "Rijwoning", 10
+    wv.cell(4, kv[(2026, 4)]).value = 10
+    wv["A5"], wv["B5"] = "Corporatie", 20
+    wv.cell(5, kv[(2026, 4)]).value = 20
+    wb.save(pad)
+
+
+def test_daeb_los_blok():
+    """Los DAEB-blok: een eigen DAEB-type met de componenten van boven de koprij, de termijnen per component (op voorvoegsel, anders
+    per groep; voorvoegsel weg uit de mijlpaal), bedragen uit de cellen per kwartaal gesplitst ('actuals' = ontvangen), start bouw
+    van 'Startbouw', aantal en verkoop van tabblad 'Verkooptempo' en transport = verkoop. Vorige prognose op mijlpaal."""
+    with tempfile.TemporaryDirectory() as d:
+        pad, pad_vorig = os.path.join(d, "fo.xlsx"), os.path.join(d, "fo_vorig.xlsx")
+        maak_fo_daeb(pad)
+        maak_fo_daeb(pad_vorig, vorig=True)
+        p = fo.lees_fo(pad)
+        fo.voeg_vorige_prognose_toe(p, pad_vorig)
+    assert [t.naam for t in p.types] == ["Rijwoning", "DAEB"]
+    t = p.types[1]
+    assert (t.soort, t.aantal, t.start_jaar, t.start_kw, t.koopsom, t.termijnen) == ("DAEB", 20, 2027, 2, None, [])
+    assert t.fee_comp == [("AK", 950000), ("Bijkomende kosten ex. AK", 500000)]
+    assert t.fee_termijnen == [("na akkoord SO", 250000, "actuals"), ("na akkoord VO (ontvangen)", 150000, "actuals"),
+                               ("na akkoord VO", 150000, "2026 Q4"), ("na akkoord DO (1/2)", 200000, "2027 Q1"),
+                               ("na akkoord DO (2/2)", 200000, "2027 Q2"),
+                               ("na tekenen TKO", 250000, "2027 Q2"), ("Gevelsluiting", 250000, "2027 Q3"),
+                               ("", None, None), ("", None, None), ("", None, None)]
+    assert p.verkocht[4] == [7, 20] and p.transport[4] == [7, 20]            # Q4 '26: DAEB verkocht en (= verkoop) getransporteerd
+    assert sum(r[1] or 0 for r in p.verkocht) == 20 and sum(r[1] or 0 for r in p.transport) == 20
+    assert [w for w in p.fo["waarschuwingen"] if "20 woningen en de verkoop uit 'Verkooptempo' (rij 'Corporatie')" in w]
+    assert not [w for w in p.fo["waarschuwingen"] if "termijnblok" in w and "DAEB" in w]
+    # vorige prognose: start bouw en fee-kwartalen uit het oudere FO (op mijlpaal)
+    assert (t.vorig_start_jaar, t.vorig_start_kw) == (2027, 1)
+    assert t.fee_vorig[:7] == ["actuals", "actuals", "2026 Q4", "2026 Q4", "2027 Q1", "2027 Q1", "2027 Q3"]
 
 
 def maak_fo_vorig(pad_vorig):

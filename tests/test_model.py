@@ -798,3 +798,25 @@ def test_bouwkosten_scenario_en_controle(tmp):
             if q <= idx[pos_last - 1]:
                 aannemer += b
     assert abs(waarde(r_cum, c_last) - (koper_cum - aannemer) / 1000) < 1e-3
+
+
+def test_daeb_los_blok_in_het_model(tmp):
+    """Een los DAEB-blok uit het FO ('Opbrengsten DAEB', zie test_fo.maak_fo_daeb) komt in het model: de fees tellen mee (gepland en
+    geldig, per component volledig), de marge niet-DAEB laat ze weg en de DAEB-woningen tellen mee in verkocht en getransporteerd."""
+    if not SOFFICE:
+        pytest.skip("LibreOffice niet gevonden")
+    sys.path.insert(0, HIER)
+    from test_fo import maak_fo_daeb
+    from forecast_builder import fo
+    pad = os.path.join(tmp, "fo_daeb.xlsx")
+    maak_fo_daeb(pad)
+    wb = bouw_en_bereken(fo.lees_fo(pad), tmp, "fo_daeb")
+    m, d = wb["Model"], wb["Dashboard"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    fe = LY.m_col("fee", 2)
+    assert m[f"{fe}5"].value == 1 and abs(m[f"{fe}6"].value - 1450000) < 1
+    assert hb("woningen") == 30 and hb("verkocht_plan") == 30 and hb("transport_plan") == 30
+    assert hb("marge_nd") != hb("marge")
+    controles = {d[f"V{r}"].value: d[f"W{r}"].value for r in range(40, 60) if isinstance(d[f"V{r}"].value, str)}
+    assert controles["DAEB: fees per component volledig gepland"] == "OK"
+    assert controles["DAEB: elke fee-termijn heeft een geldig kwartaal en bedrag"] == "OK"
