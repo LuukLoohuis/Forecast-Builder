@@ -295,6 +295,74 @@ def maak_fo_daeb(pad, vorig=False):
     wb.save(pad)
 
 
+def maak_fo_daeb_lastig(pad, vorig=False):
+    """maak_fo_daeb met de randgevallen uit de review: componenten 'Fee AK' / 'Fee bijkomende kosten' / 'Onvoorzien' (drie rijen
+    boven de koprij, 'Startbouw' in de bovenste), een termijn met ontvangen deel en later deel, een negatieve correctie, een deel van
+    40 cent, een scheidingsteken na het voorvoegsel, subtotalen, een groep 'Onvoorzien'; op 'Verkooptempo' een titel in A1, een
+    koopnaam die net afwijkt, een lege rij en een totaalrij. vorig=True: een ouder FO (DO in één kwartaal, TKO een kwartaal eerder)."""
+    from openpyxl import load_workbook
+    maak_fo_daeb(pad)
+    wb = load_workbook(pad)
+    wo = wb["CF - opbrengsten"]
+    kq = _kopregels(wo, 56)
+    for r in list(range(53, 56)) + list(range(57, 75)):
+        for c in range(2, 30):
+            wo.cell(r, c).value = None
+    _kopregels(wo, 56)
+    wo["C53"], wo["E53"] = "Fee AK", 1000000
+    wo["C54"], wo["E54"] = "Fee bijkomende kosten", 500000
+    wo["C55"], wo["E55"] = "Onvoorzien", 50000
+    wo.cell(53, kq[(2027, 2)]).value = "Startbouw"
+    wo["B57"], wo["J57"] = "Fee AK na akkoord SO", 250000
+    wo.cell(57, kq[(2026, 4)]).value = 10000
+    wo["B58"], wo["J58"] = "Fee AK - na akkoord VO", 150000
+    wo.cell(58, kq[(2026, 4)]).value = 150000
+    wo.cell(58, kq[(2027, 1)]).value = -10000                             # correctie
+    wo["B59"] = "Fee AK na akkoord DO"
+    for q in ((2027, 1),) if vorig else ((2027, 1), (2027, 2)):
+        wo.cell(59, kq[q]).value = 400000 if vorig else 200000
+    wo["B60"], wo["J60"] = "Fee AK na omgevingsvergunning", 0.4           # 40 cent: afronding
+    wo.cell(60, kq[(2027, 3)]).value = 50000
+    wo["B61"], wo["J61"] = "Subtotaal AK", 400005
+    wo["B63"] = "Fee bijkomende kosten na tekenen TKO"
+    wo.cell(63, kq[(2027, 1) if vorig else (2027, 2)]).value = 250000
+    wo["B64"] = "Gevelsluiting"
+    wo.cell(64, kq[(2027, 3)]).value = 250000
+    wo["B65"], wo["J65"] = "Totaal fee bijkomende kosten", 500000
+    wo["B67"] = "Onvoorzien bij start bouw"
+    wo.cell(67, kq[(2027, 2)]).value = 50000
+    wo["B71"] = "Totaal opbrengsten"
+    wv = wb["Verkooptempo"]
+    wv["A1"] = "Verkooptempo"
+    wv["A4"] = "Rijwoningen"
+    wv.move_range("A5:Z5", rows=1)
+    wv["A7"], wv["B7"] = "Totaal", 30
+    wb.save(pad)
+
+
+def test_daeb_los_blok_randgevallen():
+    """Zie maak_fo_daeb_lastig: sleutelwoord zonder 'fee', geen bedrag kwijt boven vijf delen (eerst al het ontvangene in één rij, dan
+    hetzelfde kwartaal samen), correcties bij het vorige deel, subtotalen en 'Onvoorzien' overgeslagen, 'Verkooptempo' met titel,
+    afwijkende koopnaam, lege rij en totaal; vorige prognose per component op mijlpaal."""
+    with tempfile.TemporaryDirectory() as d:
+        pad, pad_vorig = os.path.join(d, "fo.xlsx"), os.path.join(d, "fo_vorig.xlsx")
+        maak_fo_daeb_lastig(pad)
+        maak_fo_daeb_lastig(pad_vorig, vorig=True)
+        p = fo.lees_fo(pad)
+        fo.voeg_vorige_prognose_toe(p, pad_vorig)
+    t = p.types[1]
+    assert (t.naam, t.aantal, t.start_jaar, t.start_kw) == ("DAEB", 20, 2027, 2)
+    assert t.fee_comp == [("Fee AK", 1000000), ("Fee bijkomende kosten", 500000)]
+    assert t.fee_termijnen == [("ontvangen t/m actuals", 400000, "actuals"), ("na akkoord SO + na akkoord VO", 150000, "2026 Q4"),
+                               ("na akkoord DO (1/2)", 200000, "2027 Q1"), ("na akkoord DO (2/2)", 200000, "2027 Q2"),
+                               ("na omgevingsvergunning", 50000.4, "2027 Q3"),
+                               ("na tekenen TKO", 250000, "2027 Q2"), ("Gevelsluiting", 250000, "2027 Q3"),
+                               ("", None, None), ("", None, None), ("", None, None)]
+    w = p.fo["waarschuwingen"]
+    assert [x for x in w if "'Corporatie' is gebruikt" in x] and [x for x in w if "correctie of afronding" in x]
+    assert t.fee_vorig[:7] == ["actuals", "2026 Q4", "2027 Q1", "2027 Q1", "2027 Q3", "2027 Q1", "2027 Q3"]
+
+
 def test_daeb_los_blok():
     """Los DAEB-blok: een eigen DAEB-type met de componenten van boven de koprij, de termijnen per component (op voorvoegsel, anders
     per groep; voorvoegsel weg uit de mijlpaal), bedragen uit de cellen per kwartaal gesplitst ('actuals' = ontvangen), start bouw
