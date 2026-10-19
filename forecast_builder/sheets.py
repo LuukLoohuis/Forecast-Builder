@@ -266,10 +266,12 @@ def bouw_woningtypes(wb, data):
         put(ws, f"{c0}{LY.WT_R_FT_KOP}", "mijlpaal", f=F_HDR, fl=FL_HDR, al=AL_LEFT)
         put(ws, f"{c1}{LY.WT_R_FT_KOP}", "€ of %", f=F_HDR, fl=FL_HDR, al=AL_RIGHT)
         put(ws, f"{c2}{LY.WT_R_FT_KOP}", "kwartaal", f=F_HDR, fl=FL_HDR, al=AL_RIGHT)
+        # mijlpaalnamen van het sjabloon alleen als hint in een leeg blok; een DAEB-type met eigen termijnen (FO) houdt lege rijen leeg
+        eigen = t.soort == "DAEB" and any(x[0] for x in t.fee_termijnen)
         for i in range(LY.N_TERMIJNEN):
             r = LY.WT_R_FT1 + i
             mn, w_, kw = t.fee_termijnen[i] if i < len(t.fee_termijnen) else (None, None, None)
-            put(ws, f"{c0}{r}", mn or data.fee_mijlpalen[i] or None, f=F_INPUT, fl=FL_INPUT)
+            put(ws, f"{c0}{r}", mn or (None if eigen else data.fee_mijlpalen[i]) or None, f=F_INPUT, fl=FL_INPUT)
             put(ws, f"{c1}{r}", w_, f=F_INPUT, fl=FL_INPUT, nf='[<=1]0%;#,##0', al=AL_RIGHT)
             put(ws, f"{c2}{r}", kw, f=F_INPUT, fl=FL_INPUT, nf="0", al=AL_RIGHT)
             dv_eur.add(f"{c1}{r}")
