@@ -62,10 +62,12 @@ Option Explicit
 '       (tab PowerPoint, geen macrowijziging). Tab Woningtypes blok 7: bouwkosten per termijn (aannemer) uit het termijnblok met
 '       dezelfde titel op 'CF - kosten' (KostenBlok, VoegBouwkostenToe; zoals fo.py _lees_bouwkosten). Meer dan tien termijnen na
 '       het splitsen over kwartalen: kleinste delen samengevoegd (BinnenLimiet, zoals fo.py _binnen_limiet).
-'       DAEB-fees: ook een los DAEB-blok onderaan 'CF - opbrengsten' ('Opbrengsten DAEB', de componenten met hun totaal boven
+'  v20: DAEB-fees: ook een los DAEB-blok onderaan 'CF - opbrengsten' ('Opbrengsten DAEB', de componenten met hun totaal boven
 '       de koprij) wordt een DAEB-type (FODaeb, LeesDaebBlok; aantal en verkoop van tabblad 'Verkooptempo', transport =
 '       verkoop); fee-bedragen uit de cellen, per kwartaal gesplitst (FeeDelen, zoals fo.py _fee_delen); ook in
-'       VorigePrognoseUitFO.
+'       VorigePrognoseUitFO. Dia 'opbrengsten per woningtype' (VulDiasPerType): standaard één dia met het totaal van alle
+'       niet-DAEB-typen (keuzecel 0 = 'Totaal (zonder DAEB)'); Dashboard CEL_PT_PP: 'totaal (zonder DAEB)', 'per type' of
+'       'totaal en per type'. Geen sjabloonwijziging.
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -103,6 +105,8 @@ Private Const KOL_VP As Long = 30          ' kolommen van het blok van dia 6 (ve
 Private Const CEL_PT_N As String = "BY128"
 Private Const CEL_VP_N As String = "BY132"         ' aantal getoonde periodes in de verkoop- en transportgrafiek (vanaf het actuals-jaar)         ' aantal getoonde periodes in de grafiek per type (tijdvak vanaf twee jaar vóór de eerste opbrengst)
 Private Const CEL_PT_KEUZE As String = "B120"      ' keuzecel op het Dashboard: naam van het type in de grafiek per woningtype
+Private Const CEL_PT_PP As String = "W120"         ' Dashboard (sinds v20): dia per woningtype als totaal zonder DAEB, per type of beide
+Private Const PT_TOTAAL As String = "Totaal (zonder DAEB)"   ' keuze in CEL_PT_KEUZE (of 0): alle niet-DAEB-typen samen
 ' dia 2 (sjabloon v17): blok van de kleine cashflowgrafiek, as-grenzen (Model, kc_min/kc_max), positie actuals, en het tekenvlak
 ' van KPI_GRAFIEK als fractie van het grafiekkader (layout.KC_PLOT_X / KC_PLOT_W; manualLayout in het sjabloon)
 Private Const BLOK_KC As String = "GK7"
@@ -1441,14 +1445,15 @@ Private Sub ZetTijdAs(ch As Object)
 End Sub
 
 Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mist As String, ByRef fouten As String)
-    ' Dia 8 (PT_GRAFIEK): per woningtype met aantal > 0 een kopie van de dia, gevuld met dat type. Het Dashboard heeft een
-    ' keuzecel met de typenaam; het Model rekent het selectieblok (tab PowerPoint vanaf BLOK_PT) voor dat type uit. De macro
-    ' zet per type de keuzecel, rekent door, kopieert de dia (achter de vorige kopie) en vult titel, ondertitel en grafiek
-    ' op de kopie zelf (niet via ZoekVorm, dat de eerste dia met die vormnaam zou pakken). Daarna gaat dia 8 zelf weg en
-    ' krijgt de keuzecel zijn oude waarde terug. Geen type: alleen dia 8 verwijderen.
-    Dim wsT As Worksheet, wsD As Worksheet, shp As Object, sjabloon As Object, kopie As Object, rngK As Object
+    ' Dia 8 (PT_GRAFIEK): volgens het Dashboard (CEL_PT_PP) één dia met het totaal van alle niet-DAEB-typen ('totaal (zonder DAEB)',
+    ' standaard; keuzecel = 0), per woningtype met aantal > 0 een kopie ('per type'), of eerst het totaal en dan per type ('totaal
+    ' en per type'). Het Dashboard heeft een keuzecel met de typenaam; het Model rekent het selectieblok (tab PowerPoint vanaf BLOK_PT)
+    ' voor dat type of het totaal uit. De macro zet de keuzecel, rekent door, kopieert de dia (achter de vorige kopie) en vult titel,
+    ' ondertitel en grafiek op de kopie zelf (niet via ZoekVorm, dat de eerste dia met die vormnaam zou pakken). Daarna gaat dia 8
+    ' zelf weg en krijgt de keuzecel zijn oude waarde terug. Geen koopwoningen: per type. Geen type: alleen dia 8 verwijderen.
+    Dim wsT As Worksheet, wsD As Worksheet, shp As Object, sjabloon As Object
     Dim oud As Variant, pos As Long, c As Long, naam As String, aantal As Variant, idx As Long, nKopie As Long
-    Dim rTitel As Long, rSub As Long, r As Long, fouten2 As String
+    Dim rTitel As Long, rSub As Long, r As Long, modus As String, totaal As Boolean, perType As Boolean, nKoop As Long
     Set shp = ZoekVorm(pres, "PT_GRAFIEK")
     If shp Is Nothing Then
         mist = mist & "PT_GRAFIEK" & vbCrLf
@@ -1460,6 +1465,9 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
     Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
     Set wsD = ThisWorkbook.Worksheets(SH_DASH)
     oud = wsD.Range(CEL_PT_KEUZE).Formula
+    modus = LCase$(Trim$(CelTekst(wsD.Range(CEL_PT_PP))))
+    perType = (Left$(modus, 8) = "per type") Or (InStr(modus, "en per type") > 0)
+    totaal = (Left$(modus, 8) <> "per type")
     ' regels op tab PowerPoint met de titel en ondertitel van dia 8 (kolom F = vormnaam)
     For r = KPI_ROW1 To KPI_ROW1 + 300
         If Len(CelTekst(wsP.Range("C" & r))) = 0 Then Exit For
@@ -1467,29 +1475,38 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
         If Trim$(CelTekst(wsP.Range("F" & r))) = "PT_SUBTITEL" Then rSub = r
     Next r
     nKopie = 0
-    For pos = 1 To MAX_TYPES
-        c = TYPE_COL1 + (pos - 1) * TYPE_BREEDTE
-        aantal = wsT.Cells(TYPE_RIJ_AANTAL, c).Value
-        If IsNumeric(aantal) And Not IsEmpty(aantal) Then
-            If CDbl(aantal) > 0 Then
-                naam = CStr(wsT.Cells(TYPE_RIJ_NAAM, c).Value)
-                If Len(naam) = 0 Then naam = "Type " & pos
-                wsD.Range(CEL_PT_KEUZE).Value = pos          ' typenummer: het Model kiest op nummer, dus ook bij dubbele namen goed
-                Application.Calculate
-                Set rngK = sjabloon.Duplicate
-                Set kopie = rngK.Item(1)
-                nKopie = nKopie + 1
-                kopie.MoveTo idx + nKopie
-                On Error Resume Next                           ' titel en ondertitel: alleen als de vorm op de dia staat
-                If rTitel > 0 Then kopie.Shapes("PT_TITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rTitel))
-                If rSub > 0 Then kopie.Shapes("PT_SUBTITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rSub))
-                On Error GoTo Mislukt
-                fouten2 = ""
-                VulGrafiekVorm kopie.Shapes("PT_GRAFIEK"), "PT_GRAFIEK", wsP.Range(BLOK_PT), AantalRijen(CEL_PT_N, MAX_RIJEN), KOL_PT, fouten2
-                If Len(fouten2) > 0 Then fouten = fouten & naam & " · " & fouten2
+    If totaal Then
+        For pos = 1 To MAX_TYPES
+            c = TYPE_COL1 + (pos - 1) * TYPE_BREEDTE
+            aantal = wsT.Cells(TYPE_RIJ_AANTAL, c).Value
+            If IsNumeric(aantal) And Not IsEmpty(aantal) Then
+                If CDbl(aantal) > 0 And UCase$(Trim$(CelTekst(wsT.Cells(TYPE_RIJ_SOORT, c)))) <> "DAEB" Then nKoop = nKoop + 1
             End If
+        Next pos
+        If nKoop > 0 Then
+            naam = PT_TOTAAL
+            wsD.Range(CEL_PT_KEUZE).Value = 0                ' 0 = totaal van alle niet-DAEB-typen
+            Application.Calculate
+            VulKopiePT sjabloon, idx, nKopie, wsP, rTitel, rSub, naam, fouten
+        Else
+            perType = True                                   ' geen koopwoningen (alleen DAEB): dan per type
         End If
-    Next pos
+    End If
+    If perType Then
+        For pos = 1 To MAX_TYPES
+            c = TYPE_COL1 + (pos - 1) * TYPE_BREEDTE
+            aantal = wsT.Cells(TYPE_RIJ_AANTAL, c).Value
+            If IsNumeric(aantal) And Not IsEmpty(aantal) Then
+                If CDbl(aantal) > 0 Then
+                    naam = CStr(wsT.Cells(TYPE_RIJ_NAAM, c).Value)
+                    If Len(naam) = 0 Then naam = "Type " & pos
+                    wsD.Range(CEL_PT_KEUZE).Value = pos      ' typenummer: het Model kiest op nummer, dus ook bij dubbele namen goed
+                    Application.Calculate
+                    VulKopiePT sjabloon, idx, nKopie, wsP, rTitel, rSub, naam, fouten
+                End If
+            End If
+        Next pos
+    End If
     sjabloon.Delete
     wsD.Range(CEL_PT_KEUZE).Formula = oud
     Application.Calculate
@@ -1500,6 +1517,23 @@ Mislukt:
     wsD.Range(CEL_PT_KEUZE).Formula = oud
     Application.Calculate
     On Error GoTo 0
+End Sub
+
+Private Sub VulKopiePT(sjabloon As Object, idx As Long, ByRef nKopie As Long, wsP As Worksheet, rTitel As Long, rSub As Long, _
+                       naam As String, ByRef fouten As String)
+    ' kopie van dia 8 achter de vorige kopie, gevuld met het type (of het totaal) dat nu in de keuzecel staat; een fout gaat naar de
+    ' foutafhandeling van VulDiasPerType
+    Dim rngK As Object, kopie As Object, fouten2 As String
+    Set rngK = sjabloon.Duplicate
+    Set kopie = rngK.Item(1)
+    nKopie = nKopie + 1
+    kopie.MoveTo idx + nKopie
+    On Error Resume Next                                   ' titel en ondertitel: alleen als de vorm op de dia staat
+    If rTitel > 0 Then kopie.Shapes("PT_TITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rTitel))
+    If rSub > 0 Then kopie.Shapes("PT_SUBTITEL").TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & rSub))
+    On Error GoTo 0
+    VulGrafiekVorm kopie.Shapes("PT_GRAFIEK"), "PT_GRAFIEK", wsP.Range(BLOK_PT), AantalRijen(CEL_PT_N, MAX_RIJEN), KOL_PT, fouten2
+    If Len(fouten2) > 0 Then fouten = fouten & naam & " · " & fouten2
 End Sub
 
 Private Sub ZetBereik(reeks As Object, wsE As Object, kol As String, n As Long)

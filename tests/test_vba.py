@@ -63,6 +63,10 @@ def test_blokconstanten_volgen_de_layout():
     assert int(const("KOL_PT")) == LY.PP_PT_KOL
     assert int(const("KOL_VP")) == LY.PP_VP_KOL
     assert const("CEL_PT_N") == f"{LY.M_HULP}{LY.H['pt_n']}"
+    # v20: keuzecel en schakelaar van de grafiek per woningtype (totaal zonder DAEB, per type of beide)
+    assert const("CEL_PT_KEUZE") == LY.D["pt_keuze"] and const("CEL_PT_PP") == LY.D["pt_pp"]
+    assert f'Private Const PT_TOTAAL As String = "{LY.PT_TOTAAL}"' in src
+    assert LY.PT_PP_KEUZES[0].startswith("totaal") and LY.PT_PP_KEUZES[1] == "per type" and LY.PT_PP_KEUZES[2].endswith("en per type")
     assert const("CEL_VP_N") == f"{LY.M_HULP}{LY.H['vp_n']}"
     # dia 2 (sjabloon v17): grafiekblok, as-grenzen, positie actuals, instellingen en het tekenvlak van KPI_GRAFIEK
     assert const("BLOK_KC") == LY.PP_BLOK["kc"] + "7" and int(const("KOL_KC")) == LY.PP_KC_KOL

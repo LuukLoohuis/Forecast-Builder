@@ -820,3 +820,29 @@ def test_daeb_los_blok_in_het_model(tmp):
     controles = {d[f"V{r}"].value: d[f"W{r}"].value for r in range(40, 60) if isinstance(d[f"V{r}"].value, str)}
     assert controles["DAEB: fees per component volledig gepland"] == "OK"
     assert controles["DAEB: elke fee-termijn heeft een geldig kwartaal en bedrag"] == "OK"
+
+
+def test_grafiek_per_type_totaal_zonder_daeb(tmp):
+    """Keuze 'Totaal (zonder DAEB)' in de keuzecel van de grafiek per woningtype: alle koopwoningen samen (DAEB-fees niet), dus het
+    totaal is de model-opbrengst min de fees; de schakelaar naar PowerPoint staat standaard op het totaal en komt terug bij inlezen."""
+    if not SOFFICE:
+        pytest.skip("LibreOffice niet gevonden")
+    p = D.voorbeeld()
+    paden = build.bouw(p, os.path.join(tmp, "pt_totaal"), None, caches=False)
+    wb = load_workbook(paden[0])
+    assert wb["Dashboard"][LY.D["pt_pp"]].value == LY.PT_PP_KEUZES[0]
+    wb["Dashboard"][LY.D["pt_keuze"]] = LY.PT_TOTAAL
+    wb["Dashboard"][LY.D["pt_pp"]] = "per type"
+    pad = os.path.join(tmp, "pt_totaal_keuze.xlsx")
+    wb.save(pad)
+    assert D.lees_werkboek(pad).params["pt_pp"] == "per type"
+    w = load_workbook(herbereken(pad), data_only=True)
+    m = w["Model"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    fees = sum(m[f"{LY.m_col('fee', k)}6"].value or 0 for k in range(1, LY.N_TYPES + 1) if m[f"{LY.m_col('fee', k)}5"].value == 1)
+    assert hb("pt_keuze") == 0 and hb("pt_naam") == LY.PT_TOTAAL and hb("pt_daeb") == 0
+    assert hb("pt_aantal") == sum(t.aantal for t in p.types if t.soort != "DAEB")
+    assert abs(hb("pt_totaal") * 1e6 - (hb("model_opbr") - fees)) < 1
+    assert hb("pt_lbl_fee1") in (None, "") and hb("pt_titel").startswith(LY.PT_TOTAAL)
+    lijst = [m[f"{LY.PT['grond']}{LY.PT_R_LIJST + i}"].value for i in range(3)]
+    assert lijst == [LY.PT_TOTAAL, p.types[0].naam, p.types[1].naam]

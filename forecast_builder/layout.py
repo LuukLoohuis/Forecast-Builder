@@ -220,6 +220,9 @@ PT = {}
 for _i, _name in enumerate(["grond", "bouw", "extra", "fee1", "fee2", "cum", "totaal", "eind"]):
     PT[_name] = L(PT_COL1 + _i)
 PT_REEKSEN = ["grond", "bouw", "extra", "fee1", "fee2", "cum", "totaal", "eind"]   # totaal = som per kwartaal (label), eind = laatste punt
+PT_TOTAAL = "Totaal (zonder DAEB)"          # keuze in de keuzecel: alle niet-DAEB-typen samen (pt_keuze = 0)
+PT_R_LIJST = 70                              # keuzelijst van de keuzecel: Model kolom PT['grond'], rij 70 = PT_TOTAAL, daarna de typen
+PT_PP_KEUZES = ["totaal (zonder DAEB)", "per type", "totaal en per type"]   # Dashboard: wat de macro van dia 'opbrengsten per woningtype' maakt
 PT_KLEUREN = {"grond": "002060", "bouw": "2A78D6", "extra": "EDA100", "fee1": "4A3AA7", "fee2": "1F8A8A"}
 
 
@@ -313,7 +316,8 @@ D = {
     "shift_scn": "Y17", "uitstel_scn": "Y18", "opbr_scn": "Y19", "kosten_scn": "Y20", "rente_pct_scn": "Y21", "koopsom_scn": "Y22",
     "rente_scn": "Y23", "scn_aan": "Y25", "scn_naam": "Y26",
     "norm": "W29",
-    "pt_keuze": "B120",                                     # grafiek per woningtype: gekozen type (naam; keuzelijst uit Model rij 7)
+    "pt_keuze": "B120",                                     # grafiek per woningtype: gekozen type (naam of PT_TOTAAL; keuzelijst Model PT_R_LIJST)
+    "pt_pp": "W120",                                        # naast die grafiek: naar PowerPoint als totaal, per type of beide (PT_PP_KEUZES)
     # FO-koppeling (macro 'Ophalen uit FO' op tab Invoer, of build.py --fo): bestand, actuals t/m, totalen uit '1. Cashflow', datum
     "fo_bestand": "W69", "fo_actuals": "W70", "fo_opbr": "W71", "fo_kosten": "W72", "fo_datum": "W73",
     # grootste lasten (dia 2, kaart KPI9): kop van de kaart en drie regels naam (W:X samengevoegd) en bedrag in € (Y)
@@ -341,6 +345,7 @@ D_ROW_TYPES = 56           # overzicht woningtypes (na vijftien controles)
 D_ROW_FO = 68              # FO-koppeling: bestand, actuals, totalen (cellen in LY.D fo_*)
 D_ROW_LASTEN = 75          # grootste lasten voor dia 2 (sectiekop; data.py zoekt de sectie op dit label)
 D_LABEL_LASTEN = "GROOTSTE LASTEN (dia 2)"
+D_LABEL_PT_PP = "Naar PowerPoint (dia opbrengsten per woningtype)"   # label in V120, keuze in W120 (data.py leest op dit label)
 D_ROW_LEGENDA = 70         # cel-legenda van de verkoopgrafiek (gekleurde cellen per woningtype)
 D_ROW_BT = 95              # sectiekop bouwtermijnengrafiek; chips (typekleuren) in rij 96, grafiek op B97 (19 rijen)
 D_ROW_LEGENDA_BT = 96

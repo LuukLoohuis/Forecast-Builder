@@ -842,29 +842,41 @@ def bouw_model(wb):
     ws.column_dimensions[L(LY.PT_COL1 - 1)].width = 3
     kz = h("pt_keuze")
     sel = lambda blok, row: f"INDEX({m_range_abs(blok, row)},{kz})"  # noqa: E731
+    cel = lambda blok, k, row: f"N(${m_col(blok, k)}${row})" if row in (5, 6) else f"N({m_col(blok, k)}{row})"  # noqa: E731
+
+    def onderdelen(tc_r, tc_p, koopsom, grond, verv_r, verv_p, vx6, vx_r, vx_p, nod):
+        """grondtermijn, bouwtermijnen en extra's van één type in een kwartaal (€)"""
+        return (f"({tc_r}-{tc_p})*{koopsom}*{grond}", f"{koopsom}*({tc_r}*{verv_r}-{tc_p}*{verv_p})",
+                f"(({tc_r}-{tc_p})*{vx6}+({tc_r}*{vx_r}-{tc_p}*{vx_p}))*{nod}")
+
     for r in range(ROW1, ROWN + 1):
         p = r - 1
         leeg = f'${NR}{r}=""'
-        tc_r, tc_p = f"N({sel('tcum', r)})", f"N({sel('tcum', p)})"
-        koopsom = f"(N({sel('tcum', 6)})*(1-N({sel('fee', 5)})))"
-        grond = f"N({sel('tup', 6)})"
-        verv_r, verv_p = f"N({sel('verv', r)})", f"N({sel('verv', p)})"
-        vx6, vx_r, vx_p = f"N({sel('vx', 6)})", f"N({sel('vx', r)})", f"N({sel('vx', p)})"
-        nod = f"(1-N({sel('fee', 5)}))"
+        een = onderdelen(f"N({sel('tcum', r)})", f"N({sel('tcum', p)})", f"(N({sel('tcum', 6)})*(1-N({sel('fee', 5)})))",
+                         f"N({sel('tup', 6)})", f"N({sel('verv', r)})", f"N({sel('verv', p)})", f"N({sel('vx', 6)})",
+                         f"N({sel('vx', r)})", f"N({sel('vx', p)})", f"(1-N({sel('fee', 5)}))")
+        # keuze 'Totaal (zonder DAEB)' (pt_keuze = 0): de som over alle typen, DAEB-typen tellen niet mee (koopsom en extra's x 0)
+        per_k = [onderdelen(cel("tcum", k, r), cel("tcum", k, p), f"({cel('tcum', k, 6)}*(1-{cel('fee', k, 5)}))", cel("tup", k, 6),
+                            cel("verv", k, r), cel("verv", k, p), cel("vx", k, 6), cel("vx", k, r), cel("vx", k, p),
+                            f"(1-{cel('fee', k, 5)})") for k in range(1, N_TYPES + 1)]
+        som = ["+".join(t[i] for t in per_k) for i in range(3)]
         fee = lambda c: (f'SUMIFS({rng_bt("bedrag")},{rng_bt("k")},{kz},{rng_bt("comp")},{c},{rng_bt("gebruikt")},1,'  # noqa: E731
                          f'{rng_bt("idxb")},${IDX}{r})')
-        f = {
-            "grond": f'=IF({leeg},NA(),({tc_r}-{tc_p})*{koopsom}*{grond}/1000000)',
-            "bouw": f'=IF({leeg},NA(),{koopsom}*({tc_r}*{verv_r}-{tc_p}*{verv_p})/1000000)',
-            "extra": f'=IF({leeg},NA(),(({tc_r}-{tc_p})*{vx6}+({tc_r}*{vx_r}-{tc_p}*{vx_p}))*{nod}/1000000)',
+        f = {naam: f'=IF({leeg},NA(),IF({kz}=0,{som[i]},{een[i]})/1000000)' for i, naam in enumerate(("grond", "bouw", "extra"))}
+        f.update({
             "fee1": f'=IF({leeg},NA(),{fee(1)}/1000000)',
             "fee2": f'=IF({leeg},NA(),{fee(2)}/1000000)',
-        }
+        })
         f["cum"] = (f'=IF({leeg},NA(),N({PT["cum"]}{p})+{PT["grond"]}{r}+{PT["bouw"]}{r}+{PT["extra"]}{r}+{PT["fee1"]}{r}+{PT["fee2"]}{r})')
         f["totaal"] = f'=IF({leeg},NA(),{PT["grond"]}{r}+{PT["bouw"]}{r}+{PT["extra"]}{r}+{PT["fee1"]}{r}+{PT["fee2"]}{r})'
         f["eind"] = f'=IF({leeg},NA(),IF({r - ROW1 + 1}={h("n")},{PT["cum"]}{r},NA()))'
         for naam, formule in f.items():
             put(ws, f"{PT[naam]}{r}", formule, f=F_CALC, nf="0.00", al=AL_RIGHT)
+    # keuzelijst van de keuzecel op het Dashboard: eerst het totaal zonder DAEB, dan de typen (namen uit rij 7)
+    put(ws, f"{PT['grond']}{LY.PT_R_LIJST - 1}", "keuzelijst grafiek per woningtype (Dashboard)", f=F_NOTE8)
+    put(ws, f"{PT['grond']}{LY.PT_R_LIJST}", LY.PT_TOTAAL, f=F_CALC)
+    for k in range(1, N_TYPES + 1):
+        put(ws, f"{PT['grond']}{LY.PT_R_LIJST + k}", f"=${m_col('gv', k)}$7", f=F_CALC)
 
     # ---- hulpcellen -----------------------------------------------------------
     sb, su, sd, ss = M["stand_basis"], M["stand_up"], M["stand_down"], M["stand_scn"]
@@ -1005,12 +1017,15 @@ def bouw_model(wb):
         "fee_fout_termijn": ("Fee-termijnen zonder geldig kwartaal of bedrag", f"=SUM({rng_bt('fout')})"),
         "daeb_types": ("Aantal DAEB-typen", f"=SUM({m_range_abs('fee', 5)})"),
         # grafiek per woningtype (keuzecel op het Dashboard; naam -> typenummer; onbekend = 1)
-        "pt_keuze": ("Grafiek per type: gekozen typenummer (getal = typenummer, anders naam)",
-                     f'=IF(ISNUMBER({dabs("pt_keuze")}),MIN({N_TYPES},MAX(1,INT({dabs("pt_keuze")}))),'
-                     f'IFERROR(MATCH({dabs("pt_keuze")},${m_col("gv", 1)}$7:${m_col("gv", N_TYPES)}$7,0),1))'),
-        "pt_naam": ("Grafiek per type: naam", f'=INDEX(${m_col("gv", 1)}$7:${m_col("gv", N_TYPES)}$7,{h("pt_keuze")})'),
-        "pt_daeb": ("Grafiek per type: DAEB (1/0)", f'=N(INDEX({m_range_abs("fee", 5)},{h("pt_keuze")}))'),
-        "pt_aantal": ("Grafiek per type: aantal woningen", f'=N(INDEX({m_range_abs("vcum", 6)},{h("pt_keuze")}))'),
+        "pt_keuze": ("Grafiek per type: gekozen typenummer (getal = typenummer, anders naam; 0 = totaal zonder DAEB)",
+                     f'=IF(ISNUMBER({dabs("pt_keuze")}),IF(INT({dabs("pt_keuze")})=0,0,MIN({N_TYPES},MAX(1,INT({dabs("pt_keuze")})))),'
+                     f'IF(LEFT(LOWER(TRIM({dabs("pt_keuze")}&"")),6)="totaal",0,'
+                     f'IFERROR(MATCH({dabs("pt_keuze")},${m_col("gv", 1)}$7:${m_col("gv", N_TYPES)}$7,0),1)))'),
+        "pt_naam": ("Grafiek per type: naam", f'=IF({h("pt_keuze")}=0,"{LY.PT_TOTAAL}",INDEX(${m_col("gv", 1)}$7:${m_col("gv", N_TYPES)}$7,{h("pt_keuze")}))'),
+        "pt_daeb": ("Grafiek per type: DAEB (1/0)", f'=IF({h("pt_keuze")}=0,0,N(INDEX({m_range_abs("fee", 5)},{h("pt_keuze")})))'),
+        "pt_aantal": ("Grafiek per type: aantal woningen (totaal: alle niet-DAEB-typen)",
+                      f'=IF({h("pt_keuze")}=0,SUMPRODUCT({m_range_abs("vcum", 6)},1-{m_range_abs("fee", 5)}),'
+                      f'N(INDEX({m_range_abs("vcum", 6)},{h("pt_keuze")})))'),
         "pt_totaal": ("Grafiek per type: totaal volgens planning (€ mln)", f'=IF({h("n")}=0,0,INDEX({rng(LY.PT["cum"])},{h("n")}))'),
         "pt_nu": ("Grafiek per type: t/m actuals volgens planning (€ mln)", f'=IF({h("pos_actuals")}=0,0,INDEX({rng(LY.PT["cum"])},{h("pos_actuals")}))'),
         "pt_titel": ("Grafiek per type: titel", f'={h("pt_naam")}&" · "&{h("pt_aantal")}&" woningen · "&IF({h("pt_daeb")}=1,"DAEB (fees)","koop")'
@@ -1200,20 +1215,32 @@ def bouw_dashboard(wb, data):
           f'="lichtrood = vorige prognose · grijs = gerealiseerd t/m "&{hm("kw_actuals")}')
 
     # grafiek per woningtype: keuzecel (naam uit de lijst op Model rij 7), chips per onderdeel, ondertitel
-    put(ws, f"B{LY.D_ROW_PT}", "Opbrengsten per woningtype · kies het type in de blauwe cel · per kwartaal: grondtermijn, bouwtermijnen en extra's "
-                               "(koop) of fees per component (DAEB) · lijn = cumulatief · grijs = gerealiseerd · € mln · tijdvak vanaf twee jaar vóór de eerste opbrengst", f=F_SECTION)
+    put(ws, f"B{LY.D_ROW_PT}", f"Opbrengsten per woningtype · kies het type in de blauwe cel (of '{LY.PT_TOTAAL}': alle koopwoningen samen) · per "
+                               "kwartaal: grondtermijn, bouwtermijnen en extra's (koop) of fees per component (DAEB) · lijn = cumulatief · grijs = "
+                               "gerealiseerd · € mln · tijdvak vanaf twee jaar vóór de eerste opbrengst", f=F_SECTION)
     r = LY.D_ROW_LEGENDA_PT
     ws.row_dimensions[r].height = 16
     kz = LY.D["pt_keuze"]
     ws.merge_cells(f"{kz}:C{r}")
     put(ws, kz, data.type_(1).naam or "Type 1", f=F_INPUT, fl=FL_INPUT, nf="@", al=Alignment(horizontal="left", vertical="center"))
-    dv_pt = DataValidation(type="list", formula1=f"Model!${m_col('gv', 1)}$7:${m_col('gv', N_TYPES)}$7", allow_blank=True,
-                           error="Kies een woningtype uit de lijst.")
+    dv_pt = DataValidation(type="list", formula1=f"Model!${LY.PT['grond']}${LY.PT_R_LIJST}:${LY.PT['grond']}${LY.PT_R_LIJST + N_TYPES}",
+                           allow_blank=True, error=f"Kies een woningtype of '{LY.PT_TOTAAL}' uit de lijst.")
     dv_pt.showErrorMessage = True
     dv_pt.errorTitle = "Ongeldige invoer"
     ws.add_data_validation(dv_pt)
     dv_pt.add(kz)
-    put(ws, f"D{r}", "← kies het woningtype", f=F_NOTE8, al=AL_VCENTER)
+    put(ws, f"D{r}", "← type of totaal", f=F_NOTE8, al=AL_VCENTER)
+    # naar PowerPoint: dia 'opbrengsten per woningtype' als totaal zonder DAEB (standaard), per type of beide (macro VulDiasPerType)
+    put(ws, f"V{r}", LY.D_LABEL_PT_PP, f=F_NOTE, al=AL_VCENTER)
+    put(ws, LY.D["pt_pp"], data.params.get("pt_pp") or LY.PT_PP_KEUZES[0], f=F_YELLOW, fl=FL_YELLOW, al=AL_CENTER)
+    ws.merge_cells(f"{LY.D['pt_pp']}:Y{r}")
+    put(ws, f"Z{r}", "totaal = één dia met alle koopwoningen samen · per type = een dia per woningtype (ook DAEB)", f=F_NOTE8, al=AL_VCENTER)
+    dv_pp = DataValidation(type="list", formula1='"' + ",".join(LY.PT_PP_KEUZES) + '"', allow_blank=True,
+                           error="Kies " + ", ".join(f"'{x}'" for x in LY.PT_PP_KEUZES) + ".")
+    dv_pp.showErrorMessage = True
+    dv_pp.errorTitle = "Ongeldige invoer"
+    ws.add_data_validation(dv_pp)
+    dv_pp.add(LY.D["pt_pp"])
     for naam, col in zip([x for x in LY.PT_REEKSEN if x != "cum"], LY.D_LEGENDA_PT_CELLEN):
         cel = f"{col}{r}"
         lbl = hm("pt_lbl_" + naam)
@@ -1738,8 +1765,8 @@ def bouw_powerpoint(wb, data):
         (LY.PP_BLOK["vo"], "DIA 8 · VAN VERKOOP NAAR OMZET · cumulatief %", f"grafiek verkoop naar omzet · plakken: {LY.PP_BLOK['vo']}7 t/m {L(ws[LY.PP_BLOK['vo'] + '1'].column + 4)}, laatste periode",
          ["Kwartaal", "Verkocht", "Getransporteerd", "Opbrengsten ontvangen", "Kosten gemaakt"],
          [FIX["kwartaal"], M["g_verkocht_pct"], M["g_getransporteerd_pct"], M["g_opbrengsten_pct"], M["g_kosten_pct"]], FMT_PCT0),
-        (LY.PP_BLOK["pt"], "DIA 9 · OPBRENGSTEN PER WONINGTYPE · € mln", f"grafiek per woningtype (het type uit de keuzecel op het Dashboard; de macro maakt per type een "
-         f"kopie van dia 9) · plakken: {LY.PP_BLOK['pt']}7 t/m {L(ws[LY.PP_BLOK['pt'] + '1'].column + LY.PP_PT_KOL - 1)}, laatste periode · '(uit)' = reeks niet in de presentatie",
+        (LY.PP_BLOK["pt"], "DIA 9 · OPBRENGSTEN PER WONINGTYPE · € mln", f"grafiek per woningtype (het type uit de keuzecel op het Dashboard; de macro maakt "
+         f"volgens Dashboard {LY.D['pt_pp']} één dia met het totaal zonder DAEB, per type een kopie van dia 9, of beide) · plakken: {LY.PP_BLOK['pt']}7 t/m {L(ws[LY.PP_BLOK['pt'] + '1'].column + LY.PP_PT_KOL - 1)}, laatste periode · '(uit)' = reeks niet in de presentatie",
          ["Kwartaal"] + [f'=IF({hm("pt_lbl_" + x)}="","(uit)",{hm("pt_lbl_" + x)})' for x in LY.PT_REEKSEN] + ["Realisatie"],
          [FIX["kwartaal"]] + [LY.PT[x] for x in LY.PT_REEKSEN] + [M["g_realisatie"]], "0.00"),
         # dia 2 (sjabloon v17): kleine cashflowgrafiek. Kolom A = jaartal bij het eerste kwartaal van elk jaar (en bij de eerste

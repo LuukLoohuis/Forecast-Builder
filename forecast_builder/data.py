@@ -51,6 +51,8 @@ PARAM_STANDAARD = {
     "vs_pp": "ja", "vs_cf": "nee",
     "vs_sel": "Scenario 1",
     "vs_type": "alle types",
+    # grafiek per woningtype naar PowerPoint (Dashboard W120, sinds v20): totaal zonder DAEB, per type of beide
+    "pt_pp": "totaal (zonder DAEB)",
 }
 
 
@@ -391,6 +393,9 @@ def _lees_v2(wb):
             p.params["lasten_kop"] = kop
         p.params["lasten"] = [(_v(d, f"W{rij_l + 1 + i}"), _v(d, f"Y{rij_l + 1 + i}")) for i in range(1, LY.N_LASTEN + 1)
                               if _v(d, f"W{rij_l + 1 + i}") not in (None, "") or _v(d, f"Y{rij_l + 1 + i}") not in (None, "")]
+    rij_pt = next((r for r in range(LY.D_ROW_CONTROLES, 200) if _v(d, f"V{r}") == LY.D_LABEL_PT_PP), None)
+    if rij_pt is not None and _v(d, f"W{rij_pt}") not in (None, ""):
+        p.params["pt_pp"] = _v(d, f"W{rij_pt}")
     if "PowerPoint" in wb.sheetnames:
         p.params["sjabloon"] = _lees_sjabloon(wb["PowerPoint"])
     for naam in ("fo_bestand", "fo_actuals", "fo_opbr", "fo_kosten", "fo_datum"):       # FO-koppeling (sinds v8), op label

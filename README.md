@@ -64,7 +64,9 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   scenariolijn): verschuiving verkoop/transport, uitstel start bouw, opbrengsten %, kosten %, eigen jaarrente (leeg =
   algemeen) en koopsom % (VON-prijs via het verkooptempo-model); scenariolijn aan/uit en naam;
   norm verkocht bij start bouw; tien controles (oplopende kwartalen zonder gaten, maximaal 60 periodes, rijen zonder jaar,
-  jaar als getal, koprij, verkocht/transport = aantal, termijnen); overzicht types.
+  jaar als getal, koprij, verkocht/transport = aantal, termijnen); overzicht types. De grafiek *opbrengsten per woningtype*
+  heeft een blauwe keuzecel (B120): een type, of 'Totaal (zonder DAEB)' = alle koopwoningen samen; ernaast (W120) wat de
+  macro naar PowerPoint zet: 'totaal (zonder DAEB)' (standaard), 'per type' of 'totaal en per type'.
   De grafieken (`forecast_builder/chartxml.py`): *scenario's* (basis met de band tussen downside en upside), *cashflow per
   kwartaal* (opbrengsten, kosten, cumulatieve cashflow, vorige prognose en de gele scenariolijn vanaf het punt 'nu') en
   *verkoop en transport per woningtype* (twee panelen boven elkaar: verkocht en getransporteerd per kwartaal, gestapeld
@@ -152,7 +154,8 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   getransporteerd per type, totalen, mijlpalen, realisatie, cumulatief % en label voor verkocht en voor transport; alleen
   de periodes vanaf het actuals-jaar (Model!BY131/BY132); twee grafieken lezen hetzelfde blok), van verkoop naar omzet (FK,
   dia 8), opbrengsten per woningtype (FQ, dia 9: 10 kolommen = kwartaal, zes reeksen, totaal per kwartaal (label boven de stapel), eindpunt (label met het totaal), realisatie; alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY127/BY128); het type uit de keuzecel;
-  de macro zet per type de keuzecel, rekent door en vult een kopie van dia 9); tabellen vanaf GB. De bouwtermijnentabel
+  de macro zet de keuzecel, rekent door en vult een kopie van dia 9: volgens Dashboard W120 één dia met 'Totaal (zonder DAEB)'
+  (keuzecel 0, standaard), een dia per type, of beide); tabellen vanaf GB. De bouwtermijnentabel
   staat in het Model (kolommen vanaf FX: raster van alle type × termijn-combinaties (bij DAEB de fee-termijnen) met
   groepsnaam, bedrag, kwartaalindex, rang en positie, daarna de compacte lijst met de koprijen, de banen en de
   stapelsegmenten voor de grafiek), gevolgd door het selectieblok van de grafiek per type.
@@ -229,7 +232,8 @@ dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam
 
 Dia 1 titel · 2 kerncijfers (tegels, tijdlijnband met kleine cashflowgrafiek, kaarten met balken) · 3 cashflow per kwartaal (met scenariolijn en verkoopscenario's) · 4 verkoopscenario's · 5 scenario's · 6 bouwtermijnen per woningtype
 (tijdlijn) met de tabel woningtypes · 7 verkoop en transport per kwartaal (twee panelen) · 8 van verkoop naar omzet ·
-9 opbrengsten per woningtype (de macro maakt per type met aantal > 0 een kopie van deze dia en haalt dia 9 zelf weg).
+9 opbrengsten per woningtype (volgens Dashboard W120 'Naar PowerPoint': standaard één dia met het totaal van alle
+koopwoningen zonder DAEB, of per type met aantal > 0 een kopie, of eerst het totaal en dan per type; dia 9 zelf gaat weg).
 De macro *Naar PowerPoint* vult alle teksten, tabellen en grafieken: per grafiek schrijft hij het blok van tab PowerPoint
 in het gegevensblad van de grafiek op de dia en zet de reeksen op de juiste kolommen; reeksen met een kop die op '(uit)'
 eindigt haalt hij weg (scenariolijn uit; typen zonder termijnen en jaren buiten het bereik in de bouwtermijnengrafiek);
