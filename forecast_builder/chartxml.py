@@ -30,8 +30,10 @@ TXT_LIGHT = "7A7A7A"
 LABEL_BORDER = "E3E6EA"
 
 # scenario's van tab Scenario's: Basis en scenario 1..3 (zelfde als layout.VS_KLEUREN; gekozen zodat ze naast de groene en rode
-# balken, de stippellijn van de vorige prognose en de gele scenariolijn te onderscheiden zijn)
-VS_KLEUREN = ["002060", "6250D6", "C2399B", "7A2E6E"]
+# balken, de stippellijn van de vorige prognose en de gele scenariolijn te onderscheiden zijn: violet, roze en teal, met elk een
+# eigen lijnstijl als tweede kenmerk)
+VS_KLEUREN = ["002060", "7B2FBE", "E0218A", "00897B"]
+VS_STREEP = ["solid", "solid", "lgDash", "sysDot"]
 
 # vaste kleuren per woningtype (blok 1..10), ook gebruikt voor de cel-legenda op het Dashboard
 TYPEKLEUREN = ["2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "008300", "4A3AA7", "8A9A1B", "1F8A8A", "8C6D3F"]   # 8: olijf (rood = vorige prognose)
@@ -240,7 +242,7 @@ def cashflow(r, lbl, scenario=True):
     # (de gekleurde blokjes boven de grafiek op het Dashboard noemen de ingevulde scenario's)
     for s_ in range(1, len(VS_KLEUREN)):
         if f"vs{s_}" in r:
-            lines.append(ser_line(nxt, f"Scenario {s_}", kw, r[f"vs{s_}"], VS_KLEUREN[s_], 1.75))
+            lines.append(ser_line(nxt, f"Scenario {s_}", kw, r[f"vs{s_}"], VS_KLEUREN[s_], 2.25, VS_STREEP[s_]))
             verborgen.append(nxt)
             nxt += 1
     punten = [ser_punt(nxt, "=" + lbl["nu"], kw, r["punt_nu"], NAVY, "t"),
@@ -545,7 +547,7 @@ def scenarios(r, lbl):
     grafiek op het tabblad noemen de scenario's."""
     kw = r["kwartaal"]
     lines = [ser_line(1, "Basis", kw, r["basis"], NAVY, 2.5)]
-    lines += [ser_line(1 + s_, f"Scenario {s_}", kw, r[f"vs{s_}"], VS_KLEUREN[s_], 2) for s_ in range(1, len(VS_KLEUREN))]
+    lines += [ser_line(1 + s_, f"Scenario {s_}", kw, r[f"vs{s_}"], VS_KLEUREN[s_], 2.25, VS_STREEP[s_]) for s_ in range(1, len(VS_KLEUREN))]
     n = len(VS_KLEUREN)
     punten = [ser_punt(1 + n + s_, "=" + lbl[f"dal{s_}"], kw, r[f"dal{s_}"], VS_KLEUREN[s_], "b") for s_ in range(len(VS_KLEUREN))]
     groepen = [grp_waas(0, kw, r["realisatie"]), grp_line(lines + punten)]

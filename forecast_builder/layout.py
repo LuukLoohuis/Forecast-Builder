@@ -405,7 +405,8 @@ KC_PLOT_W = round((KC_PLOT[2] - KC_PLOT[0]) / (KC_KADER[2] - KC_KADER[0]), 4)
 # vanaf VS_COL1: per scenario verschoven verkoop (vc) en transport (tc) per type, bouwtermijnen (vv) en extra's (vx) met de start
 # bouw van het scenario, en de kolommen opbrengsten, kosten, rente en stand zoals bij de scenariolijn.
 N_VS = 3                                                  # scenario's naast de Basis
-VS_KLEUREN = ["002060", "6250D6", "C2399B", "7A2E6E"]     # Basis (navy) en scenario 1..3: zelfde kleur op tab, Dashboard en dia's
+VS_KLEUREN = ["002060", "7B2FBE", "E0218A", "00897B"]     # Basis (navy) en scenario 1..3 (violet, roze, teal): zelfde kleur op tab, Dashboard en dia's
+VS_STREEP = ["solid", "solid", "lgDash", "sysDot"]          # lijnstijl per scenario: tweede kenmerk naast de kleur (kleurenblind, print)
 SC_TAB = "Scenario's"
 SC_BLAD = "'Scenario''s'"                                 # tabbladnaam in formules
 SC_COL = [3, 5, 7, 9]                                     # Basis, scenario 1..3: twee kolommen per scenario (C:D, E:F, G:H, I:J)

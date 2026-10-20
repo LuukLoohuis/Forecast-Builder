@@ -1029,11 +1029,11 @@ def bouw_model(wb):
         "pt_totaal": ("Grafiek per type: totaal volgens planning (€ mln)", f'=IF({h("n")}=0,0,INDEX({rng(LY.PT["cum"])},{h("n")}))'),
         "pt_nu": ("Grafiek per type: t/m actuals volgens planning (€ mln)", f'=IF({h("pos_actuals")}=0,0,INDEX({rng(LY.PT["cum"])},{h("pos_actuals")}))'),
         "pt_titel": ("Grafiek per type: titel", f'={h("pt_naam")}&" · "&{h("pt_aantal")}&" woningen · "&IF({h("pt_daeb")}=1,"DAEB (fees)","koop")'
-                                                f'&" · totaal €"&FIXED({h("pt_totaal")},1)&" mln volgens planning"'),
+                                                f'&" · €"&FIXED({h("pt_totaal")},1)&" mln"'),
         "pt_subtitel": ("Grafiek per type: ondertitel",
-                        f'="Per kwartaal · t/m "&{h("kw_actuals")}&" €"&FIXED({h("pt_nu")},1)&" mln, daarna €"&FIXED({h("pt_totaal")}-{h("pt_nu")},1)'
-                        f'&" mln · grijs = gerealiseerde kwartalen (bedragen volgens planning; werkelijke ontvangsten staan in je eigen cashflow)"'
-                        f'&IF(AND({h("pt_daeb")}=1,{h("fee_fout_gepland")}+{h("fee_fout_termijn")}>0)," · let op: fees niet volledig ingepland","")'),
+                        f'="t/m "&{h("kw_actuals")}&" €"&FIXED({h("pt_nu")},1)&" mln → daarna €"&FIXED({h("pt_totaal")}-{h("pt_nu")},1)'
+                        f'&" mln · grijs = gerealiseerd (volgens planning)"'
+                        f'&IF(AND({h("pt_daeb")}=1,{h("fee_fout_gepland")}+{h("fee_fout_termijn")}>0)," · ⚠ fees niet volledig ingepland","")'),
         "pt_lbl_grond": ("Grafiek per type: reeksnaam grondtermijn", f'=IF(COUNTIF({rng(LY.PT["grond"])},">0")>0,"Grondtermijn","")'),
         "pt_lbl_bouw": ("Grafiek per type: reeksnaam bouwtermijnen", f'=IF(COUNTIF({rng(LY.PT["bouw"])},">0")>0,"Bouwtermijnen","")'),
         "pt_lbl_extra": ("Grafiek per type: reeksnaam extra's", f'=IF(COUNTIF({rng(LY.PT["extra"])},">0")>0,"Extra opbrengsten","")'),
@@ -1122,8 +1122,8 @@ def bouw_dashboard(wb, data):
     # ---- kopregels ---------------------------------------------------------------
     put(ws, "B1", f'="CASHFLOW · STAND PER "&UPPER({hm("kw_actuals")})', f=F_NOTE)
     ws.merge_cells("B2:T2")
-    put(ws, "B2", f'="Financiering piekt op €"&FIXED(ABS({hm("dal_basis")})/1000000,1)&" mln in "&{hm("dal_basis_kw")}'
-                  f'&IF({hm("be_basis")}="",", geen break-even",", break-even in "&{hm("be_basis")})', f=font(14, True, TXT), al=AL_VCENTER)
+    put(ws, "B2", f'="Piek financiering €"&FIXED(ABS({hm("dal_basis")})/1000000,1)&" mln in "&{hm("dal_basis_kw")}'
+                  f'&IF({hm("be_basis")}=""," · geen break-even"," · break-even "&{hm("be_basis")})', f=font(14, True, TXT), al=AL_VCENTER)
     ws.merge_cells("B3:T3")
     put(ws, "B3", f'="Projectresultaat "&{eur_mln(hm("eind_basis"))}&" · "&{hm("marge_tekst")}'
                   f'&" · opbrengsten €"&FIXED({hm("opbr_totaal")}/1000000,1)&" mln · kosten €"&FIXED({hm("kosten_totaal")}/1000000,1)&" mln · basis = je eigen cashflow"'
@@ -1571,7 +1571,6 @@ def _vs_regels():
     regels = [
         (4, "Kopje", f"={hm('vs_kicker')}", None, "VS_KICKER"),
         (4, "Titel", f"={hm('vs_titel')}", None, "VS_TITEL"),
-        (4, "Ondertitel", f"={hm('vs_subtitel')}", None, "VS_SUBTITEL"),
         (4, "Kaart Basis · naam", "Basis", None, "VS_K0_NAAM"),
         (4, "  verkoop · transport · rente", f"={hm('vs0_sub')}", None, "VS_K0_SUB"),
         (4, "  max. financiering", f"={eur_m(hm('dal_basis'))}", None, "VS_K0_WAARDE"),
@@ -1580,7 +1579,6 @@ def _vs_regels():
         (4, "  break-even", f'="break-even "&IF({hm("be_basis")}="","niet bereikt",{hm("be_basis")})', None, "VS_K0_BE"),
         (4, "  verkocht bij start bouw", f'="verkocht bij start bouw "&FIXED({hm("verk_bij_start_pct")}*100,0)&"%"',
          f'=IF({hm("verk_bij_start_pct")}>={norm},"op norm","onder norm")', "VS_K0_VERKOCHT"),
-        (4, "  regel onderaan", f"={hm('vs0_delta')}", None, "VS_K0_DELTA"),
     ]
     for s in range(1, LY.N_VS + 1):
         pp = hm(f"vs{s}_pp")
@@ -1595,16 +1593,12 @@ def _vs_regels():
             (4, "  break-even", als(f'"break-even "&IF({S("be")}="","niet bereikt",{S("be")})'), None, f"VS_K{s}_BE"),
             (4, "  verkocht bij start bouw", als(f'"verkocht bij start bouw "&FIXED({S("vbsb_pct")}*100,0)&"%"'),
              f'=IF({pp}=0,"",IF({S("vbsb_pct")}>={norm},"op norm","onder norm"))', f"VS_K{s}_VERKOCHT"),
-            (4, "  verschil met de Basis", als(S("delta")), None, f"VS_K{s}_DELTA"),
         ]
     regels.append((4, "Legenda Basis", f"={hm('vs0_leg')}", None, "VS_LEG0"))
     for s in range(1, LY.N_VS + 1):
         regels.append((4, f"Legenda scenario {s}", f'=IF({hm(f"vs{s}_pp")}=1,{hm(f"vs{s}_leg")},"")', None, f"VS_LEG{s}"))
     regels += [
         (4, "Eindsaldo", f"={hm('vs_eind_tekst')}", None, "VS_EIND_LBL"),
-        (4, "Voetnoot", f'="norm verkocht bij start bouw "&FIXED({norm}*100,0)&"% · bij transport betaalt de koper grond + vervallen termijnen · "'
-                        f'&IF({hm("vs_tr_plan")}>=99999,"geen transport gepland",IF({hm("vs_gap")}=0,"transport in het kwartaal van start bouw",'
-                        f'"transport "&{hm("vs_gap")}&" kw na start bouw")&", zoals gepland")', None, "VS_NOOT"),
     ]
     return regels
 
@@ -1641,46 +1635,42 @@ def bouw_powerpoint(wb, data):
     kpi = [
         (2, "Kopje", f'="KERNCIJFERS · STAND PER "&UPPER({hm("kw_actuals")})', None, "KPI_KICKER"),
         (2, "Titel", "=Dashboard!$B$2", None, "KPI_TITEL"),
-        (2, "Ondertitel", f'="Opbrengsten €"&FIXED({hm("opbr_totaal")}/1000000,1)&" mln · kosten €"&FIXED({hm("kosten_totaal")}/1000000,1)&" mln · "'
-                          f'&{hm("woningen")}&" woningen"&IF({hm("woningen_daeb")}>0,", waarvan "&{hm("woningen_daeb")}&" DAEB","")'
-                          f'&IF({rb}=1," · incl. rente","")', None, "KPI_SUBTITEL"),
         (2, "Max. financieringsbehoefte", f"={eur_m(dal)}", None, "KPI1_WAARDE"),
         (2, "  toelichting", f'="dieptepunt in "&{hm("dal_basis_kw")}', None, "KPI1_SUB"),
         (2, "  verschil met vorige prognose",
-         f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose",IF(ABS(({dal}-{dal_v}))<50000,"gelijk aan vorige prognose",'
-         f'"€"&FIXED(ABS(({dal}-{dal_v}))/1000000,1)&"M "&IF(({dal}-{dal_v})<0,"dieper","minder diep")&" dan vorige prognose"))',
+         f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose",IF(ABS(({dal}-{dal_v}))<50000,"= vorige prognose",'
+         f'IF(({dal}-{dal_v})<0,"▼ €","▲ €")&FIXED(ABS(({dal}-{dal_v}))/1000000,1)&"M "&IF(({dal}-{dal_v})<0,"dieper","minder diep")))',
          f'=IF(OR({hm("vorig_aanwezig")}=0,ABS(({dal}-{dal_v}))<50000),"gelijk",IF(({dal}-{dal_v})<0,"slechter","beter"))', "KPI1_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({hm("vorig_aanwezig")}=0,"","was "&{eur_m(dal_v)})', None, "KPI1_WAS"),
         (2, "Break-even", f'=IF({hm("be_basis")}="","niet bereikt",{hm("be_basis")})', None, "KPI2_WAARDE"),
-        (2, "  toelichting", f'=IF({hm("be_basis")}="","saldo blijft negatief t/m "&{hm("laatste_kw")},"eerste kwartaal met positief saldo")', None, "KPI2_SUB"),
+        (2, "  toelichting", f'=IF({hm("be_basis")}="","saldo < 0 t/m "&{hm("laatste_kw")},"eerste kwartaal met saldo > 0")', None, "KPI2_SUB"),
         (2, "  verschil met vorige prognose",
-         f'=IF(OR({bep}=0,{bevp}=0),"geen vergelijking met vorige prognose",IF(({bep}-{bevp})=0,"gelijk aan vorige prognose",'
-         f'ABS(({bep}-{bevp}))&" kw "&IF(({bep}-{bevp})>0,"later","eerder")&" dan vorige prognose"))',
+         f'=IF(OR({bep}=0,{bevp}=0),"geen vorige prognose",IF(({bep}-{bevp})=0,"= vorige prognose",'
+         f'IF(({bep}-{bevp})>0,"▼ ","▲ ")&ABS(({bep}-{bevp}))&" kw "&IF(({bep}-{bevp})>0,"later","eerder")))',
          f'=IF(OR({bep}=0,{bevp}=0,({bep}-{bevp})=0),"gelijk",IF(({bep}-{bevp})>0,"slechter","beter"))', "KPI2_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({bevp}=0,"","was "&{hm("be_vorig")})', None, "KPI2_WAS"),
         (2, "Projectresultaat", f"={eur_m(eind)}", f'=IF({eind}<0,"slechter","beter")', "KPI3_WAARDE"),
         (2, "  toelichting", f'="eindsaldo in "&{hm("laatste_kw")}', None, "KPI3_SUB"),
         (2, "  verschil met vorige prognose",
-         f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose",IF(ABS(({eind}-{eind_v}))<50000,"gelijk aan vorige prognose",'
-         f'"€"&FIXED(ABS(({eind}-{eind_v}))/1000000,1)&"M "&IF(({eind}-{eind_v})>0,"hoger","lager")&" dan vorige prognose"))',
+         f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose",IF(ABS(({eind}-{eind_v}))<50000,"= vorige prognose",'
+         f'IF(({eind}-{eind_v})>0,"▲ €","▼ €")&FIXED(ABS(({eind}-{eind_v}))/1000000,1)&"M "&IF(({eind}-{eind_v})>0,"hoger","lager")))',
          f'=IF(OR({hm("vorig_aanwezig")}=0,ABS(({eind}-{eind_v}))<50000),"gelijk",IF(({eind}-{eind_v})>0,"beter","slechter"))', "KPI3_VERSCHIL"),
         (2, "  vorige prognose", f'=IF({hm("vorig_aanwezig")}=0,"","was "&{eur_m(eind_v)})', None, "KPI3_WAS"),
         # kleine kaarten: KPI4, KPI6, KPI7 en KPI8 (marge; was rente). Een kaart in het sjabloon zonder regel hier (KPI5,
         # bandbreedte) haalt de macro van de dia, net als de voetnoot; de overige kaarten verdelen de breedte (SchikDia2)
         (2, "Cumulatieve cashflow · label", f'="CUM. CASHFLOW PER "&UPPER({hm("kw_actuals")})', None, "KPI4_LABEL"),
         (2, "Cumulatieve cashflow", f"={eur_m(hm('stand_nu'))}", None, "KPI4_WAARDE"),
-        (2, "  toelichting", f'=IF({hm("vorig_aanwezig")}=0,"geen vorige prognose","vorige prognose "&{eur_m(hm("vorig_nu"))})', None, "KPI4_SUB"),
         (2, "Verkocht bij start bouw · label", "VERKOCHT BIJ START BOUW", None, "KPI6_LABEL"),
         (2, "Verkocht bij start bouw", f'=FIXED({hm("verk_bij_start_pct")}*100,0)&"%"',
          f'=IF({hm("verk_bij_start_pct")}>={dabs("norm")},"op norm","onder norm")', "KPI6_WAARDE"),
-        (2, "  toelichting", f'="norm "&FIXED({dabs("norm")}*100,0)&"% · "&{hm("verk_bij_start")}&" van "&{hm("won_met_start")}&" woningen"', None, "KPI6_SUB"),
+        (2, "  toelichting", f'="norm "&FIXED({dabs("norm")}*100,0)&"% · "&{hm("verk_bij_start")}&"/"&{hm("won_met_start")}&" woningen"', None, "KPI6_SUB"),
         (2, "Verkocht / getransporteerd · label", "VERKOCHT / GETRANSPORTEERD", None, "KPI7_LABEL"),
         (2, "Verkocht / getransporteerd", f'={hm("verkocht_actuals")}&" / "&{hm("transport_actuals")}', None, "KPI7_WAARDE"),
-        (2, "  toelichting", f'="van "&{hm("woningen")}&" woningen · t/m "&{hm("kw_actuals")}', None, "KPI7_SUB"),
+        (2, "  toelichting", f'="van "&{hm("woningen")}&" · t/m "&{hm("kw_actuals")}', None, "KPI7_SUB"),
         # marge: met DAEB niet-DAEB / totaal (DAEB heeft geen marge: projectresultaat / (opbrengsten - fees DAEB))
         (2, "Marge · label", f'=IF({hm("marge_split")}=1,"MARGE NIET-DAEB / TOTAAL","MARGE")', None, "KPI8_LABEL"),
         (2, "Marge", f'=IF({hm("marge_split")}=1,FIXED({hm("marge_nd")}*100,1)&"% / ","")&FIXED({hm("marge")}*100,1)&"%"', None, "KPI8_WAARDE"),
-        (2, "  toelichting", f'=IF({hm("marge_split")}=1,"DAEB heeft geen marge","projectresultaat / opbrengsten")', None, "KPI8_SUB"),
+        (2, "  toelichting", f'=IF({hm("marge_split")}=1,"DAEB zonder marge","resultaat ÷ opbrengsten")', None, "KPI8_SUB"),
         # balken (sjabloon v17): kolom D = aandeel 0..1, geen tekst; de macro zet de breedte van KPIx_BALK op aandeel × breedte van
         # KPIx_SPOOR en schuift KPI6_NORM naar aandeel × breedte (VulBalken)
         (2, "Verkocht bij start bouw · balk", f'={hm("verk_bij_start_pct")}', None, "KPI6_BALK"),
@@ -1698,28 +1688,21 @@ def bouw_powerpoint(wb, data):
             (2, f"  last {i} · bedrag", f'=IF({hm(f"kl{i}_bedrag")}=0,"",{eur_m(hm(f"kl{i}_bedrag"))})', None, f"KPI9_BEDRAG{i}"),
             (2, f"  last {i} · balk", f'=IF({hm("lasten_max")}<=0,0,MAX(0,{hm(f"kl{i}_bedrag")})/{hm("lasten_max")})', None, f"KPI9_BALK{i}"))],
         (2, "Grafiek · bijschrift vorige prognose", f'=IF({hm("vorig_aanwezig")}=1,"vorige prognose","")', None, "GRAFIEK_LEGENDA_VORIG"),
-        (3, "Titel", f'="Dieptepunt "&{eur_mln(dal)}&" in "&{hm("dal_basis_kw")}&", eindsaldo "&{eur_mln(eind)}&" in "&{hm("laatste_kw")}', None, "CF_TITEL"),
-        (3, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&": "&{eur_mln(hm("stand_nu"))}&" · balken: opbrengsten en kosten per kwartaal · lijn: cumulatieve cashflow"'
-                          f'&IF({rb}=1," · incl. "&{hm("rente_tekst")},"")', None, "CF_SUBTITEL"),
+        (3, "Titel", f'="Dieptepunt "&{eur_mln(dal)}&" ("&{hm("dal_basis_kw")}&") → eindsaldo "&{eur_mln(eind)}&" ("&{hm("laatste_kw")}&")"', None, "CF_TITEL"),
         (3, "Blokje stand · label", f'="STAND "&UPPER({hm("kw_actuals")})', None, "CF_NU_LABEL"),
         (3, "Blokje stand", f"={eur_m(hm('stand_nu'))}", None, "CF_NU_WAARDE"),
         (3, "Blokje dieptepunt", f'={eur_m(dal)}&" · "&{hm("dal_basis_kw")}', None, "CF_DAL_WAARDE"),
         (3, "Blokje eindsaldo", f'={eur_m(eind)}&" · "&{hm("laatste_kw")}', None, "CF_EIND_WAARDE"),
         (3, "Blokje break-even", f'=IF({hm("be_basis")}="","niet bereikt",{hm("be_basis")})', None, "CF_BE_WAARDE"),
         *_vs_regels(),
-        (5, "Titel", f'="Eindsaldo tussen "&{eur_mln(hm("eind_down"))}&" en "&{eur_mln(hm("eind_up"))}&", basis "&{eur_mln(eind)}', None, "SC_TITEL"),
-        (5, "Ondertitel", f'="Basis = eigen cashflow"&IF({rb}=1," + rente","")&" · band = ruimte tussen downside en upside · "'
-                          f'&IF({hm("model_aan")}=1,"verschuiving via grondtermijn en bouwtermijnen per woningtype","verschuiving van alle prognose-opbrengsten")'
+        (5, "Titel", f'="Eindsaldo "&{eur_mln(hm("eind_down"))}&" tot "&{eur_mln(hm("eind_up"))}&" · basis "&{eur_mln(eind)}', None, "SC_TITEL"),
+        (5, "Ondertitel", f'="Basis = eigen cashflow"&IF({rb}=1," + rente","")&" · band = downside ↔ upside"'
                           f'&IF({hm("rente")}>0," · "&{hm("rente_tekst")},"")', None, "SC_SUBTITEL"),
-        (6, "Titel", f'="Bouwtermijnen per woningtype · start bouw "&{hm("start_tekst")}&" (vroegste type)"', None, "BT_TITEL"),
-        (6, "Ondertitel", f'="Typekleur = huidige planning · lichtrood = vorige prognose · grijs = gerealiseerd t/m "&{hm("kw_actuals")}'
-                          f'&" · "&{hm("bt_uniek")}&" termijnen, "&{hm("bt_types")}&" woningtypes"', None, "BT_SUBTITEL"),
-        (7, "Titel", f'={hm("verkocht_actuals")}&" van "&{hm("woningen")}&" woningen verkocht, "&{hm("transport_actuals")}&" getransporteerd"', None, "VP_TITEL"),
-        (7, "Ondertitel", f'="Stand per "&{hm("kw_actuals")}&": verkocht "&TEXT(IF({hm("woningen")}=0,0,{hm("verkocht_actuals")}/{hm("woningen")}),"0%")'
-                          f'&", getransporteerd "&TEXT(IF({hm("woningen")}=0,0,{hm("transport_actuals")}/{hm("woningen")}),"0%")'
-                          f'&IF({hm("vp_tekst")}="",""," · per type: "&{hm("vp_tekst")})&" · uitverkocht in "&{hm("uitverkocht")}'
-                          f'&" · laatste transport in "&{hm("alles_transport")}', None, "VP_SUBTITEL"),
-        (8, "Titel", f'="Uitverkocht in "&{hm("uitverkocht")}&", alles getransporteerd in "&{hm("alles_transport")}', None, "VO_TITEL"),
+        (6, "Titel", f'="Bouwtermijnen · start bouw "&{hm("start_tekst")}', None, "BT_TITEL"),
+        (6, "Ondertitel", f'="kleur = planning · lichtrood = vorige prognose · grijs = t/m "&{hm("kw_actuals")}'
+                          f'&" · "&{hm("bt_uniek")}&" termijnen · "&{hm("bt_types")}&" types"', None, "BT_SUBTITEL"),
+        (7, "Titel", f'={hm("verkocht_actuals")}&"/"&{hm("woningen")}&" verkocht · "&{hm("transport_actuals")}&"/"&{hm("woningen")}&" getransporteerd"', None, "VP_TITEL"),
+        (8, "Titel", f'="Uitverkocht "&{hm("uitverkocht")}&" → alles getransporteerd "&{hm("alles_transport")}', None, "VO_TITEL"),
         (8, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
         (8, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),
         (8, "Laatste kwartaal", f"={hm('laatste_kw')}", None, "VO_STAT3_WAARDE"),
@@ -1739,7 +1722,7 @@ def bouw_powerpoint(wb, data):
     assert LY.PP_KPI_ROW1 + len(kpi) - 1 <= r_s - 2, "KPI-regels lopen tot in de instellingen (de rij erboven moet leeg blijven)"
     put(ws, f"C{r_s}", LY.PP_LABEL_SJABLOON, f=F_NOTE)
     put(ws, LY.PP_CEL_SJABLOON, data.params.get("sjabloon") or None, f=F_INPUT, fl=FL_INPUT, al=AL_LEFT_TOP)
-    put(ws, f"E{r_s}", "leeg = Kwartaal_Template_cashflow_v18.pptx in dezelfde map als dit bestand; anders het volledige pad", f=F_NOTE8)
+    put(ws, f"E{r_s}", "leeg = Kwartaal_Template_cashflow_v19.pptx (of v18) in dezelfde map als dit bestand; anders het volledige pad", f=F_NOTE8)
     put(ws, f"C{r_s + 1}", "Naam nieuwe presentatie", f=F_NOTE)
     put(ws, LY.PP_CEL_NAAM, f'="Cashflow update Q"&{dabs("actuals_kw")}&" "&{dabs("actuals_jaar")}', f=F_CALC9, al=AL_LEFT_TOP)
     put(ws, f"E{r_s + 1}", "de knop zet er datum en tijd achter en bewaart naast dit bestand", f=F_NOTE8)

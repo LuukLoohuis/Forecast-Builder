@@ -307,12 +307,13 @@ def bouw_model_scenarios(ws):
     ruw = f"({spreid}/5)"
     mag = f"10^INT(LOG10({ruw}))"
     stap = f"IF({ruw}/{mag}<=1,1,IF({ruw}/{mag}<=2,2,IF({ruw}/{mag}<=5,5,10)))*{mag}"
-    titel_s = lambda s: (f'UPPER(LEFT({S(s, "naam")},1))&MID({S(s, "naam")},2,200)&": financiering tot "&{eur_mln(S(s, "dal"))}'  # noqa: E731
-                         f'&IF({S(s, "d_be")}="",IF({S(s, "be_pos")}=0,", geen break-even",""),IF({S(s, "d_be")}=0,", break-even gelijk",'
-                         f'", break-even "&{kw_tekst("ABS(" + S(s, "d_be") + ")")}&IF({S(s, "d_be")}>0," later"," eerder")))')
+    titel_s = lambda s: (f'UPPER(LEFT({S(s, "naam")},1))&MID({S(s, "naam")},2,200)&": piek "&{eur_mln(S(s, "dal"))}'  # noqa: E731
+                         f'&IF({S(s, "d_be")}="",IF({S(s, "be_pos")}=0," · geen break-even",""),IF({S(s, "d_be")}=0," · break-even =",'
+                         f'" · break-even "&IF({S(s, "d_be")}>0,"+","−")&ABS({S(s, "d_be")})&" kw"))')
     eind_min = "MIN(" + ",".join(f"IF({S(s, 'aan')}=1,{S(s, 'eind')},1E+300)" for s in alle) + ")"
     eind_max = "MAX(" + ",".join(f"IF({S(s, 'aan')}=1,{S(s, 'eind')},-1E+300)" for s in alle) + ")"
     dal_min = "MIN(" + ",".join(f"IF({S(s, 'aan')}=1,{S(s, 'dal')},1E+300)" for s in alle) + ")"
+    cf_cel = f'LOWER(TRIM({LY.SC_BLAD}!${LY.SC_CEL_CF[0]}${LY.SC_CEL_CF[1:]}&""))'
     hulp = {
         "vs_vnd_act": ("Scenario's: verkocht niet-DAEB t/m actuals", f'=IF({pa}=0,0,N(INDEX({G_("vnd")},{pa})))'),
         "vs_tnd_act": ("Scenario's: getransporteerd niet-DAEB t/m actuals", f'=IF({pa}=0,0,N(INDEX({G_("tnd")},{pa})))'),
@@ -327,8 +328,8 @@ def bouw_model_scenarios(ws):
         "vs_aan": ("Scenario's: aantal ingevuld", "=" + "+".join(S(s, "aan") for s in alle)),
         "vs_pp": ("Scenario's: Naar PowerPoint (1/0)", f'=IF(LOWER(TRIM({LY.SC_BLAD}!${LY.SC_CEL_PP[0]}${LY.SC_CEL_PP[1:]}&""))="nee",0,1)'),
         "vs_pp_aan": ("Scenario's: dia 4 in PowerPoint (1/0)", f'=IF(AND({h("vs_pp")}=1,{h("vs_aan")}>0),1,0)'),
-        "vs_cf": ("Scenario's: lijnen in de cashflowgrafiek (1/0; alleen 'ja' zet ze aan)",
-                  f'=IF(LOWER(TRIM({LY.SC_BLAD}!${LY.SC_CEL_CF[0]}${LY.SC_CEL_CF[1:]}&""))="ja",1,0)'),
+        "vs_cf": ("Scenario's: lijnen in de cashflowgrafiek (1/0; 'ja' = alle, '1' of '1,3' = die scenario's, leeg of 'nee' = geen)",
+                  f'=IF(OR({cf_cel}="",{cf_cel}="nee"),0,1)'),
         "vs_stap": ("Scenario-grafiek: stap van de waarde-as (€ mln)", f"={stap}"),
         "vs_min": ("Scenario-grafiek: as-minimum (€ mln)", f'={h("vs_stap")}*INT(({lo}/1000000-0.08*{spreid})/{h("vs_stap")})'),
         "vs_max": ("Scenario-grafiek: as-maximum (€ mln)", f'=-{h("vs_stap")}*INT(-({hi}/1000000+0.04*{spreid})/{h("vs_stap")})'),
@@ -344,7 +345,7 @@ def bouw_model_scenarios(ws):
                         f'="Cumulatieve cashflow per scenario · transport nooit vóór de verkoop · "&{h("kf_tekst_kort")}'),
         "vs_eind_tekst": ("Scenario's: eindsaldo",
                           f'="eindsaldo Basis "&{eur_m(h("eind_basis"))}&IF({h("vs_aan")}=0,"",IF(AND(ABS({eind_min}-{h("eind_basis")})<50000,'
-                          f'ABS({eind_max}-{h("eind_basis")})<50000)," · gelijk in alle scenario\'s"," · scenario\'s "&{eur_m(eind_min)}&" tot "&{eur_m(eind_max)}))'),
+                          f'ABS({eind_max}-{h("eind_basis")})<50000)," · = in alle scenario\'s"," · scenario\'s "&{eur_m(eind_min)}&" – "&{eur_m(eind_max)}))'),
         "vs_sel": ("Tabel per termijn: gekozen scenario (0 = Basis)",
                    f'=IFERROR(IF(LEFT(TRIM({LY.SC_BLAD}!${LY.SC_CEL_SEL[0]}${LY.SC_CEL_SEL[1:]}&""),8)="Scenario",'
                    f'MIN({N_VS},MAX(0,VALUE(MID(TRIM({LY.SC_BLAD}!${LY.SC_CEL_SEL[0]}${LY.SC_CEL_SEL[1:]}&""),10,1)))),0),0)'),
@@ -354,7 +355,8 @@ def bouw_model_scenarios(ws):
                        f'IFERROR(MATCH(TRIM({LY.SC_BLAD}!${LY.SC_CEL_TYPE[0]}${LY.SC_CEL_TYPE[1:]}&""),${m_col("gv", 1)}$7:${m_col("gv", N_TYPES)}$7,0),0))'),
         "vs0_leg": ("Legenda Basis", f'="Basis"&IF({h("vs_vv_plan")}>=99999,""," · verkoop "&{kw_lbl(h("vs_vv_plan"))})'),
         "vs0_sub": ("Kaart Basis: verkoop, transport, rente",
-                    f'="verkoop "&{kw_lbl(h("vs_vv_plan"))}&" · transport "&{kw_lbl(h("vs_tr_plan"))}&" · rente "&{eur_m(h("rente_basis_tot"))}'),
+                    f'="verkoop "&{kw_lbl(h("vs_vv_plan"))}&" · transport "&{kw_lbl(h("vs_tr_plan"))}'
+                    f'&IF(ABS({h("rente_basis_tot")})<50000,""," · rente "&{eur_m(h("rente_basis_tot"))})'),
         "vs0_delta": ("Kaart Basis: regel onderaan", f'="planning uit het werkboek · eindsaldo "&{eur_m(h("eind_basis"))}'),
         "vs0_lbl_dal": ("Label dieptepunt Basis", f"={eur_m(h('dal_basis'))}"),
         "vs_kicker": ("Scenario's: kopje", f'="VERKOOPSCENARIO\'S · START BOUW "&UPPER({kw_lbl(h("start_idx"))})'),
@@ -422,7 +424,8 @@ def bouw_model_scenarios(ws):
             f"vs{s}_d_be": (f"Scenario {s}: break-even t.o.v. Basis (kw; leeg = geen vergelijking)",
                             f'=IF(OR({S(s, "be_pos")}=0,{h("be_basis_pos")}=0),"",INDEX({idx_rng},{S(s, "be_pos")})-INDEX({idx_rng},{h("be_basis_pos")}))'),
             f"vs{s}_sub": (f"Scenario {s}: kaart, regel verkoop / transport / rente",
-                           f'="verkoop "&{kw_lbl(S(s, "vv"))}&" · transport "&{S(s, "et")}&" · rente "&{eur_m(S(s, "rente"))}'
+                           f'="verkoop "&{kw_lbl(S(s, "vv"))}&" · transport "&{S(s, "et")}'
+                           f'&IF(ABS({S(s, "rente")})<50000,""," · rente "&{eur_m(S(s, "rente"))})'
                            f'&IF({S(s, "gr")}>=0," · grond "&FIXED({S(s, "gr")}*100,0)&"%","")'),
             f"vs{s}_delta": (f"Scenario {s}: kaart, verschil met de Basis",
                              f'=IF(ABS({S(s, "d_fin")})<50000,"financiering gelijk aan Basis",{eur_m("ABS(" + S(s, "d_fin") + ")")}'
@@ -430,7 +433,8 @@ def bouw_model_scenarios(ws):
             f"vs{s}_lbl_dal": (f"Scenario {s}: label dieptepunt", f"={eur_m(S(s, 'dal'))}"),
             f"vs{s}_kaart": (f"Scenario {s}: naam op de kaart (dia)", f'=IF({naam_in}<>"","Scenario {s} · "&{naam_in},"Scenario {s}")'),
             f"vs{s}_pp": (f"Scenario {s}: op dia 4 (1/0)", f'=IF(AND({h("vs_pp")}=1,{S(s, "aan")}=1),1,0)'),
-            f"vs{s}_cf": (f"Scenario {s}: lijn in de cashflowgrafiek (1/0)", f'=IF(AND({h("vs_cf")}=1,{S(s, "aan")}=1),1,0)'),
+            f"vs{s}_cf": (f"Scenario {s}: lijn in de cashflowgrafiek (1/0)",
+                          f'=IF(AND({h("vs_cf")}=1,{S(s, "aan")}=1,OR({cf_cel}="ja",ISNUMBER(SEARCH("{s}",{cf_cel})))),1,0)'),
         })
     for naam, (label, formule) in hulp.items():
         r = H[naam]
@@ -636,10 +640,15 @@ def bouw_tab(wb, data):
     put(ws, f"B{LY.SC_R_CF}", LY.SC_LABELS["cf"], f=F_CALC9, al=AL_LEFT, bd=BD_RIJ)
     cel_cf = _paar(ws, LY.SC_R_CF, 0, params.get("vs_cf") or "nee", f=F_INPUT, fl=FL_INPUT, al=AL_CENTER, bd=BD_RIJ)
     assert cel_cf == LY.SC_CEL_CF
-    dv_jn.add(cel_cf)
+    dv_cf = DataValidation(type="list", formula1='"nee,ja,' + ",".join(str(s) for s in range(1, N_VS + 1)) + '"', allow_blank=True)
+    dv_cf.showErrorMessage = False                           # ook '1,3' mag
+    dv_cf.promptTitle, dv_cf.prompt = "Lijnen", "ja = alle ingevulde scenario's · 1 of 1,3 = alleen die · nee = geen"
+    dv_cf.showInputMessage = True
+    ws.add_data_validation(dv_cf)
+    dv_cf.add(cel_cf)
     ws.merge_cells(f"{c_noot}{LY.SC_R_CF}:{L(LY.SC_COL[-1] + 1)}{LY.SC_R_CF}")
-    put(ws, f"{c_noot}{LY.SC_R_CF}", "ja = de ingevulde scenario's ook als lijn in de cashflowgrafiek (Dashboard, en dia 3 als Naar "
-                                     "PowerPoint op ja staat) · nee = alleen de Basis in die grafiek", f=F_NOTE8,
+    put(ws, f"{c_noot}{LY.SC_R_CF}", "ja = alle ingevulde scenario's als lijn in de cashflowgrafiek (Dashboard; dia 3 als Naar PowerPoint ja is) · 1 of 1,3 = "
+                                     "alleen die scenario's · nee = alleen de Basis", f=F_NOTE8,
         al=Alignment(horizontal="left", vertical="center", wrap_text=True, indent=1))
     ws.row_dimensions[LY.SC_R_CF].height = 24
     put(ws, f"B{LY.SC_R_FOUT}", "Controle", f=F_NOTE8, al=AL_LEFT)

@@ -129,3 +129,20 @@ def test_dia_scenarios_alleen_als_ze_aan_staan():
     assert 'If vorm = "VS_GRAFIEK" Then SchikGrafiekVS shp, ch' in procs["VulGrafiekVorm"]
     assert '"VS_REALISATIE"' in procs["SchikGrafiekVS"] and "CEL_VS_NU" in procs["SchikGrafiekVS"]
     assert "CEL_VS_PP" in procs["VsDiaAan"]
+
+
+def test_vervallen_vormen_weg():
+    """Sinds v21 krijgen een paar vormen geen tekst meer (ondertitels, regels onderaan de scenariokaarten, voetnoot dia 4): de macro
+    haalt precies die vormen vóór het vullen van de dia (ook uit sjabloon v18), en tab PowerPoint heeft er geen regel meer voor."""
+    from forecast_builder import sheets
+    import inspect
+    src = open(BAS, encoding="utf-8").read()
+    procs = _procedures(src)
+    body = procs["NaarPowerPoint"]
+    assert body.index("HaalVervallenVormenWeg pres") < body.index("VulTeksten pres, wsP, mist")
+    weg = re.findall(r'"([A-Z0-9_]+)"', procs["HaalVervallenVormenWeg"])
+    sys.path.insert(0, os.path.join(os.path.dirname(BAS), "..", "tools"))
+    import pptx_v19_kort
+    assert sorted(weg) == sorted(pptx_v19_kort.WEG)
+    tekst = inspect.getsource(sheets)
+    assert not any(f'"{v}"' in tekst for v in weg)

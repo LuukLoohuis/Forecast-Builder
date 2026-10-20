@@ -374,14 +374,14 @@ def test_kerncijfers_dia2(basis):
         r += 1
     assert {v.split("_")[0] for v in regels if v[3].isdigit()} == {"KPI1", "KPI2", "KPI3", "KPI4", "KPI6", "KPI7", "KPI8", "KPI9"}
     assert regels["KPI3_SUB"] == f'eindsaldo in {hb("laatste_kw")}'
-    assert regels["KPI8_LABEL"] == "MARGE NIET-DAEB / TOTAAL" and regels["KPI8_SUB"] == "DAEB heeft geen marge"
+    assert regels["KPI8_LABEL"] == "MARGE NIET-DAEB / TOTAAL" and regels["KPI8_SUB"] == "DAEB zonder marge"
     assert regels["KPI8_WAARDE"].replace(",", ".") == f'{hb("marge_nd") * 100:.1f}% / {hb("marge") * 100:.1f}%'
     assert "VOETNOOT" not in regels
     assert regels["KPI6_LABEL"] == "VERKOCHT BIJ START BOUW" and regels["KPI6_WAARDE"].endswith("%")
     assert regels["KPI7_WAARDE"] == f'{int(hb("verkocht_actuals"))} / {int(hb("transport_actuals"))}'
-    assert regels["KPI7_SUB"] == f'van {int(hb("woningen"))} woningen · t/m {hb("kw_actuals")}'
-    assert regels["KPI_SUBTITEL"].startswith("Opbrengsten €")
-    assert regels["KPI_SUBTITEL"].endswith(f'{int(hb("woningen"))} woningen, waarvan {int(hb("woningen_daeb"))} DAEB')
+    assert regels["KPI7_SUB"] == f'van {int(hb("woningen"))} · t/m {hb("kw_actuals")}'
+    assert "KPI_SUBTITEL" not in regels and "KPI4_SUB" not in regels                  # korter: geen ondertitel (macro v21 haalt hem weg)
+    assert regels["KPI1_VERSCHIL"] == "geen vorige prognose" or regels["KPI1_VERSCHIL"][0] in "▲▼="
     assert basis["Dashboard"]["B3"].value.startswith("Projectresultaat ") and hb("marge_tekst") in basis["Dashboard"]["B3"].value
 
 
@@ -499,10 +499,10 @@ def test_verkoopscenarios(basis):
     assert hb("vs_cf") == 0 and stand(LY.vs_col(1, "gcf")) == ["#N/A"] * n
     assert hb("vs1_leg") == "Scenario 1 · verkoop Q1 ’28" and hb("vs2_leg") == "Scenario 2 · Later starten"
     regels = _pp_regels(pp, 4)
-    assert all(regels[f"VS_K3_{veld}"] is None for veld in ("NAAM", "SUB", "WAARDE", "LABEL", "DAL", "BE", "VERKOCHT", "DELTA"))
+    assert all(regels[f"VS_K3_{veld}"] is None for veld in ("NAAM", "SUB", "WAARDE", "LABEL", "DAL", "BE", "VERKOCHT"))
     assert regels["VS_LEG3"] is None and regels["VS_LEG1"] == hb("vs1_leg") and regels["VS_K2_NAAM"] == "Scenario 2 · Later starten"
-    assert regels["VS_TITEL"].startswith("Later starten: financiering tot −€18")
-    assert regels["VS_K2_DELTA"].endswith("extra financiering · break-even 1 kwartaal later")
+    assert regels["VS_TITEL"].startswith("Later starten: piek −€18") and regels["VS_TITEL"].endswith("break-even +1 kw")
+    assert not any(k.endswith("_DELTA") or k in ("VS_SUBTITEL", "VS_NOOT") for k in regels)
     assert any(str(k).startswith("SC_") for k in _pp_regels(pp, 5))                   # de scenario-dia schoof van 4 naar 5
 
 
@@ -856,11 +856,13 @@ def test_grondtermijn_per_scenario(tmp):
     p.params["vs"] = [{"vv": "Q1 2028"}, {"naam": "Later starten", "sb": "Q3 2027"}, {"gr": "50%"}]
     p.params["vs_sel"] = "Scenario 3"
     p.params["vs_type"] = "alle types"
+    p.params["vs_cf"] = "3"                                    # alleen de lijn van scenario 3 in de cashflowgrafiek
     wb = bouw_en_bereken(p, tmp, "grond")
     m, sc = wb["Model"], wb[LY.SC_TAB]
     hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
     n = hb("n")
     assert hb("vs3_aan") == 1 and hb("vs3_gr") == 0.5 and hb("vs3_fout") in (None, "")
+    assert hb("vs_cf") == 1 and [hb(f"vs{s}_cf") for s in (1, 2, 3)] == [0, 0, 1]
     assert hb("vs3_naam") == "Grondtermijn 50%" and hb("vs3_sub").endswith("· grond 50%")
     cum = [m[f"{LY.FIX['cum_opbr']}{LY.ROW1 + i}"].value for i in range(n)]
     cum3 = [m[f"{LY.vs_col(3, 'cumo')}{LY.ROW1 + i}"].value for i in range(n)]

@@ -2,7 +2,7 @@
 
 Bouwt het werkboek **Cashflow_scenario** (Dashboard · Scenario's · Invoer · Woningtypes · CF kosten · Model · PowerPoint) met Python/openpyxl.
 Het werkboek rekent scenario's (downside/upside en verkoopscenario's) uit bovenop je eigen projectcashflow en vult met één knop
-het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v18.pptx`).
+het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v19.pptx`; v18 werkt ook).
 
 ## Wat zit erin
 
@@ -29,6 +29,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v18.pptx`).
 | `tools/pptx_v16_verkooppct.py` | sjabloon v15 → v16: dia 6 met het cumulatieve percentage als lijn met labels, blok van 30 kolommen, tijdvak vanaf het actuals-jaar |
 | `tools/pptx_v14_daeb.py` | dia 8 'Opbrengsten per woningtype' (PT_GRAFIEK; de macro maakt per type een kopie) en herkleurde dia 5/6: vorige prognose lichtrood (v13 → v14) |
 | `tools/pptx_v18_scenarios.py` | sjabloon v17 → v18: nieuwe dia 4 'Verkoopscenario's' (kaarten, legenda, VS_GRAFIEK) en drie scenariolijnen in de cashflowgrafiek op dia 3; `--simuleer` doet na wat de macro doet |
+| `tools/pptx_v19_kort.py` | sjabloon v18 → v19: minder tekst (ondertitels van dia 2, 3, 4 en 7, KPI4_SUB, de regel onderaan de scenariokaarten en de voetnoot van dia 4 weg) en de scenariolijnen in contrastrijkere kleuren met een eigen lijnstijl; `--simuleer` doet na wat de macro doet |
 | `tools/pptx_v17_kerncijfers.py` | sjabloon v16 → v17: dia 2 'kerncijfers' in het nieuwe ontwerp (tegels, tijdlijnband met de kleine cashflowgrafiek KPI_GRAFIEK, kaarten met balken, grootste lasten); `--simuleer` doet na wat de macro doet |
 
 ## Bouwen
@@ -44,9 +45,10 @@ python build.py --leeg --out out/Cashflow_scenario_leeg   # leeg sjabloon: geen 
 Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`
 geschreven (`forecast_builder/vbabuild.py`, op basis van `vba/vbaProject_template.bin` met de documentmodules en
 projectinstellingen). Importeren in de VBA-editor is dus niet nodig. Bij het openen zet `KnoppenControleren`
-de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v18.pptx` naast het werkboek
-(of vul het pad in op tab PowerPoint). Sjabloon v18 maak je van v17 met `python3 tools/pptx_v18_scenarios.py v17.pptx v18.pptx`
-(v17 van v16 met `tools/pptx_v17_kerncijfers.py`).
+de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v19.pptx` naast het werkboek
+(of vul het pad in op tab PowerPoint). Sjabloon v19 maak je van v18 met `python3 tools/pptx_v19_kort.py v18.pptx v19.pptx`,
+v18 van v17 met `python3 tools/pptx_v18_scenarios.py v17.pptx v18.pptx` (v17 van v16 met `tools/pptx_v17_kerncijfers.py`).
+Met sjabloon v18 haalt de macro (v21) de vormen die geen tekst meer krijgen zelf van de dia's.
 
 `--from` begrijpt zowel de oude indeling (vijf types naast elkaar op tab Invoer) als de nieuwe (typeblokken), dus een
 bijgewerkt werkboek genereer je later opnieuw zonder gegevens over te typen.
@@ -85,7 +87,8 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   markeert de gerealiseerde kwartalen.
 * **Scenario's** – verkoopscenario's naast de Basis (je planning). Per scenario (tot drie) vul je alleen in wat anders is:
   *start bouw* (hele project), *verkoop vanaf* (het verkooptempo schuift mee) en *transport vanaf* (leeg = net zo ver na
-  start bouw als in de planning; nooit vóór de verkoop), plus een naam (leeg = automatisch, bv. 'Verkoop Q2 ’28'). Kwartalen
+  start bouw als in de planning; nooit vóór de verkoop), de *grondtermijn* als % van de koopsom (bv. 50%; leeg = zoals per type
+  gepland, de Basis-kolom toont het geplande % gewogen naar koopsom), plus een naam (leeg = automatisch, bv. 'Verkoop Q2 ’28'). Kwartalen
   kies je uit de keuzelijst of typ je ('Q2 2028', '2028 Q2'); een lege kolom staat uit. Het tabblad toont kaarten per scenario
   (max. financiering, dieptepunt, break-even, verkocht bij start bouw tegen de norm, verschil met de Basis), de uitkomst per
   scenario, de grafiek met de cumulatieve cashflow per scenario (een lijn alleen waar hij van de Basis afwijkt, dieptepunt als
@@ -96,12 +99,17 @@ Tests: `python3 -m pytest tests/ -q` (de modeltests gebruiken LibreOffice om for
   geen bouwtermijnen van kopers): rood = de bouw is tot dan voorgefinancierd.
   Rekenregels: verkoop per type schuift met het verschil tussen *verkoop vanaf* en de eerste geplande verkoop; transport volgt
   de geplande transportcurve, verschoven, en nooit meer dan er verkocht is; bouwtermijnen en extra's schuiven met de start bouw
-  en worden bij transport ingehaald (grond + alle vervallen termijnen); kosten: met posten op tab CF kosten schuiven alleen de
+  en worden bij transport ingehaald (grond + alle vervallen termijnen); een andere grondtermijn geldt voor de niet-DAEB-woningen
+  die na de actuals in transport gaan: de koopsom blijft gelijk, de bouwtermijnen gaan naar rato omlaag (samen weer 100%), dus
+  er komt meer bij transport binnen en minder in de bouwkwartalen (per woning koopsom × (grond nieuw − grond gepland) ×
+  (1 − vervallen bouwtermijnen / (1 − grond gepland)); werkt met 'Woningtypes en termijnen gebruiken' = ja); kosten: met posten op tab CF kosten schuiven alleen de
   posten op 'start bouw' mee met de start bouw en die op 'verkoop' met de verkoop (zonder posten: alle kosten vanaf de geplande
   start bouw); rente rekent zoals bij de scenariolijn. Een scenario zonder invoer is precies de Basis. **Naar PowerPoint**
   (ja/nee, standaard ja) bepaalt of de ingevulde scenario's op dia 4 komen; zonder ingevuld scenario komt er niets in PowerPoint
-  (de macro haalt dia 4 weg). **Lijnen in de cashflowgrafiek** (ja/nee, standaard nee) zet de scenario's daarnaast als lijn in de
-  cashflowgrafiek op het Dashboard en op dia 3 (met Naar PowerPoint = ja). Model: kolommen vanaf LK (per scenario een blok,
+  (de macro haalt dia 4 weg). **Lijnen in de cashflowgrafiek** (standaard nee; ja = alle ingevulde scenario's, '1' of '1,3' = alleen
+  die) zet de scenario's daarnaast als lijn in de cashflowgrafiek op het Dashboard en op dia 3 (met Naar PowerPoint = ja). Kleuren
+  (`layout.VS_KLEUREN`): Basis navy, scenario 1 violet, 2 roze (lange streep), 3 teal (stippel), zodat ze naast de groene en
+  rode balken, de lichtblauwe vorige prognose en de gele scenariolijn te onderscheiden zijn. Model: kolommen vanaf LK (per scenario een blok,
   `layout.vs_col`; `gcf` = lijn voor de cashflowgrafiek), hulpcellen `vs_*` en `vs<s>_*` (BY145 e.v.), benoemde bereiken
   `g_vs<s>` en `g_vsw_*`.
 * **CF kosten** – kosten per post en per kwartaal, zoals het FO-tabblad 'CF - kosten' (blok 'Onderdelen'): per post de naam,
@@ -228,7 +236,7 @@ rente staan in de hulpcellen en op tab PowerPoint (blok *extra knoppen en scenar
 In het PowerPoint-sjabloon (sinds v11, `tools/pptx_scenario_line.py`) staat de lijn ook in de cashflowgrafiek op
 dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam uit het werkboek.
 
-### Dia's en sjabloon v18
+### Dia's en sjabloon v19
 
 Dia 1 titel · 2 kerncijfers (tegels, tijdlijnband met kleine cashflowgrafiek, kaarten met balken) · 3 cashflow per kwartaal (met scenariolijn en verkoopscenario's) · 4 verkoopscenario's · 5 scenario's · 6 bouwtermijnen per woningtype
 (tijdlijn) met de tabel woningtypes · 7 verkoop en transport per kwartaal (twee panelen) · 8 van verkoop naar omzet ·

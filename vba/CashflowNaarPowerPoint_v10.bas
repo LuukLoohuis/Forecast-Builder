@@ -68,6 +68,9 @@ Option Explicit
 '       VorigePrognoseUitFO. Dia 'opbrengsten per woningtype' (VulDiasPerType): standaard één dia met het totaal van alle
 '       niet-DAEB-typen (keuzecel 0 = 'Totaal (zonder DAEB)'); Dashboard CEL_PT_PP: 'totaal (zonder DAEB)', 'per type' of
 '       'totaal en per type'. Geen sjabloonwijziging.
+'  v21: kortere teksten; vormen die geen tekst meer krijgen (ondertitels van dia 2, 3, 4 en 7, CF_VOET, KPI4_SUB, VS_Kk_DELTA,
+'       VS_NOOT) haalt de macro van de dia (HaalVervallenVormenWeg), zodat ook sjabloon v18 werkt; sjabloon v19 (tools/
+'       pptx_v19_kort.py) heeft ze niet meer en de scenariolijnen in contrastrijkere kleuren met een eigen lijnstijl.
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -92,7 +95,8 @@ Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFI
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
 Private Const CEL_SJABLOON As String = "D130"
 Private Const CEL_NAAM As String = "D131"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v18.pptx"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v19.pptx"
+Private Const SJABLOON_VORIG As String = "Kwartaal_Template_cashflow_v18.pptx"   ' als v19 er niet staat
 Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
@@ -433,6 +437,7 @@ Public Sub NaarPowerPoint()
     If pres Is Nothing Then Exit Sub
 
     stap = "teksten vullen"
+    HaalVervallenVormenWeg pres
     VulTeksten pres, wsP, mist
 
     stap = "dia 2 schikken"
@@ -536,6 +541,9 @@ Private Function OpenSjabloon(pp As Object, wsP As Worksheet) As Object
     If InStr(pad, "\") = 0 And InStr(pad, "/") = 0 And InStr(pad, ":") = 0 Then pad = MapVanWerkmap() & pad
     On Error Resume Next
     Set pres = pp.Presentations.Open(pad, 0, -1, -1)
+    If pres Is Nothing And Len(Trim$(CelTekst(wsP.Range(CEL_SJABLOON)))) = 0 Then
+        Set pres = pp.Presentations.Open(MapVanWerkmap() & SJABLOON_VORIG, 0, -1, -1)
+    End If
     On Error GoTo 0
     If pres Is Nothing Then
         MsgBox "Het sjabloon is hier niet gevonden:" & vbCrLf & vbCrLf & pad & vbCrLf & vbCrLf & _
@@ -594,6 +602,22 @@ End Function
 ' -------------------------------------------------------------------------------------
 '  4. Vullen
 ' -------------------------------------------------------------------------------------
+Private Sub HaalVervallenVormenWeg(pres As Object)
+    ' vormen uit oudere sjablonen die geen tekst meer krijgen (sinds v21): weg, anders blijft de voorbeeldtekst staan
+    Dim namen As Variant, i As Long, j As Long, shp As Object
+    namen = Array("KPI_SUBTITEL", "KPI4_SUB", "CF_SUBTITEL", "CF_VOET", "VS_SUBTITEL", "VS_NOOT", "VP_SUBTITEL", _
+                  "VS_K0_DELTA", "VS_K1_DELTA", "VS_K2_DELTA", "VS_K3_DELTA")
+    On Error Resume Next
+    For i = LBound(namen) To UBound(namen)
+        For j = 1 To 3                                   ' ook een dubbele (gekopieerde) vorm; nooit eindeloos
+            Set shp = Nothing
+            Set shp = ZoekVorm(pres, CStr(namen(i)))
+            If shp Is Nothing Then Exit For
+            shp.Delete
+        Next j
+    Next i
+End Sub
+
 Private Function ZoekVorm(pres As Object, naam As String) As Object
     Dim s As Object, shp As Object
     For Each s In pres.Slides
