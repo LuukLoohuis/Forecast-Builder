@@ -846,3 +846,38 @@ def test_grafiek_per_type_totaal_zonder_daeb(tmp):
     assert hb("pt_lbl_fee1") in (None, "") and hb("pt_titel").startswith(LY.PT_TOTAAL)
     lijst = [m[f"{LY.PT['grond']}{LY.PT_R_LIJST + i}"].value for i in range(3)]
     assert lijst == [LY.PT_TOTAAL, p.types[0].naam, p.types[1].naam]
+
+
+def test_grondtermijn_per_scenario(tmp):
+    """Tab Scenario's, grondtermijn 50%: de koopsom blijft gelijk (aan het eind dezelfde opbrengsten als de Basis), maar er komt
+    eerder geld binnen (bij transport meer grond, daarna minder bouwtermijnen). Wat al getransporteerd is, telt zoals gepland. In de
+    tabel per termijn zijn grond + bouwtermijnen samen de koopsom van de niet-DAEB-woningen. De invoer wordt teruggelezen."""
+    p = D.voorbeeld()
+    p.params["vs"] = [{"vv": "Q1 2028"}, {"naam": "Later starten", "sb": "Q3 2027"}, {"gr": "50%"}]
+    p.params["vs_sel"] = "Scenario 3"
+    p.params["vs_type"] = "alle types"
+    wb = bouw_en_bereken(p, tmp, "grond")
+    m, sc = wb["Model"], wb[LY.SC_TAB]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    n = hb("n")
+    assert hb("vs3_aan") == 1 and hb("vs3_gr") == 0.5 and hb("vs3_fout") in (None, "")
+    assert hb("vs3_naam") == "Grondtermijn 50%" and hb("vs3_sub").endswith("· grond 50%")
+    cum = [m[f"{LY.FIX['cum_opbr']}{LY.ROW1 + i}"].value for i in range(n)]
+    cum3 = [m[f"{LY.vs_col(3, 'cumo')}{LY.ROW1 + i}"].value for i in range(n)]
+    verschil = [a - b for a, b in zip(cum3, cum)]
+    assert min(verschil) > -1 and max(verschil) > 100000 and abs(verschil[-1]) < 1
+    pa = hb("pos_actuals")
+    assert all(abs(v) < 1e-6 for v in verschil[:pa])           # de realisatie blijft
+    # tabel per termijn (Model, keuze scenario 3, alle types): grond + bouwtermijnen = koopsom niet-DAEB
+    laatste = LY.ROW1 + n - 1
+    gj = m[f"{LY.SEL['gj']}{laatste}"].value
+    tj = sum(m[f"{LY.SEL[f'tj{j}']}{laatste}"].value or 0 for j in range(1, LY.N_TERMIJNEN + 1))
+    koopsom = sum(t.aantal * t.koopsom for t in p.types if not getattr(t, "daeb", False) and (t.koopsom or 0) > 0)
+    assert abs(gj + tj - koopsom) < 1, (gj, tj, koopsom)
+    gepland = sum(t.aantal * t.koopsom * (t.grond_pct or 0) for t in p.types if not getattr(t, "daeb", False) and (t.koopsom or 0) > 0)
+    assert gj > gepland + 1
+    r_gr = _scenario_rij(sc, "Grondtermijn (% koopsom)")
+    assert sc.cell(r_gr, LY.SC_COL[3]).value == 0.5
+    assert 0 < sc.cell(r_gr, LY.SC_COL[0]).value < 0.5
+    paden = build.bouw(p, os.path.join(tmp, "grond_rond"), None, caches=False)
+    assert D.lees_werkboek(paden[0]).params["vs"][2] == {"gr": "0.5"}

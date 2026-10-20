@@ -443,7 +443,7 @@ def _lees_scenarios(ws, p):
     for s in range(1, LY.N_VS + 1):
         col = L(LY.SC_COL[s])
         d = {}
-        for veld in ("naam", "sb", "vv", "tv"):
+        for veld in ("naam", "sb", "vv", "tv", "gr"):
             r = rijen.get(LY.SC_LABELS[veld])
             if r is not None and tekst(_v(ws, f"{col}{r}")):
                 d[veld] = tekst(_v(ws, f"{col}{r}"))

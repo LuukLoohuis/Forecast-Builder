@@ -409,23 +409,24 @@ VS_KLEUREN = ["002060", "6250D6", "C2399B", "7A2E6E"]     # Basis (navy) en scen
 SC_TAB = "Scenario's"
 SC_BLAD = "'Scenario''s'"                                 # tabbladnaam in formules
 SC_COL = [3, 5, 7, 9]                                     # Basis, scenario 1..3: twee kolommen per scenario (C:D, E:F, G:H, I:J)
-SC_R_NAAM, SC_R_SB, SC_R_VV, SC_R_TV = 17, 18, 19, 20     # invoerrijen
-SC_R_PP = 22                                              # Naar PowerPoint (ja/nee): dia 4
-SC_CEL_PP = "C22"
-SC_R_CF = 23                                              # lijnen in de cashflowgrafiek (ja/nee): Dashboard en dia 3
-SC_CEL_CF = "C23"
-SC_R_FOUT = 24                                            # controle per scenario (tekst)
-SC_CEL_SEL = "C42"                                        # tabel per termijn: scenario (Basis / Scenario 1..3)
-SC_CEL_TYPE = "I42"                                       # tabel per termijn: woningtype (alle types / naam)
+SC_R_NAAM, SC_R_SB, SC_R_VV, SC_R_TV, SC_R_GR = 17, 18, 19, 20, 21   # invoerrijen
+SC_R_PP = 23                                              # Naar PowerPoint (ja/nee): dia 4
+SC_CEL_PP = "C23"
+SC_R_CF = 24                                              # lijnen in de cashflowgrafiek (ja/nee): Dashboard en dia 3
+SC_CEL_CF = "C24"
+SC_R_FOUT = 25                                            # controle per scenario (tekst)
+SC_CEL_SEL = "C44"                                        # tabel per termijn: scenario (Basis / Scenario 1..3)
+SC_CEL_TYPE = "I44"                                       # tabel per termijn: woningtype (alle types / naam)
 SC_N_KW = 24                                              # kwartalen in de tabel per termijn (vanaf 1 januari van het actuals-jaar)
 SC_LABELS = {"naam": "Naam", "sb": "Start bouw (hele project)", "vv": "Verkoop vanaf · het verkooptempo schuift mee",
-             "tv": "Transport vanaf · nooit vóór de verkoop", "pp": "Naar PowerPoint (dia Verkoopscenario's)",
+             "tv": "Transport vanaf · nooit vóór de verkoop", "gr": "Grondtermijn (% koopsom) · bouwtermijnen naar rato lager",
+             "pp": "Naar PowerPoint (dia Verkoopscenario's)",
              "cf": "Lijnen in de cashflowgrafiek"}
 
 
 def sc_in(s, veld):
-    """Absolute verwijzing naar de invoercel van scenario s (1..N_VS) op tab Scenario's; veld: naam, sb, vv, tv."""
-    rij = {"naam": SC_R_NAAM, "sb": SC_R_SB, "vv": SC_R_VV, "tv": SC_R_TV}[veld]
+    """Absolute verwijzing naar de invoercel van scenario s (1..N_VS) op tab Scenario's; veld: naam, sb, vv, tv, gr."""
+    rij = {"naam": SC_R_NAAM, "sb": SC_R_SB, "vv": SC_R_VV, "tv": SC_R_TV, "gr": SC_R_GR}[veld]
     return f"{SC_BLAD}!${L(SC_COL[s])}${rij}"
 
 
@@ -496,7 +497,7 @@ def tm_rng(row):
 
 
 # hulpcellen per scenario (vs1_*, vs2_*, ...): invoer (kwartaalindex, 0 = leeg of ongeldig), verschuivingen, naam, uitkomst, teksten
-VS_VELDEN = ["in_sb", "in_vv", "in_tv", "fout", "aan", "d_sb", "sb", "vv", "d_v", "tv", "d_t", "naam", "kop", "leg", "dal", "dal_pos",
+VS_VELDEN = ["in_sb", "in_vv", "in_tv", "in_gr", "gr", "fout", "aan", "d_sb", "sb", "vv", "d_v", "tv", "d_t", "naam", "kop", "leg", "dal", "dal_pos",
              "dal_kw", "be_pos", "be", "eind", "rente", "vbsb", "vbsb_pct", "et_pos", "et", "d_fin", "d_be", "sub", "delta", "lbl_dal",
              "kaart", "pp", "cf"]
 _r = 180
@@ -504,6 +505,7 @@ for _s in range(1, N_VS + 1):
     for _veld in VS_VELDEN:
         H[f"vs{_s}_{_veld}"] = _r
         _r += 1
+assert _r <= 285                                          # vanaf 285 staan andere hulpcellen
 
 # PowerPoint: cashflowgrafiek (dia 3) met de scenariolijnen: blok van 11 kolommen (tot v17 8 kolommen vanaf G7); dia 4
 # 'Verkoopscenario's': grafiekblok (kwartaal/jaartal, Basis, scenario 1..3, dieptepunt Basis en scenario 1..3), tijdvak vanaf

@@ -1,7 +1,8 @@
 """Scenario's (sinds v18): start bouw, verkoop en transport per scenario.
 
 Tab 'Scenario's': per scenario (drie naast de Basis) vul je alleen in wat anders is dan de planning: start bouw, verkoop vanaf en
-(eventueel) transport vanaf, als kwartaal. Leeg = zoals de planning; een lege kolom staat uit.
+(eventueel) transport vanaf, als kwartaal, en eventueel de grondtermijn als % van de koopsom. Leeg = zoals de planning; een lege
+kolom staat uit.
 
 Rekenregels (Model, gebied vanaf layout.VS_COL1; per scenario, per woningtype):
   * verkoop: het verkooptempo uit de planning (tab Invoer) schuift als geheel naar 'verkoop vanaf' (d_v kwartalen); wat al verkocht
@@ -10,6 +11,11 @@ Rekenregels (Model, gebied vanaf layout.VS_COL1; per scenario, per woningtype):
     met de start bouw) en is nooit groter dan wat in het scenario verkocht is: een woning gaat niet vóór de verkoop in transport;
   * bouwtermijnen en extra's per bouwkwartaal vervallen vanaf de start bouw van het scenario (d_sb kwartalen verschoven); bij
     transport betaalt de koper de grondtermijn plus alle vervallen termijnen (zoals in het FO, tab 'CF - opbrengsten');
+  * grondtermijn: een ander % (bv. 50%) geldt voor alle niet-DAEB-typen, voor de woningen die na de actuals in transport gaan
+    (wat al getransporteerd is, is betaald zoals gepland); de bouwtermijnen gaan naar rato omlaag tot samen weer 100%: de koopsom
+    blijft gelijk, alleen komt er meer bij transport binnen en minder in de bouwkwartalen. Per woning en kwartaal is het verschil
+    koopsom × (grond nieuw − grond gepland) × (1 − vervallen bouwtermijnen / (1 − grond gepland)): bij transport vóór de start
+    bouw het hele verschil, aan het eind 0;
   * fees (DAEB) schuiven mee met de start bouw (alleen de prognose);
   * kosten: met posten op tab CF kosten (kosten.py) schuiven alleen de prognosekosten van de posten op 'start bouw' d_sb kwartalen
     mee en die op 'verkoop' d_v kwartalen; zonder posten blijven de kosten gelijk zolang de start bouw gelijk blijft, en schuiven
@@ -122,9 +128,17 @@ def bouw_model_scenarios(ws):
             put(ws, f"{tcS}5", f'=IF({n}=0,0,N(INDEX({_rng(vc_k)},{n})))', f=F_CALC, nf=FMT_INT)
             put(ws, f"{tcS}6", f'=IF({pa}=0,0,N(INDEX({_rng(tc_k)},{pa})))', f=F_CALC, nf=FMT_INT)
             put(ws, f"{vvS}6", f'=IF({bv_k}$6>=99999,99999,{bv_k}$6+{d_sb})', f=F_CALC, nf="0")
+            # rij 5: grondtermijn scenario min gepland (fractie; 0 = zoals gepland, DAEB of geen bouwtermijnen)
+            gr, tu_k = h(f"vs{s}_gr"), m_col("tup", k)
+            put(ws, f"{vvS}5", f'=IF(OR({gr}<0,N({fe_k}$5)=1,N({tu_k}$6)>=1,N({tu_k}$5)=0),0,{gr}-N({tu_k}$6))', f=F_CALC, nf=FMT_PCT)
     for k in range(1, N_TYPES + 1):
         args = ",".join([f"{m_col('verv', k)}$6"] + [f"{vs_col(s, 'vv', k)}$6" for s in range(1, N_VS + 1)])
         put(ws, f"{SEL[('ts', k)]}6", f"=CHOOSE({sel}+1,{args})", f=F_CALC, nf="0")
+        # grondtermijn van het gekozen scenario: rij 5 van xs = verschil grond (fractie), van fs = factor op de bouwtermijnen − 1
+        dgs = ",".join(["0"] + [f"{vs_col(s, 'vv', k)}$5" for s in range(1, N_VS + 1)])
+        put(ws, f"{SEL[('xs', k)]}5", f"=CHOOSE({sel}+1,{dgs})", f=F_CALC, nf=FMT_PCT)
+        tu_k = m_col("tup", k)
+        put(ws, f"{SEL[('fs', k)]}5", f"=IF(N({tu_k}$6)>=1,0,-{SEL[('xs', k)]}5/(1-N({tu_k}$6)))", f=F_CALC, nf=FMT_PCT)
 
     # ---- periode-rijen ----------------------------------------------------------------------------------------------------
     for r in range(ROW1, ROWN + 1):
@@ -162,7 +176,12 @@ def bouw_model_scenarios(ws):
                 f[vxS] = (f'=IF({leeg},"",IF(${NR}{r}={n},N({vx_k}{r}),IF({IDX}{r}<{vvS}$6,0,'
                           f'SUMIFS({x_eur},{x_kw},">=1",{x_kw},"<="&({IDX}{r}-{vvS}$6+1)))))')
             tc_r, vv_r, vx_r = vs_rng(s, "tc", r), vs_rng(s, "vv", r), vs_rng(s, "vx", r)
+            # grondtermijn van het scenario: alleen voor woningen die na de actuals in transport gaan (tc boven tc t/m actuals)
+            na_act = f'(({tc_r}>{vs_rng(s, "tc", 6, abs_=True)})*({tc_r}-{vs_rng(s, "tc", 6, abs_=True)}))'
+            gr_extra = (f'SUMPRODUCT({na_act}*{koopsom}*{vs_rng(s, "vv", 5, abs_=True)}'
+                        f'*(1-{vv_r}/(1-{grond}+({grond}>=1)))*{nod})')
             f[c("model")] = (f'=IF({leeg},"",SUMPRODUCT({tc_r}*({koopsom}*({grond}+{vv_r})+{x_transport}+{vx_r})*{nod})'
+                             f'+IF({h(f"vs{s}_gr")}<0,0,{gr_extra})'
                              f'+IF({c("qf")}{r}=0,0,SUM(INDEX({fee_blk},{c("qf")}{r},0))))')
             f[c("cumo")] = (f'=IF({leeg},"",IF({h("model_aan")}=1,{CUM}{r}+{c("model")}{r}-{M["model_basis"]}{r},'
                             f'IF({prog},{CUM}{r},MAX({h("cum_opbr_actuals")},IF({c("pt")}{r}=0,0,N(INDEX({_rng(CUM)},{c("pt")}{r})))))))')
@@ -206,7 +225,12 @@ def bouw_model_scenarios(ws):
         keuze_vc = "+".join([f"({sel}=0)*{LY.m_range('vcum', r)}"] + [f"({sel}={s})*{vs_rng(s, 'vc', r)}" for s in range(1, N_VS + 1)])
         f[SEL["vj"]] = f'=IF({leeg},"",SUMPRODUCT({typesel}*({keuze_vc})))'
         f[SEL["trj"]] = f'=IF({leeg},"",SUMPRODUCT({typesel},{ts_r}))'
-        f[SEL["gj"]] = f'=IF({leeg},"",SUMPRODUCT({ts_r},{tm_rng(LY.TM_R_AG)},{typesel}))'
+        tc_act = vs_rng(1, "tc", 6, abs_=True)                     # getransporteerd t/m actuals (gelijk in elk scenario)
+        over_r = f"(({ts_r}>{tc_act})*({ts_r}-{tc_act}))"
+        over_p = f"(({ts_p}>{tc_act})*({ts_p}-{tc_act}))" if r > ROW1 else "0"
+        dg_sel, f_sel = sel_rng("xs", 5, abs_=True), sel_rng("fs", 5, abs_=True)
+        f[SEL["gj"]] = (f'=IF({leeg},"",SUMPRODUCT({ts_r},{tm_rng(LY.TM_R_AG)},{typesel})'
+                        f'+SUMPRODUCT({over_r}*{koopsom}*{dg_sel}*{typesel}))')
         f[SEL["xj"]] = f'=IF({leeg},"",SUMPRODUCT({ts_r}*({x_transport}+{sel_rng("xs", r)})*{nod}*{typesel}))'
         f[SEL["fj"]] = f'=IF({leeg},"",SUMPRODUCT({sel_rng("fs", r)},{typesel}))'
         kies = lambda basis, naam: ",".join([f"{basis}{r}"] + [f"{vs_col(s, naam)}{r}" for s in range(1, N_VS + 1)])  # noqa: E731
@@ -216,8 +240,8 @@ def bouw_model_scenarios(ws):
         for j in range(1, LY.N_TERMIJNEN + 1):
             a, kw = tm_rng(LY.TM_R_A + j - 1), tm_rng(LY.TM_R_KW + j - 1)
             vervallen = f"(({IDX}{r}-{start}-{kw}+1)>=0)*({kw}>=1)"
-            f[SEL[f"tj{j}"]] = f'=IF({leeg},"",SUMPRODUCT({ts_r}*{a}*{typesel}*{vervallen}))'
-            erbij = f"({ts_r}-{ts_p})" if r > ROW1 else f"({ts_r})"
+            f[SEL[f"tj{j}"]] = f'=IF({leeg},"",SUMPRODUCT(({ts_r}+{over_r}*{f_sel})*{a}*{typesel}*{vervallen}))'
+            erbij = (f"({ts_r}-{ts_p}+({over_r}-{over_p})*{f_sel})" if r > ROW1 else f"({ts_r}+{over_r}*{f_sel})")
             al_vervallen = f"(({IDX}{r}-{start}-{kw}+1)>0)*({kw}>=1)"
             f[SEL[f"ih{j}"]] = f'=IF({leeg},"",SUMPRODUCT({erbij}*{a}*{typesel}*{al_vervallen}))'
         for col, formule in f.items():
@@ -343,17 +367,19 @@ def bouw_model_scenarios(ws):
     for s in alle:
         in_sb, in_vv, in_tv = S(s, "in_sb"), S(s, "in_vv"), S(s, "in_tv")
         eff = lambda x: f"IF({x}>{ia},{x},0)"  # noqa: E731
-        ref = {v: LY.sc_in(s, v) for v in ("naam", "sb", "vv", "tv")}
+        ref = {v: LY.sc_in(s, v) for v in ("naam", "sb", "vv", "tv", "gr")}
         melding = "&".join(
             f'IF(AND(TRIM({ref[v]}&"")<>"",{S(s, "in_" + v)}=0)," · {wat}: onbekend kwartaal","")'
             f'&IF(AND({S(s, "in_" + v)}>0,{S(s, "in_" + v)}<={ia})," · {wat} ligt in de realisatie","")'
             for v, wat in (("sb", "start bouw"), ("vv", "verkoop"), ("tv", "transport")))
         melding += (f'&IF(AND({eff(in_sb)}>0,{h("start_idx")}<={ia})," · start bouw is al geweest","")'
-                    f'&IF(AND({eff(in_sb)}>0,{h("start_idx")}>=99999)," · geen start bouw in de planning","")')
+                    f'&IF(AND({eff(in_sb)}>0,{h("start_idx")}>=99999)," · geen start bouw in de planning","")'
+                    f'&IF(OR({S(s, "in_gr")}=-2,{S(s, "in_gr")}>1)," · grondtermijn: geen % tussen 0 en 100","")')
         d_sb, d_v, d_t = S(s, "d_sb"), S(s, "d_v"), S(s, "d_t")
         naam_in = f'TRIM({ref["naam"]}&"")'
         auto = (f'IF({d_sb}<>0,"Start bouw "&{kw_lbl(S(s, "sb"))},"")&IF({d_v}<>0,IF({d_sb}<>0," · verkoop ","Verkoop ")&{kw_lbl(S(s, "vv"))},"")'
-                f'&IF({eff(in_tv)}>0,IF(OR({d_sb}<>0,{d_v}<>0)," · transport ","Transport ")&{kw_lbl(S(s, "tv"))},"")')
+                f'&IF({eff(in_tv)}>0,IF(OR({d_sb}<>0,{d_v}<>0)," · transport ","Transport ")&{kw_lbl(S(s, "tv"))},"")'
+                f'&IF({S(s, "gr")}>=0,IF(OR({d_sb}<>0,{d_v}<>0,{eff(in_tv)}>0)," · grond ","Grondtermijn ")&FIXED({S(s, "gr")}*100,0)&"%","")')
         be_tekst = (f'IF({S(s, "d_be")}="",IF({S(s, "be_pos")}=0,"geen break-even","break-even "&{S(s, "be")}),IF({S(s, "d_be")}=0,'
                     f'"break-even gelijk","break-even "&{kw_tekst("ABS(" + S(s, "d_be") + ")")}&IF({S(s, "d_be")}>0," later"," eerder")))')
         st_rng = _rng(vs_col(s, "stand"))
@@ -361,8 +387,13 @@ def bouw_model_scenarios(ws):
             f"vs{s}_in_sb": (f"Scenario {s}: start bouw (invoer, kwartaalindex)", f"={kw_index(ref['sb'])}"),
             f"vs{s}_in_vv": (f"Scenario {s}: verkoop vanaf (invoer)", f"={kw_index(ref['vv'])}"),
             f"vs{s}_in_tv": (f"Scenario {s}: transport vanaf (invoer)", f"={kw_index(ref['tv'])}"),
+            f"vs{s}_in_gr": (f"Scenario {s}: grondtermijn (invoer als fractie; -1 = leeg, -2 = onleesbaar)",
+                             f'=IF(TRIM({ref["gr"]}&"")="",-1,IFERROR(IF(ISNUMBER({ref["gr"]}),IF({ref["gr"]}>1,{ref["gr"]}/100,{ref["gr"]}),'
+                             f'VALUE(SUBSTITUTE(TRIM({ref["gr"]}&""),"%",""))/100),-2))'),
+            f"vs{s}_gr": (f"Scenario {s}: grondtermijn (fractie; -1 = zoals gepland)",
+                          f'=IF(AND({S(s, "in_gr")}>=0,{S(s, "in_gr")}<=1),{S(s, "in_gr")},-1)'),
             f"vs{s}_fout": (f"Scenario {s}: controle invoer (leeg = goed)", f'=MID({melding},4,300)'),
-            f"vs{s}_aan": (f"Scenario {s}: ingevuld (1/0)", f"=IF(OR({eff(in_sb)}>0,{eff(in_vv)}>0,{eff(in_tv)}>0),1,0)"),
+            f"vs{s}_aan": (f"Scenario {s}: ingevuld (1/0)", f'=IF(OR({eff(in_sb)}>0,{eff(in_vv)}>0,{eff(in_tv)}>0,{S(s, "gr")}>=0),1,0)'),
             f"vs{s}_d_sb": (f"Scenario {s}: start bouw verschoven (kw)",
                             f'=IF(OR({eff(in_sb)}=0,{h("start_idx")}>=99999,{h("start_idx")}<={ia}),0,{eff(in_sb)}-{h("start_idx")})'),
             f"vs{s}_sb": (f"Scenario {s}: start bouw (kwartaalindex)", f'=IF({h("start_idx")}>=99999,99999,{h("start_idx")}+{d_sb})'),
@@ -391,7 +422,8 @@ def bouw_model_scenarios(ws):
             f"vs{s}_d_be": (f"Scenario {s}: break-even t.o.v. Basis (kw; leeg = geen vergelijking)",
                             f'=IF(OR({S(s, "be_pos")}=0,{h("be_basis_pos")}=0),"",INDEX({idx_rng},{S(s, "be_pos")})-INDEX({idx_rng},{h("be_basis_pos")}))'),
             f"vs{s}_sub": (f"Scenario {s}: kaart, regel verkoop / transport / rente",
-                           f'="verkoop "&{kw_lbl(S(s, "vv"))}&" · transport "&{S(s, "et")}&" · rente "&{eur_m(S(s, "rente"))}'),
+                           f'="verkoop "&{kw_lbl(S(s, "vv"))}&" · transport "&{S(s, "et")}&" · rente "&{eur_m(S(s, "rente"))}'
+                           f'&IF({S(s, "gr")}>=0," · grond "&FIXED({S(s, "gr")}*100,0)&"%","")'),
             f"vs{s}_delta": (f"Scenario {s}: kaart, verschil met de Basis",
                              f'=IF(ABS({S(s, "d_fin")})<50000,"financiering gelijk aan Basis",{eur_m("ABS(" + S(s, "d_fin") + ")")}'
                              f'&IF({S(s, "d_fin")}>0," extra"," minder")&" financiering")&" · "&{be_tekst}'),
@@ -417,10 +449,21 @@ def bouw_model_scenarios(ws):
 # =============================================================================
 KAART_COL = [3, 8, 13, 18]          # kaarten: C:F, H:K, M:P, R:U
 R_KAART = 5                         # kleurstreep; daaronder zeven regels
-R_S1, R_S2 = 14, 26                 # sectie 1 (invoer) en sectie 2 (uitkomst)
-R_S4 = 41                           # sectie 4 (tabel per termijn)
+R_S1, R_S2 = 14, 27                 # sectie 1 (invoer) en sectie 2 (uitkomst)
+R_S4 = 43                           # sectie 4 (tabel per termijn)
 GRAFIEK_COL = 12                    # kolom L: grafiek rechts van sectie 1 en 2
 CHIP_RIJ = R_S1 + 1
+
+
+def _pct(v):
+    """invoer grondtermijn (0.5, '50%', '50', 50) -> fractie, of None"""
+    if v in (None, ""):
+        return None
+    try:
+        x = float(str(v).replace("%", "").replace(",", ".").strip()) if isinstance(v, str) else float(v)
+    except ValueError:
+        return None
+    return x / 100 if x > 1 or (isinstance(v, str) and "%" in v) else x
 
 
 def _paar(ws, r, k, waarde, f=None, fl=None, al=AL_RIGHT, nf=None, bd=None):
@@ -537,27 +580,42 @@ def bouw_tab(wb, data):
     # ---- 1 · scenario maken ------------------------------------------------------------------------------------------------------
     put(ws, f"B{R_S1}", "1 · SCENARIO MAKEN · vul alleen in wat anders is dan de planning · leeg = automatisch", f=F_SECTION)
     _kop_scenarios(ws, R_S1 + 1)
+    # geplande grondtermijn: gewogen naar koopsom over de niet-DAEB-typen (per type kan hij verschillen)
+    ks, nd = f"Model!{LY.m_range_abs('tcum', 6)}", f"(1-Model!{LY.m_range_abs('fee', 5)})"
+    grond_plan = f"IFERROR(SUMPRODUCT({ks},Model!{LY.m_range_abs('tup', 6)},{nd})/SUMPRODUCT({ks},{nd}),0)"
     rijen = [
         (LY.SC_R_NAAM, LY.SC_LABELS["naam"], "Basis", "naam"),
         (LY.SC_R_SB, LY.SC_LABELS["sb"], f"={kw_lbl(hm('start_idx'))}", "sb"),
         (LY.SC_R_VV, LY.SC_LABELS["vv"], f"={kw_lbl(hm('vs_vv_plan'))}", "vv"),
         (LY.SC_R_TV, LY.SC_LABELS["tv"], f"={kw_lbl(hm('vs_tr_plan'))}", "tv"),
+        (LY.SC_R_GR, LY.SC_LABELS["gr"], f"={grond_plan}", "gr"),
     ]
     dv_kw = DataValidation(type="list", formula1="vs_kwartalen", allow_blank=True)
     dv_kw.showErrorMessage = False                           # ook zelf typen mag ('Q2 2028', '2028 Q2')
     dv_kw.promptTitle, dv_kw.prompt = "Kwartaal", "Kies een kwartaal na de actuals, of typ bijvoorbeeld Q2 2028. Leeg = zoals de planning."
     dv_kw.showInputMessage = True
     ws.add_data_validation(dv_kw)
+    dv_gr = DataValidation(type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True)
+    dv_gr.showErrorMessage = False
+    dv_gr.promptTitle, dv_gr.prompt = "Grondtermijn", "Bijvoorbeeld 50%. Koopsom blijft gelijk, de bouwtermijnen gaan naar rato omlaag. Leeg = zoals gepland."
+    dv_gr.showInputMessage = True
+    ws.add_data_validation(dv_gr)
     for r, label, basis, veld in rijen:
         put(ws, f"B{r}", label, f=F_CALC9, al=AL_LEFT, bd=BD_RIJ)
         _paar(ws, r, 0, basis, f=font(9, False, TXT2), fl=GRIJS_FL, bd=BD_RIJ)
         for s in range(1, N_VS + 1):
             waarde = invoer[s - 1].get(veld) if s - 1 < len(invoer) and isinstance(invoer[s - 1], dict) else None
+            if veld == "gr":
+                waarde = _pct(waarde)
             cel = _paar(ws, r, s, waarde, f=F_INPUT, fl=FL_INPUT, al=AL_RIGHT, bd=BD_RIJ)
-            ws[cel].number_format = "@"
-            if veld != "naam":
+            ws[cel].number_format = "0%" if veld == "gr" else "@"
+            if veld == "gr":
+                dv_gr.add(cel)
+            elif veld != "naam":
                 dv_kw.add(cel)
-    r = LY.SC_R_TV + 1                                      # toelichting over de breedte van blok 1, op twee regels
+        if veld == "gr":
+            ws[f"{L(LY.SC_COL[0])}{r}"].number_format = "0%"
+    r = LY.SC_R_GR + 1                                      # toelichting over de breedte van blok 1, op twee regels
     ws.merge_cells(f"B{r}:{L(LY.SC_COL[-1] + 1)}{r}")
     put(ws, f"B{r}", f'="Grijs = je planning (niet aanpassen) · blauw = invoer: kies een kwartaal of typ bijvoorbeeld Q2 2028 · een lege kolom '
                      f'staat uit · "&{hm("vs_tr_tekst")}', f=F_NOTE8, al=Alignment(horizontal="left", vertical="top", wrap_text=True))
@@ -601,6 +659,7 @@ def bouw_tab(wb, data):
         ("Start bouw", f"={kw_lbl(hm('start_idx'))}", lambda s: f"={kw_lbl(S(s, 'sb'))}", None, False),
         ("Verkoop vanaf", f"={kw_lbl(hm('vs_vv_plan'))}", lambda s: f"={kw_lbl(S(s, 'vv'))}", None, False),
         ("Eerste transport", f"={kw_lbl(hm('vs_tr_plan'))}", lambda s: f"={S(s, 'et')}", None, False),
+        ("Grondtermijn", f"={grond_plan}", lambda s: f'=IF({S(s, "gr")}<0,{grond_plan},{S(s, "gr")})', "0%", False),
         (f'="Verkocht bij start bouw (norm "&FIXED({norm}*100,0)&"%)"', f"={hm('verk_bij_start_pct')}", lambda s: f"={S(s, 'vbsb_pct')}", "0%", "norm"),
         ("Max. financieringsbehoefte", f"={hm('dal_basis')}/1000000", lambda s: f"={S(s, 'dal')}/1000000", FMT_MLN, True),
         ("Dieptepunt in", f"={hm('dal_basis_kw')}", lambda s: f"={S(s, 'dal_kw')}", None, False),
