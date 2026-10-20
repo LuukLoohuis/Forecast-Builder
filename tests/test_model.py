@@ -59,6 +59,7 @@ def foutcellen(wb):
     na_ok |= set(LY.BT.values())                                                            # bouwtermijnentabel: NA() buiten de gebruikte rijen
     na_ok |= set(LY.PT.values())                                                            # grafiek per type: NA() voorbij de laatste periode
     na_ok |= {LY.vs_col(s, k) for s in range(1, LY.N_VS + 1) for k in ("g", "gdal", "gcf")}  # scenariolijnen: NA() waar gelijk aan de Basis
+    na_ok |= {LY.VS_G["dvm"], LY.VS_G["dtm"]}                                               # markering DAEB: alleen in één kwartaal
     fouten = []
     for ws in wb.worksheets:
         for row in ws.iter_rows():
@@ -343,16 +344,17 @@ def test_verkoopgrafiek_venster_en_percentage(basis):
     pp = basis["PowerPoint"]
     c0 = pp[LY.PP_BLOK["vp"] + "1"].column
     assert pp.cell(LY.PP_KPI_ROW1, c0).value == m[f"{LY.FIX['kwartaal']}{LY.ROW1 + start - 1}"].value
-    # blok van dia 6: 30 kolommen, de laatste vier het cumulatieve percentage (lijn) en het label (alleen bij een stapel)
+    # blok van dia 7: 32 kolommen; daarvan vier voor het cumulatieve percentage (lijn) en het label (alleen bij een stapel), de
+    # laatste twee de markering DAEB (voorbeeld: weinig DAEB, dus '(uit)')
     koppen = [pp.cell(7, c0 + j).value for j in range(LY.PP_VP_KOL)]
-    assert koppen[-4:] == ["Verkocht cumulatief %", "Label verkocht %", "Getransporteerd cumulatief %", "Label transport %"]
+    assert koppen[-6:] == ["Verkocht cumulatief %", "Label verkocht %", "Getransporteerd cumulatief %", "Label transport %", "(uit)", "(uit)"]
     assert pp.cell(7, c0 + LY.PP_VP_KOL).value is None
     r0 = LY.ROW1 + start - 1
-    pct = pp.cell(LY.PP_KPI_ROW1, c0 + LY.PP_VP_KOL - 4)
+    pct = pp.cell(LY.PP_KPI_ROW1, c0 + LY.PP_VP_KOL - 6)
     assert abs(float(pct.value) - float(m[f"{LY.M['g_verkocht_pct']}{r0}"].value)) < 1e-9 and pct.number_format == "0%"
-    tpct = pp.cell(LY.PP_KPI_ROW1 + n - start, c0 + LY.PP_VP_KOL - 2)
+    tpct = pp.cell(LY.PP_KPI_ROW1 + n - start, c0 + LY.PP_VP_KOL - 4)
     assert abs(float(tpct.value) - float(m[f"{LY.M['g_getransporteerd_pct']}{laatste}"].value)) < 1e-9
-    assert pp.cell(LY.PP_KPI_ROW1 + n - start + 1, c0 + LY.PP_VP_KOL - 4).value == "#N/A"
+    assert pp.cell(LY.PP_KPI_ROW1 + n - start + 1, c0 + LY.PP_VP_KOL - 6).value == "#N/A"
 
 
 def test_kerncijfers_dia2(basis):
@@ -893,3 +895,37 @@ def test_grondtermijn_per_scenario(tmp):
     assert 0 < sc.cell(r_gr, LY.SC_COL[0]).value < 0.5
     paden = build.bouw(p, os.path.join(tmp, "grond_rond"), None, caches=False)
     assert D.lees_werkboek(paden[0]).params["vs"][2] == {"gr": "0.5"}
+
+
+def test_veel_daeb_apart_en_bouwtermijnen_in_groepen(tmp):
+    """Meer dan de helft van de woningen DAEB: de verkoopgrafiek toont balken en % alleen voor koop (DAEB-balken NA), DAEB als één
+    markering met label; dia 7 krijgt titel en kaartjes over koop en DAEB. De bouwtermijnen staan in twee groepen met een kopregel,
+    eerst koop, dan de DAEB-fees met het bedrag in het label en een lege rij onder elke fee."""
+    p = D.voorbeeld()
+    daeb = next(t for t in p.types if getattr(t, "soort", "") == "DAEB")
+    daeb.aantal = 187
+    wb = bouw_en_bereken(p, tmp, "veel_daeb")
+    m, pp = wb["Model"], wb["PowerPoint"]
+    hb = lambda naam: m[f"BY{LY.H[naam]}"].value  # noqa: E731
+    n = hb("n")
+    k = p.types.index(daeb) + 1
+    assert hb("vp_daeb_apart") == 1 and hb("vp_koop_n") == hb("woningen") - 187
+    assert all(m[f"{LY.m_col('gv', k)}{LY.ROW1 + i}"].value == "#N/A" for i in range(n))
+    pct = [m[f"{LY.M['g_verkocht_pct']}{LY.ROW1 + i}"].value for i in range(n)]
+    assert abs(pct[-1] - 1) < 1e-9                                  # 100% van de koopwoningen
+    mark = [i for i in range(n) if isinstance(m[f"{LY.VS_G['dvm']}{LY.ROW1 + i}"].value, (int, float))]
+    assert len(mark) == 1 and m[f"{LY.VS_G['dvm']}{LY.ROW1 + mark[0]}"].value == LY.VP_DAEB_Y and hb("vp_daeb_v_pos") == mark[0] + 1
+    assert hb("vp_daeb_lbl_v").startswith("DAEB · 187 woningen") and hb("vp_daeb_lbl_t").startswith("DAEB · 187 geleverd")
+    regels = _pp_regels(pp, 7)
+    assert regels["VP_TITEL"].startswith("Koop uitverkocht ") and "DAEB (187)" in regels["VP_TITEL"]
+    assert regels["VP_STAT1_WAARDE"].endswith(f'/ {int(hb("vp_koop_n"))}') and regels["VP_STAT2_LABEL"] == "DAEB · 187 WONINGEN"
+    c0 = pp[LY.PP_BLOK["vp"] + "1"].column
+    assert pp.cell(7, c0 + LY.PP_VP_KOL - 2).value == hb("vp_daeb_lbl_v")
+    # bouwtermijnen: kopregels, koop vóór DAEB, bedrag bij de fee, lege rij onder elke fee
+    assert hb("bt_kop_aan") == 1
+    rijen = [(m[f"{LY.BT['soort']}{r}"].value, m[f"{LY.BT['label']}{r}"].value) for r in range(LY.BT_ROW1, LY.BT_ROW1 + hb("bt_n"))]
+    koppen = [i for i, (s, _) in enumerate(rijen) if s == 5]
+    assert [rijen[i][1] for i in koppen][0] == "KOOP · BOUWTERMIJNEN" and rijen[koppen[1]][1].startswith("DAEB · FEES · €")
+    fees = [i for i, (s, t) in enumerate(rijen) if s == 3 and i > koppen[1]]
+    assert fees and all("· €" in rijen[i][1] for i in fees) and all(rijen[i + 1][0] == 4 for i in fees)
+    assert not any(s == 3 and i < koppen[1] and "· €" in (t or "") for i, (s, t) in enumerate(rijen))

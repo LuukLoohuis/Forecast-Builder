@@ -71,6 +71,10 @@ Option Explicit
 '  v21: bouwtermijnengrafiek zonder legenda (anders bleven kwartaalnummers als losse cijfers onder de grafiek staan); kortere teksten; vormen die geen tekst meer krijgen (ondertitels van dia 2, 3, 4 en 7, CF_VOET, KPI4_SUB, VS_Kk_DELTA,
 '       VS_NOOT) haalt de macro van de dia (HaalVervallenVormenWeg), zodat ook sjabloon v18 werkt; sjabloon v19 (tools/
 '       pptx_v19_kort.py) heeft ze niet meer en de scenariolijnen in contrastrijkere kleuren met een eigen lijnstijl.
+'  v22: veel DAEB (meer dan de helft van de woningen): dia 7 met balken en % alleen voor koop en DAEB als gouden markering
+'       (twee kolommen extra in het VP-blok, KOL_VP = 32; de blokken erna schuiven twee kolommen op; '(uit)' = geen markering,
+'       ook in VP1_/VP2_GRAFIEK); drie kaartjes VP_STAT1..3 op dia 7; bouwtermijnen in twee groepen (koop / DAEB-fees) met een
+'       kopregel en het bedrag per fee (alleen tab PowerPoint); sjabloon v20 (tools/pptx_v20_daeb.py).
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -95,17 +99,17 @@ Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFI
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
 Private Const CEL_SJABLOON As String = "D130"
 Private Const CEL_NAAM As String = "D131"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v19.pptx"
-Private Const SJABLOON_VORIG As String = "Kwartaal_Template_cashflow_v18.pptx"   ' als v19 er niet staat
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v20.pptx"
+Private Const SJABLOON_VORIG As String = "Kwartaal_Template_cashflow_v19.pptx"   ' als v20 er niet staat
 Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
 Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
 Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijnenblok (label + 107 reeksen; layout.PP_BT_KOL)
-Private Const BLOK_PT As String = "FQ7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
+Private Const BLOK_PT As String = "FS7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
 Private Const KOL_PT As Long = 10
-Private Const KOL_VP As Long = 30          ' kolommen van het blok van dia 6 (verkoop en transport, met cumulatief %)
+Private Const KOL_VP As Long = 32          ' kolommen van het blok van dia 6 (verkoop en transport, met cumulatief %)
 Private Const CEL_PT_N As String = "BY128"
 Private Const CEL_VP_N As String = "BY132"         ' aantal getoonde periodes in de verkoop- en transportgrafiek (vanaf het actuals-jaar)         ' aantal getoonde periodes in de grafiek per type (tijdvak vanaf twee jaar vóór de eerste opbrengst)
 Private Const CEL_PT_KEUZE As String = "B120"      ' keuzecel op het Dashboard: naam van het type in de grafiek per woningtype
@@ -113,7 +117,7 @@ Private Const CEL_PT_PP As String = "W120"         ' Dashboard (sinds v20): dia 
 Private Const PT_TOTAAL As String = "Totaal (zonder DAEB)"   ' keuze in CEL_PT_KEUZE (of 0): alle niet-DAEB-typen samen
 ' dia 2 (sjabloon v17): blok van de kleine cashflowgrafiek, as-grenzen (Model, kc_min/kc_max), positie actuals, en het tekenvlak
 ' van KPI_GRAFIEK als fractie van het grafiekkader (layout.KC_PLOT_X / KC_PLOT_W; manualLayout in het sjabloon)
-Private Const BLOK_KC As String = "GK7"
+Private Const BLOK_KC As String = "GM7"
 Private Const KOL_KC As Long = 8
 Private Const CEL_KC_MIN As String = "BY142"
 Private Const CEL_KC_MAX As String = "BY143"
@@ -121,9 +125,9 @@ Private Const CEL_POS_ACTUALS As String = "BY10"
 Private Const KC_PLOT_X As Double = 0.0217
 Private Const KC_PLOT_W As Double = 0.9217
 ' v18: cashflowgrafiek met de scenariolijnen (dia 3) en dia 4 'Verkoopscenario's'
-Private Const BLOK_CF As String = "GT7"
+Private Const BLOK_CF As String = "GV7"
 Private Const KOL_CF As Long = 11
-Private Const BLOK_VS As String = "HF7"
+Private Const BLOK_VS As String = "HH7"
 Private Const KOL_VS As Long = 9
 Private Const N_VS As Long = 3                     ' scenario's naast de Basis (kaarten VS_K1..VS_K3, legenda VS_LEG1..3)
 Private Const CEL_VS_PP As String = "BY154"        ' Model: dia 4 en de scenariolijnen in PowerPoint (1/0)
@@ -197,13 +201,13 @@ Private Function Grafieken() As Variant
     Grafieken = Array(Array("CF_GRAFIEK", BLOK_CF, KOL_CF, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
                       Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
                       Array("VP1_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), Array("VP2_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), _
-                      Array("VO_GRAFIEK", "FK7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, ""), _
+                      Array("VO_GRAFIEK", "FM7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, ""), _
                       Array("VS_GRAFIEK", BLOK_VS, KOL_VS, CEL_VP_N))
 End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    Tabellen = Array(Array("SC_TABEL", "GB7", 9, 4, 0), Array("VT_TABEL", "GB18", MAX_TYPES + 1, 8, 1))
+    Tabellen = Array(Array("SC_TABEL", "GD7", 9, 4, 0), Array("VT_TABEL", "GD18", MAX_TYPES + 1, 8, 1))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -1369,7 +1373,7 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     ' X-bereik = kolom A, Y-bereik = de kolomletter uit de SERIES-formule van die reeks (KolomVanReeks). Reeksnamen die
     ' naar rij 1 van het gegevensblad verwijzen volgen zo de koptekst; namen als tekst in de formule (BT_GRAFIEK) blijven.
     Dim ch As Object, wbE As Object, wsE As Object
-    Dim arr() As Variant, r As Long, c As Long, v As Variant, i As Long, kol As String
+    Dim arr() As Variant, r As Long, c As Long, v As Variant, i As Long, kol As String, letter As Double
     On Error GoTo Mislukt
     Set ch = shp.Chart
     ReDim arr(0 To n, 0 To nKol - 1)
@@ -1399,13 +1403,20 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     Next i
     ' reeksen met '(uit)' in de kop gaan weg: de scenariolijn in de cashflowgrafiek, in de bouwtermijnengrafiek de typen
     ' zonder termijnen en de jaren buiten het bereik, in de grafiek per type de onderdelen die het type niet heeft
-    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
+    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" _
+       Or vorm = "VP1_GRAFIEK" Or vorm = "VP2_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
     If vorm = "BT_GRAFIEK" Then
         ZetTijdAs ch
         ' geen legenda: na het weghalen van reeksen verschuiven de verborgen legenda-regels en blijven de kwartaalnummers
         ' ('1'..'4') als losse cijfers onder de grafiek staan; de typekleuren staan in de tabel eronder (VT_TABEL)
         On Error Resume Next
         ch.HasLegend = False
+        ' rijlabels passend bij het aantal rijen (met DAEB-fees en kopregels zijn er meer): minstens twee rijen per label
+        letter = 7.5
+        If n > 0 Then letter = 1.6 * ch.PlotArea.InsideHeight / n
+        If letter > 7.5 Then letter = 7.5
+        If letter < 5 Then letter = 5
+        ch.Axes(1).TickLabels.Font.Size = letter
         On Error GoTo Mislukt
     End If
     If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch

@@ -2,7 +2,7 @@
 
 Bouwt het werkboek **Cashflow_scenario** (Dashboard · Scenario's · Invoer · Woningtypes · CF kosten · Model · PowerPoint) met Python/openpyxl.
 Het werkboek rekent scenario's (downside/upside en verkoopscenario's) uit bovenop je eigen projectcashflow en vult met één knop
-het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v19.pptx`; v18 werkt ook).
+het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v20.pptx`; v19 werkt ook).
 
 ## Wat zit erin
 
@@ -29,6 +29,7 @@ het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v19.pptx`; v18 werkt ook).
 | `tools/pptx_v16_verkooppct.py` | sjabloon v15 → v16: dia 6 met het cumulatieve percentage als lijn met labels, blok van 30 kolommen, tijdvak vanaf het actuals-jaar |
 | `tools/pptx_v14_daeb.py` | dia 8 'Opbrengsten per woningtype' (PT_GRAFIEK; de macro maakt per type een kopie) en herkleurde dia 5/6: vorige prognose lichtrood (v13 → v14) |
 | `tools/pptx_v18_scenarios.py` | sjabloon v17 → v18: nieuwe dia 4 'Verkoopscenario's' (kaarten, legenda, VS_GRAFIEK) en drie scenariolijnen in de cashflowgrafiek op dia 3; `--simuleer` doet na wat de macro doet |
+| `tools/pptx_v20_daeb.py` | sjabloon v19 → v20: dia 7 met de DAEB-markering (gouden ruit, kolom AE/AF) in VP1/VP2 en drie kaartjes VP_STAT1..3, de grafieken smaller; BT_GRAFIEK toont elk rijlabel; `--simuleer` doet dia 6 en 7 na |
 | `tools/pptx_v19_kort.py` | sjabloon v18 → v19: minder tekst (ondertitels van dia 2, 3, 4 en 7, KPI4_SUB, de regel onderaan de scenariokaarten en de voetnoot van dia 4 weg) en de scenariolijnen in contrastrijkere kleuren met een eigen lijnstijl; `--simuleer` doet na wat de macro doet |
 | `tools/pptx_v17_kerncijfers.py` | sjabloon v16 → v17: dia 2 'kerncijfers' in het nieuwe ontwerp (tegels, tijdlijnband met de kleine cashflowgrafiek KPI_GRAFIEK, kaarten met balken, grootste lasten); `--simuleer` doet na wat de macro doet |
 
@@ -45,8 +46,8 @@ python build.py --leeg --out out/Cashflow_scenario_leeg   # leeg sjabloon: geen 
 Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`
 geschreven (`forecast_builder/vbabuild.py`, op basis van `vba/vbaProject_template.bin` met de documentmodules en
 projectinstellingen). Importeren in de VBA-editor is dus niet nodig. Bij het openen zet `KnoppenControleren`
-de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v19.pptx` naast het werkboek
-(of vul het pad in op tab PowerPoint). Sjabloon v19 maak je van v18 met `python3 tools/pptx_v19_kort.py v18.pptx v19.pptx`,
+de knoppen neer (Dashboard, PowerPoint, Woningtypes). Zet `Kwartaal_Template_cashflow_v20.pptx` naast het werkboek
+(of vul het pad in op tab PowerPoint). Sjabloon v20 maak je van v19 met `python3 tools/pptx_v20_daeb.py v19.pptx v20.pptx`, v19 van v18 met `python3 tools/pptx_v19_kort.py v18.pptx v19.pptx`,
 v18 van v17 met `python3 tools/pptx_v18_scenarios.py v17.pptx v18.pptx` (v17 van v16 met `tools/pptx_v17_kerncijfers.py`).
 Met sjabloon v18 haalt de macro (v21) de vormen die geen tekst meer krijgen zelf van de dia's.
 
@@ -236,7 +237,15 @@ rente staan in de hulpcellen en op tab PowerPoint (blok *extra knoppen en scenar
 In het PowerPoint-sjabloon (sinds v11, `tools/pptx_scenario_line.py`) staat de lijn ook in de cashflowgrafiek op
 dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam uit het werkboek.
 
-### Dia's en sjabloon v19
+### Dia's en sjabloon v20
+
+**Veel DAEB** (meer dan de helft van de woningen, Model `vp_daeb_apart`): de verkoop- en transportgrafiek (Dashboard en dia 7)
+tonen balken en cumulatief % alleen voor de koopwoningen; DAEB staat als gouden ruit in het eerste DAEB-kwartaal met het label
+'DAEB · 187 woningen in één keer' (of 'vanaf Q1 ’27'; kolommen `dvm`/`dtm`, PowerPoint-blok kolom AE/AF, anders '(uit)'). Titel en
+kaartjes van dia 7 (VP_STAT1..3) gaan dan over koop, DAEB en het totaal; anders verkocht, getransporteerd en nog te verkopen.
+**Bouwtermijnen met DAEB-fees**: twee groepen met een kopregel ('KOOP · BOUWTERMIJNEN', 'DAEB · FEES · €2,8M'), eerst koop; elke
+fee met zijn bedrag in het label en een lege rij eronder; de macro past de lettergrootte van de rijlabels aan het aantal rijen aan.
+
 
 Dia 1 titel · 2 kerncijfers (tegels, tijdlijnband met kleine cashflowgrafiek, kaarten met balken) · 3 cashflow per kwartaal (met scenariolijn en verkoopscenario's) · 4 verkoopscenario's · 5 scenario's · 6 bouwtermijnen per woningtype
 (tijdlijn) met de tabel woningtypes · 7 verkoop en transport per kwartaal (twee panelen) · 8 van verkoop naar omzet ·

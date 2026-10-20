@@ -212,6 +212,7 @@ VK_NAMEN = {"g_vk_kwartaal": FIX["kwartaal"], "g_vk_realisatie": M["g_realisatie
             "g_vk_punt_alles_transport": M["g_punt_alles_transport"],
             "g_vk_pct": M["g_verkocht_pct"], "g_vk_tpct": M["g_getransporteerd_pct"],
             "g_vk_pct_lbl": M["g_verkocht_pct_lbl"], "g_vk_tpct_lbl": M["g_getransporteerd_pct_lbl"]}
+VP_DAEB_Y = 0.92                       # hoogte van de DAEB-markering op de %-as van de verkoopgrafiek
 
 
 # ---- grafiek per woningtype: selectieblok (het type uit de keuzecel op het Dashboard), € mln per kwartaal ----
@@ -376,8 +377,9 @@ PP_KPI_ROW1 = 8
 # 10x verkocht, 10x transport, totalen, mijlpalen, realisatie; twee grafieken lezen hetzelfde blok), vo dia 7 (5)
 PP_BT_KOL = 1 + len(BT_REEKSEN)        # 108
 PP_PT_KOL = 2 + len(PT_REEKSEN)        # 10: kwartaal, acht reeksen, realisatie
-PP_VP_KOL = 1 + 2 * N_TYPES + 5 + 4    # 30: kwartaal, verkocht en getransporteerd per type, verkocht, getransporteerd, twee mijlpalen, realisatie,
-                                       # cumulatief % en label (verkocht), cumulatief % en label (transport); de macro: KOL_VP
+PP_VP_KOL = 1 + 2 * N_TYPES + 5 + 4 + 2   # 32: kwartaal, verkocht en getransporteerd per type, verkocht, getransporteerd, twee mijlpalen,
+                                       # realisatie, cumulatief % en label (verkocht), cumulatief % en label (transport), markering DAEB
+                                       # verkocht en getransporteerd (sinds v22); de macro: KOL_VP
 _vp = 27 + PP_BT_KOL + 1               # 136 (EF)
 _vo = _vp + PP_VP_KOL + 1              # 167 (FK)
 _pt = _vo + 6                          # 173 (FQ): dia 8, grafiek per woningtype (de macro vult per type een kopie van de dia)
@@ -436,9 +438,11 @@ VS_G = {}                                                 # gedeelde kolommen
 _c = VS_COL1
 # kosten vóór / vanaf start bouw (cumulatief), verkocht / transport niet-DAEB; prognosekosten van de posten op tab CF kosten die
 # meeschuiven met de start bouw (cksb) of met de verkoop (ckv), cumulatief
-for _naam in ["kpre", "kpost", "vnd", "tnd", "cksb", "ckv"]:
+# dvm / dtm: markering DAEB in de verkoop- en transportgrafiek (alleen met DAEB apart; waarde op de %-as in het eerste kwartaal)
+for _naam in ["kpre", "kpost", "vnd", "tnd", "cksb", "ckv", "dvm", "dtm"]:
     VS_G[_naam] = L(_c)
     _c += 1
+VK_NAMEN.update({"g_vk_daeb_v": VS_G["dvm"], "g_vk_daeb_t": VS_G["dtm"]})   # markering DAEB in de verkoopgrafiek
 _c += 1
 VS_AGG = ["pv", "pt", "psb", "qf", "model", "cumo", "opbr", "kcum", "kosten", "rente", "sraw", "stand", "pos", "tnd", "g", "gdal", "gcf"]
 VS_TB = ["vc", "tc", "vv", "vx"]                          # per type: verkocht cum, transport cum, termijnen vervallen, extra's vervallen
@@ -559,6 +563,11 @@ _r = 285
 for _naam in ["kf_aan", "kf_sb_tot", "kf_v_tot", "vs_v_mee", "kf_tekst", "kf_tekst_kort", "kf_dal_tot", "kf_verschil", "kf_controle",
               "kl_bron", "kl1_naam", "kl1_bedrag", "kl2_naam", "kl2_bedrag", "kl3_naam", "kl3_bedrag",
               "kf_dal_real", "kf_dal_lbl", "kf_real_gap", "kf_buiten", "kf_bk_tot", "kf_bk_verschil", "kf_bk_controle",
-              "kf_bk_buiten", "kf_bk_post"]:
+              "kf_bk_buiten", "kf_bk_post",
+              # bouwtermijnengrafiek in twee groepen (koop / DAEB-fees) met een kopregel per groep
+              "bt_kop_aan", "bt_koop_lanes", "bt_koop_groepen", "bt_daeb_kop_pos", "bt_lijst",
+              # verkoopgrafiek: DAEB apart (meer dan de helft van de woningen): balken en % alleen koop, DAEB als markering
+              "vp_daeb_apart", "vp_koop_n", "vp_daeb_v_pos", "vp_daeb_t_pos", "vp_daeb_v_kw", "vp_daeb_t_kw", "vp_daeb_lbl_v",
+              "vp_daeb_lbl_t", "vp_verk_koop_act", "vp_tr_koop_act"]:
     H[_naam] = _r
     _r += 1

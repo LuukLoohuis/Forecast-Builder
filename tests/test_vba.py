@@ -109,7 +109,7 @@ def test_dia2_geschikt_na_de_teksten():
     # v17: balken na het schikken, de grafiek van dia 2 na het vullen geschikt, '(uit)'-reeksen ook in KPI_GRAFIEK
     assert body.index("SchikDia2 pres, wsP") < body.index("VulBalken pres, wsP") < body.index("t = Tabellen()")
     assert 'If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch' in procs["VulGrafiekVorm"]
-    assert 'Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" Then VerwijderUitgezetteReeksen' in procs["VulGrafiekVorm"]
+    assert 'Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" _\n       Or vorm = "VP1_GRAFIEK" Or vorm = "VP2_GRAFIEK" Then VerwijderUitgezetteReeksen' in procs["VulGrafiekVorm"]
     assert "If IsBalkregel(vorm) Then" in procs["VulTeksten"] and "RichtingKleur(richting)" in procs["VulBalken"]
     assert 'RegelVanVorm(wsP, "KPI" & k & "_NAAM1")' in procs["SchikDia2"] and "GRAFIEK_LEGENDA_VORIG_LIJN" in procs["SchikDia2"]
 

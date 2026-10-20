@@ -86,7 +86,7 @@ def bouw_model_scenarios(ws):
     put(ws, f"{G['kpre']}4", "scenario's (tab Scenario's): gedeeld: kosten vóór / vanaf de geplande start bouw (cumulatief), verkocht en "
                              "getransporteerd niet-DAEB (cumulatief); daarna per scenario de rekenkolommen en vier typeblokken", f=F_NOTE8)
     koppen = {G["kpre"]: "Kosten vóór start bouw cum", G["kpost"]: "Kosten vanaf start bouw cum", G["vnd"]: "Verkocht cum niet-DAEB",
-              G["tnd"]: "Transport cum niet-DAEB"}
+              G["tnd"]: "Transport cum niet-DAEB", G["dvm"]: "Markering DAEB verkocht", G["dtm"]: "Markering DAEB getransporteerd"}
     namen = {"pv": "Positie verkoop", "pt": "Positie transport", "psb": "Positie start bouw", "qf": "Positie fees", "model": "Model",
              "cumo": "Cum opbrengsten", "opbr": "Opbrengsten", "kcum": "Kosten cum", "kosten": "Kosten", "rente": "Rente",
              "sraw": "Stand (berekend)", "stand": "Stand (getoond)", "pos": "Positief", "tnd": "Transport cum niet-DAEB",

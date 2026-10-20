@@ -28,7 +28,7 @@ def _xml(jaar_min, jaar_max=None):
     cashflow = cx.cashflow(r_cf, _lbl(scenario_naam="lbl_scenario", nu="lbl_nu_cf", dal="lbl_dal", eind_basis="lbl_eind_basis_cf",
                                       eind_scenario="lbl_eind_scn"))
     band = cx.band(r, _lbl(nu="lbl_nu", dal="lbl_dal", eind_up="lbl_eind_up", eind_down="lbl_eind_down"))
-    lbl_vt = _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport")
+    lbl_vt = _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport", daeb_v="vp_daeb_lbl_v", daeb_t="vp_daeb_lbl_t")
     r_vk = {naam[5:]: f"[0]!{naam}" for naam in LY.VK_NAMEN}            # kwartaal, realisatie, verkocht, ... in het tijdvak
     verkoop = cx.verkoop_paneel(r_vk, lbl_vt, _type_namen(), "verkocht")
     transport = cx.verkoop_paneel(r_vk, lbl_vt, _type_namen(), "transport")

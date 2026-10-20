@@ -551,8 +551,10 @@ def bouw_model(wb):
                      f'{rng_bt("idxb")},">="&${IDX}${ROW1}))')
             f[vc] = f'=IF({leeg},"",N({vc}{p})+IFERROR(N({LY.in_ref(r, k, 0)}),0))'
             f[tc] = f'=IF({leeg},"",N({tc}{p})+IFERROR(N({LY.in_ref(r, k, 1)}),0))'
-            f[gv] = f'=IF(OR({leeg},{vc}$6=0),NA(),{vc}{r}-N({vc}{p}))'
-            f[gt] = f'=IF(OR({leeg},{vc}$6=0),NA(),{tc}{r}-N({tc}{p}))'
+            # DAEB apart (meer dan de helft van de woningen): geen DAEB-balken, DAEB staat als markering in de grafiek (dvm / dtm)
+            weg = f'OR({leeg},{vc}$6=0,AND({h("vp_daeb_apart")}=1,N({fe}$5)=1))'
+            f[gv] = f'=IF({weg},NA(),{vc}{r}-N({vc}{p}))'
+            f[gt] = f'=IF({weg},NA(),{tc}{r}-N({tc}{p}))'
             for col, shift in ((tu, up_shift), (td, down_shift), (ts, scn_shift)):
                 f[col] = (f'=IF({leeg},"",IF(OR({FASE}{r}="Realisatie",${NR}{r}={h("n")}),{tc}{r},'
                           f'MAX({td}$6,N(INDEX({tc}${ROW1}:{tc}${ROWN},MAX(1,MIN({h("n")},${NR}{r}-N({shift}))))))))')
@@ -640,12 +642,16 @@ def bouw_model(wb):
         f[M["g_eind_scenario"]] = f'{na}IF(AND({h("scn_aan")}=1,${NR}{r}={h("n")}),{ss}{r}/1000000,NA()))'
         f[M["g_realisatie"]] = f'{na}IF({FASE}{r}="Realisatie",1,NA()))'
         vcum, tcum = M["g_verkocht_cum"], M["g_getransporteerd_cum"]
-        f[M["g_verkocht"]] = f'{na}{vcum}{r}-N({vcum}{p}))'
-        f[M["g_getransporteerd"]] = f'{na}{tcum}{r}-N({tcum}{p}))'
+        # verkoopgrafiek: per kwartaal en cumulatief %; met DAEB apart alleen de koopwoningen (DAEB-typen tellen niet mee)
+        mk = f'(1-{h("vp_daeb_apart")}*{m_range_abs("fee", 5)})'
+        v_r, v_p = f'SUMPRODUCT({LY.m_range("vcum", r)},{mk})', f'SUMPRODUCT({LY.m_range("vcum", p)},{mk})'
+        t_r, t_p = f'SUMPRODUCT({LY.m_range("tcum", r)},{mk})', f'SUMPRODUCT({LY.m_range("tcum", p)},{mk})'
+        f[M["g_verkocht"]] = f'{na}{v_r}-{v_p})' if r > ROW1 else f'{na}{v_r})'
+        f[M["g_getransporteerd"]] = f'{na}{t_r}-{t_p})' if r > ROW1 else f'{na}{t_r})'
         f[vcum] = f'{na}SUM({m_col("vcum", 1)}{r}:{m_col("vcum", N_TYPES)}{r}))'
         f[tcum] = f'{na}SUM({tc1}{r}:{tcN}{r}))'
-        f[M["g_verkocht_pct"]] = f'{na}IF({h("woningen")}=0,0,{vcum}{r}/{h("woningen")}))'
-        f[M["g_getransporteerd_pct"]] = f'{na}IF({h("woningen")}=0,0,{tcum}{r}/{h("woningen")}))'
+        f[M["g_verkocht_pct"]] = f'{na}IF({h("vp_koop_n")}=0,0,{v_r}/{h("vp_koop_n")}))'
+        f[M["g_getransporteerd_pct"]] = f'{na}IF({h("vp_koop_n")}=0,0,{t_r}/{h("vp_koop_n")}))'
         # label op de percentagelijn in de verkoop- en transportgrafiek: cumulatief % van alle woningen, alleen waar een stapel staat
         f[M["g_verkocht_pct_lbl"]] = f'{na}IF(N({M["g_verkocht"]}{r})>0,{M["g_verkocht_pct"]}{r},NA()))'
         f[M["g_getransporteerd_pct_lbl"]] = f'{na}IF(N({M["g_getransporteerd"]}{r})>0,{M["g_getransporteerd_pct"]}{r},NA()))'
@@ -653,6 +659,11 @@ def bouw_model(wb):
         f[M["g_kosten_pct"]] = f'{na}IF({h("kosten_totaal")}=0,0,({CUM}{r}-{sb}{r})/{h("kosten_totaal")}))'
         f[M["g_punt_uitverkocht"]] = f'{na}IF(${NR}{r}={h("uitverkocht_pos")},{M["g_verkocht"]}{r},NA()))'
         f[M["g_punt_alles_transport"]] = f'{na}IF(${NR}{r}={h("alles_transport_pos")},{M["g_getransporteerd"]}{r},NA()))'
+        # markering DAEB (DAEB apart): in het eerste kwartaal met DAEB-verkoop / -transport een punt op de %-as (VP_DAEB_Y)
+        for col, blok in ((LY.VS_G["dvm"], "vcum"), (LY.VS_G["dtm"], "tcum")):
+            d_r = f'SUMPRODUCT({LY.m_range(blok, r)},{m_range_abs("fee", 5)})'
+            d_p = f'SUMPRODUCT({LY.m_range(blok, p)},{m_range_abs("fee", 5)})' if r > ROW1 else "0"
+            f[col] = f'{na}IF(AND({h("vp_daeb_apart")}=1,{d_r}>0,{d_p}=0),{LY.VP_DAEB_Y},NA()))'
         if r == ROW1:
             f[M["stap_ok"]] = f'=IF({leeg},1,1)'
         else:
@@ -707,6 +718,8 @@ def bouw_model(wb):
     uniek_rng, tnaam_rng, mnaam_rng, idxb_rng, idxr_rng = rng_bt("uniek"), rng_bt("tnaam"), rng_bt("mnaam"), rng_bt("idxb"), rng_bt("idxr")
     j_rng, i_rng, rang_rng, pos_rng, nr_rng, eerste_rng, comp_rng = (rng_bt(x) for x in ("j", "i", "rang", "pos", "nr", "eerste", "comp"))
     tf, te, tn = h("t_first"), h("t_end"), h("t_nu_end")
+    sleutel = f"({j_rng}+({comp_rng}>0)*10000)"
+    bedrag_rng = rng_bt("bedrag")           # volgorde van de groepen: eerst de bouwtermijnen (koop), dan de DAEB-fees
     idx_first = f"${IDX}${ROW1}"
     for r in range(LY.BT_ROW1, LY.BT_ROWN + 1):
         j = r - LY.BT_ROW1 + 1
@@ -774,18 +787,24 @@ def bouw_model(wb):
                 f["uniek"] = f'=IF(AND({gebruikt}=1,SUMPRODUCT(--({eerder_t}=${BT["tnaam"]}{r}),--({eerder_g}=1))=0),1,0)'
             # rang van de groepsnaam = positie (in 'nr') van de eerste gebruikte rij met deze naam
             zelfde = f"({tnaam_rng}=${BT['tnaam']}{r})*({gebruikt_rng}=1)"
-            f["rang"] = ArrayFormula(f"{BT['rang']}{r}", f'=IF({gebruikt}=1,MATCH(MIN(IF({zelfde},{j_rng})),{nr_rng},0),"")')
+            f["rang"] = ArrayFormula(f"{BT['rang']}{r}", f'=IF({gebruikt}=1,MATCH(MIN(IF({zelfde},{sleutel})),{nr_rng},0),"")')
             # positie in de compacte lijst: banen van lagere rangen + scheidingsrijen + eerdere banen in deze groep (typevolgorde, dan
             # termijnvolgorde binnen het type)
             eerder_in_groep = f'({gebruikt_rng}=1)*({rang_rng}={rang})*(({k_rng}<{k})+({k_rng}={k})*({i_rng}<{i}))'
-            f["pos"] = f'=IF({gebruikt}=1,SUMPRODUCT(({gebruikt_rng}=1)*({rang_rng}<{rang}))+{rang}-1+SUMPRODUCT({eerder_in_groep})+1,"")'
+            # met twee groepen (koop en DAEB-fees) een kopregel boven elke groep: koop één rij lager, DAEB twee
+            kop = f'{h("bt_kop_aan")}*(1+(${BT["comp"]}{r}>0))'
+            # elke DAEB-fee heeft een eigen label: een lege rij eronder, zodat de labels niet over elkaar vallen
+            lucht = (f'IF(${BT["comp"]}{r}>0,SUMPRODUCT(({gebruikt_rng}=1)*({comp_rng}>0)*({rang_rng}<{rang}))'
+                     f'+SUMPRODUCT({eerder_in_groep}),0)')
+            f["pos"] = (f'=IF({gebruikt}=1,SUMPRODUCT(({gebruikt_rng}=1)*({rang_rng}<{rang}))+{rang}-1+SUMPRODUCT({eerder_in_groep})+1+{kop}'
+                        f'+{lucht},"")')
             f["eerste"] = f'=IF({gebruikt}=1,IF(SUMPRODUCT({eerder_in_groep})=0,1,0),"")'
         else:
             for naam_ in ("k", "i", "gebruikt", "knaam", "tnaam", "mnaam", "comp", "bedrag", "waarde", "kw", "kwr", "fout", "idxb", "idxr",
                           "uniek", "rang", "pos", "eerste"):
                 f[naam_] = None
         # ---- compacte lijst ----
-        f["nr"] = ArrayFormula(f"{BT['nr']}{r}", f'=IFERROR(SMALL(IF({uniek_rng}=1,{j_rng}),{j}),"")')
+        f["nr"] = ArrayFormula(f"{BT['nr']}{r}", f'=IFERROR(SMALL(IF({uniek_rng}=1,{sleutel}),{j}),"")')
         bron, soort = f"${BT['bron']}{r}", f"${BT['soort']}{r}"
         if j <= LY.BT_KOP:
             f["bron"] = None
@@ -793,10 +812,15 @@ def bouw_model(wb):
             f["label"] = " "
             f["kb"] = f["ib"] = f["ir"] = None
         else:
-            f["bron"] = f'=IFERROR(MATCH({j - LY.BT_KOP},{pos_rng},0),"")'
-            f["soort"] = f'=IF({bron}<>"",3,IF({j - LY.BT_KOP}<={h("bt_lanes")}+{h("bt_uniek")}-1,4,0))'
-            f["label"] = (f'=IF({soort}=3,IF(INDEX({comp_rng},{bron})>0,INDEX({tnaam_rng},{bron})&" · "&INDEX({mnaam_rng},{bron}),'
-                          f'IF(INDEX({eerste_rng},{bron})=1,INDEX({tnaam_rng},{bron})," ")),IF({soort}=4," ",""))')
+            q = j - LY.BT_KOP
+            kopregel = f'AND({h("bt_kop_aan")}=1,OR({q}=1,{q}={h("bt_daeb_kop_pos")}))'
+            f["bron"] = f'=IFERROR(MATCH({q},{pos_rng},0),"")'
+            # soort 5 = kopregel van een groep (alleen met koop én DAEB-fees): geen balken, alleen de tekst
+            f["soort"] = f'=IF({kopregel},5,IF({bron}<>"",3,IF({q}<={h("bt_lijst")},4,0)))'
+            f["label"] = (f'=IF({soort}=5,IF({q}=1,"KOOP · BOUWTERMIJNEN","DAEB · FEES · "&{eur_m(h("opbr_daeb"))}),'
+                          f'IF({soort}=3,IF(INDEX({comp_rng},{bron})>0,INDEX({tnaam_rng},{bron})&" · "&INDEX({mnaam_rng},{bron})'
+                          f'&" · "&{eur_m(f"INDEX({bedrag_rng},{bron})")},'
+                          f'IF(INDEX({eerste_rng},{bron})=1,INDEX({tnaam_rng},{bron})," ")),IF({soort}=4," ","")))')
             f["kb"] = f'=IF({soort}=3,INDEX({k_rng},{bron}),"")'
             f["ib"] = f'=IF({soort}=3,INDEX({idxb_rng},{bron}),"")'
             f["ir"] = f'=IF({soort}=3,INDEX({idxr_rng},{bron}),"")'
@@ -997,8 +1021,17 @@ def bouw_model(wb):
                                 f"${LY.BT['idxr']}${LY.BT_ROW1}:${LY.BT['idxr']}${LY.BT_ROWN},${LY.BT['idxb']}${LY.BT_ROW1}:${LY.BT['idxb']}${LY.BT_ROWN}),99999)))")),
         "bt_lanes": ("Bouwtermijnentabel: aantal banen (type × termijn)", f"=SUM(${LY.BT['gebruikt']}${LY.BT_ROW1}:${LY.BT['gebruikt']}${LY.BT_ROWN})"),
         "bt_uniek": ("Bouwtermijnentabel: aantal unieke termijnnamen", f"=SUM(${LY.BT['uniek']}${LY.BT_ROW1}:${LY.BT['uniek']}${LY.BT_ROWN})"),
-        "bt_n": ("Bouwtermijnentabel: aantal rijen (koprijen, banen, scheidingsrijen)",
-                 f'=IF({h("bt_lanes")}=0,0,MIN({LY.BT_N},{LY.BT_KOP}+{h("bt_lanes")}+{h("bt_uniek")}-1))'),
+        "bt_kop_aan": ("Bouwtermijnentabel: kopregels koop / DAEB-fees (1/0; alleen als er beide zijn)",
+                       f'=IF(AND(COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},0)>0,COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},">0")>0),1,0)'),
+        "bt_koop_lanes": ("Bouwtermijnentabel: banen koop", f'=COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},0)'),
+        "bt_koop_groepen": ("Bouwtermijnentabel: termijnen koop", f'=COUNTIFS({rng_bt("uniek")},1,{rng_bt("comp")},0)'),
+        "bt_daeb_kop_pos": ("Bouwtermijnentabel: positie kopregel DAEB-fees in de lijst",
+                            f'={h("bt_koop_lanes")}+{h("bt_koop_groepen")}+2'),
+        "bt_lijst": ("Bouwtermijnentabel: rijen in de lijst (banen, scheidingsrijen, kopregels, een lege rij onder elke DAEB-fee)",
+                     f'=IF({h("bt_lanes")}=0,0,{h("bt_lanes")}+{h("bt_uniek")}-1+2*{h("bt_kop_aan")}'
+                     f'+COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},">0"))'),
+        "bt_n": ("Bouwtermijnentabel: aantal rijen (koprijen, banen, scheidingsrijen, kopregels)",
+                 f'=IF({h("bt_lanes")}=0,0,MIN({LY.BT_N},{LY.BT_KOP}+{h("bt_lijst")}))'),
         "jaar_first": ("Tijd-as: eerste jaar (twee jaar vóór de eerste termijn, niet vóór de eerste periode)",
                        f'=IF({h("n")}=0,0,MAX(INT(({IDX}{ROW1}-1)/4),IF({h("bt_min")}>=99999,0,INT(({h("bt_min")}-1)/4)-2)))'),
         "jaar_last": ("Tijd-as: laatste jaar", f'=IF({h("n")}=0,0,INT((INDEX({rng(IDX)},{h("n")})-1)/4))'),
@@ -1069,6 +1102,29 @@ def bouw_model(wb):
         # marge: DAEB (fees) heeft geen marge, dus het hele projectresultaat komt uit niet-DAEB
         "opbr_daeb": ("Opbrengsten DAEB (fees, gepland)", f"=SUMPRODUCT({m_range_abs('fee', 5)},{m_range_abs('fee', 6)})"),
         "woningen_daeb": ("Woningen DAEB", f"=SUMPRODUCT({m_range_abs('fee', 5)},{m_range_abs('vcum', 6)})"),
+        # verkoopgrafiek met veel DAEB: meer dan de helft van de woningen DAEB -> balken en % alleen koop, DAEB als markering
+        "vp_daeb_apart": ("Verkoopgrafiek: DAEB apart (1/0; DAEB meer dan de helft van de woningen)",
+                          f'=IF(AND({h("woningen_daeb")}>0,{h("woningen_daeb")}>0.5*{h("woningen")}),1,0)'),
+        "vp_koop_n": ("Verkoopgrafiek: woningen in de balken en het % (zonder DAEB als DAEB apart staat)",
+                      f'={h("woningen")}-{h("vp_daeb_apart")}*{h("woningen_daeb")}'),
+        "vp_daeb_v_pos": ("Verkoopgrafiek: positie eerste DAEB-verkoop (0 = geen markering)", f'=IFERROR(MATCH({LY.VP_DAEB_Y},{rng(LY.VS_G["dvm"])},0),0)'),
+        "vp_daeb_t_pos": ("Verkoopgrafiek: positie eerste DAEB-transport (0 = geen markering)", f'=IFERROR(MATCH({LY.VP_DAEB_Y},{rng(LY.VS_G["dtm"])},0),0)'),
+        "vp_daeb_v_kw": ("Verkoopgrafiek: kwartaal eerste DAEB-verkoop", f'=IF({h("vp_daeb_v_pos")}=0,"–",INDEX({D_},{h("vp_daeb_v_pos")}))'),
+        "vp_daeb_t_kw": ("Verkoopgrafiek: kwartaal eerste DAEB-transport", f'=IF({h("vp_daeb_t_pos")}=0,"–",INDEX({D_},{h("vp_daeb_t_pos")}))'),
+        "vp_daeb_lbl_v": ("Verkoopgrafiek: label markering DAEB verkocht",
+                          f'=IF({h("vp_daeb_v_pos")}=0,"(uit)","DAEB · "&{h("woningen_daeb")}&IF(SUMPRODUCT(INDEX(${m_col("vcum", 1)}${ROW1}:'
+                          f'${m_col("vcum", N_TYPES)}${ROWN},{h("vp_daeb_v_pos")},0),{m_range_abs("fee", 5)})>={h("woningen_daeb")},'
+                          f'" woningen in één keer"," woningen vanaf "&{h("vp_daeb_v_kw")}))'),
+        "vp_daeb_lbl_t": ("Verkoopgrafiek: label markering DAEB getransporteerd",
+                          f'=IF({h("vp_daeb_t_pos")}=0,"(uit)","DAEB · "&{h("woningen_daeb")}&IF(SUMPRODUCT(INDEX(${m_col("tcum", 1)}${ROW1}:'
+                          f'${m_col("tcum", N_TYPES)}${ROWN},{h("vp_daeb_t_pos")},0),{m_range_abs("fee", 5)})>={h("woningen_daeb")},'
+                          f'" geleverd in één keer"," geleverd vanaf "&{h("vp_daeb_t_kw")}))'),
+        "vp_verk_koop_act": ("Verkocht t/m actuals (koop als DAEB apart staat)",
+                             f'=IF({h("pos_actuals")}=0,0,SUMPRODUCT(INDEX(${m_col("vcum", 1)}${ROW1}:${m_col("vcum", N_TYPES)}${ROWN},{h("pos_actuals")},0),'
+                             f'1-{h("vp_daeb_apart")}*{m_range_abs("fee", 5)}))'),
+        "vp_tr_koop_act": ("Getransporteerd t/m actuals (koop als DAEB apart staat)",
+                           f'=IF({h("pos_actuals")}=0,0,SUMPRODUCT(INDEX(${m_col("tcum", 1)}${ROW1}:${m_col("tcum", N_TYPES)}${ROWN},{h("pos_actuals")},0),'
+                           f'1-{h("vp_daeb_apart")}*{m_range_abs("fee", 5)}))'),
         "marge": ("Marge totaal (projectresultaat / opbrengsten)", f'=IF({h("opbr_totaal")}=0,0,{h("eind_basis")}/{h("opbr_totaal")})'),
         "marge_nd": ("Marge niet-DAEB (projectresultaat / opbrengsten zonder de fees DAEB)",
                      f'=IF({h("opbr_totaal")}-{h("opbr_daeb")}<=0,0,{h("eind_basis")}/({h("opbr_totaal")}-{h("opbr_daeb")}))'),
@@ -1632,6 +1688,7 @@ def bouw_powerpoint(wb, data):
     dal, dal_v, eind, eind_v = hm("dal_basis"), hm("dal_vorig"), hm("eind_basis"), hm("eind_vorig")
     bep, bevp = hm("be_basis_pos"), hm("be_vorig_pos")
     rb = hm("rente_in_basis")
+    ap, een = hm("vp_daeb_apart"), f'ISNUMBER(SEARCH("één keer",{hm("vp_daeb_lbl_v")}))'   # dia 7: DAEB apart, DAEB in één kwartaal
     kpi = [
         (2, "Kopje", f'="KERNCIJFERS · STAND PER "&UPPER({hm("kw_actuals")})', None, "KPI_KICKER"),
         (2, "Titel", "=Dashboard!$B$2", None, "KPI_TITEL"),
@@ -1701,7 +1758,21 @@ def bouw_powerpoint(wb, data):
         (6, "Titel", f'="Bouwtermijnen · start bouw "&{hm("start_tekst")}', None, "BT_TITEL"),
         (6, "Ondertitel", f'="kleur = planning · lichtrood = vorige prognose · grijs = t/m "&{hm("kw_actuals")}'
                           f'&" · "&{hm("bt_uniek")}&" termijnen · "&{hm("bt_types")}&" types"', None, "BT_SUBTITEL"),
-        (7, "Titel", f'={hm("verkocht_actuals")}&"/"&{hm("woningen")}&" verkocht · "&{hm("transport_actuals")}&"/"&{hm("woningen")}&" getransporteerd"', None, "VP_TITEL"),
+        # dia 7: met DAEB apart (meer dan de helft van de woningen DAEB) gaan titel en kaartjes over koop, DAEB krijgt een eigen kaartje
+        (7, "Titel", f'=IF({ap}=1,"Koop uitverkocht "&{hm("uitverkocht")}&" · DAEB ("&{hm("woningen_daeb")}&") "&IF({een},"in één keer in ","vanaf ")'
+                     f'&{hm("vp_daeb_v_kw")},{hm("verkocht_actuals")}&"/"&{hm("woningen")}&" verkocht · "&{hm("transport_actuals")}&"/"'
+                     f'&{hm("woningen")}&" getransporteerd")', None, "VP_TITEL"),
+        (7, "Kaart 1 · label", f'=IF({ap}=1,"KOOP · ","")&"VERKOCHT T/M "&UPPER({hm("kw_actuals")})', None, "VP_STAT1_LABEL"),
+        (7, "Kaart 1", f'={hm("vp_verk_koop_act")}&" / "&{hm("vp_koop_n")}', None, "VP_STAT1_WAARDE"),
+        (7, "  toelichting", f'="uitverkocht "&{hm("uitverkocht")}', None, "VP_STAT1_SUB"),
+        (7, "Kaart 2 · label", f'=IF({ap}=1,"DAEB · "&{hm("woningen_daeb")}&" WONINGEN","GETRANSPORTEERD T/M "&UPPER({hm("kw_actuals")}))', None, "VP_STAT2_LABEL"),
+        (7, "Kaart 2", f'=IF({ap}=1,{hm("vp_daeb_v_kw")},{hm("vp_tr_koop_act")}&" / "&{hm("vp_koop_n")})', None, "VP_STAT2_WAARDE"),
+        (7, "  toelichting", f'=IF({ap}=1,IF({een},"verkoop in één keer · levering ","verkoop vanaf "&{hm("vp_daeb_v_kw")}&" · levering ")'
+                             f'&{hm("vp_daeb_t_kw")},"laatste transport "&{hm("alles_transport")})', None, "VP_STAT2_SUB"),
+        (7, "Kaart 3 · label", f'=IF({ap}=1,"TOTAAL · "&{hm("woningen")}&" WONINGEN","NOG TE VERKOPEN")', None, "VP_STAT3_LABEL"),
+        (7, "Kaart 3", f'=IF({ap}=1,FIXED(IF({hm("woningen")}=0,0,{hm("woningen_daeb")}/{hm("woningen")})*100,0)&"% DAEB",{hm("nog_verkopen")}&"")',
+         None, "VP_STAT3_WAARDE"),
+        (7, "  toelichting", f'=IF({ap}=1,"aandeel DAEB in het aantal woningen","van "&{hm("woningen")}&" woningen")', None, "VP_STAT3_SUB"),
         (8, "Titel", f'="Uitverkocht "&{hm("uitverkocht")}&" → alles getransporteerd "&{hm("alles_transport")}', None, "VO_TITEL"),
         (8, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
         (8, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),
@@ -1722,7 +1793,7 @@ def bouw_powerpoint(wb, data):
     assert LY.PP_KPI_ROW1 + len(kpi) - 1 <= r_s - 2, "KPI-regels lopen tot in de instellingen (de rij erboven moet leeg blijven)"
     put(ws, f"C{r_s}", LY.PP_LABEL_SJABLOON, f=F_NOTE)
     put(ws, LY.PP_CEL_SJABLOON, data.params.get("sjabloon") or None, f=F_INPUT, fl=FL_INPUT, al=AL_LEFT_TOP)
-    put(ws, f"E{r_s}", "leeg = Kwartaal_Template_cashflow_v19.pptx (of v18) in dezelfde map als dit bestand; anders het volledige pad", f=F_NOTE8)
+    put(ws, f"E{r_s}", "leeg = Kwartaal_Template_cashflow_v20.pptx (of v19) in dezelfde map als dit bestand; anders het volledige pad", f=F_NOTE8)
     put(ws, f"C{r_s + 1}", "Naam nieuwe presentatie", f=F_NOTE)
     put(ws, LY.PP_CEL_NAAM, f'="Cashflow update Q"&{dabs("actuals_kw")}&" "&{dabs("actuals_jaar")}', f=F_CALC9, al=AL_LEFT_TOP)
     put(ws, f"E{r_s + 1}", "de knop zet er datum en tijd achter en bewaart naast dit bestand", f=F_NOTE8)
@@ -1737,14 +1808,16 @@ def bouw_powerpoint(wb, data):
          f"laatste rij ({hm('bt_n')} rijen) · '(uit)' = reeks niet in de presentatie",
          ["Termijn"] + [LY.BT_SEG_NAMEN.get(x, f"=Model!${LY.BT[x]}$7") for x in LY.BT_REEKSEN],
          [LY.BT["label"]] + [LY.BT[x] for x in LY.BT_REEKSEN], "0.00"),
-        (LY.PP_BLOK["vp"], "DIA 7 · VERKOOP EN TRANSPORT PER WONINGTYPE · aantal woningen", f"twee grafieken (verkocht / getransporteerd) lezen dit blok · plakken: {LY.PP_BLOK['vp']}7 t/m {L(ws[LY.PP_BLOK['vp'] + '1'].column + 25)}, laatste periode",
+        (LY.PP_BLOK["vp"], "DIA 7 · VERKOOP EN TRANSPORT PER WONINGTYPE · aantal woningen", f"twee grafieken (verkocht / getransporteerd) lezen dit blok · plakken: {LY.PP_BLOK['vp']}7 t/m {L(ws[LY.PP_BLOK['vp'] + '1'].column + LY.PP_VP_KOL - 1)}, laatste periode · laatste twee kolommen: markering DAEB ('(uit)' = geen)",
          ["Kwartaal"] + [f"=Model!${m_col('gv', k)}$7" for k in range(1, N_TYPES + 1)] + [f"=Model!${m_col('gt', k)}$7" for k in range(1, N_TYPES + 1)]
          + ["Verkocht", "Getransporteerd", f"={hm('lbl_uitverkocht')}", f"={hm('lbl_alles_transport')}", "Realisatie",
-            "Verkocht cumulatief %", "Label verkocht %", "Getransporteerd cumulatief %", "Label transport %"],
+            "Verkocht cumulatief %", "Label verkocht %", "Getransporteerd cumulatief %", "Label transport %",
+            f"={hm('vp_daeb_lbl_v')}", f"={hm('vp_daeb_lbl_t')}"],
          [FIX["kwartaal"]] + [m_col("gv", k) for k in range(1, N_TYPES + 1)] + [m_col("gt", k) for k in range(1, N_TYPES + 1)]
          + [M["g_verkocht"], M["g_getransporteerd"], M["g_punt_uitverkocht"], M["g_punt_alles_transport"], M["g_realisatie"],
-            M["g_verkocht_pct"], M["g_verkocht_pct_lbl"], M["g_getransporteerd_pct"], M["g_getransporteerd_pct_lbl"]],
-         [FMT_INT] * 26 + ["0%"] * 4),
+            M["g_verkocht_pct"], M["g_verkocht_pct_lbl"], M["g_getransporteerd_pct"], M["g_getransporteerd_pct_lbl"],
+            LY.VS_G["dvm"], LY.VS_G["dtm"]],
+         [FMT_INT] * 26 + ["0%"] * 6),
         (LY.PP_BLOK["vo"], "DIA 8 · VAN VERKOOP NAAR OMZET · cumulatief %", f"grafiek verkoop naar omzet · plakken: {LY.PP_BLOK['vo']}7 t/m {L(ws[LY.PP_BLOK['vo'] + '1'].column + 4)}, laatste periode",
          ["Kwartaal", "Verkocht", "Getransporteerd", "Opbrengsten ontvangen", "Kosten gemaakt"],
          [FIX["kwartaal"], M["g_verkocht_pct"], M["g_getransporteerd_pct"], M["g_opbrengsten_pct"], M["g_kosten_pct"]], FMT_PCT0),
