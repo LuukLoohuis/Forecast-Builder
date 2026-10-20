@@ -925,7 +925,19 @@ def test_veel_daeb_apart_en_bouwtermijnen_in_groepen(tmp):
     assert hb("bt_kop_aan") == 1
     rijen = [(m[f"{LY.BT['soort']}{r}"].value, m[f"{LY.BT['label']}{r}"].value) for r in range(LY.BT_ROW1, LY.BT_ROW1 + hb("bt_n"))]
     koppen = [i for i, (s, _) in enumerate(rijen) if s == 5]
-    assert [rijen[i][1] for i in koppen][0] == "KOOP · BOUWTERMIJNEN" and rijen[koppen[1]][1].startswith("DAEB · FEES · €")
+    assert rijen[koppen[0]][1] == "KOOP · BOUWTERMIJNEN · 4 TYPES" and rijen[koppen[1]][1].startswith("DAEB · FEES · €")
+    assert rijen[koppen[0]][1].startswith("KOOP · BOUWTERMIJNEN · ") and rijen[koppen[0] + 1][0] == 4 and rijen[koppen[1] + 1][0] == 4
     fees = [i for i, (s, t) in enumerate(rijen) if s == 3 and i > koppen[1]]
-    assert fees and all("· €" in rijen[i][1] for i in fees) and all(rijen[i + 1][0] == 4 for i in fees)
-    assert not any(s == 3 and i < koppen[1] and "· €" in (t or "") for i, (s, t) in enumerate(rijen))
+    # dikke balk: de fee en dezelfde fee nog eens (soort 6), dan een lege rij; het bedrag staat in de reeksnaam van fl<nr>
+    assert fees and all(rijen[i + 1][0] == 6 and rijen[i + 2][0] == 4 for i in fees)
+    namen = [m[f"{LY.BT[f'fl{j}']}7"].value for j in range(1, LY.BT_NFL + 1)]
+    assert all(str(x).startswith("€") for x in namen[:len(fees)]) and all(x == "(uit)" for x in namen[len(fees):])
+    r1 = LY.BT_ROW1 + fees[0]
+    assert m[f"{LY.BT['fl1']}{r1}"].value == LY.BT_FL_W and isinstance(m[f"{LY.BT['dfee']}{r1}"].value, (int, float))
+    assert m[f"{LY.BT['fl1']}{r1 + 1}"].value == "#N/A"                 # het label alleen in de eerste rij van de dikke balk
+    k_d = p.types.index(daeb) + 1
+    assert m[f"{LY.BT[f'cur{k_d}']}{r1}"].value == "#N/A"               # DAEB-fees in goud (dfee), niet in de typekleur
+    assert hb("bt_titel").startswith("Bouwtermijnen Q") and " · DAEB-fees €" in hb("bt_titel")
+    assert "◆ DAEB-fee (bedrag)" in hb("bt_leg_tekst") and hb("bt_leg_kleur").count(",") == hb("bt_leg_tekst").count("■") + 1
+    assert hb("vp_leg_kleur").count(",") == hb("vp_leg_tekst").count("■") + hb("vp_leg_tekst").count("◆")
+    assert regels["VP1_GRAFIEK"].endswith(f'· koop ({int(hb("vp_koop_n"))})') and regels["VP_STAT2_ACCENT"] == "EDA100"

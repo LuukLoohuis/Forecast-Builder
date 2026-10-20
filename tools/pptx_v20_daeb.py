@@ -8,8 +8,12 @@
   Met veel DAEB tonen de balken en het % alleen de koopwoningen (het Model laat de DAEB-balken weg).
 * Rechts op dia 7 drie kaartjes VP_STAT1..3 (kader, LABEL, WAARDE, SUB) in de stijl van dia 8; de kaart VP_KAART en de twee
   grafieken worden smaller (zoals VO_KAART / VO_GRAFIEK).
-* BT_GRAFIEK: elk rijlabel tonen (tickLblSkip = 1). De bouwtermijnen in twee groepen (koop / DAEB-fees, met kopregel en bedrag per
-  fee) komen verder uit tab PowerPoint.
+* Dia 7: een legenda VP_LEGENDA boven de grafieken (■ per type, ◆ DAEB; de macro kleurt de tekens met de kleuren uit kolom E),
+  een accentstreep per kaartje (VP_STAT1..3_ACCENT, kleur uit kolom D), het % rechts van het punt en een gestippelde gouden lijn
+  van de DAEB-ruit naar de as; de grafiektitels zet de macro uit tab PowerPoint ('Verkocht per kwartaal · koop (36)').
+* BT_GRAFIEK: elk rijlabel tonen (tickLblSkip = 1) en de reeksen dfee (DAEB-fee in goud), fgap (ruimte) en fl1..fl10 (vak met het
+  bedrag als label rechts naast de fee) in de tweede stapel vóór s8; de kolommen achteraan het blok (layout.BT_REEKSEN). De
+  bouwtermijnen in twee groepen (koop / DAEB-fees, kopregels, dikke fee-balken) komen uit tab PowerPoint.
 
 --simuleer: doet op de nieuwe v20 na wat de macro met dia 6 en 7 doet (teksten, BT_GRAFIEK met de tijd-as, VP1/VP2 met '(uit)'),
 met de waarden uit een doorgerekend werkboek."""
@@ -25,7 +29,9 @@ from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
 from pptx import Presentation
 from pptx.oxml.ns import qn
-from pptx.util import Emu, Inches
+from pptx.dml.color import RGBColor
+from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
+from pptx.util import Emu, Inches, Pt
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -150,6 +156,150 @@ def kaartjes(prs):
     return True
 
 
+def _kol_bt(naam):
+    return get_column_letter(2 + LY.BT_REEKSEN.index(naam))      # kolom A = label
+
+
+def _hernummer(cs):
+    for i, ser in enumerate(cs.xpath(".//c:plotArea/*/c:ser")):
+        ser.find(qn("c:idx")).set("val", str(i))
+        ser.find(qn("c:order")).set("val", str(i))
+
+
+def _zet_kolom(ser, kol, naam=None):
+    f = ser.find(qn("c:val") + "/" + qn("c:numRef") + "/" + qn("c:f"))
+    blad = f.text.split("!")[0]
+    r2 = int(re.search(r"(\d+)$", f.text).group(1))
+    f.text = f"{blad}!${kol}$2:${kol}${r2}"
+    _cache(f.getparent(), [None] * (r2 - 1))
+    tx = ser.find(qn("c:tx"))
+    if tx is not None:
+        ser.remove(tx)
+    tx = ser.makeelement(qn("c:tx"), {})
+    ref = etree.SubElement(tx, qn("c:strRef"))
+    etree.SubElement(ref, qn("c:f")).text = f"{blad}!${kol}$1"
+    _cache(ref, [naam or kol], tekst=True)
+    ser.find(qn("c:order")).addnext(tx)
+
+
+def bt_reeksen(chart):
+    """dfee, fgap en fl1..fl10 in de tweede stapel vóór s8"""
+    cs = chart._chartSpace
+    if any(_kolom(f.text) == _kol_bt("dfee") for f in cs.iter(qn("c:f"))):
+        return False
+    per_kol = {_kolom(s.find(qn("c:val") + "/" + qn("c:numRef") + "/" + qn("c:f")).text): s for s in cs.xpath(".//c:plotArea/*/c:ser")}
+    s8, cur1, kw1 = per_kol[_kol_bt("s8")], per_kol[_kol_bt("cur1")], per_kol[_kol_bt("kw1")]
+    nieuw = []
+    d = copy.deepcopy(cur1)
+    _zet_kolom(d, _kol_bt("dfee"), "DAEB-fee")
+    for c in d.find(qn("c:spPr")).iter(qn("a:srgbClr")):
+        c.set("val", GOUD)
+    nieuw.append(d)
+    g = copy.deepcopy(s8)
+    _zet_kolom(g, _kol_bt("fgap"), "·")
+    nieuw.append(g)
+    for j in range(1, LY.BT_NFL + 1):
+        fl = copy.deepcopy(kw1)
+        _zet_kolom(fl, _kol_bt(f"fl{j}"), "€0,0M")
+        dl = fl.find(qn("c:dLbls"))
+        if dl is not None:
+            pos = dl.find(qn("c:dLblPos"))
+            if pos is not None:
+                pos.set("val", "inBase")
+            for e in dl.iter(qn("a:defRPr")):
+                e.set("sz", "700")
+                e.set("b", "1")
+            for c in dl.iter(qn("a:srgbClr")):
+                c.set("val", GOUD_LABEL)
+        sp = fl.find(qn("c:spPr"))
+        if sp is not None:
+            for c in list(sp):
+                if c.tag in (qn("a:solidFill"), qn("a:noFill")):
+                    sp.remove(c)
+            sp.insert(0, sp.makeelement(qn("a:noFill"), {}))
+        nieuw.append(fl)
+    for el in nieuw:
+        s8.addprevious(el)
+    _hernummer(cs)
+    deel = chart.part.chart_workbook
+    wb = load_workbook(io.BytesIO(deel.xlsx_part.blob))
+    ws = wb.worksheets[0]
+    ws[f"{_kol_bt('dfee')}1"], ws[f"{_kol_bt('fgap')}1"] = "DAEB-fee", "·"
+    for j in range(1, LY.BT_NFL + 1):
+        ws[f"{_kol_bt(f'fl{j}')}1"] = "(uit)"
+    buf = io.BytesIO()
+    wb.save(buf)
+    deel.update_from_xlsx_blob(buf.getvalue())
+    return True
+
+
+def vp_opmaak(chart, kol_daeb):
+    """% rechts van het punt; gestippelde gouden lijn van de DAEB-ruit naar de as (foutbalk omlaag, 100%)"""
+    for ser in chart._chartSpace.xpath(".//c:plotArea/c:lineChart/c:ser"):
+        f = ser.find(qn("c:val") + "/" + qn("c:numRef") + "/" + qn("c:f"))
+        kol = _kolom(f.text)
+        dl = ser.find(qn("c:dLbls"))
+        if kol == kol_daeb:
+            if ser.find(qn("c:errBars")) is None:
+                err = etree.fromstring(
+                    '<c:errBars xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" '
+                    'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:errDir val="y"/><c:errBarType val="minus"/>'
+                    '<c:errValType val="percentage"/><c:noEndCap val="1"/><c:val val="100"/><c:spPr><a:ln w="15875"><a:solidFill>'
+                    f'<a:srgbClr val="{GOUD}"/></a:solidFill><a:prstDash val="dash"/></a:ln></c:spPr></c:errBars>')
+                ser.find(qn("c:cat")).addprevious(err)
+        elif dl is not None and ser.find(qn("c:marker") + "/" + qn("c:symbol")) is not None \
+                and ser.find(qn("c:marker") + "/" + qn("c:symbol")).get("val") == "none":
+            pos = dl.find(qn("c:dLblPos"))
+            if pos is not None:
+                pos.set("val", "r")
+
+
+def dia7_extra(prs):
+    """legenda boven de grafieken en een accentstreep per kaartje"""
+    _, d7 = _dia(prs, "VP1_GRAFIEK")
+    by = shapes_by_name(d7)
+    if "VP_LEGENDA" in by:
+        return False
+    kaart = by["VP_KAART"]
+    tb = d7.shapes.add_textbox(kaart.left + Inches(0.15), kaart.top + Inches(0.06), kaart.width - Inches(0.3), Inches(0.2))
+    tb.name = "VP_LEGENDA"
+    tf = tb.text_frame
+    tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
+    tf.word_wrap = False
+    run = tf.paragraphs[0].add_run()
+    run.text = "■ type 1   ■ type 2   ◆ DAEB"
+    run.font.size, run.font.name = Pt(8), "Arial"
+    run.font.color.rgb = RGBColor.from_string("5B6169")
+    boven = kaart.top + Inches(0.3)
+    h = (kaart.top + kaart.height - Inches(0.06) - boven) / 2
+    for i, naam in enumerate(("VP1_GRAFIEK", "VP2_GRAFIEK")):
+        by[naam].top, by[naam].height = Emu(int(boven + i * h)), Emu(int(h))
+    for n in range(1, 4):
+        box = by[f"VP_STAT{n}"]
+        a = d7.shapes.add_shape(1, box.left, box.top + Inches(0.1), Inches(0.05), box.height - Inches(0.2))
+        a.name = f"VP_STAT{n}_ACCENT"
+        a.fill.solid()
+        a.fill.fore_color.rgb = RGBColor.from_string(GOUD if n == 2 else "002060")
+        a.line.fill.background()
+    return True
+
+
+BT_PLOT = (0.30, 0.02, 0.69, 0.96)     # tekenvlak van BT_GRAFIEK (fracties): vaste ruimte links voor de rijlabels
+
+
+def bt_tekenvlak(chart):
+    """vast tekenvlak (manualLayout, inner): de labels links krijgen altijd dezelfde breedte, ook met lange fee-namen"""
+    lay = chart._chartSpace.find(".//" + qn("c:plotArea") + "/" + qn("c:layout"))
+    for c in list(lay):
+        lay.remove(c)
+    ml = etree.SubElement(lay, qn("c:manualLayout"))
+    etree.SubElement(ml, qn("c:layoutTarget")).set("val", "inner")
+    for tag in ("c:xMode", "c:yMode"):
+        etree.SubElement(ml, qn(tag)).set("val", "edge")
+    for tag, v in zip(("c:x", "c:y", "c:w", "c:h"), BT_PLOT):
+        etree.SubElement(ml, qn(tag)).set("val", str(v))
+
+
 def labels_alle(chart):
     """BT_GRAFIEK: elk rijlabel tonen (met kopregels en DAEB-fees zijn er meer rijen; anders slaat de as labels over)"""
     for ax in chart._chartSpace.xpath(".//c:plotArea/c:catAx"):
@@ -168,13 +318,14 @@ class Gegevens:
     def __init__(self, pad):
         wb = load_workbook(pad, data_only=True)
         m, pp = wb["Model"], wb["PowerPoint"]
-        self.tekst = {}
+        self.tekst, self.kolom_e = {}, {}
         r = LY.PP_KPI_ROW1
         while pp[f"C{r}"].value:
             vorm = pp[f"F{r}"].value
             if pp[f"B{r}"].value in (6, 7) and vorm:
                 v = pp[f"D{r}"].value
                 self.tekst[vorm] = "" if v is None else nl(str(v))
+                self.kolom_e[vorm] = "" if pp[f"E{r}"].value is None else str(pp[f"E{r}"].value)
             r += 1
         h = lambda naam: m[f"{LY.M_HULP}{LY.H[naam]}"].value  # noqa: E731
         self.t_first, self.t_end = float(h("t_first") or 0), float(h("t_end") or 0)
@@ -221,13 +372,68 @@ def vul(chart, koppen, rijen):
                              for r in rijen], tekst=True)
 
 
+def kleur_legenda(sh, kleuren):
+    """zoals KleurLegenda in de macro: elk ■ en ◆ in de volgende kleur (één run per teken)"""
+    lijst = [k for k in kleuren.split(",") if k]
+    p_ = sh.text_frame.paragraphs[0]
+    tekst = "".join(r.text for r in p_.runs)
+    if not p_.runs:
+        return
+    font = p_.runs[0].font
+    size, naam, kleur = font.size, font.name, font.color.rgb if font.color and font.color.type else None
+    for r in list(p_.runs)[1:]:
+        r._r.getparent().remove(r._r)
+    p_.runs[0].text = ""
+    stukken, k, buf = [], 0, ""
+    for c in tekst:
+        if c in "■◆":
+            if buf:
+                stukken.append((buf, None))
+                buf = ""
+            stukken.append((c, lijst[k] if k < len(lijst) else None))
+            k += 1
+        else:
+            buf += c
+    if buf:
+        stukken.append((buf, None))
+    for i, (t, kl) in enumerate(stukken):
+        r = p_.runs[0] if i == 0 else p_.add_run()
+        r.text = t
+        r.font.size, r.font.name = size, naam
+        if kl:
+            r.font.color.rgb = RGBColor.from_string(kl)
+        elif kleur is not None:
+            r.font.color.rgb = kleur
+
+
 def simuleer(prs, g):
-    for i in range(len(prs.slides)):
-        by = shapes_by_name(prs.slides[i])
+    for i_dia in range(len(prs.slides)):
+        by = shapes_by_name(prs.slides[i_dia])
         for vorm, tekst in g.tekst.items():
             sh = by.get(vorm)
-            if sh is not None and sh.has_text_frame:
+            if sh is None:
+                continue
+            if getattr(sh, "has_chart", False) and sh.has_chart:        # zoals de macro: tekst = grafiektitel
+                ch = sh.chart
+                ch.has_title = True
+                tf = ch.chart_title.text_frame
+                tf.text = tekst
+                for p_ in tf.paragraphs:
+                    for r_ in p_.runs:
+                        r_.font.size, r_.font.bold = Pt(8), True
+                        r_.font.color.rgb = RGBColor.from_string("5B6169")
+            elif vorm.endswith("_ACCENT"):
+                sh.fill.solid()
+                sh.fill.fore_color.rgb = RGBColor.from_string(tekst)
+            elif sh.has_text_frame:
                 set_text_keep_format(sh, tekst)
+                e = g.kolom_e.get(vorm, "")
+                if vorm.endswith("_LEGENDA") or vorm == "BT_SUBTITEL":
+                    kleur_legenda(sh, e)
+                elif e == "daeb":
+                    for p_ in sh.text_frame.paragraphs:
+                        for r_ in p_.runs:
+                            r_.font.color.rgb = RGBColor.from_string(GOUD_LABEL)
         if "BT_GRAFIEK" in by:
             ch = by["BT_GRAFIEK"].chart
             vul(ch, *g.blok["bt"])
@@ -242,10 +448,34 @@ def simuleer(prs, g):
                 lg.getparent().remove(lg)
             # zoals de macro: rijlabels passend bij het aantal rijen (inch -> pt; tekenvlak ongeveer 90% van de grafiek)
             n = max(1, len(g.blok["bt"][1]))
-            letter = max(5.0, min(7.5, 1.6 * by["BT_GRAFIEK"].height / 12700 * 0.9 / n))
+            letter = max(5.0, min(7.5, 2.4 * by["BT_GRAFIEK"].height / 12700 * 0.9 / n))
+            # LibreOffice verbergt rijlabels die dicht op elkaar staan (ook naast lege labels); PowerPoint toont ze allemaal
+            # (tickLblSkip = 1). Voor een getrouwe preview: de labels van de as als tekstvakken op de rijen
+            gf, rijen = by["BT_GRAFIEK"], g.blok["bt"][1]
             for ax in ch._chartSpace.xpath(".//c:plotArea/c:catAx"):
-                for d in ax.iter(qn("a:defRPr")):
-                    d.set("sz", str(int(letter * 100)))
+                pos = ax.find(qn("c:tickLblPos"))
+                if pos is not None:
+                    pos.set("val", "none")
+            x0, y0, w0, h0 = BT_PLOT
+            rij_h = gf.height * h0 / max(1, len(rijen))
+            for i, rij in enumerate(rijen):
+                t = (rij[0] or "").strip() if isinstance(rij[0], str) else ""
+                if not t:
+                    continue
+                tb = prs.slides[i_dia].shapes.add_textbox(gf.left, Emu(int(gf.top + gf.height * y0 + rij_h * (i + 0.5) - Pt(letter) * 0.75)),
+                                                          Emu(int(gf.width * x0 - Inches(0.06))), Emu(int(Pt(letter) * 1.5)))
+                tf = tb.text_frame
+                tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
+                tf.word_wrap = True
+                tf.auto_size = MSO_AUTO_SIZE.NONE
+                p_ = tf.paragraphs[0]
+                p_.alignment = PP_ALIGN.RIGHT
+                r_ = p_.add_run()
+                r_.text = t
+                r_.font.size, r_.font.name = Pt(letter), "Arial"
+                kop = t.isupper() and "·" in t
+                r_.font.bold = kop
+                r_.font.color.rgb = RGBColor.from_string(GOUD_LABEL if t.startswith("DAEB ·") else ("002060" if kop else "666666"))
         for naam in ("VP1_GRAFIEK", "VP2_GRAFIEK"):
             if naam in by:
                 vul(by[naam].chart, *g.blok["vp"])
@@ -263,8 +493,13 @@ def main():
     by = shapes_by_name(d7)
     n = sum(markering(by[naam].chart, kol) for naam, kol in KOL_DAEB.items())
     k = kaartjes(prs)
+    for naam, kol in KOL_DAEB.items():
+        vp_opmaak(shapes_by_name(d7)[naam].chart, kol)
+    dia7_extra(prs)
     _, d6 = _dia(prs, "BT_GRAFIEK")
     labels_alle(shapes_by_name(d6)["BT_GRAFIEK"].chart)
+    bt_tekenvlak(shapes_by_name(d6)["BT_GRAFIEK"].chart)
+    bt_reeksen(shapes_by_name(d6)["BT_GRAFIEK"].chart)
     prs.save(args.uitvoer)
     print(f"Opgeslagen: {args.uitvoer}\n  DAEB-markering in {n} grafiek(en); kaartjes VP_STAT1..3: {'ja' if k else 'stonden er al'}")
     if args.render:

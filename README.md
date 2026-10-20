@@ -243,8 +243,13 @@ dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam
 tonen balken en cumulatief % alleen voor de koopwoningen; DAEB staat als gouden ruit in het eerste DAEB-kwartaal met het label
 'DAEB · 187 woningen in één keer' (of 'vanaf Q1 ’27'; kolommen `dvm`/`dtm`, PowerPoint-blok kolom AE/AF, anders '(uit)'). Titel en
 kaartjes van dia 7 (VP_STAT1..3) gaan dan over koop, DAEB en het totaal; anders verkocht, getransporteerd en nog te verkopen.
-**Bouwtermijnen met DAEB-fees**: twee groepen met een kopregel ('KOOP · BOUWTERMIJNEN', 'DAEB · FEES · €2,8M'), eerst koop; elke
-fee met zijn bedrag in het label en een lege rij eronder; de macro past de lettergrootte van de rijlabels aan het aantal rijen aan.
+**Bouwtermijnen met DAEB-fees** (dia 6 en Dashboard): titel 'Bouwtermijnen Q3 ’28 → Q2 ’30 · DAEB-fees €7,4 mln vanaf Q3 ’26'; twee
+groepen met een kopregel en een lege rij ('KOOP · BOUWTERMIJNEN · 3 TYPES', 'DAEB · FEES · €7,4 MLN'), eerst koop; het
+termijnlabel bij de middelste typestrook; elke fee als dikke gouden balk (reeks `dfee`, twee rijen) met rechts het bedrag (reeksen
+`fgap` + `fl1..fl10`, reeksnaam = bedrag) en een lege rij eronder; legenda (■ per type, ◆ DAEB-fee) als ondertitel. De macro zet
+de lettergrootte van de rijlabels naar het aantal rijen.
+**Dia 7** zoals de preview: legenda VP_LEGENDA, grafiektitels 'Verkocht per kwartaal · koop (36)', % rechts van het punt, een
+gestippelde gouden lijn onder de DAEB-ruit en een gekleurde accentstreep per kaartje.
 
 
 Dia 1 titel · 2 kerncijfers (tegels, tijdlijnband met kleine cashflowgrafiek, kaarten met balken) · 3 cashflow per kwartaal (met scenariolijn en verkoopscenario's) · 4 verkoopscenario's · 5 scenario's · 6 bouwtermijnen per woningtype

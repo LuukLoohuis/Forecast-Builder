@@ -176,7 +176,7 @@ BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx", "fe
 # (jaar × 4 + kwartaal), dus één eenheid per kwartaal; de as loopt van 1 januari van het eerste jaar tot het einde van het laatste.
 BT_KOP = 2                              # koprijen (jaar, kwartaal)
 BT_LANES = N_TYPES * N_TERMIJNEN        # 100 banen maximaal
-BT_N = BT_KOP + BT_LANES + 30           # 132 rijen: koprijen, banen en tot 30 scheidingsrijen
+BT_N = BT_KOP + BT_LANES + 30           # 132 rijen: koprijen, banen en tot 30 scheidingsrijen (en kopregels, extra rijen DAEB-fees)
 BT_ROW1 = ROW1
 BT_ROWN = BT_ROW1 + BT_N - 1            # 139
 BT_COL1 = M_BLOK1 + len(BLOKKEN) * N_TYPES + 1
@@ -186,10 +186,15 @@ BT_PREV = [f"prev{k}" for k in range(1, N_TYPES + 1)]     # vorige prognose per 
 BT_CUR = [f"cur{k}" for k in range(1, N_TYPES + 1)]       # huidige planning per type (typekleur)
 BT_JR = [f"jr{y}" for y in range(1, BT_NJ + 1)]
 BT_KW = [f"kw{q}" for q in range(1, BT_NK + 1)]
+BT_NFL = 10                             # DAEB-fees met hun bedrag als label rechts naast de balk (fgap = ruimte, fl<j> = vak met het label)
+BT_FL = [f"fl{j}" for j in range(1, BT_NFL + 1)]
+BT_FL_GAP, BT_FL_W = 0.2, 2.6           # ruimte na de balk en breedte van het labelvak (kwartalen)
 # reeksen in stapelvolgorde: stapel 1 (eerste as) en stapel 2 (tweede as, bovenop)
 BT_STAPEL1 = ["s0", "s1", "s2"] + BT_PREV + ["s4", "s5"] + BT_JR
-BT_STAPEL2 = ["s6"] + BT_CUR + ["s8"] + BT_KW
-BT_REEKSEN = BT_STAPEL1 + BT_STAPEL2    # kolommen van het PowerPoint-blok (na 'label') en de benoemde bereiken g_bt_*
+BT_STAPEL2 = ["s6"] + BT_CUR + ["dfee", "fgap"] + BT_FL + ["s8"] + BT_KW   # dfee = DAEB-fee (goud, ongeacht het type)
+# kolommen van het PowerPoint-blok (na 'label') en de benoemde bereiken g_bt_*: fgap en fl<j> (sinds v22) achteraan, zodat de
+# kolommen van de oudere reeksen in het sjabloon gelijk blijven; de stapelvolgorde staat in BT_STAPEL1/2
+BT_REEKSEN = BT_STAPEL1 + ["s6"] + BT_CUR + ["s8"] + BT_KW + ["dfee", "fgap"] + BT_FL
 BT = {}
 for _i, _name in enumerate([
     "j", "k", "i", "gebruikt",                        # raster: alle (type k, termijn i)-combinaties, gebruikt = 1/0
@@ -198,13 +203,14 @@ for _i, _name in enumerate([
                                                       # kwartaalcel vorige prognose (blok 6), fout
     "idxb", "idxr",                                   # raster: kwartaalindex huidig/vorig (99999 = geen)
     "uniek", "rang", "pos", "eerste",                 # raster: eerste gebruikte rij per groepsnaam; rang; positie in de lijst;
-                                                      # eerste = 1 bij de eerste baan van de groep (die krijgt het label)
+                                                      # eerste = 1 bij de middelste baan van de groep (die krijgt het label)
     "nr", "bron", "soort", "label",                   # compact: nr = j van de r-de unieke termijn; bron = rasterrij van de baan;
                                                       # soort 1 jaar / 2 kwartaal / 3 baan / 4 scheiding / 0 leeg
     "kb", "ib", "ir",                                 # compact: type, kwartaalindex huidig en vorig van de baan
+    "fnr",                                            # raster: volgnummer van de DAEB-fee in de lijst (label fl<fnr>)
 ] + BT_REEKSEN):
     BT[_name] = L(BT_COL1 + _i)
-BT_SEG_NAMEN = {"s0": "·", "s1": "Gerealiseerd", "s2": "·", "s4": "Gerealiseerd", "s5": "·", "s6": "·", "s8": "·"}   # vaste reeksnamen
+BT_SEG_NAMEN = {"s0": "·", "s1": "Gerealiseerd", "s2": "·", "s4": "Gerealiseerd", "s5": "·", "s6": "·", "s8": "·", "fgap": "·", "dfee": "DAEB-fee"}   # vaste reeksnamen
 
 # benoemde bereiken van de verkoop- en transportgrafiek (tijdvak vanaf het actuals-jaar): naam -> Modelkolom
 VK_NAMEN = {"g_vk_kwartaal": FIX["kwartaal"], "g_vk_realisatie": M["g_realisatie"], "g_vk_verkocht": M["g_verkocht"],
@@ -565,7 +571,8 @@ for _naam in ["kf_aan", "kf_sb_tot", "kf_v_tot", "vs_v_mee", "kf_tekst", "kf_tek
               "kf_dal_real", "kf_dal_lbl", "kf_real_gap", "kf_buiten", "kf_bk_tot", "kf_bk_verschil", "kf_bk_controle",
               "kf_bk_buiten", "kf_bk_post",
               # bouwtermijnengrafiek in twee groepen (koop / DAEB-fees) met een kopregel per groep
-              "bt_kop_aan", "bt_koop_lanes", "bt_koop_groepen", "bt_daeb_kop_pos", "bt_lijst",
+              "bt_kop_aan", "bt_koop_lanes", "bt_koop_groepen", "bt_daeb_kop_pos", "bt_lijst", "bt_koop_types", "bt_eerste", "bt_laatste",
+              "bt_fee_eerste", "bt_titel", "bt_leg_tekst", "bt_leg_kleur", "vp_leg_tekst", "vp_leg_kleur", "vp_titel_v", "vp_titel_t",
               # verkoopgrafiek: DAEB apart (meer dan de helft van de woningen): balken en % alleen koop, DAEB als markering
               "vp_daeb_apart", "vp_koop_n", "vp_daeb_v_pos", "vp_daeb_t_pos", "vp_daeb_v_kw", "vp_daeb_t_kw", "vp_daeb_lbl_v",
               "vp_daeb_lbl_t", "vp_verk_koop_act", "vp_tr_koop_act"]:

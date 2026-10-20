@@ -154,3 +154,14 @@ def test_bouwtermijnengrafiek_zonder_legenda():
     body = procs["VulGrafiekVorm"]
     blok = body[body.index('If vorm = "BT_GRAFIEK" Then\n'):]
     assert blok.index("ZetTijdAs ch") < blok.index("ch.HasLegend = False") < blok.index("End If")
+
+
+def test_teksten_grafiektitel_accent_en_legenda():
+    """VulTeksten: een grafiekvorm krijgt de tekst als titel, een *_ACCENT-vorm de kleur (hex in kolom D), een legenda
+    (*_LEGENDA of BT_SUBTITEL) de tekst met de blokjes/ruiten gekleurd volgens kolom E (KleurLegenda); 'daeb' = goudbruin."""
+    procs = _procedures(open(BAS, encoding="utf-8").read())
+    body = procs["VulTeksten"]
+    assert "shp.Chart.ChartTitle.Text = " in body and 'Right$(vorm, 7) = "_ACCENT"' in body
+    assert 'Right$(vorm, 8) = "_LEGENDA" Or vorm = "BT_SUBTITEL"' in body and "KleurLegenda shp, " in body
+    assert "ChrW(9632)" in procs["KleurLegenda"] and "ChrW(9670)" in procs["KleurLegenda"] and "HexKleur(" in procs["KleurLegenda"]
+    assert 'Case "daeb"' in procs["RichtingKleur"]

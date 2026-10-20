@@ -28,12 +28,13 @@ def _xml(jaar_min, jaar_max=None):
     cashflow = cx.cashflow(r_cf, _lbl(scenario_naam="lbl_scenario", nu="lbl_nu_cf", dal="lbl_dal", eind_basis="lbl_eind_basis_cf",
                                       eind_scenario="lbl_eind_scn"))
     band = cx.band(r, _lbl(nu="lbl_nu", dal="lbl_dal", eind_up="lbl_eind_up", eind_down="lbl_eind_down"))
-    lbl_vt = _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport", daeb_v="vp_daeb_lbl_v", daeb_t="vp_daeb_lbl_t")
+    lbl_vt = _lbl(uitverkocht="lbl_uitverkocht", alles_transport="lbl_alles_transport", daeb_v="vp_daeb_lbl_v", daeb_t="vp_daeb_lbl_t",
+                  titel_v="vp_titel_v", titel_t="vp_titel_t")
     r_vk = {naam[5:]: f"[0]!{naam}" for naam in LY.VK_NAMEN}            # kwartaal, realisatie, verkocht, ... in het tijdvak
     verkoop = cx.verkoop_paneel(r_vk, lbl_vt, _type_namen(), "verkocht")
     transport = cx.verkoop_paneel(r_vk, lbl_vt, _type_namen(), "transport")
     r_bt = {naam: f"[0]!g_bt_{naam}" for naam in ["label"] + LY.BT_REEKSEN}
-    r_bt.update({f"naam_{naam}": f"Model!${LY.BT[naam]}$7" for naam in LY.BT_PREV + LY.BT_CUR + LY.BT_JR})
+    r_bt.update({f"naam_{naam}": f"Model!${LY.BT[naam]}$7" for naam in LY.BT_PREV + LY.BT_CUR + LY.BT_JR + LY.BT_FL})
     bouwtermijnen = cx.bouwtermijnen(r_bt, jaar_min * 4 + 1, (jaar_max + 1) * 4 + 1 if jaar_max else None)
     r_pt = {naam: f"[0]!g_pt_{naam}" for naam in LY.PT_REEKSEN}
     r_pt.update({"kwartaal": "[0]!g_pt_kwartaal", "realisatie": "[0]!g_pt_realisatie"})

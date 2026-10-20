@@ -29,6 +29,12 @@ def eur_m(ref, dec=1):
     return f'IF({ref}<0,"{MINUS}","")&"€"&FIXED(ABS({ref})/1000000,{dec})&"M"'
 
 
+def kwl(naam):
+    """Formulefragment: kwartaalindex in hulpcel `naam` als 'Q3 ’28'."""
+    x = h(naam)
+    return f'"Q"&(MOD({x}-1,4)+1)&" {APOS}"&RIGHT(INT(({x}-1)/4),2)'
+
+
 def eur_mln(ref, dec=1):
     return f'IF({ref}<0,"{MINUS}","")&"€"&FIXED(ABS({ref})/1000000,{dec})&" mln"'
 
@@ -693,7 +699,7 @@ def bouw_model(wb):
                  "mnaam": "Baan (termijn / mijlpaal)", "comp": "Fee-component", "bedrag": "Bedrag fee (€)", "waarde": "Invoer % of €",
                  "kw": "Kwartaalcel", "kwr": "Kwartaal vorig (blok 6)", "fout": "Fout (fee)", "idxb": "Idx huidig", "idxr": "Idx vorig", "uniek": "Uniek", "rang": "Rang groep",
                  "pos": "Positie", "eerste": "Eerste baan", "nr": "Nr (uniek)", "bron": "Bronrij", "soort": "Soort", "label": "Termijn",
-                 "kb": "Type", "ib": "Idx huidig", "ir": "Idx vorig"}
+                 "kb": "Type", "ib": "Idx huidig", "ir": "Idx vorig", "fnr": "Fee-nr"}
     bt_koppen.update(LY.BT_SEG_NAMEN)
     for naam, kop in bt_koppen.items():
         put(ws, f"{BT[naam]}7", kop, f=F_HDR8, fl=FL_HDR, al=AL_RIGHT_WRAP)
@@ -710,6 +716,10 @@ def bouw_model(wb):
         put(ws, f"{BT[f'jr{y}']}7", f'=IF({y}<={h("bt_jaren")},TEXT({h("jaar_first")}+{y - 1},"0"),"(uit)")', f=F_HDR8, fl=FL_HDR, al=AL_RIGHT_WRAP)
     for q_ in range(1, LY.BT_NK + 1):
         put(ws, f"{BT[f'kw{q_}']}7", str((q_ - 1) % 4 + 1), f=F_HDR8, fl=FL_HDR, al=AL_RIGHT_WRAP)
+    # labels rechts naast de DAEB-fees: reeksnaam = bedrag van de fee met dat volgnummer ('(uit)' = geen fee, de macro haalt de reeks weg)
+    for jj in range(1, LY.BT_NFL + 1):
+        bedrag_j = f'INDEX({rng_bt("bedrag")},MATCH({jj},{rng_bt("fnr")},0))'
+        put(ws, f"{BT[f'fl{jj}']}7", f'=IFERROR({eur_m(bedrag_j)},"(uit)")', f=F_HDR8, fl=FL_HDR, al=AL_RIGHT_WRAP)
     ws.column_dimensions[L(LY.BT_COL1 - 1)].width = 3
     ws.column_dimensions[BT["label"]].width = 30
     for naam in BT:
@@ -791,17 +801,22 @@ def bouw_model(wb):
             # positie in de compacte lijst: banen van lagere rangen + scheidingsrijen + eerdere banen in deze groep (typevolgorde, dan
             # termijnvolgorde binnen het type)
             eerder_in_groep = f'({gebruikt_rng}=1)*({rang_rng}={rang})*(({k_rng}<{k})+({k_rng}={k})*({i_rng}<{i}))'
-            # met twee groepen (koop en DAEB-fees) een kopregel boven elke groep: koop één rij lager, DAEB twee
-            kop = f'{h("bt_kop_aan")}*(1+(${BT["comp"]}{r}>0))'
-            # elke DAEB-fee heeft een eigen label: een lege rij eronder, zodat de labels niet over elkaar vallen
-            lucht = (f'IF(${BT["comp"]}{r}>0,SUMPRODUCT(({gebruikt_rng}=1)*({comp_rng}>0)*({rang_rng}<{rang}))'
-                     f'+SUMPRODUCT({eerder_in_groep}),0)')
+            # met twee groepen (koop en DAEB-fees) een kopregel en een lege rij boven elke groep: koop twee rijen lager, DAEB vier
+            kop = f'{h("bt_kop_aan")}*(2+2*(${BT["comp"]}{r}>0))'
+            # een DAEB-fee krijgt drie rijen: de baan, dezelfde baan nog eens (dikke balk, zo hoog als de stroken van een
+            # koopwoning-termijn) en een lege rij; daarom twee rijen extra per eerdere fee
+            lucht = (f'IF(${BT["comp"]}{r}>0,2*(SUMPRODUCT(({gebruikt_rng}=1)*({comp_rng}>0)*({rang_rng}<{rang}))'
+                     f'+SUMPRODUCT({eerder_in_groep})),0)')
             f["pos"] = (f'=IF({gebruikt}=1,SUMPRODUCT(({gebruikt_rng}=1)*({rang_rng}<{rang}))+{rang}-1+SUMPRODUCT({eerder_in_groep})+1+{kop}'
                         f'+{lucht},"")')
-            f["eerste"] = f'=IF({gebruikt}=1,IF(SUMPRODUCT({eerder_in_groep})=0,1,0),"")'
+            # het label staat bij de middelste baan van de groep (bij drie typen de middelste strook), zoals een rij met stroken
+            in_groep = f'COUNTIFS({rang_rng},{rang},{gebruikt_rng},1)'
+            f["eerste"] = f'=IF({gebruikt}=1,IF(SUMPRODUCT({eerder_in_groep})=INT(({in_groep}-1)/2),1,0),"")'
+            # volgnummer van de DAEB-fee in de lijst: het label met het bedrag staat in reeks fl<fnr> (tot BT_NFL)
+            f["fnr"] = f'=IF(AND({gebruikt}=1,${BT["comp"]}{r}>0),COUNTIFS({comp_rng},">0",{gebruikt_rng},1,{pos_rng},"<="&${BT["pos"]}{r}),"")'
         else:
             for naam_ in ("k", "i", "gebruikt", "knaam", "tnaam", "mnaam", "comp", "bedrag", "waarde", "kw", "kwr", "fout", "idxb", "idxr",
-                          "uniek", "rang", "pos", "eerste"):
+                          "uniek", "rang", "pos", "eerste", "fnr"):
                 f[naam_] = None
         # ---- compacte lijst ----
         f["nr"] = ArrayFormula(f"{BT['nr']}{r}", f'=IFERROR(SMALL(IF({uniek_rng}=1,{sleutel}),{j}),"")')
@@ -814,18 +829,22 @@ def bouw_model(wb):
         else:
             q = j - LY.BT_KOP
             kopregel = f'AND({h("bt_kop_aan")}=1,OR({q}=1,{q}={h("bt_daeb_kop_pos")}))'
-            f["bron"] = f'=IFERROR(MATCH({q},{pos_rng},0),"")'
+            # bron: de rasterrij van de baan; in de rij onder een DAEB-fee nog eens dezelfde fee (soort 6: tweede helft van de dikke balk)
+            vorige = f'MATCH({q - 1},{pos_rng},0)'
+            f["bron"] = f'=IFERROR(MATCH({q},{pos_rng},0),IFERROR(IF(INDEX({comp_rng},{vorige})>0,{vorige},""),""))'
             # soort 5 = kopregel van een groep (alleen met koop én DAEB-fees): geen balken, alleen de tekst
-            f["soort"] = f'=IF({kopregel},5,IF({bron}<>"",3,IF({q}<={h("bt_lijst")},4,0)))'
-            f["label"] = (f'=IF({soort}=5,IF({q}=1,"KOOP · BOUWTERMIJNEN","DAEB · FEES · "&{eur_m(h("opbr_daeb"))}),'
+            f["soort"] = (f'=IF({kopregel},5,IF({bron}="",IF({q}<={h("bt_lijst")},4,0),IF(ISNUMBER(MATCH({q},{pos_rng},0)),3,6)))')
+            fnr = f"INDEX({rng_bt('fnr')},{bron})"
+            f["label"] = (f'=IF({soort}=5,IF({q}=1,"KOOP · BOUWTERMIJNEN · "&{h("bt_koop_types")}&IF({h("bt_koop_types")}=1," TYPE"," TYPES"),'
+                          f'"DAEB · FEES · "&UPPER({eur_mln(h("opbr_daeb"))})),'
                           f'IF({soort}=3,IF(INDEX({comp_rng},{bron})>0,INDEX({tnaam_rng},{bron})&" · "&INDEX({mnaam_rng},{bron})'
-                          f'&" · "&{eur_m(f"INDEX({bedrag_rng},{bron})")},'
-                          f'IF(INDEX({eerste_rng},{bron})=1,INDEX({tnaam_rng},{bron})," ")),IF({soort}=4," ","")))')
-            f["kb"] = f'=IF({soort}=3,INDEX({k_rng},{bron}),"")'
-            f["ib"] = f'=IF({soort}=3,INDEX({idxb_rng},{bron}),"")'
-            f["ir"] = f'=IF({soort}=3,INDEX({idxr_rng},{bron}),"")'
+                          f'&IF(N({fnr})>{LY.BT_NFL}," · "&{eur_m(f"INDEX({bedrag_rng},{bron})")},""),'
+                          f'IF(INDEX({eerste_rng},{bron})=1,INDEX({tnaam_rng},{bron})," ")),IF(OR({soort}=4,{soort}=6)," ","")))')
+            f["kb"] = f'=IF(OR({soort}=3,{soort}=6),INDEX({k_rng},{bron}),"")'
+            f["ib"] = f'=IF(OR({soort}=3,{soort}=6),INDEX({idxb_rng},{bron}),"")'
+            f["ir"] = f'=IF(OR({soort}=3,{soort}=6),INDEX({idxr_rng},{bron}),"")'
         kb, ib, ir = f"${BT['kb']}{r}", f"${BT['ib']}{r}", f"${BT['ir']}{r}"
-        baan = f"{soort}=3"
+        baan = f"OR({soort}=3,{soort}=6)"
         # blokjes van één kwartaal, afgekapt op de as [t_first, t_end]; buiten de as: breedte 0
         ibc, irc = f"MIN(MAX({ib},{tf}),{te})", f"MIN(MAX({ir},{tf}),{te})"
         blauw, rood = f"MAX(0,MIN({ib}+1,{te})-{ibc})", f"MAX(0,MIN({ir}+1,{te})-{irc})"
@@ -840,9 +859,28 @@ def bouw_model(wb):
         f["s5"] = f'=IF({baan},MAX(0,{te}-({tf}+{s1}+{s2}+{rood}+{s4})),NA())'
         # stapel 2 (tweede as, bovenop): onzichtbaar, huidige planning (per type), onzichtbaar; kwartaalblokjes in koprij 2
         f["s6"] = f'=IF({baan},{ibc},IF({soort}=2,{tf},NA()))'
+        # huidige planning: koop in de typekleur, een DAEB-fee in goud (reeks dfee), ongeacht het type
+        isfee = f'IF({BT["bron"]}{r}="",FALSE,N(INDEX({comp_rng},{BT["bron"]}{r}))>0)' if j > LY.BT_KOP else "FALSE"
         for k in range(1, N_TYPES + 1):
-            f[f"cur{k}"] = f'=IF(AND({baan},{kb}={k}),{blauw},NA())'
-        f["s8"] = f'=IF({baan},MAX(0,{te}-{ibc}-{blauw}),NA())'
+            f[f"cur{k}"] = f'=IF(AND({baan},{kb}={k},NOT({isfee})),{blauw},NA())'
+        f["dfee"] = f'=IF(AND({baan},{isfee}),{blauw},NA())'
+        # DAEB-fee (eerste rij van de dikke balk): na de balk een kleine ruimte (fgap) en een vak van BT_FL_W kwartalen met het
+        # bedrag als label (reeks fl<fnr>, reeksnaam = bedrag); s8 vult aan tot het einde van de as
+        if j > LY.BT_KOP:
+            fee_nr = f'IF(AND({soort}=3,{bron}<>""),N(INDEX({rng_bt("fnr")},{bron})),0)'
+            eind = f"({ibc}+{blauw})"
+            gap = f"MIN({LY.BT_FL_GAP},MAX(0,{te}-{eind}))"
+            vak = f"MIN({LY.BT_FL_W},MAX(0,{te}-{eind}-{gap}))"
+            met = f"AND({fee_nr}>=1,{fee_nr}<={LY.BT_NFL})"
+            f["fgap"] = f'=IF({met},{gap},NA())'
+            for jj in range(1, LY.BT_NFL + 1):
+                f[f"fl{jj}"] = f'=IF({fee_nr}={jj},{vak},NA())'
+            f["s8"] = f'=IF({baan},MAX(0,{te}-{eind}-IF({met},{gap}+{vak},0)),NA())'
+        else:
+            f["fgap"] = "#N/A"
+            for jj in range(1, LY.BT_NFL + 1):
+                f[f"fl{jj}"] = "#N/A"
+            f["s8"] = f'=IF({baan},MAX(0,{te}-{ibc}-{blauw}),NA())'
         for y in range(1, LY.BT_NJ + 1):
             f[f"jr{y}"] = f'=IF({y}<={h("bt_jaren")},4,NA())' if j == 1 else "#N/A"
         for q_ in range(1, LY.BT_NK + 1):
@@ -850,7 +888,7 @@ def bouw_model(wb):
         for naam_, formule in f.items():
             if formule is None:
                 continue
-            nf = "0.00" if naam_ in ("s1", "s2", "s4", "s5", "s8") or naam_.startswith(("prev", "cur")) else ("0" if naam_ != "bedrag" else FMT_INT)
+            nf = "0.00" if naam_ in ("s1", "s2", "s4", "s5", "s8", "fgap", "dfee") or naam_.startswith(("prev", "cur", "fl")) else ("0" if naam_ != "bedrag" else FMT_INT)
             put(ws, f"{BT[naam_]}{r}", formule, f=F_CALC, nf=nf, al=AL_LEFT_TOP if naam_ in ("label", "knaam", "tnaam", "mnaam", "kw") else AL_RIGHT)
             if formule == "#N/A":
                 ws[f"{BT[naam_]}{r}"].data_type = "e"
@@ -1026,10 +1064,42 @@ def bouw_model(wb):
         "bt_koop_lanes": ("Bouwtermijnentabel: banen koop", f'=COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},0)'),
         "bt_koop_groepen": ("Bouwtermijnentabel: termijnen koop", f'=COUNTIFS({rng_bt("uniek")},1,{rng_bt("comp")},0)'),
         "bt_daeb_kop_pos": ("Bouwtermijnentabel: positie kopregel DAEB-fees in de lijst",
-                            f'={h("bt_koop_lanes")}+{h("bt_koop_groepen")}+2'),
+                            f'={h("bt_koop_lanes")}+{h("bt_koop_groepen")}+3'),
         "bt_lijst": ("Bouwtermijnentabel: rijen in de lijst (banen, scheidingsrijen, kopregels, een lege rij onder elke DAEB-fee)",
-                     f'=IF({h("bt_lanes")}=0,0,{h("bt_lanes")}+{h("bt_uniek")}-1+2*{h("bt_kop_aan")}'
-                     f'+COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},">0"))'),
+                     f'=IF({h("bt_lanes")}=0,0,{h("bt_lanes")}+{h("bt_uniek")}-1+4*{h("bt_kop_aan")}'
+                     f'+2*COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},">0"))'),
+        "bt_koop_types": ("Bouwtermijnentabel: typen met bouwtermijnen (koop)",
+                          "=" + "+".join(f'(COUNTIFS({rng_bt("k")},{k},{rng_bt("gebruikt")},1,{rng_bt("comp")},0)>0)' for k in range(1, N_TYPES + 1))),
+        # legenda's op dia 6 en 7 (één tekstvak): '■ naam' per type en '◆' voor DAEB; de kleuren in dezelfde volgorde als lijst (macro)
+        "bt_leg_tekst": ("Bouwtermijnen: legenda (■ per type met koop-termijnen, ◆ DAEB-fee)",
+                         '=' + "&".join(f'IF(COUNTIFS({rng_bt("k")},{k},{rng_bt("gebruikt")},1,{rng_bt("comp")},0)>0,"■ "&{m_col("gv", k)}$7&"   ","")'
+                                        for k in range(1, N_TYPES + 1))
+                         + f'&IF(COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},">0")>0,"◆ DAEB-fee (bedrag)   ","")'
+                         + f'&"·   grijs = gerealiseerd t/m "&{h("kw_actuals")}&" · lichtrood = vorige prognose"'),
+        "bt_leg_kleur": ("Bouwtermijnen: kleuren van de legenda (hex, zelfde volgorde)",
+                         '=' + "&".join(f'IF(COUNTIFS({rng_bt("k")},{k},{rng_bt("gebruikt")},1,{rng_bt("comp")},0)>0,"{CX.TYPEKLEUREN[(k - 1) % len(CX.TYPEKLEUREN)]},","")'
+                                        for k in range(1, N_TYPES + 1))
+                         + f'&IF(COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},">0")>0,"{CX.DAEB_GOUD},","")'),
+        "vp_leg_tekst": ("Verkoopgrafiek: legenda (■ per type in de balken, ◆ DAEB apart)",
+                         '=' + "&".join(f'IF(AND(N({m_col("vcum", k)}$6)>0,NOT(AND({h("vp_daeb_apart")}=1,N({m_col("fee", k)}$5)=1))),"■ "&{m_col("gv", k)}$7&"   ","")'
+                                        for k in range(1, N_TYPES + 1))
+                         + f'&IF({h("vp_daeb_apart")}=1,"◆ DAEB "&{h("woningen_daeb")}&IF(ISNUMBER(SEARCH("één keer",{h("vp_daeb_lbl_v")}))," · 1 levering","")'
+                           f'&"   ·   balken en % = koopwoningen, DAEB buiten de schaal","·   balken = aantal per type · lijn = cumulatief %")'),
+        "vp_leg_kleur": ("Verkoopgrafiek: kleuren van de legenda (hex)",
+                         '=' + "&".join(f'IF(AND(N({m_col("vcum", k)}$6)>0,NOT(AND({h("vp_daeb_apart")}=1,N({m_col("fee", k)}$5)=1))),"{CX.TYPEKLEUREN[(k - 1) % len(CX.TYPEKLEUREN)]},","")'
+                                        for k in range(1, N_TYPES + 1))
+                         + f'&IF({h("vp_daeb_apart")}=1,"{CX.DAEB_GOUD},","")'),
+        "vp_titel_v": ("Verkoopgrafiek: titel paneel verkocht", f'="Verkocht per kwartaal"&IF({h("vp_daeb_apart")}=1," · koop ("&{h("vp_koop_n")}&")","")'),
+        "vp_titel_t": ("Verkoopgrafiek: titel paneel getransporteerd",
+                       f'="Getransporteerd per kwartaal"&IF({h("vp_daeb_apart")}=1," · koop ("&{h("vp_koop_n")}&")"," (notarieel)")'),
+        "bt_titel": ("Bouwtermijnen: titel dia 6", f'=IF({h("bt_eerste")}>=99999,"Bouwtermijnen","Bouwtermijnen "&{kwl("bt_eerste")}&" → "&{kwl("bt_laatste")})'
+                                                  f'&IF({h("bt_fee_eerste")}>=99999,""," · DAEB-fees "&{eur_mln(h("opbr_daeb"))}&" vanaf "&{kwl("bt_fee_eerste")})'),
+        "bt_eerste": ("Bouwtermijnen: eerste kwartaal (koop, kwartaalindex; 99999 = geen)",
+                      ArrayFormula(f"{LY.M_HULP}{LY.H['bt_eerste']}", f'=IFERROR(MIN(IF(({rng_bt("gebruikt")}=1)*({rng_bt("comp")}=0),{rng_bt("idxb")})),99999)')),
+        "bt_laatste": ("Bouwtermijnen: laatste kwartaal (koop, kwartaalindex)",
+                       ArrayFormula(f"{LY.M_HULP}{LY.H['bt_laatste']}", f'=IFERROR(MAX(IF(({rng_bt("gebruikt")}=1)*({rng_bt("comp")}=0),{rng_bt("idxb")})),0)')),
+        "bt_fee_eerste": ("DAEB-fees: eerste kwartaal (kwartaalindex; 99999 = geen)",
+                          ArrayFormula(f"{LY.M_HULP}{LY.H['bt_fee_eerste']}", f'=IFERROR(MIN(IF(({rng_bt("gebruikt")}=1)*({rng_bt("comp")}>0),{rng_bt("idxb")})),99999)')),
         "bt_n": ("Bouwtermijnentabel: aantal rijen (koprijen, banen, scheidingsrijen, kopregels)",
                  f'=IF({h("bt_lanes")}=0,0,MIN({LY.BT_N},{LY.BT_KOP}+{h("bt_lijst")}))'),
         "jaar_first": ("Tijd-as: eerste jaar (twee jaar vóór de eerste termijn, niet vóór de eerste periode)",
@@ -1249,7 +1319,8 @@ def bouw_dashboard(wb, data):
                                "tijd-as vanaf twee jaar vóór de eerste termijn", f=F_SECTION)
 
     # cel-legenda: één gekleurde chip per typeblok (zelfde kleur als in de grafiek), leeg en wit als het blok niet meedoet
-    def chips(r, meedoen, tekst, pct=False):
+    def chips(r, meedoen, tekst, pct=False, daeb=None):
+        """daeb: (voorwaarde, tekst) voor een DAEB-type: andere tekst en een gouden chip (veel DAEB / DAEB-fees)"""
         ws.row_dimensions[r].height = 16
         for k, col in enumerate(LY.D_LEGENDA_CELLEN, start=1):
             naam = LY.wt_ref(LY.WT_R_NAAM, k)
@@ -1259,16 +1330,25 @@ def bouw_dashboard(wb, data):
                 vc = m_col("vcum", k)
                 extra = (f'&" "&TEXT(IF({hm("pos_actuals")}=0,0,N(INDEX(Model!${vc}${LY.ROW1}:${vc}${LY.ROWN},{hm("pos_actuals")}))/'
                          f'N(Model!{vc}$6)),"0%")')
-            put(ws, cel, f'=IF({meedoen(k)},IF({naam}="","Type {k}",{naam}){extra},"")', f=font(8, True, "FFFFFF"),
+            gewoon = f'IF({naam}="","Type {k}",{naam}){extra}'
+            if daeb:
+                is_d = f'AND(N(Model!{m_col("fee", k)}$5)=1,{daeb[0]})'
+                gewoon = f'IF({is_d},{daeb[1]},{gewoon})'
+            put(ws, cel, f'=IF({meedoen(k)},{gewoon},"")', f=font(8, True, "FFFFFF"),
                 fl=fill(CX.TYPEKLEUREN[k - 1]), al=Alignment(horizontal="center", vertical="center", shrink_to_fit=True))
+            if daeb:
+                ws.conditional_formatting.add(cel, FormulaRule(formula=[is_d], fill=PatternFill(fill_type="solid", bgColor=CX.DAEB_GOUD,
+                                                                                               fgColor=CX.DAEB_GOUD)))
             ws.conditional_formatting.add(cel, FormulaRule(formula=[f'{cel}=""'], fill=PatternFill(fill_type="solid", bgColor="FFFFFF", fgColor="FFFFFF")))
         ws.merge_cells(f"O{r}:T{r}")
         put(ws, f"O{r}", tekst, f=F_NOTE, al=AL_RIGHT)
 
     chips(LY.D_ROW_LEGENDA, lambda k: f'N(Model!{m_col("vcum", k)}$6)>0',
-          f'="chip: % verkocht per type t/m "&{hm("kw_actuals")}&" · ● = mijlpaal"', pct=True)
+          f'=IF({hm("vp_daeb_apart")}=1,"balken en % = koopwoningen · ◆ = DAEB buiten de schaal · ","chip: % verkocht per type t/m "&{hm("kw_actuals")}&" · ")'
+          f'&"● = mijlpaal"', pct=True,
+          daeb=(f'{hm("vp_daeb_apart")}=1', f'"◆ DAEB "&{hm("woningen_daeb")}&IF(ISNUMBER(SEARCH("één keer",{hm("vp_daeb_lbl_v")}))," · 1 levering","")'))
     chips(LY.D_ROW_LEGENDA_BT, lambda k: f'Model!${LY.BT[f"cur{k}"]}$7<>"(uit)"',
-          f'="lichtrood = vorige prognose · grijs = gerealiseerd t/m "&{hm("kw_actuals")}')
+          f'="lichtrood = vorige prognose · grijs = gerealiseerd t/m "&{hm("kw_actuals")}', daeb=("TRUE", '"◆ DAEB-fee (bedrag)"'))
 
     # grafiek per woningtype: keuzecel (naam uit de lijst op Model rij 7), chips per onderdeel, ondertitel
     put(ws, f"B{LY.D_ROW_PT}", f"Opbrengsten per woningtype · kies het type in de blauwe cel (of '{LY.PT_TOTAAL}': alle koopwoningen samen) · per "
@@ -1755,9 +1835,9 @@ def bouw_powerpoint(wb, data):
         (5, "Titel", f'="Eindsaldo "&{eur_mln(hm("eind_down"))}&" tot "&{eur_mln(hm("eind_up"))}&" · basis "&{eur_mln(eind)}', None, "SC_TITEL"),
         (5, "Ondertitel", f'="Basis = eigen cashflow"&IF({rb}=1," + rente","")&" · band = downside ↔ upside"'
                           f'&IF({hm("rente")}>0," · "&{hm("rente_tekst")},"")', None, "SC_SUBTITEL"),
-        (6, "Titel", f'="Bouwtermijnen · start bouw "&{hm("start_tekst")}', None, "BT_TITEL"),
-        (6, "Ondertitel", f'="kleur = planning · lichtrood = vorige prognose · grijs = t/m "&{hm("kw_actuals")}'
-                          f'&" · "&{hm("bt_uniek")}&" termijnen · "&{hm("bt_types")}&" types"', None, "BT_SUBTITEL"),
+        (6, "Titel", f"={hm('bt_titel')}", None, "BT_TITEL"),
+        # legenda (tekstvak): kolom E = kleuren van ■/◆ in volgorde (de macro kleurt die tekens)
+        (6, "Legenda", f"={hm('bt_leg_tekst')}", f"={hm('bt_leg_kleur')}", "BT_SUBTITEL"),
         # dia 7: met DAEB apart (meer dan de helft van de woningen DAEB) gaan titel en kaartjes over koop, DAEB krijgt een eigen kaartje
         (7, "Titel", f'=IF({ap}=1,"Koop uitverkocht "&{hm("uitverkocht")}&" · DAEB ("&{hm("woningen_daeb")}&") "&IF({een},"in één keer in ","vanaf ")'
                      f'&{hm("vp_daeb_v_kw")},{hm("verkocht_actuals")}&"/"&{hm("woningen")}&" verkocht · "&{hm("transport_actuals")}&"/"'
@@ -1766,13 +1846,21 @@ def bouw_powerpoint(wb, data):
         (7, "Kaart 1", f'={hm("vp_verk_koop_act")}&" / "&{hm("vp_koop_n")}', None, "VP_STAT1_WAARDE"),
         (7, "  toelichting", f'="uitverkocht "&{hm("uitverkocht")}', None, "VP_STAT1_SUB"),
         (7, "Kaart 2 · label", f'=IF({ap}=1,"DAEB · "&{hm("woningen_daeb")}&" WONINGEN","GETRANSPORTEERD T/M "&UPPER({hm("kw_actuals")}))', None, "VP_STAT2_LABEL"),
-        (7, "Kaart 2", f'=IF({ap}=1,{hm("vp_daeb_v_kw")},{hm("vp_tr_koop_act")}&" / "&{hm("vp_koop_n")})', None, "VP_STAT2_WAARDE"),
+        (7, "Kaart 2", f'=IF({ap}=1,{hm("vp_daeb_v_kw")},{hm("vp_tr_koop_act")}&" / "&{hm("vp_koop_n")})', f'=IF({ap}=1,"daeb","")', "VP_STAT2_WAARDE"),
         (7, "  toelichting", f'=IF({ap}=1,IF({een},"verkoop in één keer · levering ","verkoop vanaf "&{hm("vp_daeb_v_kw")}&" · levering ")'
                              f'&{hm("vp_daeb_t_kw")},"laatste transport "&{hm("alles_transport")})', None, "VP_STAT2_SUB"),
         (7, "Kaart 3 · label", f'=IF({ap}=1,"TOTAAL · "&{hm("woningen")}&" WONINGEN","NOG TE VERKOPEN")', None, "VP_STAT3_LABEL"),
         (7, "Kaart 3", f'=IF({ap}=1,FIXED(IF({hm("woningen")}=0,0,{hm("woningen_daeb")}/{hm("woningen")})*100,0)&"% DAEB",{hm("nog_verkopen")}&"")',
          None, "VP_STAT3_WAARDE"),
         (7, "  toelichting", f'=IF({ap}=1,"aandeel DAEB in het aantal woningen","van "&{hm("woningen")}&" woningen")', None, "VP_STAT3_SUB"),
+        # legenda boven de grafieken (kleuren van ■/◆ in kolom E), grafiektitels (de macro zet ze als titel in de grafiek) en de
+        # kleur van de accentstreep per kaartje (kolom D = hex; goud bij DAEB)
+        (7, "Legenda", f"={hm('vp_leg_tekst')}", f"={hm('vp_leg_kleur')}", "VP_LEGENDA"),
+        (7, "Grafiek verkocht · titel", f"={hm('vp_titel_v')}", None, "VP1_GRAFIEK"),
+        (7, "Grafiek getransporteerd · titel", f"={hm('vp_titel_t')}", None, "VP2_GRAFIEK"),
+        (7, "Kaart 1 · accent", "002060", None, "VP_STAT1_ACCENT"),
+        (7, "Kaart 2 · accent", f'=IF({ap}=1,"{CX.DAEB_GOUD}","002060")', None, "VP_STAT2_ACCENT"),
+        (7, "Kaart 3 · accent", "002060", None, "VP_STAT3_ACCENT"),
         (8, "Titel", f'="Uitverkocht "&{hm("uitverkocht")}&" → alles getransporteerd "&{hm("alles_transport")}', None, "VO_TITEL"),
         (8, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
         (8, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),

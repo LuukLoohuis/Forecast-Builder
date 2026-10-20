@@ -131,9 +131,14 @@ DAEB_GOUD = "EDA100"      # zelfde goud als het DAEB-type (TYPEKLEUREN[3])
 DAEB_LABEL = "7A5300"
 
 
-def ser_ruit(idx, naam_ref, cat, val, color, pos="l", size=9):
-    """Los punt als ruit met de reeksnaam als label in een lichtgoud kader (markering DAEB in de verkoopgrafiek)."""
+def ser_ruit(idx, naam_ref, cat, val, color, pos="l", size=9, streep=False):
+    """Los punt als ruit met de reeksnaam als label in een lichtgoud kader (markering DAEB in de verkoopgrafiek); streep: een
+    gestippelde lijn van de ruit naar de as (foutbalk omlaag, 100%)."""
     xml = ser_punt(idx, naam_ref, cat, val, color, pos, size)
+    if streep:
+        err = (f'<c:errBars><c:errDir val="y"/><c:errBarType val="minus"/><c:errValType val="percentage"/><c:noEndCap val="1"/>'
+               f'<c:val val="100"/><c:spPr><a:ln w="{int(1.25 * PT)}">{_solid(color)}<a:prstDash val="dash"/></a:ln></c:spPr></c:errBars>')
+        xml = xml.replace(_cat(cat), err + _cat(cat), 1)
     xml = xml.replace('<c:symbol val="circle"/>', '<c:symbol val="diamond"/>', 1)
     xml = xml.replace(f'<c:dLbls><c:spPr>{_solid("FFFFFF")}<a:ln w="{int(0.75 * PT)}">{_solid(LABEL_BORDER)}</a:ln></c:spPr>',
                       f'<c:dLbls><c:spPr>{_solid("FFF6DD")}<a:ln w="{int(0.75 * PT)}">{_solid(color)}</a:ln></c:spPr>', 1)
@@ -333,6 +338,15 @@ def titel(tekst, sz=900, color=TXT_TITEL):
             f'<c:overlay val="0"/></c:title>')
 
 
+def titel_ref(ref, sz=900, color=TXT_TITEL):
+    """Grafiektitel linksboven, tekst uit een cel (bv. 'Verkocht per kwartaal · koop (36)')."""
+    return (f'<c:title><c:tx><c:strRef><c:f>{ref}</c:f></c:strRef></c:tx>'
+            f'<c:layout><c:manualLayout><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0.006"/><c:y val="0.02"/></c:manualLayout></c:layout>'
+            f'<c:overlay val="0"/><c:txPr><a:bodyPr wrap="none" anchor="t"/><a:lstStyle/><a:p><a:pPr algn="l"><a:defRPr sz="{sz}" b="1">'
+            f'<a:solidFill><a:srgbClr val="{color}"/></a:solidFill><a:latin typeface="{FONT}"/></a:defRPr></a:pPr><a:endParaRPr lang="nl-NL"/>'
+            f'</a:p></c:txPr></c:title>')
+
+
 def plot_layout(x, y, w, h):
     """Handmatige lay-out van het (binnen)plotgebied als fractie van de grafiek."""
     return (f'<c:layout><c:manualLayout><c:layoutTarget val="inner"/><c:xMode val="edge"/><c:yMode val="edge"/>'
@@ -371,20 +385,23 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
         bars = [ser_bar(k, "=" + naam, kw, v, TYPEKLEUREN[k % len(TYPEKLEUREN)], labels=True) for k, (naam, v, _) in enumerate(types)]
         pct, pct_lbl, punt, ptxt, tt = r["pct"], r["pct_lbl"], r["punt_uitverkocht"], lbl["uitverkocht"], TITEL_VERKOCHT
         daeb, daeb_txt = r.get("daeb_v"), lbl.get("daeb_v")
+        titel_cel = lbl.get("titel_v")
     else:
         bars = [ser_bar(k, "=" + naam, kw, t, TYPEKLEUREN[k % len(TYPEKLEUREN)], labels=True) for k, (naam, _, t) in enumerate(types)]
         pct, pct_lbl, punt, ptxt, tt = r["tpct"], r["tpct_lbl"], r["punt_alles_transport"], lbl["alles_transport"], TITEL_TRANSPORT
         daeb, daeb_txt = r.get("daeb_t"), lbl.get("daeb_t")
+        titel_cel = lbl.get("titel_t")
     mijlpaal = ser_punt(n + 1, "=" + ptxt, kw, punt, NAVY, "t", size=5)
     mijlpaal = mijlpaal.replace('<c:txPr><a:bodyPr/>', '<c:txPr><a:bodyPr wrap="none"/>')   # label op één regel
     # cumulatief percentage van alle woningen (verkocht of getransporteerd): donkerblauwe lijn op een rechteras 0-100%, met het
     # percentage in vet boven de lijn in de kwartalen waar een stapel staat; de aantallen staan in de blokjes
     pct_lijn = ser_line(n + 2, "Cumulatief %", kw, pct, NAVY, 2.0)
     pct_lbls = ser_totaal(n + 3, "Cumulatief % (label)", kw, pct_lbl, sz=750, color=NAVY, fmt="0%", bold=True)
+    pct_lbls = pct_lbls.replace('<c:dLblPos val="t"/>', '<c:dLblPos val="r"/>')            # rechts van het punt, niet op de stapel
     # DAEB apart (veel DAEB): gouden ruit op de %-as in het eerste DAEB-kwartaal, met het label links ('DAEB · 187 woningen in één keer')
     lijnen2 = [pct_lijn, pct_lbls]
     if daeb and daeb_txt:
-        lijnen2.append(ser_ruit(n + 5, "=" + daeb_txt, kw, daeb, DAEB_GOUD, "l"))
+        lijnen2.append(ser_ruit(n + 5, "=" + daeb_txt, kw, daeb, DAEB_GOUD, "l", streep=True))
     groepen = [grp_bar(bars, grouping="stacked", gap=gap, overlap=100), grp_line([mijlpaal]),
                grp_line(lijnen2, ax=(AX3, AX4)), grp_waas(n + 4, kw, r["realisatie"])]
     top = PANEEL_TOP_CM / hoogte_cm
@@ -392,7 +409,7 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
     layout = plot_layout(PANEEL_PLOT_X, top, PANEEL_PLOT_W, 1 - top - bottom)
     catax = cat_ax(AX1, AX2) if cat_labels else cat_ax(AX1, AX2).replace('<c:tickLblPos val="low"/>', '<c:tickLblPos val="none"/>')
     assen = [catax, val_ax(AX2, AX1, "0", vmin=0)] + assen_waas(zichtbaar=True, fmt="0%")
-    return chart_space_paneel(groepen, assen, titel(tt), layout)
+    return chart_space_paneel(groepen, assen, titel_ref(titel_cel) if titel_cel else titel(tt), layout)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -507,6 +524,12 @@ def bouwtermijnen(r, t_first, t_end=None, legenda=False):
     for k in range(1, n_t + 1):
         zichtbaar.append(N - 1 - p)
         voeg(sers2, ser_bar(N - 1 - p, "=" + r[f"naam_cur{k}"], cat, r[f"cur{k}"], TYPEKLEUREN[(k - 1) % len(TYPEKLEUREN)]))
+    # DAEB-fees: goud, met na een kleine ruimte het bedrag als label (reeksnaam van fl<j> = bedrag van de j-de fee)
+    voeg(sers2, ser_bar(N - 1 - p, "DAEB-fee", cat, r["dfee"], DAEB_GOUD))
+    voeg(sers2, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["fgap"]))
+    for j in range(1, LY.BT_NFL + 1):
+        fl = ser_kop(N - 1 - p, "=" + r[f"naam_fl{j}"], cat, r[f"fl{j}"], 700, True, DAEB_LABEL)
+        voeg(sers2, fl.replace('<c:dLblPos val="ctr"/>', '<c:dLblPos val="inBase"/>'))
     voeg(sers2, ser_bar_onzichtbaar(N - 1 - p, "·", cat, r["s8"]))
     for q_ in range(1, LY.BT_NK + 1):
         voeg(sers2, ser_kop(N - 1 - p, str((q_ - 1) % 4 + 1), cat, r[f"kw{q_}"], 650, False, TXT_LIGHT))

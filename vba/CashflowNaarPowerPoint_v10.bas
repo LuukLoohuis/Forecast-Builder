@@ -75,6 +75,10 @@ Option Explicit
 '       (twee kolommen extra in het VP-blok, KOL_VP = 32; de blokken erna schuiven twee kolommen op; '(uit)' = geen markering,
 '       ook in VP1_/VP2_GRAFIEK); drie kaartjes VP_STAT1..3 op dia 7; bouwtermijnen in twee groepen (koop / DAEB-fees) met een
 '       kopregel en het bedrag per fee (alleen tab PowerPoint); sjabloon v20 (tools/pptx_v20_daeb.py).
+'       Daarna, zoals de preview: VulTeksten zet de tekst van een grafiekvorm als grafiektitel, kleurt *_ACCENT-vormen (hex in
+'       kolom D) en de blokjes/ruiten in een legenda (*_LEGENDA, BT_SUBTITEL; kleuren in kolom E, KleurLegenda); dikke gouden
+'       DAEB-fee-balken met het bedrag ernaast (reeksen dfee, fgap, fl1..fl10 achteraan het BT-blok, KOL_BT = 120; de blokken erna
+'       schuiven mee).
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -106,8 +110,8 @@ Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
 Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
-Private Const KOL_BT As Long = 108                 ' kolommen in het bouwtermijnenblok (label + 107 reeksen; layout.PP_BT_KOL)
-Private Const BLOK_PT As String = "FS7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
+Private Const KOL_BT As Long = 120                 ' kolommen in het bouwtermijnenblok (label + alle reeksen van layout.BT_REEKSEN; layout.PP_BT_KOL)
+Private Const BLOK_PT As String = "GE7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
 Private Const KOL_PT As Long = 10
 Private Const KOL_VP As Long = 32          ' kolommen van het blok van dia 6 (verkoop en transport, met cumulatief %)
 Private Const CEL_PT_N As String = "BY128"
@@ -117,7 +121,7 @@ Private Const CEL_PT_PP As String = "W120"         ' Dashboard (sinds v20): dia 
 Private Const PT_TOTAAL As String = "Totaal (zonder DAEB)"   ' keuze in CEL_PT_KEUZE (of 0): alle niet-DAEB-typen samen
 ' dia 2 (sjabloon v17): blok van de kleine cashflowgrafiek, as-grenzen (Model, kc_min/kc_max), positie actuals, en het tekenvlak
 ' van KPI_GRAFIEK als fractie van het grafiekkader (layout.KC_PLOT_X / KC_PLOT_W; manualLayout in het sjabloon)
-Private Const BLOK_KC As String = "GM7"
+Private Const BLOK_KC As String = "GY7"
 Private Const KOL_KC As Long = 8
 Private Const CEL_KC_MIN As String = "BY142"
 Private Const CEL_KC_MAX As String = "BY143"
@@ -125,9 +129,9 @@ Private Const CEL_POS_ACTUALS As String = "BY10"
 Private Const KC_PLOT_X As Double = 0.0217
 Private Const KC_PLOT_W As Double = 0.9217
 ' v18: cashflowgrafiek met de scenariolijnen (dia 3) en dia 4 'Verkoopscenario's'
-Private Const BLOK_CF As String = "GV7"
+Private Const BLOK_CF As String = "HH7"
 Private Const KOL_CF As Long = 11
-Private Const BLOK_VS As String = "HH7"
+Private Const BLOK_VS As String = "HT7"
 Private Const KOL_VS As Long = 9
 Private Const N_VS As Long = 3                     ' scenario's naast de Basis (kaarten VS_K1..VS_K3, legenda VS_LEG1..3)
 Private Const CEL_VS_PP As String = "BY154"        ' Model: dia 4 en de scenariolijnen in PowerPoint (1/0)
@@ -200,14 +204,14 @@ Private Function Grafieken() As Variant
     '   CF heeft sinds v18 elf kolommen (BLOK_CF): de laatste drie zijn de scenario's (in sjabloon v17 ongebruikt)
     Grafieken = Array(Array("CF_GRAFIEK", BLOK_CF, KOL_CF, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
                       Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
-                      Array("VP1_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), Array("VP2_GRAFIEK", "EF7", KOL_VP, CEL_VP_N), _
-                      Array("VO_GRAFIEK", "FM7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, ""), _
+                      Array("VP1_GRAFIEK", "ER7", KOL_VP, CEL_VP_N), Array("VP2_GRAFIEK", "ER7", KOL_VP, CEL_VP_N), _
+                      Array("VO_GRAFIEK", "FY7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, ""), _
                       Array("VS_GRAFIEK", BLOK_VS, KOL_VS, CEL_VP_N))
 End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    Tabellen = Array(Array("SC_TABEL", "GD7", 9, 4, 0), Array("VT_TABEL", "GD18", MAX_TYPES + 1, 8, 1))
+    Tabellen = Array(Array("SC_TABEL", "GP7", 9, 4, 0), Array("VT_TABEL", "GP18", MAX_TYPES + 1, 8, 1))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -647,8 +651,38 @@ Private Function CelTekst(cel As Range) As String
     End Select
 End Function
 
+Private Function HexKleur(hexTekst As String) As Long
+    ' 'EDA100' -> RGB; ongeldig: grijs
+    Dim t As String
+    t = Trim$(hexTekst)
+    If Len(t) <> 6 Then
+        HexKleur = RGB(122, 122, 122)
+        Exit Function
+    End If
+    On Error Resume Next
+    HexKleur = RGB(CLng("&H" & Mid$(t, 1, 2)), CLng("&H" & Mid$(t, 3, 2)), CLng("&H" & Mid$(t, 5, 2)))
+End Function
+
+Private Sub KleurLegenda(shp As Object, kleuren As String)
+    ' kleurt elk blokje (ChrW 9632) en elke ruit (ChrW 9670) met de volgende kleur uit de lijst; de rest van de tekst blijft zoals hij is
+    Dim lijst As Variant, t As String, i As Long, k As Long, c As String
+    On Error Resume Next
+    lijst = Split(kleuren, ",")
+    t = shp.TextFrame.TextRange.Text
+    k = LBound(lijst)
+    For i = 1 To Len(t)
+        c = Mid$(t, i, 1)
+        If c = ChrW(9632) Or c = ChrW(9670) Then
+            If k <= UBound(lijst) Then shp.TextFrame.TextRange.Characters(i, 1).Font.Color.RGB = HexKleur(CStr(lijst(k)))
+            k = k + 1
+        End If
+    Next i
+End Sub
+
 Private Function RichtingKleur(richting As String) As Long
     Select Case richting
+        Case "daeb"
+            RichtingKleur = RGB(122, 83, 0)
         Case "slechter", "onder norm"
             RichtingKleur = RGB(192, 57, 47)
         Case "beter", "op norm"
@@ -673,6 +707,21 @@ Private Sub VulTeksten(pres As Object, wsP As Worksheet, ByRef mist As String)
             Set shp = ZoekVorm(pres, vorm)
             If shp Is Nothing Then
                 mist = mist & vorm & vbCrLf
+            ElseIf shp.HasChart Then
+                ' grafiek: de tekst wordt de grafiektitel (dia 7: 'Verkocht per kwartaal · koop (36)')
+                On Error Resume Next
+                shp.Chart.HasTitle = True
+                shp.Chart.ChartTitle.Text = CelTekst(wsP.Range("D" & r))
+                On Error GoTo 0
+            ElseIf Right$(vorm, 7) = "_ACCENT" Then
+                ' accentstreep: kolom D = kleur als hex (goud bij DAEB)
+                On Error Resume Next
+                shp.Fill.ForeColor.RGB = HexKleur(CelTekst(wsP.Range("D" & r)))
+                On Error GoTo 0
+            ElseIf Right$(vorm, 8) = "_LEGENDA" Or vorm = "BT_SUBTITEL" Then
+                ' legenda in één tekstvak: kolom E = kleuren van de blokjes en ruiten (ChrW 9632 / 9670) in volgorde (hex, komma's)
+                shp.TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & r))
+                KleurLegenda shp, CelTekst(wsP.Range("E" & r))
             Else
                 shp.TextFrame.TextRange.Text = CelTekst(wsP.Range("D" & r))
                 richting = LCase$(Trim$(CelTekst(wsP.Range("E" & r))))
@@ -1411,9 +1460,9 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
         ' ('1'..'4') als losse cijfers onder de grafiek staan; de typekleuren staan in de tabel eronder (VT_TABEL)
         On Error Resume Next
         ch.HasLegend = False
-        ' rijlabels passend bij het aantal rijen (met DAEB-fees en kopregels zijn er meer): minstens twee rijen per label
+        ' rijlabels passend bij het aantal rijen (met DAEB-fees en kopregels zijn er meer): er staat hooguit één label per drie rijen
         letter = 7.5
-        If n > 0 Then letter = 1.6 * ch.PlotArea.InsideHeight / n
+        If n > 0 Then letter = 2.4 * ch.PlotArea.InsideHeight / n
         If letter > 7.5 Then letter = 7.5
         If letter < 5 Then letter = 5
         ch.Axes(1).TickLabels.Font.Size = letter
