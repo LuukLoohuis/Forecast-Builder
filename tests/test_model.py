@@ -245,11 +245,21 @@ def test_daeb_fees(tmp, basis):
     assert abs(float(wb["Model"][f"{fee}6"].value) - totaal) < 1e-3
 
 
-def test_grafiek_per_type(basis):
-    """Selectieblok van de grafiek per woningtype: type 1 (keuzecel), som van de onderdelen = koopsom x aantal."""
+def test_grafiek_per_type(basis, tmp):
+    """Selectieblok van de grafiek per woningtype: standaard het totaal zonder DAEB (keuzecel); met type 1 gekozen is de som van
+    de onderdelen = koopsom x aantal."""
     m = basis["Model"]
     n = m["BY8"].value
     laatste = LY.ROW1 + n - 1
+    assert basis["Dashboard"][LY.D["pt_keuze"]].value == LY.PT_TOTAAL
+    assert m[f"BY{LY.H['pt_keuze']}"].value == 0 and m[f"BY{LY.H['pt_naam']}"].value == LY.PT_TOTAAL
+    som = sum(float(m[f"{LY.PT[x]}{r}"].value) for x in ("grond", "bouw", "extra", "fee1", "fee2") for r in range(LY.ROW1, laatste + 1))
+    assert abs(som - float(m[f"{LY.PT['cum']}{laatste}"].value)) < 1e-6
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "pt_type1"), None, caches=False)
+    wb = load_workbook(paden[0])
+    wb["Dashboard"][LY.D["pt_keuze"]] = "Rijwoning"
+    wb.save(paden[0])
+    m = load_workbook(herbereken(paden[0]), data_only=True)["Model"]
     assert m[f"BY{LY.H['pt_keuze']}"].value == 1 and m[f"BY{LY.H['pt_naam']}"].value == "Rijwoning"
     assert abs(float(m[f"{LY.PT['cum']}{laatste}"].value) - 40 * 385000 / 1e6) < 1e-6
     som = sum(float(m[f"{LY.PT[x]}{r}"].value) for x in ("grond", "bouw", "extra", "fee1", "fee2") for r in range(LY.ROW1, laatste + 1))

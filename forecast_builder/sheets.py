@@ -1222,7 +1222,7 @@ def bouw_dashboard(wb, data):
     ws.row_dimensions[r].height = 16
     kz = LY.D["pt_keuze"]
     ws.merge_cells(f"{kz}:C{r}")
-    put(ws, kz, data.type_(1).naam or "Type 1", f=F_INPUT, fl=FL_INPUT, nf="@", al=Alignment(horizontal="left", vertical="center"))
+    put(ws, kz, LY.PT_TOTAAL, f=F_INPUT, fl=FL_INPUT, nf="@", al=Alignment(horizontal="left", vertical="center"))
     dv_pt = DataValidation(type="list", formula1=f"Model!${LY.PT['grond']}${LY.PT_R_LIJST}:${LY.PT['grond']}${LY.PT_R_LIJST + N_TYPES}",
                            allow_blank=True, error=f"Kies een woningtype of '{LY.PT_TOTAAL}' uit de lijst.")
     dv_pt.showErrorMessage = True
