@@ -68,7 +68,7 @@ Option Explicit
 '       VorigePrognoseUitFO. Dia 'opbrengsten per woningtype' (VulDiasPerType): standaard één dia met het totaal van alle
 '       niet-DAEB-typen (keuzecel 0 = 'Totaal (zonder DAEB)'); Dashboard CEL_PT_PP: 'totaal (zonder DAEB)', 'per type' of
 '       'totaal en per type'. Geen sjabloonwijziging.
-'  v21: kortere teksten; vormen die geen tekst meer krijgen (ondertitels van dia 2, 3, 4 en 7, CF_VOET, KPI4_SUB, VS_Kk_DELTA,
+'  v21: bouwtermijnengrafiek zonder legenda (anders bleven kwartaalnummers als losse cijfers onder de grafiek staan); kortere teksten; vormen die geen tekst meer krijgen (ondertitels van dia 2, 3, 4 en 7, CF_VOET, KPI4_SUB, VS_Kk_DELTA,
 '       VS_NOOT) haalt de macro van de dia (HaalVervallenVormenWeg), zodat ook sjabloon v18 werkt; sjabloon v19 (tools/
 '       pptx_v19_kort.py) heeft ze niet meer en de scenariolijnen in contrastrijkere kleuren met een eigen lijnstijl.
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
@@ -1400,7 +1400,14 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     ' reeksen met '(uit)' in de kop gaan weg: de scenariolijn in de cashflowgrafiek, in de bouwtermijnengrafiek de typen
     ' zonder termijnen en de jaren buiten het bereik, in de grafiek per type de onderdelen die het type niet heeft
     If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
-    If vorm = "BT_GRAFIEK" Then ZetTijdAs ch
+    If vorm = "BT_GRAFIEK" Then
+        ZetTijdAs ch
+        ' geen legenda: na het weghalen van reeksen verschuiven de verborgen legenda-regels en blijven de kwartaalnummers
+        ' ('1'..'4') als losse cijfers onder de grafiek staan; de typekleuren staan in de tabel eronder (VT_TABEL)
+        On Error Resume Next
+        ch.HasLegend = False
+        On Error GoTo Mislukt
+    End If
     If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch
     If vorm = "VS_GRAFIEK" Then SchikGrafiekVS shp, ch
     wbE.Close

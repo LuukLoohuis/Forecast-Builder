@@ -146,3 +146,11 @@ def test_vervallen_vormen_weg():
     assert sorted(weg) == sorted(pptx_v19_kort.WEG)
     tekst = inspect.getsource(sheets)
     assert not any(f'"{v}"' in tekst for v in weg)
+
+
+def test_bouwtermijnengrafiek_zonder_legenda():
+    """BT_GRAFIEK krijgt geen legenda (verborgen legenda-regels verschuiven als reeksen weggaan: losse kwartaalnummers)."""
+    procs = _procedures(open(BAS, encoding="utf-8").read())
+    body = procs["VulGrafiekVorm"]
+    blok = body[body.index('If vorm = "BT_GRAFIEK" Then\n'):]
+    assert blok.index("ZetTijdAs ch") < blok.index("ch.HasLegend = False") < blok.index("End If")

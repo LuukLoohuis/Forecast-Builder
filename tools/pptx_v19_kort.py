@@ -8,6 +8,7 @@
 * Scenariolijnen in layout.VS_KLEUREN met een eigen lijnstijl (layout.VS_STREEP): in CF_GRAFIEK (dia 3, kolom I..K) en
   VS_GRAFIEK (dia 4, kolom C..E; de dieptepunten in kolom G..I in dezelfde kleur), de accentstrepen VS_Kk_ACCENT en de
   legendalijnen VS_LEGk_LIJN.
+* BT_GRAFIEK (bouwtermijnen) zonder legenda: na het weghalen van reeksen bleven kwartaalnummers als losse cijfers onder de grafiek.
 De overige dia's en vormen blijven zoals ze zijn.
 
 --simuleer: doet op de nieuwe v19 na wat de macro met dia 2, 3 en 4 doet (zie pptx_v17_kerncijfers en pptx_v18_scenarios)."""
@@ -84,6 +85,11 @@ def bewerk(prs):
                 gekleurd += kleur_reeksen(sh.chart, CF_KOL)
             elif sh.name == "VS_GRAFIEK" and sh.has_chart:
                 gekleurd += kleur_reeksen(sh.chart, VS_KOL)
+            elif sh.name == "BT_GRAFIEK" and sh.has_chart:
+                # geen legenda: de verborgen regels verschuiven als de macro reeksen weghaalt (losse kwartaalnummers onder de grafiek)
+                for lg in sh.chart._chartSpace.findall(".//" + qn("c:legend")):
+                    lg.getparent().remove(lg)
+                    weg.append("BT_GRAFIEK-legenda")
             for k in range(1, LY.N_VS + 1):
                 if sh.name == f"VS_K{k}_ACCENT":
                     sh.fill.solid()
