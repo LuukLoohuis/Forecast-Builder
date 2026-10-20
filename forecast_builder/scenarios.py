@@ -308,7 +308,7 @@ def bouw_model_scenarios(ws):
     mag = f"10^INT(LOG10({ruw}))"
     stap = f"IF({ruw}/{mag}<=1,1,IF({ruw}/{mag}<=2,2,IF({ruw}/{mag}<=5,5,10)))*{mag}"
     titel_s = lambda s: (f'UPPER(LEFT({S(s, "naam")},1))&MID({S(s, "naam")},2,200)&": piek "&{eur_mln(S(s, "dal"))}'  # noqa: E731
-                         f'&IF({S(s, "d_be")}="",IF({S(s, "be_pos")}=0," · geen break-even",""),IF({S(s, "d_be")}=0," · break-even =",'
+                         f'&IF({S(s, "d_be")}="",IF({S(s, "be_pos")}=0," · geen break-even",""),IF({S(s, "d_be")}=0," · break-even gelijk",'
                          f'" · break-even "&IF({S(s, "d_be")}>0,"+","−")&ABS({S(s, "d_be")})&" kw"))')
     eind_min = "MIN(" + ",".join(f"IF({S(s, 'aan')}=1,{S(s, 'eind')},1E+300)" for s in alle) + ")"
     eind_max = "MAX(" + ",".join(f"IF({S(s, 'aan')}=1,{S(s, 'eind')},-1E+300)" for s in alle) + ")"
@@ -345,7 +345,7 @@ def bouw_model_scenarios(ws):
                         f'="Cumulatieve cashflow per scenario · transport nooit vóór de verkoop · "&{h("kf_tekst_kort")}'),
         "vs_eind_tekst": ("Scenario's: eindsaldo",
                           f'="eindsaldo Basis "&{eur_m(h("eind_basis"))}&IF({h("vs_aan")}=0,"",IF(AND(ABS({eind_min}-{h("eind_basis")})<50000,'
-                          f'ABS({eind_max}-{h("eind_basis")})<50000)," · = in alle scenario\'s"," · scenario\'s "&{eur_m(eind_min)}&" – "&{eur_m(eind_max)}))'),
+                          f'ABS({eind_max}-{h("eind_basis")})<50000)," · gelijk in alle scenario\'s"," · scenario\'s "&{eur_m(eind_min)}&" – "&{eur_m(eind_max)}))'),
         "vs_sel": ("Tabel per termijn: gekozen scenario (0 = Basis)",
                    f'=IFERROR(IF(LEFT(TRIM({LY.SC_BLAD}!${LY.SC_CEL_SEL[0]}${LY.SC_CEL_SEL[1:]}&""),8)="Scenario",'
                    f'MIN({N_VS},MAX(0,VALUE(MID(TRIM({LY.SC_BLAD}!${LY.SC_CEL_SEL[0]}${LY.SC_CEL_SEL[1:]}&""),10,1)))),0),0)'),
