@@ -81,8 +81,8 @@ Option Explicit
 '       schuiven mee).
 '       Daarna: projectnaam (Dashboard CEL_PROJECTNAAM, bij Ophalen uit FO uit de bestandsnaam als hij leeg is) op de titeldia
 '       (COVER_PROJECT, COVER_KWARTAAL) en in de voettekst VOET_TEKST in de dia-indeling (ZoekVorm zoekt ook in de indelingen);
-'       bouwtermijnen met drie koprijen (lege rij tussen jaar en kwartaal; MAX_RIJEN_BT = 133); de tabel woningtypes op een eigen
-'       dia 7 (SchikDia5 kort de grafiek dan niet in).
+'       bouwtermijnen met drie koprijen (lege rij tussen jaar en kwartaal; MAX_RIJEN_BT = 133). Sjabloon v20 heeft geen tabel
+'       woningtypes meer (VT_TABEL ontbreekt zonder melding; met een ouder sjabloon vult de knop hem zoals altijd).
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -1328,7 +1328,8 @@ Private Sub VulTabel(pres As Object, vorm As String, kop As Range, nRijen As Lon
     Dim shp As Object, tbl As Object, r As Long, c As Long, rij As Long
     Set shp = ZoekVorm(pres, vorm)
     If shp Is Nothing Then
-        mist = mist & vorm & vbCrLf
+        ' sinds sjabloon v20 heeft het sjabloon geen tabel woningtypes meer: geen melding
+        If vorm <> "VT_TABEL" Then mist = mist & vorm & vbCrLf
         Exit Sub
     End If
     On Error GoTo Mislukt
@@ -3635,11 +3636,13 @@ Public Sub ControleerSjabloon()
     Next i
     lijst = Tabellen()
     For i = LBound(lijst) To UBound(lijst)
-        aantal = aantal + 1
-        If ZoekVorm(pres, CStr(lijst(i)(0))) Is Nothing Then mist = mist & CStr(lijst(i)(0)) & vbCrLf
+        If CStr(lijst(i)(0)) <> "VT_TABEL" Then                   ' sinds v20 geen tabel woningtypes in het sjabloon
+            aantal = aantal + 1
+            If ZoekVorm(pres, CStr(lijst(i)(0))) Is Nothing Then mist = mist & CStr(lijst(i)(0)) & vbCrLf
+        End If
     Next i
     ' hulpvormen van dia 5 (kaarten) en dia 2 (grijs vlak, nu-blok, sporen): zonder die vormen vult de knop wel, maar schikt hij niet
-    lijst = Array("VT_KAART", "VT_TABELKAART", "GRAFIEK_REALISATIE", "TL_NU_LABEL", "KPI6_SPOOR", "KPI7_SPOOR_V", "KPI7_SPOOR_T", "KPI9_SPOOR1", _
+    lijst = Array("VT_KAART", "GRAFIEK_REALISATIE", "TL_NU_LABEL", "KPI6_SPOOR", "KPI7_SPOOR_V", "KPI7_SPOOR_T", "KPI9_SPOOR1", _
                   "VS_REALISATIE", "VS_K0_KAART", "VS_LEG0_LIJN")
     For i = LBound(lijst) To UBound(lijst)
         If ZoekVorm(pres, CStr(lijst(i))) Is Nothing Then hulp = hulp & CStr(lijst(i)) & vbCrLf

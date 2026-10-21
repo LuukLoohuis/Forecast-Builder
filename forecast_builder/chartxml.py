@@ -401,7 +401,7 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
     # DAEB apart (veel DAEB): gouden ruit op de %-as in het eerste DAEB-kwartaal, met het label links ('DAEB · 187 woningen in één keer')
     lijnen2 = [pct_lijn, pct_lbls]
     if daeb and daeb_txt:
-        lijnen2.append(ser_ruit(n + 5, "=" + daeb_txt, kw, daeb, DAEB_GOUD, "l", streep=True))
+        lijnen2.append(ser_ruit(n + 5, "=" + daeb_txt, kw, daeb, DAEB_GOUD, "r", streep=True))
     groepen = [grp_bar(bars, grouping="stacked", gap=gap, overlap=100), grp_line([mijlpaal]),
                grp_line(lijnen2, ax=(AX3, AX4)), grp_waas(n + 4, kw, r["realisatie"])]
     top = PANEEL_TOP_CM / hoogte_cm

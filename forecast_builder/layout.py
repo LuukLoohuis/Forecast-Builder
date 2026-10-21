@@ -218,7 +218,7 @@ VK_NAMEN = {"g_vk_kwartaal": FIX["kwartaal"], "g_vk_realisatie": M["g_realisatie
             "g_vk_punt_alles_transport": M["g_punt_alles_transport"],
             "g_vk_pct": M["g_verkocht_pct"], "g_vk_tpct": M["g_getransporteerd_pct"],
             "g_vk_pct_lbl": M["g_verkocht_pct_lbl"], "g_vk_tpct_lbl": M["g_getransporteerd_pct_lbl"]}
-VP_DAEB_Y = 0.92                       # hoogte van de DAEB-markering op de %-as van de verkoopgrafiek
+VP_DAEB_Y = 0.8                       # hoogte van de DAEB-markering op de %-as van de verkoopgrafiek
 
 
 # ---- grafiek per woningtype: selectieblok (het type uit de keuzecel op het Dashboard), € mln per kwartaal ----

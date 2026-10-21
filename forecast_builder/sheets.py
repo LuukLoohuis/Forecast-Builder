@@ -1084,15 +1084,13 @@ def bouw_model(wb):
         "vp_leg_tekst": ("Verkoopgrafiek: legenda (■ per type in de balken, ◆ DAEB apart)",
                          '=' + "&".join(f'IF(AND(N({m_col("vcum", k)}$6)>0,NOT(AND({h("vp_daeb_apart")}=1,N({m_col("fee", k)}$5)=1))),"■ "&{m_col("gv", k)}$7&"   ","")'
                                         for k in range(1, N_TYPES + 1))
-                         + f'&IF({h("vp_daeb_apart")}=1,"◆ DAEB "&{h("woningen_daeb")}&IF(ISNUMBER(SEARCH("één keer",{h("vp_daeb_lbl_v")}))," · 1 levering","")'
-                           f'&"   ·   balken en % = koopwoningen, DAEB buiten de schaal","·   balken = aantal per type · lijn = cumulatief %")'),
+                         + f'&IF({h("vp_daeb_apart")}=1,"◆ DAEB "&{h("woningen_daeb")}&IF(ISNUMBER(SEARCH("één keer",{h("vp_daeb_lbl_v")}))," · 1 levering",""),"")'),
         "vp_leg_kleur": ("Verkoopgrafiek: kleuren van de legenda (hex)",
                          '=' + "&".join(f'IF(AND(N({m_col("vcum", k)}$6)>0,NOT(AND({h("vp_daeb_apart")}=1,N({m_col("fee", k)}$5)=1))),"{CX.TYPEKLEUREN[(k - 1) % len(CX.TYPEKLEUREN)]},","")'
                                         for k in range(1, N_TYPES + 1))
                          + f'&IF({h("vp_daeb_apart")}=1,"{CX.DAEB_GOUD},","")'),
-        "vp_titel_v": ("Verkoopgrafiek: titel paneel verkocht", f'="Verkocht per kwartaal"&IF({h("vp_daeb_apart")}=1," · koop ("&{h("vp_koop_n")}&")","")'),
-        "vp_titel_t": ("Verkoopgrafiek: titel paneel getransporteerd",
-                       f'="Getransporteerd per kwartaal"&IF({h("vp_daeb_apart")}=1," · koop ("&{h("vp_koop_n")}&")"," (notarieel)")'),
+        "vp_titel_v": ("Verkoopgrafiek: titel paneel verkocht", '="Verkoop per kwartaal"'),
+        "vp_titel_t": ("Verkoopgrafiek: titel paneel getransporteerd", '="Transport per kwartaal (notarieel)"'),
         "bt_titel": ("Bouwtermijnen: titel dia 6", f'=IF({h("bt_eerste")}>=99999,"Bouwtermijnen","Bouwtermijnen "&{kwl("bt_eerste")}&" → "&{kwl("bt_laatste")})'
                                                   f'&IF({h("bt_fee_eerste")}>=99999,""," · DAEB-fees "&{eur_mln(h("opbr_daeb"))}&" vanaf "&{kwl("bt_fee_eerste")})'),
         "bt_eerste": ("Bouwtermijnen: eerste kwartaal (koop, kwartaalindex; 99999 = geen)",
@@ -1848,38 +1846,35 @@ def bouw_powerpoint(wb, data):
         (6, "Titel", f"={hm('bt_titel')}", None, "BT_TITEL"),
         # legenda (tekstvak): kolom E = kleuren van ■/◆ in volgorde (de macro kleurt die tekens)
         (6, "Legenda", f"={hm('bt_leg_tekst')}", f"={hm('bt_leg_kleur')}", "BT_SUBTITEL"),
-        # dia 7 (sinds sjabloon v20 een eigen dia): de tabel woningtypes (VT_TABEL), los van de bouwtermijnen
-        (7, "Titel", f'=({hm("woningen")}-{hm("woningen_daeb")})&" koopwoningen in "&SUMPRODUCT((Model!{m_range_abs("vcum", 6)}>0)*(1-Model!{m_range_abs("fee", 5)}))'
-                     f'&" types"&IF({hm("woningen_daeb")}>0," · "&{hm("woningen_daeb")}&" DAEB","")&" · start bouw "&{hm("start_tekst")}', None, "VT_TITEL"),
-        # dia 8: met DAEB apart (meer dan de helft van de woningen DAEB) gaan titel en kaartjes over koop, DAEB krijgt een eigen kaartje
-        (8, "Titel", f'=IF({ap}=1,"Koop uitverkocht "&{hm("uitverkocht")}&" · DAEB ("&{hm("woningen_daeb")}&") "&IF({een},"in één keer in ","vanaf ")'
+        # dia 7: met DAEB apart (meer dan de helft van de woningen DAEB) gaan titel en kaartjes over koop, DAEB krijgt een eigen kaartje
+        (7, "Titel", f'=IF({ap}=1,"Koop uitverkocht "&{hm("uitverkocht")}&" · DAEB ("&{hm("woningen_daeb")}&") "&IF({een},"in één keer in ","vanaf ")'
                      f'&{hm("vp_daeb_v_kw")},{hm("verkocht_actuals")}&"/"&{hm("woningen")}&" verkocht · "&{hm("transport_actuals")}&"/"'
                      f'&{hm("woningen")}&" getransporteerd")', None, "VP_TITEL"),
-        (8, "Kaart 1 · label", f'=IF({ap}=1,"KOOP · ","")&"VERKOCHT T/M "&UPPER({hm("kw_actuals")})', None, "VP_STAT1_LABEL"),
-        (8, "Kaart 1", f'={hm("vp_verk_koop_act")}&" / "&{hm("vp_koop_n")}', None, "VP_STAT1_WAARDE"),
-        (8, "  toelichting", f'="uitverkocht "&{hm("uitverkocht")}', None, "VP_STAT1_SUB"),
-        (8, "Kaart 2 · label", f'=IF({ap}=1,"DAEB · "&{hm("woningen_daeb")}&" WONINGEN","GETRANSPORTEERD T/M "&UPPER({hm("kw_actuals")}))', None, "VP_STAT2_LABEL"),
-        (8, "Kaart 2", f'=IF({ap}=1,{hm("vp_daeb_v_kw")},{hm("vp_tr_koop_act")}&" / "&{hm("vp_koop_n")})', f'=IF({ap}=1,"daeb","")', "VP_STAT2_WAARDE"),
-        (8, "  toelichting", f'=IF({ap}=1,IF({een},"verkoop in één keer · levering ","verkoop vanaf "&{hm("vp_daeb_v_kw")}&" · levering ")'
+        (7, "Kaart 1 · label", f'=IF({ap}=1,"KOOP · ","")&"VERKOCHT T/M "&UPPER({hm("kw_actuals")})', None, "VP_STAT1_LABEL"),
+        (7, "Kaart 1", f'={hm("vp_verk_koop_act")}&" / "&{hm("vp_koop_n")}', None, "VP_STAT1_WAARDE"),
+        (7, "  toelichting", f'="uitverkocht "&{hm("uitverkocht")}', None, "VP_STAT1_SUB"),
+        (7, "Kaart 2 · label", f'=IF({ap}=1,"DAEB · "&{hm("woningen_daeb")}&" WONINGEN","GETRANSPORTEERD T/M "&UPPER({hm("kw_actuals")}))', None, "VP_STAT2_LABEL"),
+        (7, "Kaart 2", f'=IF({ap}=1,{hm("vp_daeb_v_kw")},{hm("vp_tr_koop_act")}&" / "&{hm("vp_koop_n")})', f'=IF({ap}=1,"daeb","")', "VP_STAT2_WAARDE"),
+        (7, "  toelichting", f'=IF({ap}=1,IF({een},"verkoop in één keer · levering ","verkoop vanaf "&{hm("vp_daeb_v_kw")}&" · levering ")'
                              f'&{hm("vp_daeb_t_kw")},"laatste transport "&{hm("alles_transport")})', None, "VP_STAT2_SUB"),
-        (8, "Kaart 3 · label", f'=IF({ap}=1,"TOTAAL · "&{hm("woningen")}&" WONINGEN","NOG TE VERKOPEN")', None, "VP_STAT3_LABEL"),
-        (8, "Kaart 3", f'=IF({ap}=1,FIXED(IF({hm("woningen")}=0,0,{hm("woningen_daeb")}/{hm("woningen")})*100,0)&"% DAEB",{hm("nog_verkopen")}&"")',
+        (7, "Kaart 3 · label", f'=IF({ap}=1,"TOTAAL · "&{hm("woningen")}&" WONINGEN","NOG TE VERKOPEN")', None, "VP_STAT3_LABEL"),
+        (7, "Kaart 3", f'=IF({ap}=1,FIXED(IF({hm("woningen")}=0,0,{hm("woningen_daeb")}/{hm("woningen")})*100,0)&"% DAEB",{hm("nog_verkopen")}&"")',
          None, "VP_STAT3_WAARDE"),
-        (8, "  toelichting", f'=IF({ap}=1,"aandeel DAEB in het aantal woningen","van "&{hm("woningen")}&" woningen")', None, "VP_STAT3_SUB"),
+        (7, "  toelichting", f'=IF({ap}=1,"aandeel DAEB in het aantal woningen","van "&{hm("woningen")}&" woningen")', None, "VP_STAT3_SUB"),
         # legenda boven de grafieken (kleuren van ■/◆ in kolom E), grafiektitels (de macro zet ze als titel in de grafiek) en de
         # kleur van de accentstreep per kaartje (kolom D = hex; goud bij DAEB)
-        (8, "Legenda", f"={hm('vp_leg_tekst')}", f"={hm('vp_leg_kleur')}", "VP_LEGENDA"),
-        (8, "Grafiek verkocht · titel", f"={hm('vp_titel_v')}", None, "VP1_GRAFIEK"),
-        (8, "Grafiek getransporteerd · titel", f"={hm('vp_titel_t')}", None, "VP2_GRAFIEK"),
-        (8, "Kaart 1 · accent", "002060", None, "VP_STAT1_ACCENT"),
-        (8, "Kaart 2 · accent", f'=IF({ap}=1,"{CX.DAEB_GOUD}","002060")', None, "VP_STAT2_ACCENT"),
-        (8, "Kaart 3 · accent", "002060", None, "VP_STAT3_ACCENT"),
-        (9, "Titel", f'="Uitverkocht "&{hm("uitverkocht")}&" → alles getransporteerd "&{hm("alles_transport")}', None, "VO_TITEL"),
-        (9, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
-        (9, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),
-        (9, "Laatste kwartaal", f"={hm('laatste_kw')}", None, "VO_STAT3_WAARDE"),
-        (10, "Titel", f"={hm('pt_titel')}", None, "PT_TITEL"),
-        (10, "Ondertitel", f"={hm('pt_subtitel')}", None, "PT_SUBTITEL"),
+        (7, "Legenda", f"={hm('vp_leg_tekst')}", f"={hm('vp_leg_kleur')}", "VP_LEGENDA"),
+        (7, "Grafiek verkocht · titel", f"={hm('vp_titel_v')}", None, "VP1_GRAFIEK"),
+        (7, "Grafiek getransporteerd · titel", f"={hm('vp_titel_t')}", None, "VP2_GRAFIEK"),
+        (7, "Kaart 1 · accent", "002060", None, "VP_STAT1_ACCENT"),
+        (7, "Kaart 2 · accent", f'=IF({ap}=1,"{CX.DAEB_GOUD}","002060")', None, "VP_STAT2_ACCENT"),
+        (7, "Kaart 3 · accent", "002060", None, "VP_STAT3_ACCENT"),
+        (8, "Titel", f'="Uitverkocht "&{hm("uitverkocht")}&" → alles getransporteerd "&{hm("alles_transport")}', None, "VO_TITEL"),
+        (8, "Uitverkocht in", f"={hm('uitverkocht')}", None, "VO_STAT1_WAARDE"),
+        (8, "Alles getransporteerd in", f"={hm('alles_transport')}", None, "VO_STAT2_WAARDE"),
+        (8, "Laatste kwartaal", f"={hm('laatste_kw')}", None, "VO_STAT3_WAARDE"),
+        (9, "Titel", f"={hm('pt_titel')}", None, "PT_TITEL"),
+        (9, "Ondertitel", f"={hm('pt_subtitel')}", None, "PT_SUBTITEL"),
     ]
     for i, (dia, onderdeel, tekst, richting, vorm) in enumerate(kpi):
         r = LY.PP_KPI_ROW1 + i
@@ -1910,7 +1905,7 @@ def bouw_powerpoint(wb, data):
          f"laatste rij ({hm('bt_n')} rijen) · '(uit)' = reeks niet in de presentatie",
          ["Termijn"] + [LY.BT_SEG_NAMEN.get(x, f"=Model!${LY.BT[x]}$7") for x in LY.BT_REEKSEN],
          [LY.BT["label"]] + [LY.BT[x] for x in LY.BT_REEKSEN], "0.00"),
-        (LY.PP_BLOK["vp"], "DIA 8 · VERKOOP EN TRANSPORT PER WONINGTYPE · aantal woningen", f"twee grafieken (verkocht / getransporteerd) lezen dit blok · plakken: {LY.PP_BLOK['vp']}7 t/m {L(ws[LY.PP_BLOK['vp'] + '1'].column + LY.PP_VP_KOL - 1)}, laatste periode · laatste twee kolommen: markering DAEB ('(uit)' = geen)",
+        (LY.PP_BLOK["vp"], "DIA 7 · VERKOOP EN TRANSPORT PER WONINGTYPE · aantal woningen", f"twee grafieken (verkocht / getransporteerd) lezen dit blok · plakken: {LY.PP_BLOK['vp']}7 t/m {L(ws[LY.PP_BLOK['vp'] + '1'].column + LY.PP_VP_KOL - 1)}, laatste periode · laatste twee kolommen: markering DAEB ('(uit)' = geen)",
          ["Kwartaal"] + [f"=Model!${m_col('gv', k)}$7" for k in range(1, N_TYPES + 1)] + [f"=Model!${m_col('gt', k)}$7" for k in range(1, N_TYPES + 1)]
          + ["Verkocht", "Getransporteerd", f"={hm('lbl_uitverkocht')}", f"={hm('lbl_alles_transport')}", "Realisatie",
             "Verkocht cumulatief %", "Label verkocht %", "Getransporteerd cumulatief %", "Label transport %",
@@ -1920,11 +1915,11 @@ def bouw_powerpoint(wb, data):
             M["g_verkocht_pct"], M["g_verkocht_pct_lbl"], M["g_getransporteerd_pct"], M["g_getransporteerd_pct_lbl"],
             LY.VS_G["dvm"], LY.VS_G["dtm"]],
          [FMT_INT] * 26 + ["0%"] * 6),
-        (LY.PP_BLOK["vo"], "DIA 9 · VAN VERKOOP NAAR OMZET · cumulatief %", f"grafiek verkoop naar omzet · plakken: {LY.PP_BLOK['vo']}7 t/m {L(ws[LY.PP_BLOK['vo'] + '1'].column + 4)}, laatste periode",
+        (LY.PP_BLOK["vo"], "DIA 8 · VAN VERKOOP NAAR OMZET · cumulatief %", f"grafiek verkoop naar omzet · plakken: {LY.PP_BLOK['vo']}7 t/m {L(ws[LY.PP_BLOK['vo'] + '1'].column + 4)}, laatste periode",
          ["Kwartaal", "Verkocht", "Getransporteerd", "Opbrengsten ontvangen", "Kosten gemaakt"],
          [FIX["kwartaal"], M["g_verkocht_pct"], M["g_getransporteerd_pct"], M["g_opbrengsten_pct"], M["g_kosten_pct"]], FMT_PCT0),
-        (LY.PP_BLOK["pt"], "DIA 10 · OPBRENGSTEN PER WONINGTYPE · € mln", f"grafiek per woningtype (het type uit de keuzecel op het Dashboard; de macro maakt "
-         f"volgens Dashboard {LY.D['pt_pp']} één dia met het totaal zonder DAEB, per type een kopie van dia 10, of beide) · plakken: {LY.PP_BLOK['pt']}7 t/m {L(ws[LY.PP_BLOK['pt'] + '1'].column + LY.PP_PT_KOL - 1)}, laatste periode · '(uit)' = reeks niet in de presentatie",
+        (LY.PP_BLOK["pt"], "DIA 9 · OPBRENGSTEN PER WONINGTYPE · € mln", f"grafiek per woningtype (het type uit de keuzecel op het Dashboard; de macro maakt "
+         f"volgens Dashboard {LY.D['pt_pp']} één dia met het totaal zonder DAEB, per type een kopie van dia 9, of beide) · plakken: {LY.PP_BLOK['pt']}7 t/m {L(ws[LY.PP_BLOK['pt'] + '1'].column + LY.PP_PT_KOL - 1)}, laatste periode · '(uit)' = reeks niet in de presentatie",
          ["Kwartaal"] + [f'=IF({hm("pt_lbl_" + x)}="","(uit)",{hm("pt_lbl_" + x)})' for x in LY.PT_REEKSEN] + ["Realisatie"],
          [FIX["kwartaal"]] + [LY.PT[x] for x in LY.PT_REEKSEN] + [M["g_realisatie"]], "0.00"),
         # dia 2 (sjabloon v17): kleine cashflowgrafiek. Kolom A = jaartal bij het eerste kwartaal van elk jaar (en bij de eerste

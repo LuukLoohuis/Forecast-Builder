@@ -12,7 +12,7 @@
   een accentstreep per kaartje (VP_STAT1..3_ACCENT, kleur uit kolom D), het % rechts van het punt en een gestippelde gouden lijn
   van de DAEB-ruit naar de as; de grafiektitels zet de macro uit tab PowerPoint ('Verkocht per kwartaal · koop (36)').
 * Projectnaam: op de titeldia COVER_PROJECT en COVER_KWARTAAL, in de dia-indeling de voettekst VOET_TEKST (de macro vult ze).
-* De tabel woningtypes (VT_TABELKAART, VT_TABEL) op een eigen dia direct na de bouwtermijnen; de bouwtermijnengrafiek vult dia 6.
+* De tabel woningtypes (VT_TABELKAART, VT_TABEL) gaat weg; de bouwtermijnengrafiek vult dia 6.
 * BT_GRAFIEK: elk rijlabel tonen (tickLblSkip = 1) en de reeksen dfee (DAEB-fee in goud), fgap (ruimte) en fl1..fl10 (vak met het
   bedrag als label rechts naast de fee) in de tweede stapel vóór s8; de kolommen achteraan het blok (layout.BT_REEKSEN). De
   bouwtermijnen in twee groepen (koop / DAEB-fees, kopregels, dikke fee-balken) komen uit tab PowerPoint.
@@ -102,7 +102,7 @@ def markering(chart, kol):
                 c.set("val", GOUD_LABEL)
         pos = dl.find(qn("c:dLblPos"))
         if pos is not None:
-            pos.set("val", "l")
+            pos.set("val", "r")              # rechts van de ruit: links valt het label buiten de grafiek
     # na de laatste reeks van de %-groep (vóór dLbls/marker/axId van de groep)
     laatste = pct_groep.findall(qn("c:ser"))[-1]
     laatste.addnext(ser)
@@ -328,41 +328,15 @@ def projectnaam(prs):
     return n
 
 
-def tabel_eigen_dia(prs):
-    """de tabel woningtypes (VT_TABELKAART + VT_TABEL) naar een eigen dia direct na de bouwtermijnen; de grafiek krijgt de ruimte"""
-    i6, d6 = _dia(prs, "BT_GRAFIEK")
+def tabel_weg(prs):
+    """de tabel woningtypes (VT_TABELKAART + VT_TABEL) gaat van de bouwtermijnendia af; de grafiek krijgt de hele dia"""
+    _, d6 = _dia(prs, "BT_GRAFIEK")
     by = shapes_by_name(d6)
     if "VT_TABEL" not in by:
         return False
-    nieuw = prs.slides.add_slide(d6.slide_layout)
-    for sh in list(nieuw.shapes):
-        sh._element.getparent().remove(sh._element)
-    boom = nieuw.shapes._spTree
-    for naam in ("BT_KICKER", "BT_TITEL"):
-        if naam in by:
-            el = copy.deepcopy(by[naam]._element)
-            boom.append(el)
-    for sh in d6.shapes:
-        if sh.is_placeholder:
-            boom.append(copy.deepcopy(sh._element))
     for naam in ("VT_TABELKAART", "VT_TABEL"):
         el = by[naam]._element
         el.getparent().remove(el)
-        boom.append(el)
-    bn = shapes_by_name(nieuw)
-    bn["BT_KICKER"].name, bn["BT_TITEL"].name = "VT_KICKER", "VT_TITEL"
-    bn = shapes_by_name(nieuw)
-    set_text_keep_format(bn["VT_KICKER"], "WONINGTYPES")
-    set_text_keep_format(bn["VT_TITEL"], "Woningtypes")
-    dy = bn["VT_TABELKAART"].top - Inches(1.25)
-    for naam in ("VT_TABELKAART", "VT_TABEL"):
-        bn[naam].top = Emu(int(bn[naam].top - dy))
-    # direct na de bouwtermijnen in de volgorde van de dia's
-    lst = prs.slides._sldIdLst
-    el = list(lst)[-1]
-    lst.remove(el)
-    lst.insert(i6 + 1, el)
-    # de bouwtermijnen vullen nu de dia
     by["VT_KAART"].top, by["VT_KAART"].height = Inches(1.25), Inches(3.95)
     by["BT_GRAFIEK"].top, by["BT_GRAFIEK"].height = Inches(1.31), Inches(3.83)
     return True
@@ -390,7 +364,7 @@ class Gegevens:
         r = LY.PP_KPI_ROW1
         while pp[f"C{r}"].value:
             vorm = pp[f"F{r}"].value
-            if pp[f"B{r}"].value in (1, 6, 7, 8) and vorm:
+            if pp[f"B{r}"].value in (1, 6, 7) and vorm:
                 v = pp[f"D{r}"].value
                 self.tekst[vorm] = "" if v is None else nl(str(v))
                 self.kolom_e[vorm] = "" if pp[f"E{r}"].value is None else str(pp[f"E{r}"].value)
@@ -571,7 +545,7 @@ def main():
         vp_opmaak(shapes_by_name(d7)[naam].chart, kol)
     dia7_extra(prs)
     projectnaam(prs)
-    tabel_eigen_dia(prs)
+    tabel_weg(prs)
     _, d6 = _dia(prs, "BT_GRAFIEK")
     labels_alle(shapes_by_name(d6)["BT_GRAFIEK"].chart)
     bt_tekenvlak(shapes_by_name(d6)["BT_GRAFIEK"].chart)
