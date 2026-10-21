@@ -165,3 +165,16 @@ def test_teksten_grafiektitel_accent_en_legenda():
     assert 'Right$(vorm, 8) = "_LEGENDA" Or vorm = "BT_SUBTITEL"' in body and "KleurLegenda shp, " in body
     assert "ChrW(9632)" in procs["KleurLegenda"] and "ChrW(9670)" in procs["KleurLegenda"] and "HexKleur(" in procs["KleurLegenda"]
     assert 'Case "daeb"' in procs["RichtingKleur"]
+
+
+def test_projectnaam_en_tabel_op_eigen_dia():
+    """ZoekVorm zoekt ook in de dia-indelingen (voettekst VOET_TEKST); Ophalen uit FO vult de projectnaam uit de bestandsnaam als
+    het Dashboard leeg is (zoals fo.py); SchikDia5 kort de grafiek niet in als de tabel op een andere dia staat."""
+    sys.path.insert(0, os.path.dirname(HIER))
+    from forecast_builder import layout as LY
+    src = open(BAS, encoding="utf-8").read()
+    procs = _procedures(src)
+    assert "SlideMaster.CustomLayouts" in procs["ZoekVorm"]
+    assert f'Private Const CEL_PROJECTNAAM As String = "{LY.D["projectnaam"]}"' in src
+    assert "ProjectnaamUitBestand(wbF.Name)" in procs["UitFOOphalen"] and 'UCase$(d) = "FO"' in procs["ProjectnaamUitBestand"]
+    assert "ZelfdeDia(tabelVorm, grafiek)" in procs["SchikDia5"]

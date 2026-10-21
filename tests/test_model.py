@@ -916,7 +916,7 @@ def test_veel_daeb_apart_en_bouwtermijnen_in_groepen(tmp):
     mark = [i for i in range(n) if isinstance(m[f"{LY.VS_G['dvm']}{LY.ROW1 + i}"].value, (int, float))]
     assert len(mark) == 1 and m[f"{LY.VS_G['dvm']}{LY.ROW1 + mark[0]}"].value == LY.VP_DAEB_Y and hb("vp_daeb_v_pos") == mark[0] + 1
     assert hb("vp_daeb_lbl_v").startswith("DAEB · 187 woningen") and hb("vp_daeb_lbl_t").startswith("DAEB · 187 geleverd")
-    regels = _pp_regels(pp, 7)
+    regels = _pp_regels(pp, 8)
     assert regels["VP_TITEL"].startswith("Koop uitverkocht ") and "DAEB (187)" in regels["VP_TITEL"]
     assert regels["VP_STAT1_WAARDE"].endswith(f'/ {int(hb("vp_koop_n"))}') and regels["VP_STAT2_LABEL"] == "DAEB · 187 WONINGEN"
     c0 = pp[LY.PP_BLOK["vp"] + "1"].column
@@ -941,3 +941,20 @@ def test_veel_daeb_apart_en_bouwtermijnen_in_groepen(tmp):
     assert "◆ DAEB-fee (bedrag)" in hb("bt_leg_tekst") and hb("bt_leg_kleur").count(",") == hb("bt_leg_tekst").count("■") + 1
     assert hb("vp_leg_kleur").count(",") == hb("vp_leg_tekst").count("■") + hb("vp_leg_tekst").count("◆")
     assert regels["VP1_GRAFIEK"].endswith(f'· koop ({int(hb("vp_koop_n"))})') and regels["VP_STAT2_ACCENT"] == "EDA100"
+
+
+def test_projectnaam_op_alle_dias(basis, tmp):
+    """De projectnaam (Dashboard) staat op de titeldia en in de voettekst van alle dia's (tab PowerPoint, dia 1); bij inlezen komt
+    hij terug; bij Ophalen uit FO komt hij uit de bestandsnaam als het Dashboard leeg is."""
+    from forecast_builder import fo
+    d, pp = basis["Dashboard"], basis["PowerPoint"]
+    assert d[LY.D["projectnaam"]].value == "Voorbeeldproject" and d[f"V{LY.D['projectnaam'][1:]}"].value == LY.D_LABELS["projectnaam"]
+    regels = _pp_regels(pp, 1)
+    assert regels["COVER_PROJECT"] == "Voorbeeldproject" and regels["COVER_KWARTAAL"] == "Q4 2026"
+    assert regels["VOET_TEKST"] == "VOORBEELDPROJECT  |  Q4 2026"
+    assert pp[LY.PP_CEL_NAAM].value.endswith(" Voorbeeldproject")
+    paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "pnaam"), None, caches=False)
+    assert D.lees_werkboek(paden[0]).params["projectnaam"] == "Voorbeeldproject"
+    assert fo.projectnaam_uit_bestand("20261001_FO_Project_2_Q4.xlsx") == "Project 2"
+    regels7 = _pp_regels(pp, 7)
+    assert regels7["VT_TITEL"].endswith("start bouw " + basis["Model"][f"BY{LY.H['start_tekst']}"].value)

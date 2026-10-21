@@ -502,6 +502,14 @@ def _daeb_verkoop(wb, namen, n_koop, naam, waarschuwingen):
     return keuze[:3] if keuze else None
 
 
+def projectnaam_uit_bestand(pad):
+    """'20261001_FO_Project_2_Q4.xlsx' -> 'Project 2': zonder datum vooraan, 'FO', kwartaal (Q1..Q4) en extensie"""
+    stam = os.path.splitext(os.path.basename(pad))[0]
+    delen = [d for d in re.split(r"[_\s]+", stam) if d]
+    delen = [d for d in delen if not re.fullmatch(r"\d{6,8}", d) and d.upper() != "FO" and not re.fullmatch(r"[Qq][1-4]", d)
+             and not re.fullmatch(r"\d{4}", d)]
+    return " ".join(delen)
+
 def lees_fo(pad, actuals=None):
     """actuals = (jaar, kwartaal) als terugval wanneer 'FO - actuals' geen kwartaal geeft (build.py --fo --from: die van het
     werkboek, zoals de macro de Dashboard-cellen houdt); bepaalt ook de grens gerealiseerd/prognose op tab CF kosten."""
@@ -511,6 +519,8 @@ def lees_fo(pad, actuals=None):
     if actuals and actuals[0] and actuals[1]:
         p.params["actuals_jaar"], p.params["actuals_kw"] = int(actuals[0]), int(actuals[1])
     p.fo = {"bestand": os.path.basename(pad), "datum": datetime.now().strftime("%d-%m-%Y %H:%M"), "waarschuwingen": []}
+    if not p.params.get("projectnaam"):
+        p.params["projectnaam"] = projectnaam_uit_bestand(pad)
     waarschuwingen = p.fo["waarschuwingen"]
 
     # ---- 1. Cashflow -> periodes ----------------------------------------------------------------------------------

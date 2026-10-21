@@ -239,6 +239,13 @@ dia 3: reeks op kolom H van het gegevensblad, legenda-naam = kop H1, dus de naam
 
 ### Dia's en sjabloon v20
 
+**Projectnaam**: Dashboard W10 (geel). De macro zet hem op de titeldia (COVER_PROJECT, met het kwartaal in COVER_KWARTAAL) en in
+de voettekst van alle dia's (VOET_TEKST in de dia-indeling, 'PROJECT  |  Q3 2026'); ook in de bestandsnaam van de presentatie. Is
+hij leeg, dan vult Ophalen uit FO hem uit de bestandsnaam van het FO ('20261001_FO_Project_2_Q4.xlsx' -> 'Project 2').
+**Dia 6 / 7**: de bouwtermijnen vullen dia 6 (drie koprijen: jaartallen, lege rij, kwartalen; een extra lege rij vóór de kopregel
+DAEB-fees); de tabel woningtypes staat op een eigen dia 7. De dia's daarna schuiven één op (verkoop en transport = 8, van verkoop
+naar omzet = 9, opbrengsten per woningtype = 10).
+
 **Veel DAEB** (meer dan de helft van de woningen, Model `vp_daeb_apart`): de verkoop- en transportgrafiek (Dashboard en dia 7)
 tonen balken en cumulatief % alleen voor de koopwoningen; DAEB staat als gouden ruit in het eerste DAEB-kwartaal met het label
 'DAEB · 187 woningen in één keer' (of 'vanaf Q1 ’27'; kolommen `dvm`/`dtm`, PowerPoint-blok kolom AE/AF, anders '(uit)'). Titel en

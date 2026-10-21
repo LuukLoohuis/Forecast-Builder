@@ -79,6 +79,10 @@ Option Explicit
 '       kolom D) en de blokjes/ruiten in een legenda (*_LEGENDA, BT_SUBTITEL; kleuren in kolom E, KleurLegenda); dikke gouden
 '       DAEB-fee-balken met het bedrag ernaast (reeksen dfee, fgap, fl1..fl10 achteraan het BT-blok, KOL_BT = 120; de blokken erna
 '       schuiven mee).
+'       Daarna: projectnaam (Dashboard CEL_PROJECTNAAM, bij Ophalen uit FO uit de bestandsnaam als hij leeg is) op de titeldia
+'       (COVER_PROJECT, COVER_KWARTAAL) en in de voettekst VOET_TEKST in de dia-indeling (ZoekVorm zoekt ook in de indelingen);
+'       bouwtermijnen met drie koprijen (lege rij tussen jaar en kwartaal; MAX_RIJEN_BT = 133); de tabel woningtypes op een eigen
+'       dia 7 (SchikDia5 kort de grafiek dan niet in).
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -109,7 +113,7 @@ Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
-Private Const MAX_RIJEN_BT As Long = 132           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
+Private Const MAX_RIJEN_BT As Long = 133           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
 Private Const KOL_BT As Long = 120                 ' kolommen in het bouwtermijnenblok (label + alle reeksen van layout.BT_REEKSEN; layout.PP_BT_KOL)
 Private Const BLOK_PT As String = "GE7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
 Private Const KOL_PT As Long = 10
@@ -143,6 +147,7 @@ Private Const VS_PLOT_X As Double = 0.0437
 Private Const VS_PLOT_W As Double = 0.9421
 ' FO-koppeling (Dashboard): bestand, actuals t/m, opbrengsten en kosten totaal uit '1. Cashflow', datum; actuals-knop W5/X5
 Private Const CEL_FO_BESTAND As String = "W69"
+Private Const CEL_PROJECTNAAM As String = "W10"    ' Dashboard: projectnaam (titeldia en voettekst van de dia's)
 Private Const CEL_FO_ACTUALS As String = "W70"
 Private Const CEL_FO_OPBR As String = "W71"
 Private Const CEL_FO_KOSTEN As String = "W72"
@@ -627,7 +632,8 @@ Private Sub HaalVervallenVormenWeg(pres As Object)
 End Sub
 
 Private Function ZoekVorm(pres As Object, naam As String) As Object
-    Dim s As Object, shp As Object
+    ' eerst op de dia's, dan in de dia-indelingen (daar staat de voettekst VOET_TEKST van alle dia's)
+    Dim s As Object, shp As Object, d As Object, lay As Object
     For Each s In pres.Slides
         For Each shp In s.Shapes
             If shp.Name = naam Then
@@ -636,6 +642,17 @@ Private Function ZoekVorm(pres As Object, naam As String) As Object
             End If
         Next shp
     Next s
+    On Error Resume Next
+    For Each d In pres.Designs
+        For Each lay In d.SlideMaster.CustomLayouts
+            For Each shp In lay.Shapes
+                If shp.Name = naam Then
+                    Set ZoekVorm = shp
+                    Exit Function
+                End If
+            Next shp
+        Next lay
+    Next d
 End Function
 
 Private Function CelTekst(cel As Range) As String
@@ -649,6 +666,26 @@ Private Function CelTekst(cel As Range) As String
         Case Else
             CelTekst = CStr(v)
     End Select
+End Function
+
+Private Function ProjectnaamUitBestand(bestand As String) As String
+    ' '20261001_FO_Project_2_Q4.xlsx' -> 'Project 2' (zoals fo.py projectnaam_uit_bestand): zonder datum, 'FO', kwartaal, jaar
+    Dim stam As String, delen As Variant, i As Long, d As String, uit As String
+    stam = bestand
+    If InStrRev(stam, ".") > 0 Then stam = Left$(stam, InStrRev(stam, ".") - 1)
+    delen = Split(Replace(stam, "_", " "), " ")
+    For i = LBound(delen) To UBound(delen)
+        d = Trim$(CStr(delen(i)))
+        If Len(d) = 0 Then
+        ElseIf IsNumeric(d) And Len(d) >= 4 And InStr(d, ".") = 0 And InStr(d, ",") = 0 Then
+        ElseIf UCase$(d) = "FO" Then
+        ElseIf Len(d) = 2 And UCase$(Left$(d, 1)) = "Q" And InStr("1234", Right$(d, 1)) > 0 Then
+        Else
+            If Len(uit) > 0 Then uit = uit & " "
+            uit = uit & d
+        End If
+    Next i
+    ProjectnaamUitBestand = uit
 End Function
 
 Private Function HexKleur(hexTekst As String) As Long
@@ -1319,6 +1356,11 @@ Mislukt:
     fouten = fouten & vorm & ": " & Err.Description & vbCrLf
 End Sub
 
+Private Function ZelfdeDia(a As Object, b As Object) As Boolean
+    On Error Resume Next
+    ZelfdeDia = (a.Parent.SlideID = b.Parent.SlideID)
+End Function
+
 Private Sub SchikDia5(pres As Object, tbl As Object)
     ' na het vullen van VT_TABEL (dia 5, onder de bouwtermijnengrafiek BT_GRAFIEK in kaart VT_KAART):
     ' bij meer dan 4 typeregels de tabel binnen de kaart en boven het dianummer houden
@@ -1356,7 +1398,8 @@ Private Sub SchikDia5(pres As Object, tbl As Object)
     '    eerst de ruimte tussen de kaarten boven de 8 pt, de rest door grafiekkaart en grafiek in te korten
     '    (grafiek minimaal 110 pt); tabelkaart en tabel schuiven omhoog en houden 8 pt tot de grafiekkaart
     tekort = nR * RIJ_MIN - beschikbaar
-    If tekort > 0 And Not kaart Is Nothing And Not grafiek Is Nothing Then
+    ' sinds sjabloon v20 staat de tabel op een eigen dia: dan de grafiek niet inkorten
+    If tekort > 0 And Not kaart Is Nothing And Not grafiek Is Nothing And ZelfdeDia(tabelVorm, grafiek) Then
         extra = 0
         If Not tabelKaart Is Nothing Then extra = tabelKaart.Top - (kaart.Top + kaart.Height) - AFSTAND
         krimp = tekort - extra
@@ -1819,6 +1862,8 @@ Public Sub UitFOOphalen()
     stap = "afronden"
     wsD.Range(CEL_FO_BESTAND).Value = wbF.Name
     wsD.Range(CEL_FO_DATUM).Value = Format$(Now, "dd-mm-yyyy hh:mm")
+    ' projectnaam (titeldia en voettekst): alleen als er nog niets staat, uit de bestandsnaam van het FO
+    If Len(Trim$(CelTekst(wsD.Range(CEL_PROJECTNAAM)))) = 0 Then wsD.Range(CEL_PROJECTNAAM).Value = ProjectnaamUitBestand(wbF.Name)
     FOSluiten wbF, zelfGeopend, iteratie
     Set wbF = Nothing
     stap = "doorrekenen"

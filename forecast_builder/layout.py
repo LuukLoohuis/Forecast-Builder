@@ -174,7 +174,7 @@ BLOKKEN = ["vcum", "tcum", "tup", "tdown", "verv", "tscn", "gv", "gt", "vx", "fe
 # Compacte lijst (zelfde rijen, kolommen vanaf 'nr'): rij 1 = koprij jaartallen, rij 2 = koprij kwartaalnummers, daarna per termijn
 # de banen van de typen die hem hebben (in typevolgorde) en een lege scheidingsrij tussen de termijnen. Tijd = kwartaalindex
 # (jaar × 4 + kwartaal), dus één eenheid per kwartaal; de as loopt van 1 januari van het eerste jaar tot het einde van het laatste.
-BT_KOP = 2                              # koprijen (jaar, kwartaal)
+BT_KOP = 3                              # koprijen: jaartallen, een lege rij (anders vallen jaar en kwartaal over elkaar), kwartaalnummers
 BT_LANES = N_TYPES * N_TERMIJNEN        # 100 banen maximaal
 BT_N = BT_KOP + BT_LANES + 30           # 132 rijen: koprijen, banen en tot 30 scheidingsrijen (en kopregels, extra rijen DAEB-fees)
 BT_ROW1 = ROW1
@@ -311,6 +311,7 @@ def hm(name):
 D = {
     "actuals_jaar": "W5", "actuals_kw": "X5",
     "rente": "W6", "rente_tm": "W7", "rente_basis": "W8", "start_project": "W9",
+    "projectnaam": "W10",                                    # titeldia en voettekst van alle dia's (W10:Y10 samengevoegd)
     "model_aan": "W12", "dekking": "W13",
     "shift_down": "W17", "shift_up": "X17",
     "uitstel_down": "W18", "uitstel_up": "X18",
@@ -335,7 +336,7 @@ N_LASTEN = 3
 # data.py leest de knoppen op het label in kolom V (zo blijven oudere bestanden met andere rijnummers leesbaar)
 D_LABELS = {
     "actuals_jaar": "Actuals t/m (jaar · kwartaal)", "rente": "Jaarrente", "rente_tm": "Rente t/m", "rente_basis": "Rente ook in de basis",
-    "model_aan": "Woningtypes en termijnen gebruiken",
+    "model_aan": "Woningtypes en termijnen gebruiken", "projectnaam": "Projectnaam",
     "shift_down": "Verkoop en transport verschuiven (kw)", "uitstel_down": "Uitstel start bouw (kw)", "opbr_down": "Opbrengsten",
     "kosten_down": "Kosten", "rente_pct_down": "Jaarrente per scenario", "koopsom_down": "Koopsom (VON-prijs)",
     "scn_aan": "Scenariolijn tonen in de cashflowgrafiek", "scn_naam": "Naam van de scenariolijn", "norm": "Norm verkocht bij start bouw",

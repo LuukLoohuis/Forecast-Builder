@@ -53,6 +53,7 @@ PARAM_STANDAARD = {
     "vs_type": "alle types",
     # grafiek per woningtype naar PowerPoint (Dashboard W120, sinds v20): totaal zonder DAEB, per type of beide
     "pt_pp": "totaal (zonder DAEB)",
+    "projectnaam": "",          # titeldia en voettekst van de dia's; bij Ophalen uit FO uit de bestandsnaam als hij leeg is
 }
 
 
@@ -177,6 +178,7 @@ def voorbeeld():
             rij_t.append(v)
         p.transport.append(rij_t)
     p.params["actuals_jaar"], p.params["actuals_kw"] = 2026, 4
+    p.params["projectnaam"] = "Voorbeeldproject"
     p.params["lasten"] = [("Grondkosten", 7900000), ("Honoraria", 3200000), ("Aansluitkosten", 800000)]
     # twee scenario's: de resterende verkoop een jaar later, en de bouw een half jaar later starten
     p.params["vs"] = [{"vv": "Q1 2028"}, {"naam": "Later starten", "sb": "Q3 2027"}]
