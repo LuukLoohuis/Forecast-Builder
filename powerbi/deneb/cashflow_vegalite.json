@@ -1,0 +1,544 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Cashflow per kwartaal: balken opbrengsten/kosten, lijnen cumulatieve cashflow, vorige prognose (stippel) en scenario's. Velden: Kwartaal, Realisatie, Opbrengsten, Kosten, Cumulatieve cashflow, Vorige prognose, Scenario 1, Scenario 2, Scenario 3.",
+  "data": {
+    "name": "dataset"
+  },
+  "transform": [
+    {
+      "calculate": "toNumber(datum['Realisatie'])",
+      "as": "_real"
+    },
+    {
+      "calculate": "datum['Cumulatieve cashflow'] == null ? null : max(datum['Cumulatieve cashflow'], 0)",
+      "as": "_pos"
+    },
+    {
+      "calculate": "datum['Cumulatieve cashflow'] == null ? null : min(datum['Cumulatieve cashflow'], 0)",
+      "as": "_neg"
+    },
+    {
+      "calculate": "'Q' + split(datum['Kwartaal'], '-Q')[1] + ' ’' + substring(datum['Kwartaal'], 2, 4)",
+      "as": "_label"
+    }
+  ],
+  "encoding": {
+    "x": {
+      "field": "Kwartaal",
+      "type": "ordinal",
+      "sort": "ascending",
+      "title": null,
+      "scale": {
+        "paddingInner": 0,
+        "paddingOuter": 0
+      },
+      "axis": {
+        "labelAngle": 0,
+        "labelExpr": "split(datum.value, '-Q')[1] == '1' ? 'Q1 \\u2019' + substring(datum.value, 2, 4) : 'Q' + split(datum.value, '-Q')[1]",
+        "domain": false,
+        "ticks": false,
+        "labelColor": "#605E5C",
+        "labelFontSize": 11
+      }
+    }
+  },
+  "layer": [
+    {
+      "description": "Grijze achtergrond voor de realisatieperiode",
+      "transform": [
+        {
+          "filter": "datum._real == 1"
+        }
+      ],
+      "mark": {
+        "type": "rect",
+        "color": "#F3F2F1",
+        "tooltip": false
+      },
+      "encoding": {
+        "y": {
+          "value": 0
+        },
+        "y2": {
+          "value": {
+            "expr": "height"
+          }
+        }
+      }
+    },
+    {
+      "description": "Gearceerde vlakken: positief saldo (groen) en voorfinanciering (roze)",
+      "transform": [
+        {
+          "fold": [
+            "_pos",
+            "_neg"
+          ],
+          "as": [
+            "_vlak",
+            "_v"
+          ]
+        },
+        {
+          "filter": "datum._v != null"
+        },
+        {
+          "calculate": "datum._vlak == '_pos' ? 'Positief saldo' : 'Voorfinanciering'",
+          "as": "Serie"
+        }
+      ],
+      "mark": {
+        "type": "area",
+        "opacity": 0.55,
+        "interpolate": "linear",
+        "tooltip": false
+      },
+      "encoding": {
+        "y": {
+          "field": "_v",
+          "type": "quantitative",
+          "stack": null
+        },
+        "detail": {
+          "field": "Serie"
+        },
+        "color": {
+          "field": "Serie",
+          "type": "nominal",
+          "scale": {
+            "domain": [
+              "Voorfinanciering",
+              "Positief saldo",
+              "Opbrengsten",
+              "Kosten",
+              "Cumulatieve cashflow",
+              "Vorige prognose",
+              "Scenario 1",
+              "Scenario 2",
+              "Scenario 3"
+            ],
+            "range": [
+              "#F8D7DA",
+              "#CDEBD8",
+              "#2E9E5B",
+              "#E8643C",
+              "#0B2559",
+              "#6FA3E0",
+              "#7B2FBE",
+              "#E0218A",
+              "#12876F"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "description": "Opbrengsten (positief) en kosten (negatief) als balken",
+      "transform": [
+        {
+          "fold": [
+            "Opbrengsten",
+            "Kosten"
+          ],
+          "as": [
+            "Serie",
+            "_v"
+          ]
+        },
+        {
+          "filter": "datum._v != null && datum._v != 0"
+        }
+      ],
+      "mark": {
+        "type": "bar",
+        "width": {
+          "band": 0.55
+        }
+      },
+      "encoding": {
+        "y": {
+          "field": "_v",
+          "type": "quantitative",
+          "stack": "zero"
+        },
+        "color": {
+          "field": "Serie",
+          "type": "nominal",
+          "scale": {
+            "domain": [
+              "Voorfinanciering",
+              "Positief saldo",
+              "Opbrengsten",
+              "Kosten",
+              "Cumulatieve cashflow",
+              "Vorige prognose",
+              "Scenario 1",
+              "Scenario 2",
+              "Scenario 3"
+            ],
+            "range": [
+              "#F8D7DA",
+              "#CDEBD8",
+              "#2E9E5B",
+              "#E8643C",
+              "#0B2559",
+              "#6FA3E0",
+              "#7B2FBE",
+              "#E0218A",
+              "#12876F"
+            ]
+          }
+        },
+        "tooltip": [
+          {
+            "field": "Kwartaal",
+            "type": "ordinal"
+          },
+          {
+            "field": "Serie",
+            "type": "nominal"
+          },
+          {
+            "field": "_v",
+            "type": "quantitative",
+            "title": "Bedrag",
+            "format": ",.0f"
+          }
+        ]
+      }
+    },
+    {
+      "description": "Nullijn",
+      "mark": {
+        "type": "rule",
+        "color": "#A19F9D",
+        "strokeWidth": 1
+      },
+      "encoding": {
+        "y": {
+          "datum": 0
+        },
+        "x": null
+      }
+    },
+    {
+      "description": "Lijnen: cumulatieve cashflow, vorige prognose en scenario's",
+      "transform": [
+        {
+          "fold": [
+            "Vorige prognose",
+            "Scenario 1",
+            "Scenario 2",
+            "Scenario 3",
+            "Cumulatieve cashflow"
+          ],
+          "as": [
+            "Serie",
+            "_v"
+          ]
+        },
+        {
+          "filter": "datum._v != null"
+        }
+      ],
+      "mark": {
+        "type": "line",
+        "interpolate": "linear",
+        "strokeCap": "round",
+        "strokeJoin": "round"
+      },
+      "encoding": {
+        "y": {
+          "field": "_v",
+          "type": "quantitative"
+        },
+        "color": {
+          "field": "Serie",
+          "type": "nominal",
+          "scale": {
+            "domain": [
+              "Voorfinanciering",
+              "Positief saldo",
+              "Opbrengsten",
+              "Kosten",
+              "Cumulatieve cashflow",
+              "Vorige prognose",
+              "Scenario 1",
+              "Scenario 2",
+              "Scenario 3"
+            ],
+            "range": [
+              "#F8D7DA",
+              "#CDEBD8",
+              "#2E9E5B",
+              "#E8643C",
+              "#0B2559",
+              "#6FA3E0",
+              "#7B2FBE",
+              "#E0218A",
+              "#12876F"
+            ]
+          }
+        },
+        "strokeDash": {
+          "field": "Serie",
+          "type": "nominal",
+          "legend": null,
+          "scale": {
+            "domain": [
+              "Cumulatieve cashflow",
+              "Vorige prognose",
+              "Scenario 1",
+              "Scenario 2",
+              "Scenario 3"
+            ],
+            "range": [
+              [
+                1,
+                0
+              ],
+              [
+                5,
+                4
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                2,
+                3
+              ]
+            ]
+          }
+        },
+        "strokeWidth": {
+          "field": "Serie",
+          "type": "nominal",
+          "legend": null,
+          "scale": {
+            "domain": [
+              "Cumulatieve cashflow",
+              "Vorige prognose",
+              "Scenario 1",
+              "Scenario 2",
+              "Scenario 3"
+            ],
+            "range": [
+              3,
+              1.75,
+              2,
+              2,
+              2
+            ]
+          }
+        },
+        "tooltip": [
+          {
+            "field": "Kwartaal",
+            "type": "ordinal"
+          },
+          {
+            "field": "Serie",
+            "type": "nominal"
+          },
+          {
+            "field": "_v",
+            "type": "quantitative",
+            "title": "Cumulatief",
+            "format": ",.0f"
+          }
+        ]
+      }
+    },
+    {
+      "description": "Markeringen: dieptepunt, stand (laatste realisatie) en eindsaldo",
+      "transform": [
+        {
+          "filter": "datum['Cumulatieve cashflow'] != null"
+        },
+        {
+          "window": [
+            {
+              "op": "row_number",
+              "as": "_rn"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Kwartaal",
+              "order": "ascending"
+            }
+          ]
+        },
+        {
+          "joinaggregate": [
+            {
+              "op": "min",
+              "field": "Cumulatieve cashflow",
+              "as": "_min"
+            },
+            {
+              "op": "max",
+              "field": "_rn",
+              "as": "_laatste"
+            }
+          ]
+        },
+        {
+          "calculate": "datum._real == 1 ? datum._rn : 0",
+          "as": "_rnReal"
+        },
+        {
+          "joinaggregate": [
+            {
+              "op": "max",
+              "field": "_rnReal",
+              "as": "_laatsteReal"
+            }
+          ]
+        },
+        {
+          "window": [
+            {
+              "op": "row_number",
+              "as": "_minVolgorde"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Cumulatieve cashflow",
+              "order": "ascending"
+            },
+            {
+              "field": "Kwartaal",
+              "order": "ascending"
+            }
+          ]
+        },
+        {
+          "calculate": "datum._minVolgorde == 1 ? 'Dieptepunt' : (datum._rn == datum._laatsteReal ? 'Stand' : (datum._rn == datum._laatste ? 'Eindsaldo' : null))",
+          "as": "_markering"
+        },
+        {
+          "filter": "datum._markering != null"
+        },
+        {
+          "calculate": "(datum['Cumulatieve cashflow'] < 0 ? '\\u2212' : '') + '\\u20ac' + replace(format(abs(datum['Cumulatieve cashflow']) / 1e6, '.1f'), '.', ',') + 'M'",
+          "as": "_bedrag"
+        },
+        {
+          "calculate": "datum._markering + ' ' + datum._label + '  ' + datum._bedrag",
+          "as": "_tekst"
+        }
+      ],
+      "layer": [
+        {
+          "mark": {
+            "type": "point",
+            "filled": true,
+            "size": 55,
+            "opacity": 1,
+            "stroke": "white",
+            "strokeWidth": 1.5
+          },
+          "encoding": {
+            "y": {
+              "field": "Cumulatieve cashflow",
+              "type": "quantitative"
+            },
+            "color": {
+              "condition": {
+                "test": "datum._markering == 'Dieptepunt'",
+                "value": "#C0392B"
+              },
+              "value": "#0B2559"
+            },
+            "tooltip": [
+              {
+                "field": "_markering",
+                "title": "Markering"
+              },
+              {
+                "field": "Kwartaal",
+                "type": "ordinal"
+              },
+              {
+                "field": "Cumulatieve cashflow",
+                "type": "quantitative",
+                "format": ",.0f"
+              }
+            ]
+          }
+        },
+        {
+          "mark": {
+            "type": "text",
+            "fontSize": 11,
+            "fontWeight": "bold",
+            "color": "#0B2559",
+            "align": {
+              "expr": "datum._markering == 'Eindsaldo' ? 'right' : 'left'"
+            },
+            "dx": {
+              "expr": "datum._markering == 'Eindsaldo' ? -9 : (datum._markering == 'Dieptepunt' ? -45 : 8)"
+            },
+            "dy": {
+              "expr": "datum._markering == 'Dieptepunt' ? 16 : -10"
+            }
+          },
+          "encoding": {
+            "y": {
+              "field": "Cumulatieve cashflow",
+              "type": "quantitative"
+            },
+            "text": {
+              "field": "_tekst"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "resolve": {
+    "scale": {
+      "color": "shared"
+    }
+  },
+  "config": {
+    "view": {
+      "stroke": null
+    },
+    "font": "Segoe UI",
+    "axisY": {
+      "title": null,
+      "domain": false,
+      "ticks": false,
+      "gridColor": "#EDEBE9",
+      "labelColor": "#605E5C",
+      "labelFontSize": 11,
+      "tickCount": 8,
+      "labelExpr": "(datum.value < 0 ? '\\u2212' : '') + '\\u20ac' + replace(format(abs(datum.value) / 1e6, '~r'), '.', ',') + 'M'"
+    },
+    "axisX": {
+      "grid": false
+    },
+    "legend": {
+      "orient": "top",
+      "direction": "horizontal",
+      "columns": 5,
+      "title": null,
+      "labelFontSize": 11,
+      "labelColor": "#323130",
+      "symbolSize": 120,
+      "columnPadding": 18
+    },
+    "scale": {
+      "bandPaddingInner": 0
+    }
+  }
+}
