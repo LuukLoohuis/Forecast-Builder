@@ -10,63 +10,18 @@
     "defaultPowerBIDataSourceVersion": "powerBI_V3",
     "tables": [
       {
-        "name": "Cashflow",
-        "columns": [
-          {
-            "name": "Kwartaal",
-            "dataType": "dateTime",
-            "sourceColumn": "Kwartaal",
-            "summarizeBy": "none",
-            "formatString": "dd-mm-yyyy",
-            "isHidden": true
-          },
-          {
-            "name": "Versie",
-            "dataType": "string",
-            "sourceColumn": "Versie",
-            "summarizeBy": "none"
-          },
-          {
-            "name": "Opbrengsten",
-            "dataType": "double",
-            "sourceColumn": "Opbrengsten",
-            "summarizeBy": "sum",
-            "formatString": "€ #,##0;-€ #,##0;€ 0"
-          },
-          {
-            "name": "Kosten",
-            "dataType": "double",
-            "sourceColumn": "Kosten",
-            "summarizeBy": "sum",
-            "formatString": "€ #,##0;-€ #,##0;€ 0"
-          }
-        ],
+        "name": "Calculations",
         "partitions": [
           {
-            "name": "Cashflow",
+            "name": "Calculations",
             "mode": "import",
             "source": {
               "type": "m",
               "expression": [
                 "let",
-                "    Bron      = Excel.Workbook(File.Contents(BronPad), null, true),",
-                "    Tabel     = Bron{[Item = \"tblCashflow\", Kind = \"Table\"]}[Data],",
-                "    Typen     = Table.TransformColumnTypes(Tabel, {",
-                "                    {\"Kwartaal\", type date}, {\"Versie\", type text},",
-                "                    {\"Opbrengsten\", type number}, {\"Kosten\", type number}}),",
-                "    Leeg      = Table.SelectRows(Typen, each [Kwartaal] <> null and [Versie] <> null),",
-                "    // Elke datum naar de eerste dag van het kwartaal",
-                "    Kwartaal  = Table.TransformColumns(Leeg, {{\"Kwartaal\", Date.StartOfQuarter, type date}}),",
-                "    Versie    = Table.TransformColumns(Kwartaal, {{\"Versie\", Text.Trim, type text}}),",
-                "    // Ontbrekende bedragen = 0, kosten altijd negatief",
-                "    Nullen    = Table.ReplaceValue(Versie, null, 0, Replacer.ReplaceValue, {\"Opbrengsten\", \"Kosten\"}),",
-                "    Kosten    = Table.TransformColumns(Nullen, {{\"Kosten\", each -Number.Abs(_), type number}}),",
-                "    // Meerdere regels per kwartaal/versie (bijv. per project) optellen",
-                "    Groep     = Table.Group(Kosten, {\"Kwartaal\", \"Versie\"}, {",
-                "                    {\"Opbrengsten\", each List.Sum([Opbrengsten]), type number},",
-                "                    {\"Kosten\",      each List.Sum([Kosten]),      type number}})",
+                "    Bron = #table({}, {})",
                 "in",
-                "    Groep"
+                "    Bron"
               ]
             }
           }
@@ -215,6 +170,71 @@
               "    CALCULATE ( [Cumulatieve cashflow], REMOVEFILTERS ( Kalender ), Kalender[Datum] = _laatste )"
             ],
             "formatString": "€ #,##0;-€ #,##0;€ 0"
+          }
+        ]
+      },
+      {
+        "name": "Cashflow",
+        "columns": [
+          {
+            "name": "Kwartaal",
+            "dataType": "dateTime",
+            "sourceColumn": "Kwartaal",
+            "summarizeBy": "none",
+            "formatString": "dd-mm-yyyy",
+            "isHidden": true
+          },
+          {
+            "name": "Versie",
+            "dataType": "string",
+            "sourceColumn": "Versie",
+            "summarizeBy": "none"
+          },
+          {
+            "name": "Opbrengsten",
+            "dataType": "double",
+            "sourceColumn": "Opbrengsten",
+            "summarizeBy": "sum",
+            "formatString": "€ #,##0;-€ #,##0;€ 0",
+            "isHidden": true
+          },
+          {
+            "name": "Kosten",
+            "dataType": "double",
+            "sourceColumn": "Kosten",
+            "summarizeBy": "sum",
+            "formatString": "€ #,##0;-€ #,##0;€ 0",
+            "isHidden": true
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Cashflow",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Bron      = Excel.Workbook(File.Contents(BronPad), null, true),",
+                "    Tabel     = Bron{[Item = \"tblCashflow\", Kind = \"Table\"]}[Data],",
+                "    Typen     = Table.TransformColumnTypes(Tabel, {",
+                "                    {\"Kwartaal\", type date}, {\"Versie\", type text},",
+                "                    {\"Opbrengsten\", type number}, {\"Kosten\", type number}}),",
+                "    Leeg      = Table.SelectRows(Typen, each [Kwartaal] <> null and [Versie] <> null),",
+                "    // Elke datum naar de eerste dag van het kwartaal",
+                "    Kwartaal  = Table.TransformColumns(Leeg, {{\"Kwartaal\", Date.StartOfQuarter, type date}}),",
+                "    Versie    = Table.TransformColumns(Kwartaal, {{\"Versie\", Text.Trim, type text}}),",
+                "    // Ontbrekende bedragen = 0, kosten altijd negatief",
+                "    Nullen    = Table.ReplaceValue(Versie, null, 0, Replacer.ReplaceValue, {\"Opbrengsten\", \"Kosten\"}),",
+                "    Kosten    = Table.TransformColumns(Nullen, {{\"Kosten\", each -Number.Abs(_), type number}}),",
+                "    // Meerdere regels per kwartaal/versie (bijv. per project) optellen",
+                "    Groep     = Table.Group(Kosten, {\"Kwartaal\", \"Versie\"}, {",
+                "                    {\"Opbrengsten\", each List.Sum([Opbrengsten]), type number},",
+                "                    {\"Kosten\",      each List.Sum([Kosten]),      type number}})",
+                "in",
+                "    Groep"
+              ]
+            }
           }
         ]
       },
@@ -377,7 +397,7 @@
     "annotations": [
       {
         "name": "PBI_QueryOrder",
-        "value": "[\"BronPad\",\"Cashflow\",\"Instellingen\"]"
+        "value": "[\"BronPad\",\"Calculations\",\"Cashflow\",\"Instellingen\"]"
       },
       {
         "name": "__PBI_TimeIntelligenceEnabled",

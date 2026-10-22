@@ -26,6 +26,26 @@ Het project wordt gegenereerd door `scripts/genereer_pbip.py`, op basis van `pow
 
 Geeft het openen een foutmelding? Kopieer de melding en stuur hem op. Bouw het rapport intussen handmatig op met de stappen hieronder.
 
+## Toevoegen aan een bestaand sjabloon (.pbit)
+
+`scripts/voeg_toe_aan_pbit.py` zet de cashflow in een bestaand sjabloon in PBIR-formaat, zoals de Heijmans-template (V4):
+
+```
+python scripts/voeg_toe_aan_pbit.py Template_PowerBI_V4.pbit Template_PowerBI_V4_Cashflow.pbit
+```
+
+Wat het script doet:
+
+- Het voegt een pagina **Cashflow** toe als kopie van pagina `1-KPI`, dus met de titelbalk, de filterbalk en de bookmarks voor het tonen en verbergen van de filterbalk.
+- In het KPI-blok staan vier KPI-kaarten met daaronder de Deneb-grafiek. De eerste slicer in de filterbalk wordt de scenario-slicer.
+- Aan het datamodel worden toegevoegd:
+  - de queries `BronPad`, `Cashflow` en `Instellingen`, in querygroep *Cashflow*;
+  - de tabellen `Kalender` en `Scenario keuze` en de relatie tussen Kalender en Cashflow.
+- Alle measures komen in de bestaande tabel `Calculations`.
+- Het bestand `SecurityBindings` (opgeslagen inloggegevens) wordt verwijderd omdat het model is gewijzigd. Power BI vraagt zo nodig opnieuw om inloggegevens.
+
+Bij het openen van de .pbit vraagt Power BI om **BronPad**. Vul daar het volledige pad naar `Cashflow_Template.xlsx` in.
+
 ## Inhoud
 
 | Bestand | Doel |
@@ -36,6 +56,7 @@ Geeft het openen een foutmelding? Kopieer de melding en stuur hem op. Bouw het r
 | `deneb/cashflow_vegalite.json` | De grafiek als Vega-Lite-spec voor de custom visual **Deneb** |
 | `deneb/voorbeeld_deneb_dataset.json` | Voorbeeld van de rijen die Deneb ontvangt (om de spec buiten Power BI te testen) |
 | `pbip/` | Power BI-project dat je direct in Power BI Desktop opent |
+| `scripts/voeg_toe_aan_pbit.py` | Voegt de cashflowpagina en het model toe aan een bestaand .pbit-sjabloon |
 | `scripts/genereer_pbip.py` | Bouwt `pbip/` opnieuw op uit de bronbestanden |
 | `scripts/genereer_voorbeelddata.py` | Maakt het Excel-bestand en de JSON met voorbeelddata opnieuw aan |
 
@@ -64,7 +85,7 @@ Tabblad **Instellingen**: `RealisatieTotEnMet` is een datum in het laatste gerea
 1. **Data laden**: *Gegevens transformeren* → *Nieuwe bron* → *Lege query* → *Geavanceerde editor*. Plak de twee queries uit `power_query.m` en geef ze de namen `Cashflow` en `Instellingen`. Pas `BronPad` aan (of gebruik een parameter, of vervang de bron door SharePoint, SQL of een andere bron).
 2. **Kalender en slicertabel**: *Modellering* → *Nieuwe tabel* → plak `Kalender` en `Scenario keuze` uit `dax/model.dax`.
 3. **Relatie**: `Kalender[Datum]` (1) → `Cashflow[Kwartaal]` (*). Markeer `Kalender` als datumtabel en zet `Kalender[Realisatie]` op *Niet samenvatten*.
-4. **Measures**: maak alle measures uit `dax/model.dax`. Houd de namen precies zo (`Opbrengsten`, `Kosten`, `Cumulatieve cashflow`, `Vorige prognose`, `Scenario 1`, `Scenario 2`, `Scenario 3`), want de grafiek verwijst ernaar.
+4. **Measures**: maak alle measures uit `dax/model.dax` in een aparte measuretabel, bijvoorbeeld `Calculations`, en niet in de tabel `Cashflow`. Die tabel heeft al kolommen met de namen `Opbrengsten` en `Kosten`. Houd de namen precies zo (`Opbrengsten`, `Kosten`, `Cumulatieve cashflow`, `Vorige prognose`, `Scenario 1`, `Scenario 2`, `Scenario 3`), want de grafiek verwijst ernaar.
 5. **Deneb installeren**: in het deelvenster Visualisaties → `…` → *Meer visuals ophalen* → zoek **Deneb** → *Toevoegen*.
 6. **Visual vullen**: voeg een Deneb-visual toe en sleep in *Values*, in deze volgorde:
    `Kalender[Kwartaal]`, `Kalender[Realisatie]`, `Opbrengsten`, `Kosten`, `Cumulatieve cashflow`, `Vorige prognose`, `Scenario 1`, `Scenario 2`, `Scenario 3`.

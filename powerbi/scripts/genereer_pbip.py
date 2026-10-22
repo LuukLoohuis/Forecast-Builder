@@ -19,6 +19,8 @@ OUT = ROOT / "pbip"
 NAAM = "Cashflow"
 DENEB_GUID = "deneb7E15AEF80B9E4D4F8E12924291ECE89A"
 STANDAARD_PAD = r"C:\Data\Cashflow_Template.xlsx"
+MEASURE_TABEL = "Calculations"
+LEGE_TABEL_M = ["let", "    Bron = #table({}, {})", "in", "    Bron"]
 EURO = "\u20ac #,##0;-\u20ac #,##0;\u20ac 0"
 
 
@@ -96,16 +98,21 @@ def model_bim(m, dax):
 
     tables = [
         {
+            "name": MEASURE_TABEL,
+            "partitions": [{"name": MEASURE_TABEL, "mode": "import",
+                            "source": {"type": "m", "expression": LEGE_TABEL_M}}],
+            "measures": measures,
+        },
+        {
             "name": "Cashflow",
             "columns": [
                 kolom("Kwartaal", "dateTime", "dd-mm-yyyy", verborgen=True),
                 kolom("Versie", "string"),
-                kolom("Opbrengsten", "double", EURO, summarizeBy="sum"),
-                kolom("Kosten", "double", EURO, summarizeBy="sum"),
+                kolom("Opbrengsten", "double", EURO, verborgen=True, summarizeBy="sum"),
+                kolom("Kosten", "double", EURO, verborgen=True, summarizeBy="sum"),
             ],
             "partitions": [{"name": "Cashflow", "mode": "import",
                             "source": {"type": "m", "expression": m["Cashflow"]}}],
-            "measures": measures,
         },
         {
             "name": "Instellingen",
@@ -153,7 +160,7 @@ def model_bim(m, dax):
                               'Type="Text", IsParameterQueryRequired=true]',
             }],
             "annotations": [
-                {"name": "PBI_QueryOrder", "value": '["BronPad","Cashflow","Instellingen"]'},
+                {"name": "PBI_QueryOrder", "value": '["BronPad","Calculations","Cashflow","Instellingen"]'},
                 {"name": "__PBI_TimeIntelligenceEnabled", "value": "0"},
             ],
         },
@@ -193,7 +200,7 @@ def titel(tekst):
 
 def deneb_visual(spec):
     kolommen = [("Kalender", "k", "Kwartaal", False), ("Kalender", "k", "Realisatie", False)]
-    kolommen += [("Cashflow", "c", n, True) for n in (
+    kolommen += [(MEASURE_TABEL, "c", n, True) for n in (
         "Opbrengsten", "Kosten", "Cumulatieve cashflow", "Vorige prognose",
         "Scenario 1", "Scenario 2", "Scenario 3")]
     select = [veld(e, a, n, m) for e, a, n, m in kolommen]
@@ -203,7 +210,7 @@ def deneb_visual(spec):
         "prototypeQuery": {
             "Version": 2,
             "From": [{"Name": "k", "Entity": "Kalender", "Type": 0},
-                     {"Name": "c", "Entity": "Cashflow", "Type": 0}],
+                     {"Name": "c", "Entity": MEASURE_TABEL, "Type": 0}],
             "Select": select,
             "OrderBy": [{"Direction": 1, "Expression": {"Column": {
                 "Expression": {"SourceRef": {"Source": "k"}}, "Property": "Kwartaal"}}}],
@@ -222,12 +229,12 @@ def deneb_visual(spec):
 
 
 def kaart(measure, label):
-    s = veld("Cashflow", "c", measure, True)
+    s = veld(MEASURE_TABEL, "c", measure, True)
     return {
         "visualType": "card",
         "projections": {"Values": [{"queryRef": s["Name"]}]},
         "prototypeQuery": {"Version": 2,
-                           "From": [{"Name": "c", "Entity": "Cashflow", "Type": 0}],
+                           "From": [{"Name": "c", "Entity": MEASURE_TABEL, "Type": 0}],
                            "Select": [s]},
         "objects": {"labels": [{"properties": {"fontSize": lit(20)}}],
                     "categoryLabels": [{"properties": {"show": lit(False)}}]},
