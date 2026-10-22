@@ -1,0 +1,388 @@
+{
+  "compatibilityLevel": 1550,
+  "model": {
+    "culture": "nl-NL",
+    "sourceQueryCulture": "nl-NL",
+    "dataAccessOptions": {
+      "legacyRedirects": true,
+      "returnErrorValuesAsNull": true
+    },
+    "defaultPowerBIDataSourceVersion": "powerBI_V3",
+    "tables": [
+      {
+        "name": "Cashflow",
+        "columns": [
+          {
+            "name": "Kwartaal",
+            "dataType": "dateTime",
+            "sourceColumn": "Kwartaal",
+            "summarizeBy": "none",
+            "formatString": "dd-mm-yyyy",
+            "isHidden": true
+          },
+          {
+            "name": "Versie",
+            "dataType": "string",
+            "sourceColumn": "Versie",
+            "summarizeBy": "none"
+          },
+          {
+            "name": "Opbrengsten",
+            "dataType": "double",
+            "sourceColumn": "Opbrengsten",
+            "summarizeBy": "sum",
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Kosten",
+            "dataType": "double",
+            "sourceColumn": "Kosten",
+            "summarizeBy": "sum",
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Cashflow",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Bron      = Excel.Workbook(File.Contents(BronPad), null, true),",
+                "    Tabel     = Bron{[Item = \"tblCashflow\", Kind = \"Table\"]}[Data],",
+                "    Typen     = Table.TransformColumnTypes(Tabel, {",
+                "                    {\"Kwartaal\", type date}, {\"Versie\", type text},",
+                "                    {\"Opbrengsten\", type number}, {\"Kosten\", type number}}),",
+                "    Leeg      = Table.SelectRows(Typen, each [Kwartaal] <> null and [Versie] <> null),",
+                "    // Elke datum naar de eerste dag van het kwartaal",
+                "    Kwartaal  = Table.TransformColumns(Leeg, {{\"Kwartaal\", Date.StartOfQuarter, type date}}),",
+                "    Versie    = Table.TransformColumns(Kwartaal, {{\"Versie\", Text.Trim, type text}}),",
+                "    // Ontbrekende bedragen = 0, kosten altijd negatief",
+                "    Nullen    = Table.ReplaceValue(Versie, null, 0, Replacer.ReplaceValue, {\"Opbrengsten\", \"Kosten\"}),",
+                "    Kosten    = Table.TransformColumns(Nullen, {{\"Kosten\", each -Number.Abs(_), type number}}),",
+                "    // Meerdere regels per kwartaal/versie (bijv. per project) optellen",
+                "    Groep     = Table.Group(Kosten, {\"Kwartaal\", \"Versie\"}, {",
+                "                    {\"Opbrengsten\", each List.Sum([Opbrengsten]), type number},",
+                "                    {\"Kosten\",      each List.Sum([Kosten]),      type number}})",
+                "in",
+                "    Groep"
+              ]
+            }
+          }
+        ],
+        "measures": [
+          {
+            "name": "_Realisatie t/m",
+            "expression": [
+              "MAX ( Instellingen[RealisatieTotEnMet] )"
+            ],
+            "formatString": "dd-mm-yyyy",
+            "isHidden": true,
+            "displayFolder": "Hulp"
+          },
+          {
+            "name": "_Netto",
+            "expression": [
+              "SUM ( Cashflow[Opbrengsten] ) + SUM ( Cashflow[Kosten] )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0",
+            "isHidden": true,
+            "displayFolder": "Hulp"
+          },
+          {
+            "name": "Opbrengsten",
+            "expression": [
+              "CALCULATE ( SUM ( Cashflow[Opbrengsten] ), Cashflow[Versie] = \"Actueel\" )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Kosten",
+            "expression": [
+              "CALCULATE ( SUM ( Cashflow[Kosten] ), Cashflow[Versie] = \"Actueel\" )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Cumulatieve cashflow",
+            "expression": [
+              "VAR _d = MAX ( Kalender[Datum] )",
+              "RETURN",
+              "    CALCULATE (",
+              "        [_Netto],",
+              "        Cashflow[Versie] = \"Actueel\",",
+              "        REMOVEFILTERS ( Kalender ),",
+              "        Kalender[Datum] <= _d",
+              "    )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Vorige prognose",
+            "expression": [
+              "VAR _d = MAX ( Kalender[Datum] )",
+              "RETURN",
+              "    CALCULATE (",
+              "        [_Netto],",
+              "        Cashflow[Versie] = \"Vorige prognose\",",
+              "        REMOVEFILTERS ( Kalender ),",
+              "        Kalender[Datum] <= _d",
+              "    )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Scenario 1",
+            "expression": [
+              "VAR _naam = \"Scenario 1\"",
+              "VAR _d    = MAX ( Kalender[Datum] )",
+              "VAR _r    = [_Realisatie t/m]",
+              "VAR _aan  = ISFILTERED ( 'Scenario keuze'[Scenario] ) && _naam IN VALUES ( 'Scenario keuze'[Scenario] )",
+              "VAR _stand =",
+              "    CALCULATE ( [_Netto], Cashflow[Versie] = \"Actueel\", REMOVEFILTERS ( Kalender ), Kalender[Datum] <= _r )",
+              "VAR _toekomst =",
+              "    CALCULATE ( [_Netto], Cashflow[Versie] = _naam, REMOVEFILTERS ( Kalender ), Kalender[Datum] > _r, Kalender[Datum] <= _d )",
+              "RETURN",
+              "    IF ( _aan && _d >= _r, _stand + _toekomst )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Scenario 2",
+            "expression": [
+              "VAR _naam = \"Scenario 2\"",
+              "VAR _d    = MAX ( Kalender[Datum] )",
+              "VAR _r    = [_Realisatie t/m]",
+              "VAR _aan  = ISFILTERED ( 'Scenario keuze'[Scenario] ) && _naam IN VALUES ( 'Scenario keuze'[Scenario] )",
+              "VAR _stand =",
+              "    CALCULATE ( [_Netto], Cashflow[Versie] = \"Actueel\", REMOVEFILTERS ( Kalender ), Kalender[Datum] <= _r )",
+              "VAR _toekomst =",
+              "    CALCULATE ( [_Netto], Cashflow[Versie] = _naam, REMOVEFILTERS ( Kalender ), Kalender[Datum] > _r, Kalender[Datum] <= _d )",
+              "RETURN",
+              "    IF ( _aan && _d >= _r, _stand + _toekomst )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Scenario 3",
+            "expression": [
+              "VAR _naam = \"Scenario 3\"",
+              "VAR _d    = MAX ( Kalender[Datum] )",
+              "VAR _r    = [_Realisatie t/m]",
+              "VAR _aan  = ISFILTERED ( 'Scenario keuze'[Scenario] ) && _naam IN VALUES ( 'Scenario keuze'[Scenario] )",
+              "VAR _stand =",
+              "    CALCULATE ( [_Netto], Cashflow[Versie] = \"Actueel\", REMOVEFILTERS ( Kalender ), Kalender[Datum] <= _r )",
+              "VAR _toekomst =",
+              "    CALCULATE ( [_Netto], Cashflow[Versie] = _naam, REMOVEFILTERS ( Kalender ), Kalender[Datum] > _r, Kalender[Datum] <= _d )",
+              "RETURN",
+              "    IF ( _aan && _d >= _r, _stand + _toekomst )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Dieptepunt",
+            "expression": [
+              "MINX ( ALL ( Kalender[Datum] ), [Cumulatieve cashflow] )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Dieptepunt kwartaal",
+            "expression": [
+              "VAR _min = [Dieptepunt]",
+              "RETURN",
+              "    MAXX (",
+              "        TOPN ( 1, FILTER ( ALL ( Kalender ), [Cumulatieve cashflow] = _min ), Kalender[Datum], ASC ),",
+              "        Kalender[Kwartaal label]",
+              "    )"
+            ]
+          },
+          {
+            "name": "Stand realisatie",
+            "expression": [
+              "VAR _r = [_Realisatie t/m]",
+              "RETURN",
+              "    CALCULATE ( [Cumulatieve cashflow], REMOVEFILTERS ( Kalender ), Kalender[Datum] = _r )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          },
+          {
+            "name": "Eindsaldo",
+            "expression": [
+              "VAR _laatste = CALCULATE ( MAX ( Kalender[Datum] ), REMOVEFILTERS ( Kalender ) )",
+              "RETURN",
+              "    CALCULATE ( [Cumulatieve cashflow], REMOVEFILTERS ( Kalender ), Kalender[Datum] = _laatste )"
+            ],
+            "formatString": "€ #,##0;-€ #,##0;€ 0"
+          }
+        ]
+      },
+      {
+        "name": "Instellingen",
+        "columns": [
+          {
+            "name": "RealisatieTotEnMet",
+            "dataType": "dateTime",
+            "sourceColumn": "RealisatieTotEnMet",
+            "summarizeBy": "none",
+            "formatString": "dd-mm-yyyy"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Instellingen",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Bron      = Excel.Workbook(File.Contents(BronPad), null, true),",
+                "    Tabel     = Bron{[Item = \"tblInstellingen\", Kind = \"Table\"]}[Data],",
+                "    Draai     = Table.PromoteHeaders(Table.Transpose(Tabel), [PromoteAllScalars = true]),",
+                "    Typen     = Table.TransformColumnTypes(Draai, {{\"RealisatieTotEnMet\", type date}}),",
+                "    Kwartaal  = Table.TransformColumns(Typen, {{\"RealisatieTotEnMet\", Date.StartOfQuarter, type date}})",
+                "in",
+                "    Kwartaal"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "Kalender",
+        "dataCategory": "Time",
+        "columns": [
+          {
+            "name": "Datum",
+            "dataType": "dateTime",
+            "sourceColumn": "[Datum]",
+            "summarizeBy": "none",
+            "type": "calculatedTableColumn",
+            "isNameInferred": true,
+            "isDataTypeInferred": true,
+            "formatString": "dd-mm-yyyy",
+            "isKey": true
+          },
+          {
+            "name": "Jaar",
+            "dataType": "int64",
+            "sourceColumn": "[Jaar]",
+            "summarizeBy": "none",
+            "type": "calculatedTableColumn",
+            "isNameInferred": true,
+            "isDataTypeInferred": true,
+            "formatString": "0"
+          },
+          {
+            "name": "Kwartaal",
+            "dataType": "string",
+            "sourceColumn": "[Kwartaal]",
+            "summarizeBy": "none",
+            "type": "calculatedTableColumn",
+            "isNameInferred": true,
+            "isDataTypeInferred": true
+          },
+          {
+            "name": "Kwartaal label",
+            "dataType": "string",
+            "sourceColumn": "[Kwartaal label]",
+            "summarizeBy": "none",
+            "type": "calculatedTableColumn",
+            "isNameInferred": true,
+            "isDataTypeInferred": true,
+            "sortByColumn": "Datum"
+          },
+          {
+            "name": "Realisatie",
+            "dataType": "int64",
+            "sourceColumn": "[Realisatie]",
+            "summarizeBy": "none",
+            "type": "calculatedTableColumn",
+            "isNameInferred": true,
+            "isDataTypeInferred": true,
+            "formatString": "0"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Kalender",
+            "mode": "import",
+            "source": {
+              "type": "calculated",
+              "expression": [
+                "VAR _Start = MIN ( Cashflow[Kwartaal] )",
+                "VAR _Eind  = MAX ( Cashflow[Kwartaal] )",
+                "VAR _Real  = MAX ( Instellingen[RealisatieTotEnMet] )",
+                "RETURN",
+                "    SELECTCOLUMNS (",
+                "        FILTER (",
+                "            CALENDAR ( _Start, _Eind ),",
+                "            DAY ( [Date] ) = 1 && MOD ( MONTH ( [Date] ) - 1, 3 ) = 0",
+                "        ),",
+                "        \"Datum\", [Date],",
+                "        \"Jaar\", YEAR ( [Date] ),",
+                "        \"Kwartaal\", YEAR ( [Date] ) & \"-Q\" & QUARTER ( [Date] ),",
+                "        \"Kwartaal label\", \"Q\" & QUARTER ( [Date] ) & \" '\" & RIGHT ( YEAR ( [Date] ), 2 ),",
+                "        \"Realisatie\", IF ( [Date] <= _Real, 1, 0 )",
+                "    )"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "Scenario keuze",
+        "columns": [
+          {
+            "name": "Scenario",
+            "dataType": "string",
+            "sourceColumn": "[Scenario]",
+            "summarizeBy": "none",
+            "type": "calculatedTableColumn",
+            "isNameInferred": true,
+            "isDataTypeInferred": true
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Scenario keuze",
+            "mode": "import",
+            "source": {
+              "type": "calculated",
+              "expression": [
+                "DATATABLE ( \"Scenario\", STRING, { { \"Scenario 1\" }, { \"Scenario 2\" }, { \"Scenario 3\" } } )"
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "Kalender_Cashflow",
+        "fromTable": "Cashflow",
+        "fromColumn": "Kwartaal",
+        "toTable": "Kalender",
+        "toColumn": "Datum"
+      }
+    ],
+    "expressions": [
+      {
+        "name": "BronPad",
+        "kind": "m",
+        "expression": "\"C:\\Data\\Cashflow_Template.xlsx\" meta [IsParameterQuery=true, Type=\"Text\", IsParameterQueryRequired=true]"
+      }
+    ],
+    "annotations": [
+      {
+        "name": "PBI_QueryOrder",
+        "value": "[\"BronPad\",\"Cashflow\",\"Instellingen\"]"
+      },
+      {
+        "name": "__PBI_TimeIntelligenceEnabled",
+        "value": "0"
+      }
+    ]
+  }
+}

@@ -10,6 +10,22 @@ Een template voor een cashflowgrafiek per kwartaal in Power BI:
 
 ![Voorbeeld](voorbeeld.png)
 
+## Snelste route: het Power BI-project openen
+
+In `pbip/` staat een kant-en-klaar **Power BI-project (.pbip)**. Het bevat het datamodel, de measures, een scenario-slicer, KPI-kaarten en de Deneb-grafiek.
+
+1. Zet `Cashflow_Template.xlsx` op `C:\Data\Cashflow_Template.xlsx`, of onthoud waar je het neerzet.
+2. Download de hele map `pbip/` en laat de structuur intact: `Cashflow.pbip`, `Cashflow.Report/` en `Cashflow.SemanticModel/` moeten naast elkaar blijven staan.
+3. Zet in Power BI Desktop eenmalig **Bestand → Opties → Preview-functies → Power BI-projectopslagindeling (.pbip)** aan als die optie er nog staat, en start Power BI Desktop opnieuw.
+4. Open `Cashflow.pbip`.
+5. Staat het Excel-bestand ergens anders? Kies **Start → Gegevens transformeren → Parameters bewerken** en pas **BronPad** aan.
+6. Klik **Vernieuwen**. Vraagt Power BI om de visual **Deneb** te laden of te vertrouwen, kies dan **Toestaan**.
+7. Kies **Bestand → Opslaan als** en sla het op als **.pbix**. Een **.pbit** maak je via **Bestand → Exporteren → Power BI-sjabloon**.
+
+Het project wordt gegenereerd door `scripts/genereer_pbip.py`, op basis van `power_query.m`, `dax/model.dax` en `deneb/cashflow_vegalite.json`. Pas je een van die bestanden aan, draai het script dan opnieuw.
+
+Geeft het openen een foutmelding? Kopieer de melding en stuur hem op. Bouw het rapport intussen handmatig op met de stappen hieronder.
+
 ## Inhoud
 
 | Bestand | Doel |
@@ -19,6 +35,8 @@ Een template voor een cashflowgrafiek per kwartaal in Power BI:
 | `dax/model.dax` | Kalender, slicertabel voor scenario's en alle measures |
 | `deneb/cashflow_vegalite.json` | De grafiek als Vega-Lite-spec voor de custom visual **Deneb** |
 | `deneb/voorbeeld_deneb_dataset.json` | Voorbeeld van de rijen die Deneb ontvangt (om de spec buiten Power BI te testen) |
+| `pbip/` | Power BI-project dat je direct in Power BI Desktop opent |
+| `scripts/genereer_pbip.py` | Bouwt `pbip/` opnieuw op uit de bronbestanden |
 | `scripts/genereer_voorbeelddata.py` | Maakt het Excel-bestand en de JSON met voorbeelddata opnieuw aan |
 
 > **Waarom Deneb?** De standaardvisual *Lijn- en gestapeld kolomdiagram* kan balken en lijnen combineren, maar geen gekleurde vlakken boven/onder nul, geen achtergrond voor de realisatieperiode en geen automatische labels bij dieptepunt en eindsaldo. Deneb is een gecertificeerde, gratis visual uit AppSource die dat wel kan.
@@ -41,7 +59,7 @@ Tabblad **Cashflow** (Excel-tabel `tblCashflow`), één rij per kwartaal per ver
 
 Tabblad **Instellingen**: `RealisatieTotEnMet` is een datum in het laatste gerealiseerde kwartaal.
 
-## Stappen in Power BI Desktop
+## Handmatig opbouwen in Power BI Desktop
 
 1. **Data laden**: *Gegevens transformeren* → *Nieuwe bron* → *Lege query* → *Geavanceerde editor*. Plak de twee queries uit `power_query.m` en geef ze de namen `Cashflow` en `Instellingen`. Pas `BronPad` aan (of gebruik een parameter, of vervang de bron door SharePoint, SQL of een andere bron).
 2. **Kalender en slicertabel**: *Modellering* → *Nieuwe tabel* → plak `Kalender` en `Scenario keuze` uit `dax/model.dax`.
