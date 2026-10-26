@@ -966,3 +966,19 @@ def test_fictief_voorbeeld_veel_daeb(tmp):
     assert foutcellen(wb) == []
     assert (hb("woningen"), hb("woningen_daeb"), hb("vp_daeb_apart")) == (223, 187, 1)
     assert hb("vp_daeb_lbl_v") == "DAEB · 187 woningen in één keer" and " · DAEB-fees €7,4 mln vanaf " in hb("bt_titel")
+
+
+def test_zonder_daeb_geen_daeb_tekst(tmp):
+    """Zonder DAEB-type: geen DAEB in de titel van de bouwtermijnen (geen 'DAEB-fees €0,0 mln vanaf Q4 ’-1'), in de legenda's,
+    zonder kopregels, en de verkoopgrafiek gewoon (geen DAEB apart)."""
+    p = D.voorbeeld()
+    i = next(i for i, t in enumerate(p.types) if getattr(t, "soort", "") == "DAEB")
+    del p.types[i]
+    p.verkocht = [r[:i] + r[i + 1:] for r in p.verkocht]
+    p.transport = [r[:i] + r[i + 1:] for r in p.transport]
+    wb = bouw_en_bereken(p, tmp, "zonder_daeb")
+    hb = lambda naam: wb["Model"][f"BY{LY.H[naam]}"].value  # noqa: E731
+    assert foutcellen(wb) == []
+    assert "DAEB" not in hb("bt_titel") and hb("bt_titel").startswith("Bouwtermijnen Q") and "’-" not in hb("bt_titel")
+    assert "DAEB" not in hb("bt_leg_tekst") and "DAEB" not in hb("vp_leg_tekst")
+    assert hb("bt_kop_aan") == 0 and hb("vp_daeb_apart") == 0 and hb("bt_fee_eerste") == 99999

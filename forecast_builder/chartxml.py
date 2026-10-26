@@ -127,6 +127,7 @@ def ser_punt(idx, naam_ref, cat, val, color, pos="t", size=7):
             f'{marker}{dlbls}{_cat(cat)}{_val(val)}<c:smooth val="0"/></c:ser>')
 
 
+PCT_LABEL = "C2185B"      # cumulatief % in de verkoopgrafiek: opvallend, niet de kleur van de lijn (navy) of van een type
 DAEB_GOUD = "EDA100"      # zelfde goud als het DAEB-type (TYPEKLEUREN[3])
 DAEB_LABEL = "7A5300"
 
@@ -396,7 +397,7 @@ def verkoop_paneel(r, lbl, types, soort, hoogte_cm=PANEEL_H_CM, cat_labels=True,
     # cumulatief percentage van alle woningen (verkocht of getransporteerd): donkerblauwe lijn op een rechteras 0-100%, met het
     # percentage in vet boven de lijn in de kwartalen waar een stapel staat; de aantallen staan in de blokjes
     pct_lijn = ser_line(n + 2, "Cumulatief %", kw, pct, NAVY, 2.0)
-    pct_lbls = ser_totaal(n + 3, "Cumulatief % (label)", kw, pct_lbl, sz=750, color=NAVY, fmt="0%", bold=True)
+    pct_lbls = ser_totaal(n + 3, "Cumulatief % (label)", kw, pct_lbl, sz=750, color=PCT_LABEL, fmt="0%", bold=True)
     pct_lbls = pct_lbls.replace('<c:dLblPos val="t"/>', '<c:dLblPos val="r"/>')            # rechts van het punt, niet op de stapel
     # DAEB apart (veel DAEB): gouden ruit op de %-as in het eerste DAEB-kwartaal, met het label links ('DAEB · 187 woningen in één keer')
     lijnen2 = [pct_lijn, pct_lbls]

@@ -1094,11 +1094,13 @@ def bouw_model(wb):
         "bt_titel": ("Bouwtermijnen: titel dia 6", f'=IF({h("bt_eerste")}>=99999,"Bouwtermijnen","Bouwtermijnen "&{kwl("bt_eerste")}&" → "&{kwl("bt_laatste")})'
                                                   f'&IF({h("bt_fee_eerste")}>=99999,""," · DAEB-fees "&{eur_mln(h("opbr_daeb"))}&" vanaf "&{kwl("bt_fee_eerste")})'),
         "bt_eerste": ("Bouwtermijnen: eerste kwartaal (koop, kwartaalindex; 99999 = geen)",
-                      ArrayFormula(f"{LY.M_HULP}{LY.H['bt_eerste']}", f'=IFERROR(MIN(IF(({rng_bt("gebruikt")}=1)*({rng_bt("comp")}=0),{rng_bt("idxb")})),99999)')),
+                      ArrayFormula(f"{LY.M_HULP}{LY.H['bt_eerste']}", f'=IF(COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},0)=0,99999,'
+                                   f'IFERROR(MIN(IF(({rng_bt("gebruikt")}=1)*({rng_bt("comp")}=0),{rng_bt("idxb")})),99999))')),
         "bt_laatste": ("Bouwtermijnen: laatste kwartaal (koop, kwartaalindex)",
                        ArrayFormula(f"{LY.M_HULP}{LY.H['bt_laatste']}", f'=IFERROR(MAX(IF(({rng_bt("gebruikt")}=1)*({rng_bt("comp")}=0),{rng_bt("idxb")})),0)')),
         "bt_fee_eerste": ("DAEB-fees: eerste kwartaal (kwartaalindex; 99999 = geen)",
-                          ArrayFormula(f"{LY.M_HULP}{LY.H['bt_fee_eerste']}", f'=IFERROR(MIN(IF(({rng_bt("gebruikt")}=1)*({rng_bt("comp")}>0),{rng_bt("idxb")})),99999)')),
+                          ArrayFormula(f"{LY.M_HULP}{LY.H['bt_fee_eerste']}", f'=IF(COUNTIFS({rng_bt("gebruikt")},1,{rng_bt("comp")},">0")=0,99999,'
+                                       f'IFERROR(MIN(IF(({rng_bt("gebruikt")}=1)*({rng_bt("comp")}>0),{rng_bt("idxb")})),99999))')),
         "bt_n": ("Bouwtermijnentabel: aantal rijen (koprijen, banen, scheidingsrijen, kopregels)",
                  f'=IF({h("bt_lanes")}=0,0,MIN({LY.BT_N},{LY.BT_KOP}+{h("bt_lijst")}))'),
         "jaar_first": ("Tijd-as: eerste jaar (twee jaar vóór de eerste termijn, niet vóór de eerste periode)",

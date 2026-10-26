@@ -43,6 +43,7 @@ from pptx_v18_scenarios import _cache, render_nl  # noqa: E402
 from pptx_v17_kerncijfers import nl  # noqa: E402
 
 GOUD, GOUD_LABEL, GOUD_VLAK = "EDA100", "7A5300", "FFF6DD"
+PCT_LABEL = "C2185B"            # cumulatief % op dia 7 (zoals chartxml.PCT_LABEL)
 KOL_DAEB = {"VP1_GRAFIEK": get_column_letter(LY.PP_VP_KOL - 1), "VP2_GRAFIEK": get_column_letter(LY.PP_VP_KOL)}   # AE, AF
 KAART_W = 6.6                   # breedte VP_KAART (inch), zoals VO_KAART
 STAT_L, STAT_W = 7.25, 2.3      # kaartjes rechts, zoals VO_STAT
@@ -254,6 +255,10 @@ def vp_opmaak(chart, kol_daeb):
             pos = dl.find(qn("c:dLblPos"))
             if pos is not None:
                 pos.set("val", "r")
+            # het % in een opvallende kleur, niet de kleur van de lijn
+            for c in dl.iter(qn("a:srgbClr")):
+                if c.getparent().getparent().tag in (qn("a:defRPr"), qn("a:rPr")):
+                    c.set("val", PCT_LABEL)
 
 
 def dia7_extra(prs):
