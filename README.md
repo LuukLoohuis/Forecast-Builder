@@ -41,6 +41,7 @@ python build.py --from Cashflow_scenario.xlsm        # invoer en knoppen uit je 
 python build.py --from oud.xlsm --out map/naam       # eigen uitvoernaam (zonder extensie)
 python build.py --geen-vba                           # alleen .xlsx
 python build.py --leeg --out out/Cashflow_scenario_leeg   # leeg sjabloon: geen periodes en geen woningtypes, wel de knoppen
+python build.py --veel-daeb --out out/Cashflow_fictief      # fictief voorbeeld met veel DAEB (36 koop, 187 DAEB in één kwartaal)
 ```
 
 Het `.xlsm` bevat de macro al: `vba/CashflowNaarPowerPoint_v10.bas` wordt bij het bouwen in `xl/vbaProject.bin`

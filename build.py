@@ -145,6 +145,8 @@ def main():
     ap.add_argument("--fo-vorig", dest="fo_vorig", help="ouder FO-werkboek (vorige prognose): start bouw en fee-kwartalen per type naar blok 4 en 6 van tab Woningtypes")
     ap.add_argument("--vba", help="VBA-sjabloon: een .xlsm of vbaProject.bin waaruit de projectstructuur en document-modules komen "
                                   "(standaard vba/vbaProject_template.bin); de module zelf komt altijd uit vba/CashflowNaarPowerPoint_v10.bas")
+    ap.add_argument("--veel-daeb", dest="veel_daeb", action="store_true",
+                    help="fictief voorbeeld met veel DAEB: 36 koopwoningen in drie typen en 187 DAEB-woningen in één kwartaal")
     ap.add_argument("--leeg", action="store_true", help="leeg sjabloon: geen periodes en geen woningtypes, wel de standaardknoppen")
     ap.add_argument("--geen-vba", action="store_true", help="alleen een .xlsx maken")
     ap.add_argument("--geen-cache", action="store_true", help="niet doorrekenen met LibreOffice (geen cachewaarden)")
@@ -166,7 +168,7 @@ def main():
     elif args.leeg:
         project = D.leeg()
     else:
-        project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld()
+        project = D.lees_werkboek(args.bron) if args.bron else D.voorbeeld(veel_daeb=args.veel_daeb)
     if args.fo_vorig:
         from forecast_builder import fo
         fo.voeg_vorige_prognose_toe(project, args.fo_vorig)

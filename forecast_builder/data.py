@@ -126,8 +126,10 @@ def leeg():
     return p
 
 
-def voorbeeld():
-    """Klein fictief project: vier woningtypes, twaalf kwartalen gerealiseerd."""
+def voorbeeld(veel_daeb=False):
+    """Klein fictief project: vier woningtypes, twaalf kwartalen gerealiseerd. veel_daeb: drie koop-typen met samen 36
+    woningen en 187 DAEB-woningen die in één kwartaal verkocht en geleverd worden (fictief; voor de weergave met veel DAEB:
+    verkoopgrafiek alleen koop met DAEB als markering, bouwtermijnen met DAEB-fees)."""
     p = ProjectData()
     kosten = [250000, 180000, 160000, 220000, 300000, 450000, 900000, 1200000, 2600000, 3100000, 3400000, 2900000,
               4100000, 4600000, 4300000, 3900000, 3200000, 2400000, 1500000, 600000]
@@ -149,6 +151,10 @@ def voorbeeld():
         TypeData("Appartement", 24, 370000, 2027, 1, 0.22, [("Start bouw", 0.039, 1), ("Na het leggen van de fundering", 0.078, 2),
                                                              ("Casco gereed", 0.312, 4), ("Na gereedkomen buitenmetselwerk", 0.273, 6), ("Oplevering woning", 0.078, 7)]),
     ]
+    if veel_daeb:
+        p.types = p.types[:3]
+        for t, aantal in zip(p.types, (12, 14, 10)):
+            t.aantal = aantal
     p.types[0].vorig_start_jaar, p.types[0].vorig_start_kw = 2026, 3   # vorige prognose: twee kwartalen eerder (lichtrode blokjes)
     # vijfde type: DAEB (sociale huur, gescheiden koop-/aannemingsovereenkomst): geen koopsom en bouwtermijnen, wel fees (blok 5)
     daeb = TypeData("DAEB", 30, None, 2027, 3, None, [])
@@ -159,9 +165,14 @@ def voorbeeld():
                           ("na tekenen TKO", 0.40, "2027 Q1"), ("bij start bouw", 0.40, 1), ("bij gevelsluiting", 0.20, 5), ("bij oplevering", None, None),
                           ("", None, None)]
     daeb.fee_vorig = [None, None, None, "2026 Q4", None, "2026 Q4", 1, 4, None, None]   # vorige prognose: twee termijnen een kwartaal eerder
+    if veel_daeb:
+        daeb.aantal = 187
+        daeb.fee_comp = [("AK fee", 3100000), ("Bijkomende kosten (excl. AK)", 4300000)]
     p.types.append(daeb)
     n = len(p.periodes)
     tempo = [(8, 10), (4, 5), (2, 4), (6, 4), (30, 12)]   # type -> (per kwartaal, vanaf periode-index); DAEB: alles in één kwartaal
+    if veel_daeb:
+        tempo = [(6, 13), (6, 13), (4, 14), (187, 11)]       # koop vanaf Q2 ’27, DAEB in één keer in Q4 ’26
     cum = [0, 0, 0, 0, 0]
     for i in range(n):
         rij_v, rij_t = [], []
@@ -178,7 +189,7 @@ def voorbeeld():
             rij_t.append(v)
         p.transport.append(rij_t)
     p.params["actuals_jaar"], p.params["actuals_kw"] = 2026, 4
-    p.params["projectnaam"] = "Voorbeeldproject"
+    p.params["projectnaam"] = "Voorbeeldproject DAEB" if veel_daeb else "Voorbeeldproject"
     p.params["lasten"] = [("Grondkosten", 7900000), ("Honoraria", 3200000), ("Aansluitkosten", 800000)]
     # twee scenario's: de resterende verkoop een jaar later, en de bouw een half jaar later starten
     p.params["vs"] = [{"vv": "Q1 2028"}, {"naam": "Later starten", "sb": "Q3 2027"}]

@@ -956,3 +956,13 @@ def test_projectnaam_op_alle_dias(basis, tmp):
     paden = build.bouw(D.voorbeeld(), os.path.join(tmp, "pnaam"), None, caches=False)
     assert D.lees_werkboek(paden[0]).params["projectnaam"] == "Voorbeeldproject"
     assert fo.projectnaam_uit_bestand("20261001_FO_Project_2_Q4.xlsx") == "Project 2"
+
+
+def test_fictief_voorbeeld_veel_daeb(tmp):
+    """build.py --veel-daeb: fictief project met 36 koopwoningen in drie typen en 187 DAEB-woningen in één kwartaal; rekent zonder
+    fouten en toont DAEB apart ('in één keer')."""
+    wb = bouw_en_bereken(D.voorbeeld(veel_daeb=True), tmp, "fictief_daeb")
+    hb = lambda naam: wb["Model"][f"BY{LY.H[naam]}"].value  # noqa: E731
+    assert foutcellen(wb) == []
+    assert (hb("woningen"), hb("woningen_daeb"), hb("vp_daeb_apart")) == (223, 187, 1)
+    assert hb("vp_daeb_lbl_v") == "DAEB · 187 woningen in één keer" and " · DAEB-fees €7,4 mln vanaf " in hb("bt_titel")
