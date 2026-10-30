@@ -30,7 +30,7 @@ Klik op 'Prognose vastleggen' en bevestig. De jaarprognose van deze versie (bijv
 
 **5. Rapporteren** — Dashboard en knop 'Maak PowerPoint'
 
-Kies op het Dashboard het doeljaar en de versie. Klik op 'Maak PowerPoint' voor de presentatie.
+Kies op het Dashboard het doeljaar en de versie. Gebruik Outlook als basis voor het nieuwe budget. Klik op 'Maak PowerPoint' voor de presentatie.
 
 *Let op:* De PowerPoint wordt opgeslagen naast dit Excelbestand en direct geopend.
 
@@ -44,8 +44,8 @@ Kies op het Dashboard het doeljaar en de versie. Klik op 'Maak PowerPoint' voor 
 | Projecten | Per project: prognoses per versie, realisatie, to go, BOR, marge, orderintake, stoplicht. | Filteren met de pijltjes. |
 | Projectdetail | Eén project in detail: gegevens, verloop, planning, woningverkopen. | Project kiezen bovenaan. |
 | Woningen | Verkopen per maand en kwartaal, jaarverwachting per versie, koperstype, segment, projectmatrix. | Alleen lezen. |
-| Orderintake | Orderintake per kwartaal en per project (PEW-omzet en PEW-BOR). | Alleen lezen. |
-| Stoplicht | Stoplicht per project: verkoop, omgevingsvergunning, RvS, netcongestie, totaal. | Gele cellen invullen; uitgangspunten rechts. |
+| Outlook | Alle jaren naast elkaar: omzet, BOR, woningverkopen en orderintake, met het vastgelegde budget. Basis voor het nieuwe budget. | Alleen lezen; filters op Dashboard. |
+| Stoplicht | Stoplicht per project: verkoop, omgevingsvergunning, netcongestie. | Gele cellen invullen; uitgangspunten rechts. |
 | Controle | Alle controles met status en uitzonderingslijsten. | Na elke inleesronde bekijken. |
 | Invoer | Instellingen, projectenlijst, aanvullende posten, toelichtingen, koperstype. | Gele cellen invullen. |
 | Historie | Alle vastgelegde prognoses en de importlog. | Nooit wijzigen: alleen de knop voegt toe. |
@@ -53,11 +53,11 @@ Kies op het Dashboard het doeljaar en de versie. Klik op 'Maak PowerPoint' voor 
 
 ## Stoplicht invullen
 
-- Per project vul je in: Omgevingsvergunning (Ja / In procedure / Nee), RvS (Geen / Laag / Midden / Hoog) en Netcongestie (Geen / Laag / Midden / Hoog).
-- Verkoop kleurt automatisch op basis van het verkochte percentage uit de Woningetalage. Wijkt de beoordeling af? Vul dan 'Verkocht % handmatig' in.
+- Per project vul je in: Omgevingsvergunning (Ja / In procedure / Nee) en Netcongestie (Geen / Laag / Midden / Hoog).
+- Verkoop kleurt automatisch op het verkochte percentage uit de Woningetalage. Wil je de verkoopstatus bij start bouw gebruiken? Vul dan 'Verkocht % SB' in.
 - De uitgangspunten staan rechts op het tabblad: vanaf welk percentage verkoop groen of oranje is, en welke waarde welke kleur krijgt. Pas daar aan; alle lichten kleuren direct mee.
-- Totaal = de slechtste kleur van de ingevulde lichten. Een leeg rondje betekent: niet ingevuld of niet van toepassing.
-- Het stoplicht komt terug in Projecten, op het Dashboard en in de PowerPoint.
+- Een leeg rondje betekent: niet ingevuld of niet van toepassing.
+- Het stoplicht komt terug in Projecten, op het Dashboard (aantal rode lichten) en in de PowerPoint.
 
 ## Een vastgelegde prognose corrigeren
 

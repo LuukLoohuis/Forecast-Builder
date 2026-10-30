@@ -18,7 +18,9 @@ Elke rapportregel met bron, berekening, aanvullende invoer en open punt. Ook in 
 | RDFO › Budget / Q1–Q4 | Historie | Hoogste vastgestelde revisie per project/kengetal. | Budget/Q1/Q2: fictieve historie | Volledige jaarbedragen of delta’s in oude bladen? |
 | RDFO › Upload concept | Bron_ZPMW03 / Bron_Woningetalage | Live uit de bron; pas een versie na 'Prognose vastleggen'. | — |  |
 | RDFO › Realisatie YTD / to go | Historie of upload | Altijd van dezelfde versie/peildatum als de FY-prognose. | — |  |
-| Orderintake | ZPMW03 (kolom Orderintake, PEW opbrengst, PEW resultaat) | Jaar/kwartaal = datum in 'Orderintake'; bedrag = −PEW opbrengst; BOR = −PEW resultaat. | Budget: Invoer › 3 'Orderintake budget' | Is 'Orderintake' de juiste datum en PEW-omzet het juiste bedrag? Orderintake wordt (nog) niet per versie vastgelegd. |
+| Outlook › omzet/BOR per jaar | ZPMW03 | Vorig jaar = −Bedrijfsopbrengsten VJ; lopend jaar = FY; daarna −OP.BOB per jaar t/m RJ+6; later = RJ+7, RJ+8 en onverdeeld. | Budget: Historie (Budget, versiejaar) |  |
+| Outlook › woningverkopen per jaar | Woningetalage | Huidig jaar, Volgend jaar en de positieve jaarkolommen (2028, 2029, …). | — | Bevestigen dat positieve jaarkolommen verkopen in dat jaar zijn. |
+| Orderintake (Outlook) | ZPMW03 (kolom Orderintake, PEW opbrengst, PEW resultaat) | Jaar/kwartaal = datum in 'Orderintake'; bedrag = −PEW opbrengst; BOR = −PEW resultaat. | Budget: Invoer › 3 'Orderintake budget' | Is 'Orderintake' de juiste datum en PEW-omzet het juiste bedrag? Orderintake wordt (nog) niet per versie vastgelegd. |
 | Stoplicht › Verkoop | Woningetalage | Cumulatief verkocht / totaal woningen (of handmatig %); drempels instelbaar. | Stoplicht | Welke drempels gelden? Verkocht % t.o.v. start bouw? |
-| Stoplicht › Omgevingsvergunning, RvS, netcongestie | — | Handmatige invoer; kleur via tabel uitgangspunten. | Stoplicht |  |
+| Stoplicht › Omgevingsvergunning, netcongestie | — | Handmatige invoer; kleur via tabel uitgangspunten. | Stoplicht |  |
 | Woningen | Woningetalage | hjr 01..12 (≤ peilmaand = realisatie), Volgend jr Q1–Q4, jaarverwachting per versie uit Historie. | Koperstype: Invoer › 5 | Is 'Aantal woningen' bruto of aandeelbasis? |

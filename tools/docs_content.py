@@ -30,7 +30,7 @@ STAPPEN = [
      "Bestaat de versie al? Dan vraagt de knop om een toelichting en maakt een correctie (nieuwe revisie). "
      "Twee keer klikken geeft geen dubbeltelling."),
     ("Rapporteren",
-     "Kies op het Dashboard het doeljaar en de versie. Klik op 'Maak PowerPoint' voor de presentatie.",
+     "Kies op het Dashboard het doeljaar en de versie. Gebruik Outlook als basis voor het nieuwe budget. Klik op 'Maak PowerPoint' voor de presentatie.",
      "Dashboard en knop 'Maak PowerPoint'",
      "De PowerPoint wordt opgeslagen naast dit Excelbestand en direct geopend."),
 ]
@@ -42,8 +42,8 @@ TABBLADEN = [
     ("Projecten", "Per project: prognoses per versie, realisatie, to go, BOR, marge, orderintake, stoplicht.", "Filteren met de pijltjes."),
     ("Projectdetail", "Eén project in detail: gegevens, verloop, planning, woningverkopen.", "Project kiezen bovenaan."),
     ("Woningen", "Verkopen per maand en kwartaal, jaarverwachting per versie, koperstype, segment, projectmatrix.", "Alleen lezen."),
-    ("Orderintake", "Orderintake per kwartaal en per project (PEW-omzet en PEW-BOR).", "Alleen lezen."),
-    ("Stoplicht", "Stoplicht per project: verkoop, omgevingsvergunning, RvS, netcongestie, totaal.", "Gele cellen invullen; uitgangspunten rechts."),
+    ("Outlook", "Alle jaren naast elkaar: omzet, BOR, woningverkopen en orderintake, met het vastgelegde budget. Basis voor het nieuwe budget.", "Alleen lezen; filters op Dashboard."),
+    ("Stoplicht", "Stoplicht per project: verkoop, omgevingsvergunning, netcongestie.", "Gele cellen invullen; uitgangspunten rechts."),
     ("Controle", "Alle controles met status en uitzonderingslijsten.", "Na elke inleesronde bekijken."),
     ("Invoer", "Instellingen, projectenlijst, aanvullende posten, toelichtingen, koperstype.", "Gele cellen invullen."),
     ("Historie", "Alle vastgelegde prognoses en de importlog.", "Nooit wijzigen: alleen de knop voegt toe."),
@@ -51,11 +51,11 @@ TABBLADEN = [
 ]
 
 STOPLICHT = [
-    "Per project vul je in: Omgevingsvergunning (Ja / In procedure / Nee), RvS (Geen / Laag / Midden / Hoog) en Netcongestie (Geen / Laag / Midden / Hoog).",
-    "Verkoop kleurt automatisch op basis van het verkochte percentage uit de Woningetalage. Wijkt de beoordeling af? Vul dan 'Verkocht % handmatig' in.",
+    "Per project vul je in: Omgevingsvergunning (Ja / In procedure / Nee) en Netcongestie (Geen / Laag / Midden / Hoog).",
+    "Verkoop kleurt automatisch op het verkochte percentage uit de Woningetalage. Wil je de verkoopstatus bij start bouw gebruiken? Vul dan 'Verkocht % SB' in.",
     "De uitgangspunten staan rechts op het tabblad: vanaf welk percentage verkoop groen of oranje is, en welke waarde welke kleur krijgt. Pas daar aan; alle lichten kleuren direct mee.",
-    "Totaal = de slechtste kleur van de ingevulde lichten. Een leeg rondje betekent: niet ingevuld of niet van toepassing.",
-    "Het stoplicht komt terug in Projecten, op het Dashboard en in de PowerPoint.",
+    "Een leeg rondje betekent: niet ingevuld of niet van toepassing.",
+    "Het stoplicht komt terug in Projecten, op het Dashboard (aantal rode lichten) en in de PowerPoint.",
 ]
 
 CORRECTIE = [
@@ -113,11 +113,15 @@ MAPPING = [
     ("RDFO › Budget / Q1–Q4", "Historie", "Hoogste vastgestelde revisie per project/kengetal.", "Budget/Q1/Q2: fictieve historie", "Volledige jaarbedragen of delta’s in oude bladen?"),
     ("RDFO › Upload concept", "Bron_ZPMW03 / Bron_Woningetalage", "Live uit de bron; pas een versie na 'Prognose vastleggen'.", "—", ""),
     ("RDFO › Realisatie YTD / to go", "Historie of upload", "Altijd van dezelfde versie/peildatum als de FY-prognose.", "—", ""),
-    ("Orderintake", "ZPMW03 (kolom Orderintake, PEW opbrengst, PEW resultaat)",
+    ("Outlook › omzet/BOR per jaar", "ZPMW03", "Vorig jaar = −Bedrijfsopbrengsten VJ; lopend jaar = FY; daarna −OP.BOB per jaar t/m RJ+6; later = RJ+7, RJ+8 en onverdeeld.",
+     "Budget: Historie (Budget, versiejaar)", ""),
+    ("Outlook › woningverkopen per jaar", "Woningetalage", "Huidig jaar, Volgend jaar en de positieve jaarkolommen (2028, 2029, …).", "—",
+     "Bevestigen dat positieve jaarkolommen verkopen in dat jaar zijn."),
+    ("Orderintake (Outlook)", "ZPMW03 (kolom Orderintake, PEW opbrengst, PEW resultaat)",
      "Jaar/kwartaal = datum in 'Orderintake'; bedrag = −PEW opbrengst; BOR = −PEW resultaat.", "Budget: Invoer › 3 'Orderintake budget'",
      "Is 'Orderintake' de juiste datum en PEW-omzet het juiste bedrag? Orderintake wordt (nog) niet per versie vastgelegd."),
     ("Stoplicht › Verkoop", "Woningetalage", "Cumulatief verkocht / totaal woningen (of handmatig %); drempels instelbaar.", "Stoplicht", "Welke drempels gelden? Verkocht % t.o.v. start bouw?"),
-    ("Stoplicht › Omgevingsvergunning, RvS, netcongestie", "—", "Handmatige invoer; kleur via tabel uitgangspunten.", "Stoplicht", ""),
+    ("Stoplicht › Omgevingsvergunning, netcongestie", "—", "Handmatige invoer; kleur via tabel uitgangspunten.", "Stoplicht", ""),
     ("Woningen", "Woningetalage", "hjr 01..12 (≤ peilmaand = realisatie), Volgend jr Q1–Q4, jaarverwachting per versie uit Historie.", "Koperstype: Invoer › 5", "Is 'Aantal woningen' bruto of aandeelbasis?"),
 ]
 
@@ -130,7 +134,7 @@ PRODUCTIEVRAGEN = [
     ("Definitie", "Regel voor IFRS-eliminaties per project?", "Omzet IFRS."),
     ("Definitie", "Is de kolom 'Orderintake' de orderintakedatum en is PEW-omzet het juiste orderintakebedrag?", "Orderintake."),
     ("Definitie", "Welke drempels gelden voor het verkoopstoplicht, en is 'verkocht %' t.o.v. totaal of t.o.v. start bouw?", "Stoplicht."),
-    ("Definitie", "Betekenis van Woningetalage-kolommen 'Rond', 2029–2032 en negatieve jaarkoppen.", "Jaarkolommen."),
+    ("Definitie", "Zijn de positieve jaarkolommen in de Woningetalage (2028, 2029, …) verkopen in dat jaar? Wat betekenen 'Rond' en de negatieve jaarkoppen?", "Jaarkolommen."),
     ("Data", "Kan één projectdefinitie meerdere WBS-elementen met eigen woningen hebben?", "Koppeling."),
     ("Data", "Waar komen type (opstal/deelneming), segment en koperstype in productie vandaan?", "Mapping-onderhoud."),
     ("Proces", "Wie stelt een versie vast en is er een vier-ogenprincipe?", "Vastleggen."),

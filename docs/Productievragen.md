@@ -12,7 +12,7 @@ Het prototype draait op expliciete demo-aannames.
 | 6 | Definitie | Regel voor IFRS-eliminaties per project? | Omzet IFRS. |
 | 7 | Definitie | Is de kolom 'Orderintake' de orderintakedatum en is PEW-omzet het juiste orderintakebedrag? | Orderintake. |
 | 8 | Definitie | Welke drempels gelden voor het verkoopstoplicht, en is 'verkocht %' t.o.v. totaal of t.o.v. start bouw? | Stoplicht. |
-| 9 | Definitie | Betekenis van Woningetalage-kolommen 'Rond', 2029–2032 en negatieve jaarkoppen. | Jaarkolommen. |
+| 9 | Definitie | Zijn de positieve jaarkolommen in de Woningetalage (2028, 2029, …) verkopen in dat jaar? Wat betekenen 'Rond' en de negatieve jaarkoppen? | Jaarkolommen. |
 | 10 | Data | Kan één projectdefinitie meerdere WBS-elementen met eigen woningen hebben? | Koppeling. |
 | 11 | Data | Waar komen type (opstal/deelneming), segment en koperstype in productie vandaan? | Mapping-onderhoud. |
 | 12 | Proces | Wie stelt een versie vast en is er een vier-ogenprincipe? | Vastleggen. |

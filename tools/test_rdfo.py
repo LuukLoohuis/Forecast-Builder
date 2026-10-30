@@ -8,6 +8,7 @@ Gebruik:  python tools/test_rdfo.py <werkmap-dir> [pad-naar-recalc.py]
 Geeft een lijst (test, bewijs, GESLAAGD/MISLUKT) terug en schrijft die naar <werkmap-dir>/testresultaten.json.
 """
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -38,7 +39,7 @@ def recalc(path):
     info = json.loads(out.stdout)
     # bewuste #N/A: gaten in de BOR%-lijn van de dashboardgrafiek (versie zonder vastgelegde waarde)
     info["total_errors"] = sum(1 for k, x in info.get("error_summary", {}).items() for loc in x["locations"]
-                               if not (k == "#N/A" and loc.startswith("Dashboard!F5")))
+                               if not (k == "#N/A" and re.match(r"Outlook![P-W]\d+$", loc)))
     return info, load_workbook(path, data_only=True)
 
 
@@ -306,9 +307,10 @@ ws = w0["Stoplicht"]
 rows_sl = {ws[f"A{r}"].value: r for r in range(B.SL0, B.SL1 + 1) if ws[f"A{r}"].value}
 r_wg = rows_sl["Duinwaard, De Watergaarde"]      # handmatig 0% verkocht, netcongestie Laag
 r_pk = rows_sl["Boswaard, Parkeergebouw"]        # geen woningen, netcongestie Hoog
-codes = lambda w, r: [w["Stoplicht"][f"{c}{r}"].value for c in "JKLMN"]  # noqa: E731
-ok = codes(w0, r_wg) == [1, 3, 3, 2, 1] and codes(w0, r_pk) == [0, 3, 3, 1, 1]
-record("Stoplicht: kleur volgt uit invoer en uitgangspunten; totaal = slechtste", ok,
+codes = lambda w, r: [w["Stoplicht"][f"{c}{r}"].value for c in "IJK"]  # noqa: E731
+hdrs = [w0["Stoplicht"].cell(row=7, column=c).value for c in range(1, 12)]
+ok = codes(w0, r_wg) == [1, 3, 2] and codes(w0, r_pk) == [0, 3, 1] and not any("RvS" in str(h) or "Totaal" in str(h) for h in hdrs)
+record("Stoplicht (verkoop, omgevingsvergunning, netcongestie): kleur volgt uit invoer en uitgangspunten", ok,
        f"Watergaarde (0% verkocht, net Laag) → {codes(w0, r_wg)}; Parkeergebouw (geen woningen, net Hoog) → {codes(w0, r_pk)} (0 = leeg/n.v.t.)")
 
 
@@ -324,7 +326,7 @@ def stoplicht_rules(wb):
 
 
 p, info, w13 = scenario("t10_stoplicht_uitgangspunten", stoplicht_rules)
-ok = codes(w13, r_wg) == [3, 3, 3, 3, 3]
+ok = codes(w13, r_wg) == [3, 3, 3]
 record("Stoplicht: uitgangspunten aanpassen kleurt alle lichten direct mee", ok,
        f"Groengrens 0% en netcongestie Laag = groen → Watergaarde {codes(w13, r_wg)}")
 
@@ -333,14 +335,32 @@ zz = pd.read_excel(D / B.SRC_Z_FILE)
 zz["oi"] = pd.to_datetime(zz["Orderintake"])
 exp_oi = float(-zz[(zz.oi.dt.year == 2026) & (zz.oi <= pd.Timestamp(2026, 9, 30))]["PEW opbrengst"].sum())
 exp_n = int(((zz.oi.dt.year == 2026) & (zz.oi <= pd.Timestamp(2026, 9, 30))).sum())
-got_oi = v(w0, "Orderintake!B5") * 1e6
-ok = abs(got_oi - exp_oi) < 1 and str(v(w0, "Orderintake!B6")).startswith(str(exp_n)) and abs(v(w0, "Orderintake!F16") * 1000 - float(-zz[zz.oi.dt.year == 2026]["PEW opbrengst"].sum())) < 1
+got_oi = v(w0, "Dashboard!Q8") * 1e6
+ow = w0["Outlook"]
+orow = {ow[f"B{r}"].value: r for r in range(5, 30) if ow[f"B{r}"].value}
+oi_years = {y: float(-zz[zz.oi.dt.year == y]["PEW opbrengst"].sum()) for y in (2025, 2026)}
+ok = (abs(got_oi - exp_oi) < 1 and str(v(w0, "Dashboard!Q9")).startswith(str(exp_n))
+      and all(abs(ow[f"{c}{orow['Orderintake PEW-omzet']}"].value * 1000 - oi_years[y]) < 1 for c, y in (("C", 2025), ("D", 2026))))
 record("Orderintake per jaar/kwartaal = bron (kolom Orderintake, PEW opbrengst)", ok,
        f"2026 t/m peildatum: {got_oi:,.0f} EUR in {exp_n} projecten (onafhankelijk: {exp_oi:,.0f})")
 
+# ------------------------------------------------------------------ outlook: alle jaren
+ee = pd.read_excel(D / B.SRC_E_FILE)
+won28 = int(ee[2028].sum())
+won26 = int(ee["Huidig jaar"].sum())
+omz27 = float(-zz["OP.BOB 2027"].sum())
+omz28 = float(-zz["OP.BOB 2028"].sum())
+ok = (ow[f"F{orow['Woningverkopen (aantal)']}"].value == won28 and ow[f"D{orow['Woningverkopen (aantal)']}"].value == won26
+      and abs(ow[f"E{orow['Omzet totaal']}"].value * 1000 - omz27) < 1 and abs(ow[f"F{orow['Omzet totaal']}"].value * 1000 - omz28) < 1
+      and ow["F5"].value == "2028" and ow["G5"].value == "2029")
+record("Outlook: omzet, woningverkopen en orderintake voor elk jaar (2025 t/m 2032)", ok,
+       f"woningverkopen 2026/2028 = {won26}/{won28}; omzet 2027/2028 = {omz27/1e6:,.1f}/{omz28/1e6:,.1f} mln (= bron); 2029+ in bron 0")
+
 # ------------------------------------------------------------------ PowerPoint-inhoud en macro-verpakking
-ok = v(w0, "PPT!B14") == 20 and str(v(w0, "PPT!B6")).startswith("Omzet FY 2026") and v(w0, "PPT!E3") == v(w0, "Dashboard!B8")
-record("PowerPoint-inhoud staat klaar (verborgen tabblad PPT)", ok,
+dt_ = B.DIA_BLOCKS["DIA_KPI"]
+ok = v(w0, "PPT!B14") == 20 and str(v(w0, "PPT!B6")).startswith("Omzet FY 2026") and v(w0, f"Dias!B{dt_+1}") == v(w0, "Dashboard!B8") \
+    and v(w0, f"Dias!B{B.DIA_BLOCKS['DIA_PROJ1']+1}") == "Lindehaven, Parkzoom fase 1"
+record("PowerPoint-inhoud staat klaar (tabbladen PPT en Dias)", ok,
        f"{v(w0, 'PPT!B14')} projecten in de projecttabel; kernboodschap: '{v(w0, 'PPT!B6')}'")
 
 import zipfile  # noqa: E402

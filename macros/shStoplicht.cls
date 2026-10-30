@@ -4,7 +4,7 @@ Option Explicit
 ' Controle meldt het als de projectenlijst later verschuift en de invoer bij een ander project terechtkomt.
 Private Sub Worksheet_Change(ByVal Target As Range)
     Dim isect As Range, c As Range
-    Set isect = Intersect(Target, Me.Range("E8:I107"))
+    Set isect = Intersect(Target, Me.Range("E8:H107"))
     If isect Is Nothing Then Exit Sub
     Application.EnableEvents = False
     For Each c In isect.Cells
