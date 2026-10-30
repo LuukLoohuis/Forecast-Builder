@@ -97,6 +97,7 @@ Public Sub RDFO_BronnenInlezen()
 
     Application.Calculation = xlCalculationAutomatic
     Application.CalculateFull
+    RDFO_OutlookJaren
     Application.ScreenUpdating = True
     ThisWorkbook.Worksheets("Controle").Activate
     ThisWorkbook.Worksheets("Controle").Range("A1").Select
@@ -268,55 +269,81 @@ Public Sub RDFO_ToonRekenbladen()
 End Sub
 
 ' ================================================================= 4. POWERPOINT
-' Elke dia = bewerkbare titel + kernboodschap + een opgemaakt blok van het verborgen tabblad Dias (als afbeelding).
-' De opmaak van de blokken staat dus in Excel en is daar te controleren en aan te passen.
+' De opbouw staat in de dia-specificatie (verborgen tabblad PPT, bereik PPT_Spec): per dia de titel, kernboodschap en
+' elementen. Tabellen worden echte (bewerkbare) PowerPoint-tabellen; grafieken worden als afbeelding geplakt.
 Public Sub RDFO_MaakPowerPoint()
-    Dim pp As Object, pres As Object, wsD As Worksheet, terug As Worksheet, zicht As XlSheetVisibility
-    Dim pad As String, n As Long, k As Long, delen As Long
+    Dim pp As Object, pres As Object, sld As Object, spec As Range, r As Long, dia As Long, vorige As Long
+    Dim soort As String, wsD As Worksheet, terug As Worksheet, zicht As XlSheetVisibility, pad As String, melding As String
 
     On Error GoTo Fout
     Application.CalculateFull
+    RDFO_OutlookJaren
     Set terug = ActiveSheet
     Set wsD = ThisWorkbook.Worksheets("Dias")
     zicht = wsD.Visible
     wsD.Visible = xlSheetVisible
-    wsD.Activate
-    ActiveWindow.DisplayGridlines = False
-    ActiveWindow.Zoom = 100
 
     Set pp = CreateObject("PowerPoint.Application")
     pp.Visible = True
     Set pres = pp.Presentations.Add(True)
     pres.PageSetup.SlideWidth = 960
     pres.PageSetup.SlideHeight = 540
-
     TitelDia pres
-    BlokDia pres, "Kerncijfers", T("PPT_Msg1"), "DIA_KPI"
-    BlokDia pres, "Omzet en resultaat", T("PPT_Msg2"), "DIA_RDFO"
-    n = Nm("PPT_ProjN").Value
-    delen = Application.WorksheetFunction.Min(3, Application.WorksheetFunction.RoundUp(n / 18, 0))
-    For k = 1 To delen
-        BlokDia pres, "Projecten en stoplicht" & IIf(delen > 1, " (" & k & "/" & delen & ")", ""), T("PPT_Msg3"), "DIA_PROJ" & k
-    Next k
-    BlokDia pres, "Prognoseverloop en realisatie", T("PPT_Msg4"), "DIA_BRUG"
-    BlokDia pres, "Outlook", T("PPT_Msg5"), "DIA_OUTT"
-    BlokDia pres, "Outlook in beeld", T("PPT_Msg5"), "DIA_OUTG"
-    BlokDia pres, "Orderintake", T("PPT_Msg6"), "DIA_OI"
-    BlokDia pres, "Woningverkopen", T("PPT_Msg7"), "DIA_WON"
-    AandachtDia pres
+
+    Set spec = Nm("PPT_Spec")
+    vorige = -1
+    For r = 1 To spec.Rows.Count
+        If spec.Cells(r, 11).Value = 1 Then
+            dia = spec.Cells(r, 1).Value
+            If dia <> vorige Then
+                Set sld = NieuweDia(pres, spec.Cells(r, 2).Text, spec.Cells(r, 3).Text)
+                vorige = dia
+            End If
+            soort = spec.Cells(r, 4).Text
+            Select Case soort
+                Case "kpi": Tegels sld, Nm(spec.Cells(r, 5).Text), spec.Cells(r, 6).Value, spec.Cells(r, 7).Value, spec.Cells(r, 8).Value, spec.Cells(r, 9).Value
+                Case "tabel": Tabel sld, Nm(spec.Cells(r, 5).Text), spec.Cells(r, 6).Value, spec.Cells(r, 7).Value, spec.Cells(r, 8).Value, spec.Cells(r, 10).Text
+                Case "grafiek": Grafiek sld, wsD, CLng(spec.Cells(r, 5).Value), spec.Cells(r, 6).Value, spec.Cells(r, 7).Value, spec.Cells(r, 8).Value, spec.Cells(r, 9).Value, spec.Cells(r, 10).Text
+                Case "opsomming": Opsomming sld, Nm(spec.Cells(r, 5).Text), spec.Cells(r, 6).Value, spec.Cells(r, 7).Value, spec.Cells(r, 8).Value, spec.Cells(r, 9).Value
+            End Select
+        End If
+    Next r
 
     wsD.Visible = zicht
     terug.Activate
     pad = OpslagMap() & Application.PathSeparator & "RDFO " & T("P_Regio") & " " & T("Sel_Versie") & " " & T("P_VJ") & " " & Format(Now, "yyyy-mm-dd hhnn") & ".pptx"
     pres.SaveAs pad
-    pres.Slides(1).Select
     MsgBox "PowerPoint gemaakt en opgeslagen:" & vbCr & pad, vbInformation, "Maak PowerPoint"
     Exit Sub
 Fout:
+    melding = Err.Description
     On Error Resume Next
     wsD.Visible = zicht
     terug.Activate
-    MsgBox "PowerPoint maken lukte niet: " & Err.Description & vbCr & "(Is PowerPoint geinstalleerd? Sluit open dialoogvensters in PowerPoint.)", vbExclamation
+    MsgBox "PowerPoint maken lukte niet: " & melding & vbCr & "(Is PowerPoint geinstalleerd? Sluit open dialoogvensters in PowerPoint.)", vbExclamation
+End Sub
+
+' Laat in Outlook en in de outlook-grafieken alleen de jaren zien waarvoor cijfers zijn (OUT_N = laatste jaar met cijfers).
+Public Sub RDFO_OutlookJaren()
+    Dim wsO As Worksheet, n As Long, i As Long, co As ChartObject, s As Long, basis As Long, rij As Long
+    Dim doel As Variant, delen() As String
+    Set wsO = ThisWorkbook.Worksheets("Outlook")
+    n = Nm("OUT_N").Value
+    For i = 1 To 8
+        wsO.Columns(2 + i).Hidden = (i > n)
+    Next i
+    wsO.Columns(11).Hidden = (Nm("OUT_Later").Value <> 1)
+    ' grafiek: blad|index|basisrij (rijen basis..basis+3 = realisatie, prognose, totaal, budget op Outlook vanaf kolom P)
+    For Each doel In Split(Nm("OUT_Grafieken").Value, ";")
+        delen = Split(doel, "|")
+        Set co = ThisWorkbook.Worksheets(delen(0)).ChartObjects(CLng(delen(1)))
+        basis = CLng(delen(2))
+        For s = 1 To co.Chart.SeriesCollection.Count
+            rij = basis + s - 1
+            co.Chart.SeriesCollection(s).Values = wsO.Range(wsO.Cells(rij, 16), wsO.Cells(rij, 15 + n))
+            co.Chart.SeriesCollection(s).XValues = wsO.Range(wsO.Cells(5, 16), wsO.Cells(5, 15 + n))
+        Next s
+    Next doel
 End Sub
 
 Private Function OpslagMap() As String
@@ -350,13 +377,12 @@ End Function
 Private Sub TitelDia(ByVal pres As Object)
     Dim sld As Object, sh As Object
     Set sld = pres.Slides.Add(1, 12)
-    Vlak sld, 0, 0, 960, 540, WIT
-    Vlak sld, 0, 0, 300, 540, NAVY
-    Vlak sld, 300, 0, 10, 540, GEEL
+    Vlak sld, 0, 0, 300, 540, GEEL
+    Vlak sld, 300, 0, 8, 540, NAVY
     Set sh = sld.Shapes.AddTextbox(1, 40, 60, 230, 30)
-    Tekst sh, T("P_Regio"), 14, GEEL, True
+    Tekst sh, T("P_Regio"), 14, NAVY, True
     Set sh = sld.Shapes.AddTextbox(1, 40, 470, 230, 40)
-    Tekst sh, "Gemaakt op " & Format(Now, "dd-mm-yyyy hh:nn"), 9, WIT, False
+    Tekst sh, "Gemaakt op " & Format(Now, "dd-mm-yyyy hh:nn"), 9, NAVY, False
     Set sh = sld.Shapes.AddTextbox(1, 360, 190, 560, 110)
     Tekst sh, T("PPT_Titel"), 38, NAVY, True
     Vlak sld, 362, 304, 90, 6, GEEL
@@ -388,35 +414,161 @@ Private Function NieuweDia(ByVal pres As Object, ByVal titel As String, ByVal ke
     Set NieuweDia = sld
 End Function
 
-Private Sub BlokDia(ByVal pres As Object, ByVal titel As String, ByVal kern As String, ByVal blok As String)
-    Dim sld As Object, sh As Object, poging As Integer
-    Set sld = NieuweDia(pres, titel, kern)
+Private Sub Kop(ByVal sld As Object, ByVal tekstKop As String, ByVal x As Single, ByVal y As Single, ByVal w As Single)
+    Dim sh As Object
+    If tekstKop = "" Then Exit Sub
+    Set sh = sld.Shapes.AddTextbox(1, x, y - 20, w, 16)
+    Tekst sh, tekstKop, 11, NAVY, True
+End Sub
+
+' Zes kerncijfertegels uit een blok van 6 regels x 3 kolommen (label, waarde, toelichting).
+Private Sub Tegels(ByVal sld As Object, ByVal blok As Range, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal h As Single)
+    Dim k As Long, tw As Single, tx As Single, sh As Object
+    tw = (w - 5 * 8) / 6
+    For k = 1 To 6
+        tx = x + (k - 1) * (tw + 8)
+        Vlak sld, tx, y, tw, h, LICHT
+        Vlak sld, tx, y, tw, 3, GEEL
+        Set sh = sld.Shapes.AddTextbox(1, tx + 6, y + 8, tw - 12, 14)
+        Tekst sh, blok.Cells(k, 1).Text, 8.5, NAVY, True
+        Set sh = sld.Shapes.AddTextbox(1, tx + 6, y + 24, tw - 12, 28)
+        Tekst sh, blok.Cells(k, 2).Text, 19, NAVY, True
+        Set sh = sld.Shapes.AddTextbox(1, tx + 6, y + h - 18, tw - 12, 14)
+        Tekst sh, blok.Cells(k, 3).Text, 8, GRIJS, False
+    Next k
+End Sub
+
+Private Function CelTekst(ByVal c As Range) As String
+    Dim s As String
+    s = c.Text
+    If Len(s) > 0 And Left(s, 1) = "#" And IsNumeric(c.Value2) Then s = Format(c.Value2, "#,##0")
+    CelTekst = Replace(Replace(s, vbCr, ""), vbLf, Chr(11))
+End Function
+
+' Bewerkbare PowerPoint-tabel uit een bereik (eerste regel = kop). De regel boven het bereik bevat kolomgewichten:
+' gewicht 0 of leeg = kolom weglaten. Regels met een lege eerste cel worden overgeslagen.
+' Kleuren (rood bij verlies, stoplicht, geselecteerde versie) komen uit de weergave in Excel (DisplayFormat).
+Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal tekstKop As String)
+    Dim gew As Range, kol() As Long, nk As Long, k As Long, reg() As Long, nr As Long, r As Long, som As Double
+    Dim shp As Object, tbl As Object, i As Long, j As Long, c As Range, txt As String, grootte As Single, bol As Boolean
+
+    Set gew = bron.Rows(1).Offset(-1, 0)
+    ReDim kol(1 To bron.Columns.Count)
+    For k = 1 To bron.Columns.Count
+        If IsNumeric(gew.Cells(1, k).Value) And gew.Cells(1, k).Value <> "" Then
+            If gew.Cells(1, k).Value > 0 Then
+                nk = nk + 1
+                kol(nk) = k
+                som = som + gew.Cells(1, k).Value
+            End If
+        End If
+    Next k
+    ReDim reg(1 To bron.Rows.Count)
+    For r = 1 To bron.Rows.Count
+        If r = 1 Or Len(bron.Cells(r, 1).Text) > 0 Then
+            nr = nr + 1
+            reg(nr) = r
+        End If
+    Next r
+    If nk = 0 Or nr = 0 Then Exit Sub
+    grootte = IIf(nr > 15, 8, 9)
+    Kop sld, tekstKop, x, y, w
+
+    Set shp = sld.Shapes.AddTable(nr, nk, x, y, w, nr * (grootte + 6))
+    Set tbl = shp.Table
+    On Error Resume Next
+    tbl.ApplyStyle "{2D5ABB26-0587-4C30-8999-92F81FD0307C}", False
+    On Error GoTo 0
+    tbl.FirstRow = True
+    tbl.HorizBanding = False
+    For j = 1 To nk
+        tbl.Columns(j).Width = w * gew.Cells(1, kol(j)).Value / som
+    Next j
+
+    For i = 1 To nr
+        For j = 1 To nk
+            Set c = bron.Cells(reg(i), kol(j))
+            txt = CelTekst(c)
+            bol = (txt = ChrW(9679) Or txt = ChrW(9675))
+            With tbl.Cell(i, j).Shape
+                .TextFrame.MarginLeft = 3: .TextFrame.MarginRight = 3
+                .TextFrame.MarginTop = 1: .TextFrame.MarginBottom = 1
+                .TextFrame.VerticalAnchor = 3
+                .TextFrame.WordWrap = True
+                .TextFrame.TextRange.Text = txt
+                With .TextFrame.TextRange.Font
+                    .Name = "Arial"
+                    .Size = IIf(bol, grootte + 5, grootte)
+                    If i = 1 Then
+                        .Color.RGB = WIT
+                        .Bold = True
+                    Else
+                        .Color.RGB = c.DisplayFormat.Font.Color
+                        .Bold = c.Font.Bold
+                        .Italic = c.Font.Italic
+                    End If
+                End With
+                If j = 1 Then
+                    .TextFrame.TextRange.ParagraphFormat.Alignment = 1
+                ElseIf bol Or i = 1 Or c.HorizontalAlignment = xlCenter Then
+                    .TextFrame.TextRange.ParagraphFormat.Alignment = 2
+                ElseIf c.HorizontalAlignment = xlLeft Then
+                    .TextFrame.TextRange.ParagraphFormat.Alignment = 1
+                Else
+                    .TextFrame.TextRange.ParagraphFormat.Alignment = 3
+                End If
+                If i = 1 Then
+                    .Fill.ForeColor.RGB = NAVY
+                ElseIf c.DisplayFormat.Interior.ColorIndex <> xlColorIndexNone And c.DisplayFormat.Interior.Color <> WIT Then
+                    .Fill.ForeColor.RGB = c.DisplayFormat.Interior.Color
+                Else
+                    .Fill.ForeColor.RGB = WIT
+                End If
+            End With
+            With tbl.Cell(i, j).Borders(3)
+                .Visible = True
+                .ForeColor.RGB = LIJN
+                .Weight = 0.5
+            End With
+        Next j
+        tbl.Rows(i).Height = grootte + 6
+    Next i
+End Sub
+
+Private Sub Grafiek(ByVal sld As Object, ByVal wsD As Worksheet, ByVal nr As Long, ByVal x As Single, ByVal y As Single, _
+                    ByVal w As Single, ByVal h As Single, ByVal tekstKop As String)
+    Dim co As ChartObject, sh As Object, poging As Integer, bestand As String
+    Set co = wsD.ChartObjects(nr)
+    Kop sld, tekstKop, x, y, w
     For poging = 1 To 5
         On Error Resume Next
         Set sh = Nothing
-        Nm(blok).CopyPicture Appearance:=xlScreen, Format:=xlPicture
+        co.Chart.CopyPicture Appearance:=xlScreen, Format:=xlPicture
         Set sh = sld.Shapes.PasteSpecial(DataType:=2)(1)
         On Error GoTo 0
         If Not sh Is Nothing Then Exit For
         DoEvents
         Application.Wait Now + TimeSerial(0, 0, 1)
     Next poging
-    If sh Is Nothing Then Err.Raise vbObjectError + 513, , "Het blok " & blok & " kon niet naar PowerPoint worden gekopieerd."
+    If sh Is Nothing Then
+        bestand = Environ("TEMP") & Application.PathSeparator & "rdfo_grafiek_" & nr & ".png"
+        co.Chart.Export bestand
+        Set sh = sld.Shapes.AddPicture(bestand, False, True, x, y)
+    End If
     sh.LockAspectRatio = True
-    If sh.Width / sh.Height > 888 / 408 Then sh.Width = 888 Else sh.Height = 408
-    sh.Left = 36 + (888 - sh.Width) / 2
-    sh.Top = 96
+    If sh.Width / sh.Height > w / h Then sh.Width = w Else sh.Height = h
+    sh.Left = x + (w - sh.Width) / 2
+    sh.Top = y
 End Sub
 
-Private Sub AandachtDia(ByVal pres As Object)
-    Dim sld As Object, sh As Object, s As String, c As Range
-    Set sld = NieuweDia(pres, "Aandachtspunten", "")
-    For Each c In Nm("PPT_Bullets").Cells
+Private Sub Opsomming(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal h As Single)
+    Dim sh As Object, s As String, c As Range
+    For Each c In bron.Cells
         If Len(Trim(c.Text)) > 0 Then s = s & IIf(Len(s) > 0, vbCr, "") & c.Text
     Next c
     If s = "" Then s = "Geen bijzonderheden."
-    Vlak sld, 36, 100, 888, 390, LICHT
-    Set sh = sld.Shapes.AddTextbox(1, 60, 120, 840, 360)
+    Vlak sld, x, y, w, h, LICHT
+    Set sh = sld.Shapes.AddTextbox(1, x + 24, y + 20, w - 48, h - 40)
     Tekst sh, s, 16, NAVY, False
     With sh.TextFrame.TextRange.ParagraphFormat
         .Bullet.Visible = True

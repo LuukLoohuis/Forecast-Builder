@@ -512,9 +512,8 @@ def build_invoer(wb, ws, hist):
     inv_head(ws, T0 - 1, "4. Toelichtingen op verschillen", "Eén tekst per project, doeljaar en versie. Verschijnt in Projecten, Projectdetail en PowerPoint.",
              ["Doeljaar", "Versiejaar", "Versie", "WBS-element", "Kengetal", "", "", "", "sleutel", "", "Toelichting", "Auteur", "Datum"], helpers=0)
     ws.cell(row=T0 - 1, column=9).fill = fill(GREY)
-    ex = (2026, 2026, "Q3", "G.900008.8.9090", K_BOR, "[VOORBEELD – fictief] Verliesproject: voorbeeldtekst om het formaat te tonen.", "Demo", IMPORTDATUM)
     for r in range(T0, T1 + 1):
-        vals = ex if r == T0 else [None] * 8
+        vals = [None] * 8
         for c, v in zip("ABCDEKLM", vals):
             input_style(ws.cell(row=r, column=ord(c) - 64, value=v), FMT_DATE if c == "M" else None)
         ws[f"I{r}"] = f'=IF(D{r}="","",D{r}&"|"&A{r}&"|"&B{r}&"|"&C{r})'
@@ -2392,10 +2391,33 @@ def build_outlook(wb, ws):
             ws[f"{c}{rr}"] = fn(c, yc[i])
             ws[f"{c}{rr}"].number_format = "#,##0.0"
             ws[f"{c}{rr}"].font = font(8, False, GREY)
-    cats = Reference(ws, min_col=OUT_CH + 1, max_col=OUT_CH + OUT_YEARS, min_row=5)
+    # jaren met gegevens: vlag per jaar en OUT_N = laatste jaar met gegevens (macro 'OutlookJaren' past grafieken/kolommen hierop aan)
+    put(ws, (22, OUT_CH), "Jaar heeft gegevens", color=GREY, size=8)
+    put(ws, (23, OUT_CH), "Volgnummer", color=GREY, size=8)
+    for i, c in enumerate(gc):
+        ws[f"{c}22"] = (f'=IF(OR(N({yc[i]}{rows["omz"]})<>0,N({yc[i]}{rows["won"]})<>0,N({yc[i]}{rows["oi"]})<>0,'
+                        f'N({yc[i]}{rows["bor"]})<>0),1,0)')
+        ws[f"{c}23"] = f"={c}22*{i+1}"
+        for rr in (22, 23):
+            ws[f"{c}{rr}"].font = font(8, False, GREY)
+    put(ws, (24, OUT_CH), "Laatste jaar", color=GREY, size=8)
+    ws[f"{gc[0]}24"] = f"=MAX(2,MAX({gc[0]}23:{gc[-1]}23))"
+    add_name(wb, "OUT_N", f"Outlook!${gc[0]}$24")
+    later_r = rows["omz"]
+    ws[f"{gc[1]}24"] = f'=IF(OR(N({later}{rows["omz"]})<>0,N({later}{rows["bor"]})<>0),1,0)'
+    add_name(wb, "OUT_Later", f"Outlook!${gc[1]}$24")
+    nyr = OUT_CTX.get("demo_n", OUT_YEARS)
+    cats = Reference(ws, min_col=OUT_CH + 1, max_col=OUT_CH + nyr, min_row=5)
 
     def rowref(rr):
-        return Reference(ws, min_col=OUT_CH, max_col=OUT_CH + OUT_YEARS, min_row=rr)
+        return Reference(ws, min_col=OUT_CH, max_col=OUT_CH + nyr, min_row=rr)
+
+    # kolommen zonder gegevens verbergen (startsituatie; de macro herhaalt dit na elke inleesronde)
+    for i, c in enumerate(yc):
+        if i >= nyr:
+            ws.column_dimensions[c].hidden = True
+    if not OUT_CTX.get("demo_later", True):
+        ws.column_dimensions[later].hidden = True
 
     OUT_CTX.update(ws=ws, cats=cats, rowref=rowref, g0=g0, rows=rows)
     titles = [("B26", '="Omzet per jaar (EUR mln): realisatie massief · prognose gearceerd · budget = streep"', g0),
@@ -2516,80 +2538,67 @@ def build_ppt(wb, ws):
     add_name(wb, "PPT_Bullets", f"PPT!$D$21:$D${21+len(bullets)-1}")
 
 
-DIA_ROWS, DIA_COLS = 20, 18          # kolommen B..S
-DIA_H = 20                            # punt per regel
 DIA_BLOCKS = {}
+DIA_CHARTS = []      # volgorde = ChartObjects-index op Dias (1-based)
+CH0 = 400            # eerste regel van de grafiekblokken op Dias
+CH_ROWS = 24
 
 
 def build_dias(wb, ws):
-    """Elk blok = één dia-inhoud (zonder titel). Alles verwijst naar de rapportbladen; opmaak in huisstijl."""
+    """Tabellen (zonder samengevoegde cellen), KPI-lijsten en grafieken voor de PowerPoint.
+    Boven elke tabel staat een rij met kolomgewichten: 0 = kolom weglaten (bijv. lege toelichting of jaar zonder cijfers)."""
     base_sheet(ws, zoom=100)
-    ws.column_dimensions["A"].width = 2
-    for i in range(DIA_COLS):
-        ws.column_dimensions[col(2 + i)].width = 8.6
-    put(ws, "B1", "Dia-blokken voor de PowerPoint (verborgen). Niet wijzigen; de inhoud volgt de rapportbladen.", color=GREY, size=8)
-    order = ["DIA_KPI", "DIA_RDFO", "DIA_PROJ1", "DIA_PROJ2", "DIA_PROJ3", "DIA_BRUG", "DIA_OUTT", "DIA_OUTG", "DIA_OI", "DIA_WON"]
-    tops = {}
-    for k, nm in enumerate(order):
-        top = 4 + k * (DIA_ROWS + 4)
-        tops[nm] = top
-        put(ws, f"U{top}", nm, color=GREY, size=7)
-        for rr in range(top, top + DIA_ROWS):
-            ws.row_dimensions[rr].height = DIA_H
-        add_name(wb, nm, f"Dias!$B${top}:${col(1+DIA_COLS)}${top+DIA_ROWS-1}")
-        DIA_BLOCKS[nm] = top
+    put(ws, "A1", "Inhoud voor de PowerPoint (verborgen). Tabellen worden in PowerPoint als bewerkbare tabel opgebouwd; grafieken als afbeelding. "
+        "Rij boven elke tabel = kolomgewicht (0 = weglaten).", color=GREY, size=8)
+    ws.column_dimensions["A"].width = 14
+    for i in range(2, 20):
+        ws.column_dimensions[col(i)].width = 11
+    ws.column_dimensions["B"].width = 30
 
-    def cellfmt(c, fmt=None, bold=False, color="1A2233", size=10, align="right", fillc=None, italic=False):
-        c.font = font(size, bold, color, italic)
+    def cell(r, c, v, fmt=None, bold=False, color="1A2233", fillc=None, align="right", italic=False, size=10):
+        x = ws.cell(row=r, column=c, value=v)
+        x.font = font(size, bold, color, italic)
         if fmt:
-            c.number_format = fmt
-        c.alignment = Alignment(horizontal=align, vertical="center", wrap_text=False)
+            x.number_format = fmt
         if fillc:
-            c.fill = fill(fillc)
+            x.fill = fill(fillc)
+        x.alignment = Alignment(horizontal=align, vertical="center")
+        return x
 
-    def hdr_row(r, c1, labels, merge_first=None):
-        for i, lab in enumerate(labels):
-            c = ws.cell(row=r, column=c1 + i, value=lab)
-            c.fill = fill(NAVY)
-            c.font = font(9, True, WHITE)
-            c.alignment = Alignment(horizontal="left" if i == 0 else "center", vertical="center", wrap_text=True)
-        ws.row_dimensions[r].height = 30
+    def table_head(r, labels, weights, name, nrows):
+        put(ws, (r - 1, 1), "gewicht", color=GREY, size=7)
+        for j, (lab, wgt) in enumerate(zip(labels, weights)):
+            ws.cell(row=r - 1, column=2 + j, value=wgt).font = font(7, False, GREY)
+            c = cell(r, 2 + j, lab, bold=True, color=WHITE, fillc=NAVY, align="left" if j == 0 else "center", size=9)
+            c.alignment = Alignment(horizontal="left" if j == 0 else "center", vertical="center", wrap_text=True)
+        put(ws, (r, 1), name, color=GREY, size=7)
+        add_name(wb, name, f"Dias!$B${r}:${col(1+len(labels))}${r+nrows}")
+        DIA_BLOCKS[name] = r
 
-    # 1. kerncijfers: zes tegels + twee grafieken
-    t = tops["DIA_KPI"]
+    # ---- KPI-lijsten (label, waarde, toelichting)
+    r = 4
+    put(ws, (r - 1, 1), "K_DASH", color=GREY, size=7)
     for k, sc in enumerate("BEHKNQ"):
-        c1 = 2 + 3 * k
-        for rr in range(t, t + 4):
-            for cc in range(c1, c1 + 3):
-                ws.cell(row=rr, column=cc).fill = fill(LIGHT)
-                ws.cell(row=rr, column=cc).border = Border(left=Side(style="thick", color=WHITE) if cc == c1 else None,
-                                                           top=Side(style="thick", color=YELLOW) if rr == t else None)
-        ws.cell(row=t, column=c1, value=f"=Dashboard!{sc}7").font = font(9, True, NAVY)
-        ws.merge_cells(start_row=t + 1, start_column=c1, end_row=t + 2, end_column=c1 + 2)
-        v = ws.cell(row=t + 1, column=c1, value=f"=Dashboard!{sc}8")
-        v.font = font(20, True, NAVY)
-        v.number_format = MLN if k not in (4,) else '#,##0" st."'
-        v.alignment = Alignment(horizontal="left", vertical="center")
-        ws.cell(row=t + 3, column=c1, value=f"=Dashboard!{sc}9").font = font(8, False, GREY)
-    put(ws, f"B{t+5}", "=Dashboard!B12", bold=True, color=NAVY, size=10)
-    put(ws, f"K{t+5}", "=Dashboard!K30", bold=True, color=NAVY, size=10)
-    waterfall(ws, f"B{t+6}", DASH["catsA"], DASH["dataA"], w=13.6, h=9.6)
-    outlook_chart(ws, f"K{t+6}", "omzet", 15.3, 9.6)
+        cell(r + k, 2, f"=Dashboard!{sc}7", align="left")
+        cell(r + k, 3, f"=Dashboard!{sc}8", MLN if k != 4 else '#,##0" st."', bold=True)
+        cell(r + k, 4, f"=Dashboard!{sc}9", align="left", color=GREY, size=8)
+    add_name(wb, "K_DASH", f"Dias!$B${r}:$D${r+5}")
+    r = 12
+    put(ws, (r - 1, 1), "K_WON", color=GREY, size=7)
+    for k, sc in enumerate("BEHKNQ"):
+        cell(r + k, 2, f"=Woningen!{sc}4", align="left")
+        cell(r + k, 3, f"=Woningen!{sc}5", '#,##0" st."', bold=True)
+        cell(r + k, 4, f"=Woningen!{sc}6", align="left", color=GREY, size=8)
+    add_name(wb, "K_WON", f"Dias!$B${r}:$D${r+5}")
 
-    # 2. RDFO
-    t = tops["DIA_RDFO"]
+    # ---- RDFO
+    t = 22
     src_cols = list("CDEFGHJKLMNPQ")
-    dst0 = 6  # kolom F
-    hdr_row(t, 2, ["Rubriek", "", "", ""] + [None] * len(src_cols))
-    ws.merge_cells(start_row=t, start_column=2, end_row=t, end_column=5)
-    for j, sc in enumerate(src_cols):
-        c = ws.cell(row=t, column=dst0 + j, value=f"=RDFO!{sc}6")
-        c.fill = fill(NAVY2 if sc == "K" else NAVY)
-        c.font = font(8, True, WHITE)
-        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        if sc in "CDEFGH":
-            put(ws, (t - 1, dst0 + j), f"=RDFO!{sc}5", color=WHITE, size=6)
-    ws.merge_cells(start_row=t, start_column=dst0 + 11, end_row=t, end_column=dst0 + 12)
+    labels = ["Rubriek"] + [f"=RDFO!{c}6" for c in src_cols]
+    weights = [3.2, 1, 1, 1, 1, 1, 1.1, 1.1, 1.1, 1, 1, 1, 0.8, 0.8]
+    table_head(t, labels, weights, "T_RDFO", 17)
+    for j, c in enumerate(src_cols[:6]):
+        put(ws, (t - 2, 3 + j), f"=RDFO!{c}5", color=GREY, size=7)
     keys = ["omz_ops", "omz_dln", "taak_omz", "int_elim", "omzet_old", "ifrs_elim", "omzet_ifrs", "bor_ops", "bor_dln",
             "bor_tot", "ak", "fees", "overig", "taak_ebit", "ebit", "bor_pct", "ebit_pct"]
     subs = {"omzet_old", "omzet_ifrs", "bor_tot", "ebit"}
@@ -2597,181 +2606,186 @@ def build_dias(wb, ws):
         r = t + 1 + i
         sr = RDFO_ROWS[k]
         bold = k in subs or k.endswith("pct")
-        c = ws.cell(row=r, column=2, value=f"=RDFO!B{sr}")
-        cellfmt(c, bold=bold, align="left", fillc=LIGHT if k in subs else None)
-        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=5)
+        cell(r, 2, f"=RDFO!B{sr}", bold=bold, align="left", fillc=LIGHT if k in subs else None)
         for j, sc in enumerate(src_cols):
-            c = ws.cell(row=r, column=dst0 + j, value=f'=IF(RDFO!{sc}{sr}="","",RDFO!{sc}{sr})')
-            fmt = FMT_PCT if k.endswith("pct") else FMT_EUR
+            c = 3 + j
+            f = f'=IF(RDFO!{sc}{sr}="","",RDFO!{sc}{sr})'
             if sc in "PQ":
-                cellfmt(c, None, False, BAD if sc == "P" else GOOD, 9, "right" if sc == "P" else "left")
+                cell(r, c, f, color=BAD if sc == "P" else GOOD, align="right" if sc == "P" else "left", size=9)
             else:
-                cellfmt(c, fmt if not (k.endswith("pct") and sc in "MN") else '+0.0%;[Red]-0.0%;"–"', bold,
-                        "3B5B33" if sc == "K" else "1A2233", 10, "right", LIGHT if k in subs else ("EEF3EA" if sc == "K" else None),
-                        italic=sc == "K")
-            c.border = Border(bottom=thin, top=thick_navy if k in subs else None)
-        for cc in range(2, 6):
-            ws.cell(row=r, column=cc).border = Border(bottom=thin, top=thick_navy if k in subs else None)
-    rng_sel = f"{col(dst0)}{t+1}:{col(dst0+5)}{t+len(keys)}"
-    ws.conditional_formatting.add(rng_sel, FormulaRule(formula=[f"{col(dst0)}${t-1}=Sel_Versie"], fill=fill(YELLOW_LT)))
-    ws.conditional_formatting.add(f"{col(dst0)}{t}:{col(dst0+5)}{t}", FormulaRule(formula=[f"{col(dst0)}${t-1}=Sel_Versie"], fill=fill(YELLOW), font=Font(color=NAVY, bold=True)))
-    put(ws, f"B{t+len(keys)+2}", "Geel = geselecteerde versie · groen cursief = realisatie · n.b. = niet beschikbaar · balkjes: afwijking geselecteerde versie t.o.v. budget",
-        color=GREY, italic=True, size=8)
+                fmt = FMT_PCT if k.endswith("pct") else FMT_EUR
+                if k.endswith("pct") and sc in "MN":
+                    fmt = '+0.0%;[Red]-0.0%;"–"'
+                cell(r, c, f, fmt, bold, "3B5B33" if sc == "K" else "1A2233", LIGHT if k in subs else None, italic=sc == "K")
+    ws.conditional_formatting.add(f"C{t+1}:H{t+17}", FormulaRule(formula=[f"C${t-2}=Sel_Versie"], fill=fill(YELLOW_LT)))
+    ws.conditional_formatting.add(f"M{t+1}:N{t+17}", FormulaRule(formula=[f"AND(ISNUMBER(M{t+1}),M{t+1}<0)"], font=Font(color=BAD)))
+    ws.conditional_formatting.add(f"M{t+1}:N{t+17}", FormulaRule(formula=[f"AND(ISNUMBER(M{t+1}),M{t+1}>0)"], font=Font(color="3B7A1E")))
 
-    # 3. projecten en stoplicht (18 per dia)
+    # ---- projecten en stoplicht (18 per dia)
     per = 18
+    toel_w = '=IF(COUNTIF(Stoplicht!$H$8:$H$107,"?*")+COUNTIF(Projecten!$S$10:$S$109,"?*")>0,3,0)'
+    plabels = ["Project", "Type", '="Omzet FY "&Sel_Versie', "Realisatie", "To go", "BOR %", "Δ vs budget", "Orderintake",
+               "Verkoop", "Vergunning", "Netcongestie", "Toelichting"]
+    pweights = [2.6, 1, 1, 1, 1, 0.8, 1, 1, 0.8, 0.9, 0.9, toel_w]
     for blk in range(3):
-        t = tops[f"DIA_PROJ{blk+1}"]
-        labels = ["Project", "", "", "", "Type", '="Omzet FY"&CHAR(10)&Sel_Versie', "Realisatie", "To go", "BOR %", "Δ vs\nbudget",
-                  "Order-\nintake", "Verkoop", "Vergun-\nning", "Net-\ncongestie", "Toelichting", "", "", ""]
-        hdr_row(t, 2, labels)
-        ws.merge_cells(start_row=t, start_column=2, end_row=t, end_column=5)
-        ws.merge_cells(start_row=t, start_column=16, end_row=t, end_column=19)
+        t = 44 + blk * (per + 4)
+        table_head(t, plabels, pweights, f"T_PROJ{blk+1}", per)
         for i in range(per):
             idx = blk * per + i
             r = t + 1 + i
             pr, slr = P0 + idx, SL0 + idx
-            if idx > V1 - V0:
-                break
-            refs = [(2, f"=Projecten!B{pr}", None, "left"), (6, f"=Projecten!C{pr}", None, "left"),
-                    (7, f"=Projecten!K{pr}", FMT_EUR, "right"), (8, f"=Projecten!L{pr}", FMT_EUR, "right"),
-                    (9, f"=Projecten!M{pr}", FMT_EUR, "right"), (10, f"=Projecten!O{pr}", FMT_PCT, "right"),
-                    (11, f"=Projecten!P{pr}", FMT_EUR, "right"), (12, f'=IF(Projecten!T{pr}="","",Projecten!T{pr})', "mm-yyyy", "center"),
-                    (13, f"=Stoplicht!I{slr}", SL_FMT, "center"), (14, f"=Stoplicht!J{slr}", SL_FMT, "center"),
-                    (15, f"=Stoplicht!K{slr}", SL_FMT, "center"), (16, f'=IF(Stoplicht!H{slr}="",Projecten!S{pr},Stoplicht!H{slr})', None, "left")]
-            for cc, f, fmt, al in refs:
-                c = ws.cell(row=r, column=cc, value=f)
-                cellfmt(c, fmt, False, "1A2233", 13 if fmt == SL_FMT else 9, al, italic=cc == 8)
-            ws.cell(row=r, column=16).font = font(8, False, GREY, True)
-            ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=5)
-            ws.merge_cells(start_row=r, start_column=16, end_row=r, end_column=19)
-            for cc in range(2, 20):
-                ws.cell(row=r, column=cc).border = Border(bottom=thin)
-        stoplicht_cf(ws, f"M{t+1}:O{t+per}")
-        ws.conditional_formatting.add(f"K{t+1}:K{t+per}", FormulaRule(formula=[f"AND(ISNUMBER(K{t+1}),K{t+1}<0)"], font=Font(color=BAD)))
-        ws.conditional_formatting.add(f"K{t+1}:K{t+per}", FormulaRule(formula=[f"AND(ISNUMBER(K{t+1}),K{t+1}>0)"], font=Font(color="3B7A1E")))
-        put(ws, f"B{t+per+1}", "● groen = op koers   ● oranje = aandacht   ● rood = knelpunt   ○ = niet ingevuld / n.v.t.   Bedragen in " , color=GREY, size=8)
-        ws[f"B{t+per+1}"] = '="● groen = op koers   ● oranje = aandacht   ● rood = knelpunt   ○ = niet ingevuld / n.v.t.   ·   bedragen in "&P_Eenheid'
+            refs = [(2, f"=Projecten!B{pr}", None, "left"), (3, f"=Projecten!C{pr}", None, "left"),
+                    (4, f"=Projecten!K{pr}", FMT_EUR, "right"), (5, f"=Projecten!L{pr}", FMT_EUR, "right"),
+                    (6, f"=Projecten!M{pr}", FMT_EUR, "right"), (7, f"=Projecten!O{pr}", FMT_PCT, "right"),
+                    (8, f"=Projecten!P{pr}", FMT_EUR, "right"), (9, f'=IF(Projecten!T{pr}="","",Projecten!T{pr})', "mm-yyyy", "center"),
+                    (10, f"=Stoplicht!I{slr}", SL_FMT, "center"), (11, f"=Stoplicht!J{slr}", SL_FMT, "center"),
+                    (12, f"=Stoplicht!K{slr}", SL_FMT, "center"),
+                    (13, f'=IF(Stoplicht!H{slr}="",IF(Projecten!S{pr}="","",Projecten!S{pr}),Stoplicht!H{slr})', None, "left")]
+            for c, f, fmt, al in refs:
+                cell(r, c, f, fmt, False, GREY if c == 13 else "1A2233", None, al, italic=c in (5, 13), size=13 if fmt == SL_FMT else 9)
+        stoplicht_cf(ws, f"J{t+1}:L{t+per}")
+        ws.conditional_formatting.add(f"H{t+1}:H{t+per}", FormulaRule(formula=[f"AND(ISNUMBER(H{t+1}),H{t+1}<0)"], font=Font(color=BAD)))
+        ws.conditional_formatting.add(f"H{t+1}:H{t+per}", FormulaRule(formula=[f"AND(ISNUMBER(H{t+1}),H{t+1}>0)"], font=Font(color="3B7A1E")))
 
-    # 4. brug en realisatie
-    t = tops["DIA_BRUG"]
-    put(ws, f"B{t}", "=Dashboard!B30", bold=True, color=NAVY, size=10)
-    put(ws, f"K{t}", "=Dashboard!K12", bold=True, color=NAVY, size=10)
-    waterfall(ws, f"B{t+1}", DASH["catsC"], DASH["dataC"], w=14.2, h=13.2, numfmt="#,##0.00", kind="bar")
+    # ---- outlook-tabel (jaarkolommen zonder cijfers krijgen gewicht 0)
+    t = 115
+    ows = wb["Outlook"]
+    rows = OUT_CTX["rows"]
+    yc = [col(3 + i) for i in range(OUT_YEARS)] + [col(3 + OUT_YEARS), col(4 + OUT_YEARS)]
+    olabels = ["Kengetal"] + [f'=SUBSTITUTE(Outlook!{c}5,CHAR(10)," ")' for c in yc]
+    oweights = [3] + [f"=IF({i+1}<=OUT_N,1,0)" for i in range(OUT_YEARS)] + ["=IF(OUT_Later=1,1,0)", 1.1]
+    keys_o = [k for k in ("omz_ops", "omz_dln", "omz", "omz_ac", "bor", "borp", "bud", "dbud", "won", "won_ac", "wbud",
+                          "oi_n", "oi", "oi_ac", "oi_bor", "oi_bud")]
+    table_head(t, olabels, oweights, "T_OUT", len(keys_o))
+    for i, k in enumerate(keys_o):
+        r = t + 1 + i
+        sr = rows[k]
+        lab = ows[f"B{sr}"].value
+        sub = str(lab).startswith("  ")
+        bold = k in ("omz", "won", "oi")
+        cell(r, 2, f"=TRIM(Outlook!B{sr})", bold=bold, color=GREY if sub else "1A2233", align="left", italic=sub,
+             fillc=LIGHT if bold else None)
+        for j, c in enumerate(yc):
+            fmt = ows[f"{c}{sr}"].number_format
+            cell(r, 3 + j, f'=IF(Outlook!{c}{sr}="","",Outlook!{c}{sr})', fmt, bold, GREY if sub else "1A2233",
+                 LIGHT if bold else ("EEF3EA" if j == 0 else None), italic=sub)
+    ws.conditional_formatting.add(f"C{t+1+keys_o.index('dbud')}:L{t+1+keys_o.index('dbud')}",
+                                  FormulaRule(formula=[f"AND(ISNUMBER(C{t+1+keys_o.index('dbud')}),C{t+1+keys_o.index('dbud')}<0)"], font=Font(color=BAD, bold=True)))
+
+    # ---- orderintake: jaar x kwartaal en recentste projecten
+    t = 140
+    table_head(t, ["Jaar", "Q1", "Q2", "Q3", "Q4", "Totaal", "#"], [1, 1, 1, 1, 1, 1.2, 0.6], "T_OIQ", OUT_YEARS)
+    for i in range(OUT_YEARS):
+        r = t + 1 + i
+        for j, sc in enumerate("HIJKLMN"):
+            cell(r, 2 + j, f'=IF(Outlook!{sc}{46+i}="","",Outlook!{sc}{46+i})', None if j == 0 else (FMT_INT if sc == "N" else FMT_EUR),
+                 sc in "HM", align="left" if j == 0 else "right")
+    t = 152
+    table_head(t, ["Jaar", "Kw.", "Project", "Type", "Datum", "PEW-omzet", "BOR %", "Status"], [0.7, 0.6, 2.6, 1.1, 1, 1.1, 0.8, 1.1], "T_OI", 10)
+    for i in range(10):
+        r = t + 1 + i
+        orr = OI0 + i
+        for j, (sc, fmt, al) in enumerate([("B", None, "left"), ("C", None, "left"), ("D", None, "left"), ("E", None, "left"),
+                                            ("F", "dd-mm-yy", "center"), ("G", FMT_EUR, "right"), ("I", FMT_PCT, "right"), ("J", None, "left")]):
+            cell(r, 2 + j, f'=IF(Outlook!{sc}{orr}="","",Outlook!{sc}{orr})', fmt, False, "1A2233", None, al, size=9)
+    ws.conditional_formatting.add(f"I{t+1}:I{t+10}", FormulaRule(formula=[f'I{t+1}="verwacht"'], font=Font(color="8A6A00", italic=True)))
+
+    # ---- grafiekblokken (elk op een eigen pagina; volgorde = index voor de macro)
+    def chart_block(name, builder, w, h):
+        k = len(DIA_CHARTS)
+        r = CH0 + k * CH_ROWS
+        put(ws, (r, 1), name, color=GREY, size=7)
+        for rr in range(r, r + CH_ROWS):
+            ws.row_dimensions[rr].height = 20   # 24 x 20 pt = 480 pt: ruimer dan de hoogste grafiek
+        builder(f"B{r}", w, h)
+        DIA_CHARTS.append(name)
+        return r
+
+    pt = lambda x: round(x * 0.03528, 2)  # noqa: E731
     T0 = DASH["T0"]
     dws = wb["Dashboard"]
-    ibcs_columns(ws, f"K{t+1}", Reference(dws, min_col=3, min_row=T0 + 1, max_row=T0 + 10),
-                 Reference(dws, min_col=4, min_row=T0, max_row=T0 + 10), Reference(dws, min_col=5, min_row=T0, max_row=T0 + 10),
-                 kind="bar", w=14.8, h=13.2)
-
-    # 5. outlook-tabel
-    t = tops["DIA_OUTT"]
-    ows = wb["Outlook"]
-    src = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
-    last = OUT_CTX["rows"]["oi_bud"]
-    r = t
-    for sr in range(5, last + 1):
-        lab = ows[f"B{sr}"].value
-        if sr > 5 and lab is None:
-            continue
-        if sr == 5:
-            hdr_row(r, 2, ["Kengetal", "", "", ""] + [None] * 10)
-            for j, sc in enumerate(src[1:]):
-                c = ws.cell(row=r, column=6 + j, value=f"=Outlook!{sc}5")
-                c.fill = fill(NAVY if j else "3B5B33")
-                c.font = font(8, True, WHITE)
-                c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=5)
-        else:
-            sc0 = ows[f"B{sr}"]
-            c = ws.cell(row=r, column=2, value=f"=Outlook!B{sr}")
-            cellfmt(c, None, bool(sc0.font.b), GREY if str(lab).startswith("  ") else "1A2233", 10, "left")
-            ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=5)
-            for j, sc in enumerate(src[1:]):
-                s_ = ows[f"{sc}{sr}"]
-                c = ws.cell(row=r, column=6 + j, value=f'=IF(Outlook!{sc}{sr}="","",Outlook!{sc}{sr})')
-                cellfmt(c, s_.number_format, bool(s_.font.b), GREY if str(lab).startswith("  ") else "1A2233", 10, "right",
-                        "EEF3EA" if j == 0 else None)
-            for cc in range(2, 17):
-                ws.cell(row=r, column=cc).border = Border(bottom=thin, top=thick_navy if lab in ("Omzet totaal",) else None)
-        r += 1
-    ws.conditional_formatting.add(f"F{t}:P{r}", FormulaRule(formula=[f'AND($B{t}="Δ outlook vs budget",ISNUMBER(F{t}),F{t}<0)'], font=Font(color=BAD, bold=True)))
-    put(ws, f"B{r+1}", '="Bedragen in "&P_Eenheid&" · groen vlak = realisatie vorig jaar · budget = vastgelegd Budget "&P_VJ', color=GREY, italic=True, size=8)
-    ws[f"B{r+1}"] = '="Bedragen in "&P_Eenheid&" · groen vlak = realisatie vorig jaar · budget = vastgelegd Budget "&P_VJ'
-
-    # 6. outlook-grafieken
-    t = tops["DIA_OUTG"]
-    for ref, src_t in (("B", "B26"), ("H", "H26"), ("N", "B44")):
-        put(ws, f"{ref}{t}", f"=Outlook!{src_t}", bold=True, color=NAVY, size=9)
-    outlook_chart(ws, f"B{t+1}", "omzet", 9.6, 13.2)
-    outlook_chart(ws, f"H{t+1}", "won", 9.6, 13.2)
-    outlook_chart(ws, f"N{t+1}", "oi", 9.6, 13.2)
-
-    # 7. orderintake: jaar x kwartaal + recentste projecten
-    t = tops["DIA_OI"]
-    put(ws, f"B{t}", "Orderintake per jaar en kwartaal (PEW-omzet)", bold=True, color=NAVY, size=10)
-    hdr_row(t + 1, 2, ["Jaar", "Q1", "Q2", "Q3", "Q4", "Totaal", "#"])
-    for i in range(OUT_YEARS):
-        r = t + 2 + i
-        for j, sc in enumerate("HIJKLMN"):
-            c = ws.cell(row=r, column=2 + j, value=f'=IF(Outlook!{sc}{46+i}="","",Outlook!{sc}{46+i})')
-            cellfmt(c, None if j == 0 else (FMT_INT if sc == "N" else FMT_EUR), sc in "HM", "1A2233", 10, "left" if j == 0 else "right")
-            c.border = Border(bottom=thin)
-    put(ws, f"J{t}", "Recentste orderintake", bold=True, color=NAVY, size=10)
-    hdr_row(t + 1, 10, ["Jaar", "Kw.", "Project", "", "", "Type", "Datum", "PEW-omzet", "BOR %", "Status"])
-    ws.merge_cells(start_row=t + 1, start_column=12, end_row=t + 1, end_column=14)
-    for i in range(12):
-        r = t + 2 + i
-        orr = OI0 + i
-        refs = [(10, "B", None, "left"), (11, "C", None, "left"), (12, "D", None, "left"), (15, "E", None, "left"),
-                (16, "F", "dd-mm-yy", "center"), (17, "G", FMT_EUR, "right"), (18, "I", FMT_PCT, "right"), (19, "J", None, "left")]
-        for cc, sc, fmt, al in refs:
-            c = ws.cell(row=r, column=cc, value=f'=IF(Outlook!{sc}{orr}="","",Outlook!{sc}{orr})')
-            cellfmt(c, fmt, False, "1A2233", 9, al)
-        ws.merge_cells(start_row=r, start_column=12, end_row=r, end_column=14)
-        for cc in range(10, 20):
-            ws.cell(row=r, column=cc).border = Border(bottom=thin)
-    ws.conditional_formatting.add(f"S{t+2}:S{t+13}", FormulaRule(formula=[f'S{t+2}="verwacht"'], font=Font(color="8A6A00", italic=True)))
-    put(ws, f"B{t+11}", '="Bedragen in "&P_Eenheid&" · bron: kolom Orderintake (datum) en PEW opbrengst in ZPMW03"', color=GREY, italic=True, size=8)
-    ws[f"B{t+11}"] = '="Bedragen in "&P_Eenheid&" · bron: kolom Orderintake (datum) en PEW opbrengst in ZPMW03"'
-
-    # 8. woningen: tegels + twee grafieken
-    t = tops["DIA_WON"]
-    for k, sc in enumerate("BEHKNQ"):
-        c1 = 2 + 3 * k
-        for rr in range(t, t + 3):
-            for cc in range(c1, c1 + 3):
-                ws.cell(row=rr, column=cc).fill = fill(LIGHT)
-                ws.cell(row=rr, column=cc).border = Border(left=Side(style="thick", color=WHITE) if cc == c1 else None,
-                                                           top=Side(style="thick", color=YELLOW) if rr == t else None)
-        ws.cell(row=t, column=c1, value=f"=Woningen!{sc}4").font = font(9, True, NAVY)
-        ws.merge_cells(start_row=t + 1, start_column=c1, end_row=t + 1, end_column=c1 + 2)
-        v = ws.cell(row=t + 1, column=c1, value=f"=Woningen!{sc}5")
-        v.alignment = Alignment(horizontal="left", vertical="center")
-        v.font = font(18, True, NAVY)
-        v.number_format = '#,##0" st."'
-        ws.cell(row=t + 2, column=c1, value=f"=Woningen!{sc}6").font = font(8, False, GREY)
     wws = wb["Woningen"]
-    put(ws, f"B{t+4}", f"=Woningen!{WON['qtitle']}", bold=True, color=NAVY, size=10)
-    put(ws, f"K{t+4}", f"=Woningen!{WON['vtitle']}", bold=True, color=NAVY, size=10)
     q0, ql, v0 = WON["q0"], WON["qlast"], WON["v0"]
-    ch = BarChart()
-    ch.type, ch.grouping, ch.overlap = "col", "stacked", 100
-    ch.add_data(Reference(wws, min_col=3, max_col=4, min_row=q0 - 1, max_row=ql), titles_from_data=True)
-    ch.set_categories(Reference(wws, min_col=2, min_row=q0, max_row=ql))
-    style_chart(ch, [], numfmt="#,##0", w=14.2, h=10.2, ymin=0)
-    ch.series[0].graphicalProperties = solid(NAVY)
-    ch.series[1].graphicalProperties = hatched(NAVY)
-    ws.add_chart(ch, f"B{t+5}")
-    bar(ws, Reference(wws, min_col=17, min_row=v0 - 1, max_row=v0 + 5), Reference(wws, min_col=3, min_row=v0, max_row=v0 + 5),
-        f"K{t+5}", [NAVY], numfmt="#,##0", w=14.8, h=10.2, labels=True, legend=False, ymin=0, point_colors={5: NAVY_LT})
 
-    # afdrukopmaak: elk blok een eigen pagina (voor de voorbeeldpresentatie)
+    def won_q(anchor, w, h):
+        ch = BarChart()
+        ch.type, ch.grouping, ch.overlap = "col", "stacked", 100
+        ch.add_data(Reference(wws, min_col=3, max_col=4, min_row=q0 - 1, max_row=ql), titles_from_data=True)
+        ch.set_categories(Reference(wws, min_col=2, min_row=q0, max_row=ql))
+        style_chart(ch, [], numfmt="#,##0", w=w, h=h, ymin=0)
+        ch.series[0].graphicalProperties = solid(NAVY)
+        ch.series[1].graphicalProperties = hatched(NAVY)
+        ws.add_chart(ch, anchor)
+
+    chart_block("Prognoseverloop (waterval)", lambda a, w, h: waterfall(ws, a, DASH["catsA"], DASH["dataA"], w=w, h=h), pt(436), pt(296))
+    chart_block("Outlook omzet (klein)", lambda a, w, h: outlook_chart(ws, a, "omzet", w, h), pt(436), pt(296))
+    chart_block("Brug vorige → geselecteerd", lambda a, w, h: waterfall(ws, a, DASH["catsC"], DASH["dataC"], w=w, h=h, numfmt="#,##0.00", kind="bar"), pt(436), pt(376))
+    chart_block("Realisatie vs to go", lambda a, w, h: ibcs_columns(ws, a, Reference(dws, min_col=3, min_row=T0 + 1, max_row=T0 + 10),
+                Reference(dws, min_col=4, min_row=T0, max_row=T0 + 10), Reference(dws, min_col=5, min_row=T0, max_row=T0 + 10),
+                kind="bar", w=w, h=h), pt(436), pt(376))
+    chart_block("Outlook omzet", lambda a, w, h: outlook_chart(ws, a, "omzet", w, h), pt(290), pt(376))
+    chart_block("Outlook woningen", lambda a, w, h: outlook_chart(ws, a, "won", w, h), pt(290), pt(376))
+    chart_block("Outlook orderintake", lambda a, w, h: outlook_chart(ws, a, "oi", w, h), pt(290), pt(376))
+    chart_block("Woningen per kwartaal", won_q, pt(436), pt(296))
+    chart_block("Woningen per versie", lambda a, w, h: bar(ws, Reference(wws, min_col=17, min_row=v0 - 1, max_row=v0 + 5),
+                Reference(wws, min_col=3, min_row=v0, max_row=v0 + 5), a, [NAVY], numfmt="#,##0", w=w, h=h, labels=True, legend=False,
+                ymin=0, point_colors={5: NAVY_LT}), pt(436), pt(296))
+    # vaste rijhoogtes (geen automatische aanpassing), anders verschuiven de grafieken t.o.v. de cellen
+    for rr in range(1, CH0):
+        if ws.row_dimensions[rr].height is None:
+            ws.row_dimensions[rr].height = 15
     from openpyxl.worksheet.pagebreak import Break
-    for nm in order[1:]:
-        ws.row_breaks.append(Break(id=tops[nm] - 2))
-    landscape(ws, f"A2:S{tops[order[-1]] + DIA_ROWS}")
-    ws.page_setup.fitToHeight = 0
+    for k in range(1, len(DIA_CHARTS)):
+        ws.row_breaks.append(Break(id=CH0 + k * CH_ROWS - 1))
+    landscape(ws, ",".join(f"B{CH0 + k * CH_ROWS}:L{CH0 + (k + 1) * CH_ROWS - 1}" for k in range(len(DIA_CHARTS))))
+    ws.sheet_properties.pageSetUpPr.fitToPage = False   # elk grafiekblok een eigen afdrukbereik = eigen pagina
+    ws.page_setup.scale = 100
+    ws.page_margins.top = ws.page_margins.bottom = 0.3
+
+
+def build_ppt_spec(wb, ws):
+    """Dia-specificatie: per dia welke elementen waar komen. De macro en de voorbeeldpresentatie lezen deze tabel."""
+    r0 = 40
+    put(ws, f"H{r0-2}", "Dia-specificatie (positie in punten op een dia van 960 x 540)", bold=True)
+    hdr = ["Dia", "Titel", "Kernboodschap", "Soort", "Ref", "X", "Y", "B", "H", "Kop", "Actief"]
+    for j, h in enumerate(hdr):
+        put(ws, (r0 - 1, 8 + j), h, bold=True)
+    ci = lambda n: DIA_CHARTS.index(n) + 1  # noqa: E731
+    spec = [
+        (2, "Kerncijfers", "=PPT_Msg1", "kpi", "K_DASH", 36, 96, 888, 74, "", 1),
+        (2, "", "", "grafiek", ci("Prognoseverloop (waterval)"), 36, 200, 436, 296, "=Dashboard!B12", 1),
+        (2, "", "", "grafiek", ci("Outlook omzet (klein)"), 488, 200, 436, 296, "=Dashboard!K30", 1),
+        (3, "Omzet en resultaat", "=PPT_Msg2", "tabel", "T_RDFO", 36, 96, 888, 0, "", 1),
+        (4, "Projecten en stoplicht", "=PPT_Msg3", "tabel", "T_PROJ1", 36, 96, 888, 0, "", 1),
+        (5, "Projecten en stoplicht (vervolg)", "=PPT_Msg3", "tabel", "T_PROJ2", 36, 96, 888, 0, "", "=IF(PPT_ProjN>18,1,0)"),
+        (6, "Projecten en stoplicht (vervolg)", "=PPT_Msg3", "tabel", "T_PROJ3", 36, 96, 888, 0, "", "=IF(PPT_ProjN>36,1,0)"),
+        (7, "Prognoseverloop en realisatie", "=PPT_Msg8", "grafiek", ci("Brug vorige → geselecteerd"), 36, 120, 436, 376, "=Dashboard!B30", 1),
+        (7, "", "", "grafiek", ci("Realisatie vs to go"), 488, 120, 436, 376, "=Dashboard!K12", 1),
+        (8, "Outlook", "=PPT_Msg5", "tabel", "T_OUT", 36, 96, 888, 0, "", 1),
+        (9, "Outlook in beeld", "=PPT_Msg5", "grafiek", ci("Outlook omzet"), 36, 120, 290, 376, "Omzet per jaar (EUR mln)", 1),
+        (9, "", "", "grafiek", ci("Outlook woningen"), 335, 120, 290, 376, "Woningverkopen per jaar", 1),
+        (9, "", "", "grafiek", ci("Outlook orderintake"), 634, 120, 290, 376, "Orderintake per jaar (EUR mln)", 1),
+        (10, "Orderintake", "=PPT_Msg6", "tabel", "T_OIQ", 36, 120, 380, 0, "Per jaar en kwartaal (PEW-omzet)", 1),
+        (10, "", "", "tabel", "T_OI", 440, 120, 484, 0, "Recentste orderintake", 1),
+        (11, "Woningverkopen", "=PPT_Msg7", "kpi", "K_WON", 36, 96, 888, 74, "", 1),
+        (11, "", "", "grafiek", ci("Woningen per kwartaal"), 36, 200, 436, 296, f"=Woningen!{WON['qtitle']}", 1),
+        (11, "", "", "grafiek", ci("Woningen per versie"), 488, 200, 436, 296, f"=Woningen!{WON['vtitle']}", 1),
+        (12, "Aandachtspunten", "", "opsomming", "PPT_Bullets", 36, 100, 888, 390, "", 1),
+    ]
+    for i, row in enumerate(spec):
+        for j, v in enumerate(row):
+            ws.cell(row=r0 + i, column=8 + j, value=v)
+    add_name(wb, "PPT_Spec", f"PPT!$H${r0}:$R${r0+len(spec)-1}")
+    # outlook-grafieken die de macro RDFO_OutlookJaren op het aantal jaren met cijfers zet: blad|index|basisrij
+    g0 = OUT_CTX["g0"]
+    base = {"omzet": g0, "won": g0 + 5, "oi": g0 + 10}
+    lijst = [("Outlook", 1, base["omzet"]), ("Outlook", 2, base["won"]), ("Outlook", 3, base["oi"]), ("Dashboard", 4, base["omzet"]),
+             ("Dias", ci("Outlook omzet (klein)"), base["omzet"]), ("Dias", ci("Outlook omzet"), base["omzet"]),
+             ("Dias", ci("Outlook woningen"), base["won"]), ("Dias", ci("Outlook orderintake"), base["oi"])]
+    ws["H36"] = ";".join(f"{a}|{b}|{c}" for a, b, c in lijst)
+    add_name(wb, "OUT_Grafieken", "PPT!$H$36")
+    ws["H35"] = len(DIA_CHARTS)
+    add_name(wb, "PPT_ChartN", "PPT!$H$35")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -3162,6 +3176,27 @@ def code_name(sheet):
     return "sh" + "".join(ch for ch in sheet if ch.isalnum())
 
 
+def demo_years(rj=2026):
+    """Laatste jaar (1..8 vanaf RJ-1) met gegevens in de bronnen; bepaalt de startweergave van Outlook-kolommen en -grafieken."""
+    z = load_workbook(DATA / SRC_Z_FILE, read_only=True)["ZPMW03"]
+    e = load_workbook(DATA / SRC_E_FILE, read_only=True)["Woningetalage"]
+    zr = list(z.iter_rows(values_only=True))
+    er = list(e.iter_rows(values_only=True))
+    zh, eh = list(zr[0]), list(er[0])
+    zsum = lambda h: sum(abs(r[zh.index(h)] or 0) for r in zr[1:]) if h in zh else 0  # noqa: E731
+    esum = lambda h: sum(abs(r[eh.index(h)] or 0) for r in er[1:]) if h in eh else 0  # noqa: E731
+    oi_years = {r[zh.index("Orderintake")].year for r in zr[1:] if hasattr(r[zh.index("Orderintake")], "year")}
+    last = 2
+    for i in range(OUT_YEARS):
+        y = rj - 1 + i
+        omz = zsum("Bedrijfsopbrengsten VJ") if i == 0 else (zsum("Bedrijfsopbrengsten LJ") + zsum(f"OP.BOB {y}") if i == 1 else zsum(f"OP.BOB {y}"))
+        won = esum("Huidig jaar") if i == 1 else (esum("Volgend jaar") if i == 2 else (esum(y) if i > 2 else 0))
+        if omz or won or y in oi_years:
+            last = i + 1
+    later = sum(zsum(f"OP.BOB {rj+o}") for o in (7, 8)) + zsum("OP.BOB onverd.")
+    return last, later != 0
+
+
 def build(out, test_results=None):
     wb = Workbook()
     wb.remove(wb.active)
@@ -3200,6 +3235,7 @@ def build(out, test_results=None):
     build_projecten(wb, sh["Projecten"])
     build_dashboard(wb, sh["Dashboard"])
     build_woningen(wb, sh["Woningen"])
+    OUT_CTX["demo_n"], OUT_CTX["demo_later"] = demo_years()
     build_outlook(wb, sh["Outlook"])
     outlook_chart(sh["Dashboard"], "K31", "omzet", 17, 8)
     first = list(mapping.values())[0][2]
@@ -3207,6 +3243,7 @@ def build(out, test_results=None):
     build_controle(wb, sh["Controle"])
     build_ppt(wb, sh["PPT"])
     build_dias(wb, sh["Dias"])
+    build_ppt_spec(wb, sh["PPT"])
     build_start(wb, sh["Start"])
     build_handleiding(sh["Handleiding"], test_results)
     wb.calculation.fullCalcOnLoad = True

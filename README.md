@@ -8,7 +8,7 @@ Een overzichtelijk RDFO-bestand met knoppen (macro's), gebouwd op **uitsluitend 
 |---|---|
 | 1 Bronnen inlezen | Je kiest de ZPMW03- en Woningetalage-export en vult de peildatum en versie in. Daarna rekent het bestand alles opnieuw en opent het tabblad Controle. |
 | 2 Prognose vastleggen | Voegt de jaarprognose (bijv. Q3) toe aan Historie. Bestaat de versie al, dan wordt het een correctie met toelichting. |
-| 3 Maak PowerPoint | Maakt een presentatie in geel/donkerblauw met kerncijfers, RDFO, projecten met stoplicht, prognoseverloop, outlook, orderintake, woningen en aandachtspunten. Een voorbeeld staat in [docs/Voorbeeld_PowerPoint.pptx](docs/Voorbeeld_PowerPoint.pptx). |
+| 3 Maak PowerPoint | Maakt een presentatie in geel/donkerblauw met kerncijfers, RDFO, projecten met stoplicht, prognoseverloop, outlook, orderintake, woningen en aandachtspunten. Tabellen zijn echte PowerPoint-tabellen (zelf aan te passen); een lege toelichtingskolom en jaren zonder cijfers worden weggelaten. Een voorbeeld staat in [docs/Voorbeeld_PowerPoint.pptx](docs/Voorbeeld_PowerPoint.pptx). |
 | Toon / verberg rekenbladen | Toont of verbergt de bron- en rekenbladen. |
 
 Er zijn 12 zichtbare tabbladen: Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook, Stoplicht, Controle, Invoer, Historie en Handleiding. Bronnen en tussenberekeningen staan op verborgen bladen.

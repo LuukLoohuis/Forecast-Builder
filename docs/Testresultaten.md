@@ -4,7 +4,7 @@ Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zo
 
 | Nr | Test | Uitkomst / bewijs | Resultaat |
 |---|---|---|---|
-| 1 | Basis: werkmap rekent zonder formulefouten en controles | 169364 formules, 0 fouten; Controle: 0 FOUT, 0 WAARSCHUWING | GESLAAGD |
+| 1 | Basis: werkmap rekent zonder formulefouten en controles | 169383 formules, 0 fouten; Controle: 0 FOUT, 0 WAARSCHUWING | GESLAAGD |
 | 2 | RDFO-versiekolommen = fictieve historie; upload = bron (onafhankelijk nagerekend) | Budget/Q1/Q2/Q3/upload (EUR x 1.000): 118,525.4 / 116,754.0 / 112,768.2 / 114,096.8 / 114,096.8 | GESLAAGD |
 | 3 | Q3-snapshot sluit aan op de bronbestanden | Q3 vastgelegd 114,096.8 = upload 114,096.8; som \|verschil\| alle 280 conceptregels = 0 | GESLAAGD |
 | 4 | Ontbrekende Q4 en ontbrekende historische actuals niet als nul | Q4-kolom toont 'n.b.'; realisatie YTD Q3 = 74,162.9; vastgelegde versies zonder realisatie (blijven n.b.): 3 | GESLAAGD |
@@ -26,4 +26,5 @@ Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zo
 | 20 | Orderintake per jaar/kwartaal = bron (kolom Orderintake, PEW opbrengst) | 2026 t/m peildatum: 337,740,000 EUR in 15 projecten (onafhankelijk: 337,740,000) | GESLAAGD |
 | 21 | Outlook: omzet, woningverkopen en orderintake voor elk jaar (2025 t/m 2032) | woningverkopen 2026/2028 = 360/252; omzet 2027/2028 = 218.8/117.8 mln (= bron); 2029+ in bron 0 | GESLAAGD |
 | 22 | PowerPoint-inhoud staat klaar (tabbladen PPT en Dias) | 20 projecten in de projecttabel; kernboodschap: 'Omzet FY 2026: € 114.1 mln, -4.4 mln t.o.v. budget  ·  BOR 9.2%' | GESLAAGD |
-| 23 | Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's | 24 VBA-modules (oletools); 7 knoppen → ['RDFO_BronnenInlezen', 'RDFO_MaakPowerPoint', 'RDFO_PrognoseVastleggen', 'RDFO_ToonRekenbladen']. Let op: uitvoering in Excel zelf is hier niet getest. | GESLAAGD |
+| 23 | PowerPoint: lege toelichtingskolom en jaren zonder cijfers vallen weg | gewicht toelichting = 0; gewichten jaarkolommen 2025-2032 = [1, 1, 1, 1, 0, 0, 0, 0] | GESLAAGD |
+| 24 | Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's | 24 VBA-modules (oletools); 7 knoppen → ['RDFO_BronnenInlezen', 'RDFO_MaakPowerPoint', 'RDFO_PrognoseVastleggen', 'RDFO_ToonRekenbladen']. Let op: uitvoering in Excel zelf is hier niet getest. | GESLAAGD |

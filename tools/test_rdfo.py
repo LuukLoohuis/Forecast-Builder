@@ -357,11 +357,16 @@ record("Outlook: omzet, woningverkopen en orderintake voor elk jaar (2025 t/m 20
        f"woningverkopen 2026/2028 = {won26}/{won28}; omzet 2027/2028 = {omz27/1e6:,.1f}/{omz28/1e6:,.1f} mln (= bron); 2029+ in bron 0")
 
 # ------------------------------------------------------------------ PowerPoint-inhoud en macro-verpakking
-dt_ = B.DIA_BLOCKS["DIA_KPI"]
-ok = v(w0, "PPT!B14") == 20 and str(v(w0, "PPT!B6")).startswith("Omzet FY 2026") and v(w0, f"Dias!B{dt_+1}") == v(w0, "Dashboard!B8") \
-    and v(w0, f"Dias!B{B.DIA_BLOCKS['DIA_PROJ1']+1}") == "Lindehaven, Parkzoom fase 1"
+tp_, to_ = B.DIA_BLOCKS["T_PROJ1"], B.DIA_BLOCKS["T_OUT"]
+ok = v(w0, "PPT!B14") == 20 and str(v(w0, "PPT!B6")).startswith("Omzet FY 2026") and v(w0, "Dias!C4") == v(w0, "Dashboard!B8") \
+    and v(w0, f"Dias!B{tp_+1}") == "Lindehaven, Parkzoom fase 1"
 record("PowerPoint-inhoud staat klaar (tabbladen PPT en Dias)", ok,
        f"{v(w0, 'PPT!B14')} projecten in de projecttabel; kernboodschap: '{v(w0, 'PPT!B6')}'")
+gew_toel = v(w0, f"Dias!M{tp_-1}")
+gew_jaar = [v(w0, f"Dias!{c}{to_-1}") for c in "CDEFGHIJ"]
+ok = gew_toel == 0 and gew_jaar[:4] == [1, 1, 1, 1] and gew_jaar[4:] == [0, 0, 0, 0]
+record("PowerPoint: lege toelichtingskolom en jaren zonder cijfers vallen weg", ok,
+       f"gewicht toelichting = {gew_toel}; gewichten jaarkolommen 2025-2032 = {gew_jaar}")
 
 import zipfile  # noqa: E402
 from oletools.olevba import VBA_Parser  # noqa: E402
