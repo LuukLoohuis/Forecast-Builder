@@ -16,6 +16,10 @@ RED = "C0392B"
 GREEN = "2E7D32"
 ORANGE_LT = "FCE4D6"
 WHITE = "FFFFFF"
+GREEN_L = "2E9E44"   # stoplicht groen
+ORANGE_L = "F39C12"  # stoplicht oranje
+RED_L = "D63B2F"     # stoplicht rood
+OFF_L = "C5CAD3"     # stoplicht leeg
 
 FONT = "Arial"
 

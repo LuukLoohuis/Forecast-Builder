@@ -1,27 +1,25 @@
 # Forecast-Builder — RDFO-prototype
 
-Een onderhoudbaar RDFO-Excelbestand op **uitsluitend fictieve data**. Het herontwerp scheidt de bronnen, de projectmapping, de berekeningen, de vastgelegde historie en de rapportage van elkaar. Het bestand gebruikt geen macro's en geen draaitabellen.
+Een overzichtelijk RDFO-bestand met knoppen (macro's), gebouwd op **uitsluitend fictieve data**.
 
-**Oplevering:** [`RDFO_prototype.xlsx`](RDFO_prototype.xlsx)
+**Oplevering:** [`RDFO_prototype.xlsm`](RDFO_prototype.xlsm). Open het bestand en klik op *Inhoud inschakelen*.
+
+| Knop (tabblad Start) | Wat gebeurt er |
+|---|---|
+| 1 Bronnen inlezen | Je kiest de ZPMW03- en Woningetalage-export en vult de peildatum en versie in. Daarna rekent het bestand alles opnieuw en opent het tabblad Controle. |
+| 2 Prognose vastleggen | Voegt de jaarprognose (bijv. Q3) toe aan Historie. Bestaat de versie al, dan wordt het een correctie met toelichting. |
+| 3 Maak PowerPoint | Maakt een presentatie in geel/donkerblauw met kerncijfers, RDFO, projecten + stoplicht, orderintake, woningen en aandachtspunten. |
+| Toon / verberg rekenbladen | Toont of verbergt de bron- en rekenbladen. |
+
+Er zijn 12 zichtbare tabbladen: Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Orderintake, Stoplicht, Controle, Invoer, Historie en Handleiding. Bronnen en tussenberekeningen staan op verborgen bladen.
 
 | Document | Inhoud |
 |---|---|
-| [docs/Handleiding.md](docs/Handleiding.md) | Bronnen vervangen, verversen, een kwartaal vastleggen (handmatig), correcties, ontwerpkeuze |
-| [docs/Rapportagemapping.md](docs/Rapportagemapping.md) | Per rapportageregel: bron, berekening, aanvullende invoer en openstaande definitie |
-| [docs/Productievragen.md](docs/Productievragen.md) | Vragen die vóór productie beantwoord moeten worden |
-| [docs/Testresultaten.md](docs/Testresultaten.md) | Uitgevoerde scenario-tests met uitkomst |
-
-## Opbouw van de werkmap
-
-| Laag | Tabbladen |
-|---|---|
-| Rapportage | Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Controle |
-| Invoer | Parameters, Invoer_Aanvullend, Invoer_Toelichting, Invoer_Koperstype, Mapping |
-| Versiebeheer | Vastlegging (grootboek waaraan alleen regels worden toegevoegd), Vastleggen (concept uit de upload), Importlog |
-| Berekening | VERW_Project (één regel per WBS), CALC_Versies |
-| Staging | STG_ZPMW03, STG_Woningetalage (kolommen worden op naam gezocht, met aliassen en dubbele headers) |
-| Bron | SRC_ZPMW03, SRC_Woningetalage (de export ongewijzigd plakken) |
-| Documentatie | Veldwoordenboek, Rapportagemapping, Productievragen, Handleiding, Testresultaten |
+| [docs/Handleiding.md](docs/Handleiding.md) | Elk kwartaal in 5 stappen, tabbladen, stoplicht, correcties, problemen oplossen |
+| [docs/Rapportagemapping.md](docs/Rapportagemapping.md) | Van bron naar rapport, per regel |
+| [docs/Productievragen.md](docs/Productievragen.md) | Vragen vóór productie |
+| [docs/Testresultaten.md](docs/Testresultaten.md) | Uitgevoerde scenario-tests |
+| [macros/](macros) | VBA-broncode (ook handmatig te importeren) |
 
 ## Opnieuw bouwen en testen
 
@@ -29,6 +27,10 @@ Een onderhoudbaar RDFO-Excelbestand op **uitsluitend fictieve data**. Het heront
 python tools/release.py <pad-naar-recalc.py>
 ```
 
-Dit script bouwt de werkmap uit `data/` en draait daarna de scenario-tests (`tools/test_rdfo.py`). Elke test past een kopie van de werkmap aan, laat LibreOffice herberekenen en vergelijkt de uitkomst met een onafhankelijke pandas-berekening. Tot slot zet het script de berekende waarden als cache in het bestand, zodat ook een preview de cijfers toont. Excel rekent bij het openen alles opnieuw.
+Dit script doet het volgende:
+1. Het bouwt de werkmap uit `data/` (`tools/build_rdfo.py`).
+2. Het draait de scenario-tests (`tools/test_rdfo.py`).
+3. Het zet de berekende waarden als cache in het bestand.
+4. Het verpakt het geheel als `.xlsm`, met het VBA-project uit `macros/` (`tools/vbaproject.py`, `tools/package_xlsm.py`).
 
-Alle data in `data/` is synthetisch. De demo-aannames zijn geen vastgestelde SAP-definities.
+De formules zijn getest in LibreOffice. De macro's zijn niet in Excel uitgevoerd: getest is alleen dat het VBA-project leesbaar is en dat elke knop naar een bestaande macro verwijst.

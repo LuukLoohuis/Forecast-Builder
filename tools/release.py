@@ -21,6 +21,7 @@ results = json.loads((work / "tests" / "testresultaten.json").read_text())
 
 import build_rdfo  # noqa: E402
 import inject_cache  # noqa: E402
+import package_xlsm  # noqa: E402
 import write_docs  # noqa: E402
 
 raw = work / "RDFO_raw.xlsx"
@@ -29,8 +30,13 @@ build_rdfo.build(str(raw), test_results=results)
 shutil.copy(raw, calc)
 info = json.loads(subprocess.run([sys.executable, recalc, str(calc), "600"], capture_output=True, text=True).stdout)
 print("herberekening:", info)
-assert info.get("total_errors") == 0, info
-n = inject_cache.main(str(raw), str(calc), str(ROOT / "RDFO_prototype.xlsx"))
+# enige toegestane #N/A: bewuste gaten in de BOR%-lijn van de grafiek (versie zonder vastgelegde waarde)
+fouten = {k: [loc for loc in v["locations"] if not (k == "#N/A" and loc.startswith("Dashboard!F5"))]
+          for k, v in info.get("error_summary", {}).items()}
+assert info.get("status") in ("success", "errors_found") and not any(fouten.values()), info
+cached = work / "RDFO_cache.xlsx"
+n = inject_cache.main(str(raw), str(calc), str(cached))
 print(n, "formulecellen van cache voorzien")
+print(package_xlsm.main(str(cached), str(ROOT / "RDFO_prototype.xlsm")), "knoppen geplaatst")
 write_docs.main(str(work / "tests" / "testresultaten.json"))
 sys.exit(t.returncode)

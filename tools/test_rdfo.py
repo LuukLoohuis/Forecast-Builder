@@ -1,6 +1,6 @@
 """Scenario-tests voor het RDFO-prototype.
 
-Bouwt de werkmap, past kopieën aan zoals een gebruiker zou doen (bron vervangen, plakken in Vastlegging,
+Bouwt de werkmap, past kopieën aan zoals een gebruiker zou doen (bron vervangen, vastleggen in Historie,
 parameters wijzigen), laat LibreOffice herberekenen en controleert de uitkomsten tegen een onafhankelijke
 pandas-berekening op de bronbestanden.
 
@@ -36,6 +36,9 @@ def record(name, ok, evidence):
 def recalc(path):
     out = subprocess.run([sys.executable, RECALC, str(path), "600"], capture_output=True, text=True)
     info = json.loads(out.stdout)
+    # bewuste #N/A: gaten in de BOR%-lijn van de dashboardgrafiek (versie zonder vastgelegde waarde)
+    info["total_errors"] = sum(1 for k, x in info.get("error_summary", {}).items() for loc in x["locations"]
+                               if not (k == "#N/A" and loc.startswith("Dashboard!F5")))
     return info, load_workbook(path, data_only=True)
 
 
@@ -120,7 +123,7 @@ ok = all(abs(got[c] * 1000 - exp[c]) < TOL for c in exp)
 record("RDFO-versiekolommen = fictieve historie; upload = bron (onafhankelijk nagerekend)", ok,
        "Budget/Q1/Q2/Q3/upload (EUR x 1.000): " + " / ".join(f"{got[c]:,.1f}" for c in "CDEFH"))
 
-verschil = sum(abs(w0["Vastleggen"][f"U{r}"].value or 0) for r in range(B.C0, B.C1 + 1))
+verschil = sum(abs(w0["Concept"][f"U{r}"].value or 0) for r in range(B.C0, B.C1 + 1))
 ok = abs(v(w0, rd("omz_proj", "F")) - v(w0, rd("omz_proj", "H"))) < TOL and abs(v(w0, rd("bor_tot", "F")) - v(w0, rd("bor_tot", "H"))) < TOL \
     and verschil < TOL
 record("Q3-snapshot sluit aan op de bronbestanden", ok,
@@ -135,7 +138,7 @@ DELTA = 0.1 * 2352000 + 100000
 
 
 def new_upload(wb):
-    ws = wb["SRC_ZPMW03"]
+    ws = wb["Bron_ZPMW03"]
     r = row_of(ws, col_of(ws, "WBS-element"), "G.900005.8.9090")
     for h in ["OP.BOB 2026-Q4", "OP.BOB 2026", "Kosten 2026-Q4", "Kosten 2026", "OP.BOR 2026-Q4", "OP.BOR 2026"]:
         c = col_of(ws, h)
@@ -147,7 +150,7 @@ def new_upload(wb):
 p, info, w2 = scenario("t02_nieuwe_upload", new_upload)
 same = all(abs(v(w2, rd(k, c)) - v(w0, rd(k, c))) < TOL for k in ("omz_proj", "bor_tot", "won_fy") for c in "CDEF")
 moved = abs((v(w2, rd("omz_proj", "H")) - v(w0, rd("omz_proj", "H"))) * 1000 - DELTA) < TOL
-warn = v(w2, "Controle!D4") == 0 and any(w2["Controle"][f"G{r}"].value == "WAARSCHUWING" and "snapshot" in str(w2["Controle"][f"D{r}"].value) for r in range(9, 70))
+warn = v(w2, "Controle!D4") == 0 and any(w2["Controle"][f"G{r}"].value == "WAARSCHUWING" and "snapshot" in str(w2["Controle"][f"D{r}"].value) for r in range(9, 90))
 record("Nieuwe bronupload verandert Budget/Q1/Q2/Q3 niet; alleen upload-concept beweegt", same and moved and warn and info.get("total_errors") == 0,
        f"Budget–Q3 ongewijzigd: {same}; upload +{(v(w2, rd('omz_proj', 'H')) - v(w0, rd('omz_proj', 'H'))):,.1f} (verwacht +{DELTA/1000:,.1f}); "
        f"Controle meldt afwijking upload vs vastgelegde Q3 als WAARSCHUWING: {warn}")
@@ -160,13 +163,13 @@ def q4_params(wb):
 
 
 p3, info, w3 = scenario("t03a_q4_concept", q4_params)
-n = v(w3, "Vastleggen!E3")
-block = [[w3["Vastleggen"].cell(row=r, column=c).value for c in range(1, 19)] for r in range(8, 8 + n)]
+n = v(w3, "Concept!E3")
+block = [[w3["Concept"].cell(row=r, column=c).value for c in range(1, 19)] for r in range(8, 8 + n)]
 revs = {row[6] for row in block}
 
 
 def paste(wb, rows, times=1):
-    ws = wb["Vastlegging"]
+    ws = wb["Historie"]
     r0 = max(r for r in range(B.L0, B.L1 + 1) if ws[f"J{r}"].value not in (None, "")) + 1
     for t in range(times):
         for i, row in enumerate(rows):
@@ -186,7 +189,7 @@ p, info, w4 = scenario("t03b_q4_vastgelegd", q4_frozen)
 ok = n == 280 and revs == {0} and abs(v(w4, rd("omz_proj", "G")) - v(w0, rd("omz_proj", "H"))) < TOL \
     and all(abs(v(w4, rd("omz_proj", c)) - v(w0, rd("omz_proj", c))) < TOL for c in "CDEF") \
     and v(w4, "CALC_Versies!B11") == "Vastgesteld" and abs(v(w4, rd("omz_proj", "N"))) < TOL
-record("Kwartaalvastlegging Q4 via Vastleggen → Vastlegging (plakken als waarden)", ok,
+record("Kwartaalvastlegging Q4: Concept → Historie (dezelfde kopieerstap als de macro)", ok,
        f"{n} regels, revisie {sorted(revs)}; Q4-kolom = {v(w4, rd('omz_proj', 'G')):,.1f}; Budget–Q3 ongewijzigd; geselecteerd = {v(w4, 'CALC_Versies!B11')}")
 
 
@@ -201,9 +204,9 @@ record("Vastgelegde Q4 is onveranderlijk: latere upload herberekent haar niet", 
        f"Q4 vóór/na nieuwe upload: {v(w4, rd('omz_proj', 'G')):,.1f} / {v(w5, rd('omz_proj', 'G')):,.1f}; upload-concept {v(w5, rd('omz_proj', 'H')):,.1f}")
 
 p, info, w6 = scenario("t04_dubbele_import", lambda wb: q4_frozen(wb, times=2))
-ok = abs(v(w6, rd("omz_proj", "G")) - v(w4, rd("omz_proj", "G"))) < TOL and v(w6, "Vastlegging!M3") == 280 and v(w6, "Controle!D4") == 0
+ok = abs(v(w6, rd("omz_proj", "G")) - v(w4, rd("omz_proj", "G"))) < TOL and v(w6, "Historie!M3") == 280 and v(w6, "Controle!D4") == 0
 record("Dubbele import veroorzaakt geen dubbeltelling", ok,
-       f"Q4 na 2x plakken: {v(w6, rd('omz_proj', 'G')):,.1f} (1x: {v(w4, rd('omz_proj', 'G')):,.1f}); {v(w6, 'Vastlegging!M3')} regels als dubbel genegeerd en gemeld")
+       f"Q4 na 2x plakken: {v(w6, rd('omz_proj', 'G')):,.1f} (1x: {v(w4, rd('omz_proj', 'G')):,.1f}); {v(w6, 'Historie!M3')} regels als dubbel genegeerd en gemeld")
 
 
 # ------------------------------------------------------------------ correctie met revisie
@@ -244,12 +247,12 @@ record("Parkeergebouw zonder woningen: geen deling door nul", info.get("total_er
 
 # ------------------------------------------------------------------ alias en kolomvolgorde
 def alias_and_order(wb):
-    ws = wb["SRC_ZPMW03"]
+    ws = wb["Bron_ZPMW03"]
     ws.cell(row=1, column=col_of(ws, "Naam maatschappij")).value = "Bedrijfsnaam"
     a, b = col_of(ws, "OP.BOB 2026"), col_of(ws, "Risicoklasse")
     for r in range(1, ws.max_row + 1):
         ws.cell(row=r, column=a).value, ws.cell(row=r, column=b).value = ws.cell(row=r, column=b).value, ws.cell(row=r, column=a).value
-    we = wb["SRC_Woningetalage"]
+    we = wb["Bron_Woningetalage"]
     a, b = col_of(we, "Huidig jaar"), col_of(we, "Volgend jaar")
     for r in range(1, we.max_row + 1):
         we.cell(row=r, column=a).value, we.cell(row=r, column=b).value = we.cell(row=r, column=b).value, we.cell(row=r, column=a).value
@@ -264,7 +267,7 @@ record("Alias Bedrijfsnaam/Naam maatschappij en gewijzigde kolomvolgorde", ok,
 
 # ------------------------------------------------------------------ nieuw en vervallen project
 def new_and_dropped(wb):
-    ws = wb["SRC_ZPMW03"]
+    ws = wb["Bron_ZPMW03"]
     wc = col_of(ws, "WBS-element")
     rdrop = row_of(ws, wc, "G.900020.8.9090")
     for c in range(1, ws.max_column + 1):
@@ -275,10 +278,10 @@ def new_and_dropped(wb):
 
 p, info, w10 = scenario("t07_nieuw_vervallen", new_and_dropped)
 wc = w10["Controle"]
-txt = {wc[f"D{r}"].value: (wc[f"E{r}"].value, wc[f"G{r}"].value) for r in range(9, 70)}
+txt = {wc[f"D{r}"].value: (wc[f"E{r}"].value, wc[f"G{r}"].value) for r in range(9, 90)}
 nieuw = txt["Nieuwe projecten: ZPMW03-WBS niet in Mapping"]
 verv = txt["Vervallen / ontbrekend: Mapping-WBS niet in ZPMW03"]
-lists = [wc.cell(row=r, column=c).value for r in range(70, 100) for c in range(2, 10)]
+lists = [wc.cell(row=r, column=c).value for r in range(60, 130) for c in range(2, 10)]
 ok = nieuw == (1, "FOUT") and verv == (1, "WAARSCHUWING") and "G.900099.8.9090" in lists and "Boswaard, Parkeergebouw" in lists
 record("Nieuwe en vervallen projecten verschijnen als uitzondering (niet stil weg)", ok,
        f"nieuw: {nieuw}; vervallen: {verv}; uitzonderingslijst bevat G.900099 en Boswaard, Parkeergebouw")
@@ -296,6 +299,76 @@ ebit = v(w12, rd("ebit", "H")) - v(w12, rd("bor_tot", "H"))
 ok = abs(v(w12, rd("ak", "H")) + 1400) < TOL and abs(ebit - (-1400 + 300 + 150)) < TOL and v(w12, "Controle!D5") >= 1 and v(w0, rd("ak", "H")) == "n.b."
 record("Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld)", ok,
        f"P_Demo=Nee: AK-dekking '{v(w0, rd('ak', 'H'))}'; P_Demo=Ja: AK-dekking {v(w12, rd('ak', 'H')):,.0f} en Controle-waarschuwing")
+
+
+# ------------------------------------------------------------------ stoplicht
+ws = w0["Stoplicht"]
+rows_sl = {ws[f"A{r}"].value: r for r in range(B.SL0, B.SL1 + 1) if ws[f"A{r}"].value}
+r_wg = rows_sl["Duinwaard, De Watergaarde"]      # handmatig 0% verkocht, netcongestie Laag
+r_pk = rows_sl["Boswaard, Parkeergebouw"]        # geen woningen, netcongestie Hoog
+codes = lambda w, r: [w["Stoplicht"][f"{c}{r}"].value for c in "JKLMN"]  # noqa: E731
+ok = codes(w0, r_wg) == [1, 3, 3, 2, 1] and codes(w0, r_pk) == [0, 3, 3, 1, 1]
+record("Stoplicht: kleur volgt uit invoer en uitgangspunten; totaal = slechtste", ok,
+       f"Watergaarde (0% verkocht, net Laag) → {codes(w0, r_wg)}; Parkeergebouw (geen woningen, net Hoog) → {codes(w0, r_pk)} (0 = leeg/n.v.t.)")
+
+
+def stoplicht_rules(wb):
+    st = wb["Stoplicht"]
+    st["U16"] = 0.0           # oranje vanaf 0% ...
+    st["U15"] = 0.0           # ... en groen vanaf 0% → verkoop altijd groen
+    for r in range(1, 60):    # netcongestie 'Laag' → groen
+        if st[f"S{r}"].value == "Netcongestie":
+            for rr in range(r + 2, r + 7):
+                if st[f"T{rr}"].value == "Laag":
+                    st[f"U{rr}"] = "Groen"
+
+
+p, info, w13 = scenario("t10_stoplicht_uitgangspunten", stoplicht_rules)
+ok = codes(w13, r_wg) == [3, 3, 3, 3, 3]
+record("Stoplicht: uitgangspunten aanpassen kleurt alle lichten direct mee", ok,
+       f"Groengrens 0% en netcongestie Laag = groen → Watergaarde {codes(w13, r_wg)}")
+
+# ------------------------------------------------------------------ orderintake
+zz = pd.read_excel(D / B.SRC_Z_FILE)
+zz["oi"] = pd.to_datetime(zz["Orderintake"])
+exp_oi = float(-zz[(zz.oi.dt.year == 2026) & (zz.oi <= pd.Timestamp(2026, 9, 30))]["PEW opbrengst"].sum())
+exp_n = int(((zz.oi.dt.year == 2026) & (zz.oi <= pd.Timestamp(2026, 9, 30))).sum())
+got_oi = v(w0, "Orderintake!B5") * 1e6
+ok = abs(got_oi - exp_oi) < 1 and str(v(w0, "Orderintake!B6")).startswith(str(exp_n)) and abs(v(w0, "Orderintake!F16") * 1000 - float(-zz[zz.oi.dt.year == 2026]["PEW opbrengst"].sum())) < 1
+record("Orderintake per jaar/kwartaal = bron (kolom Orderintake, PEW opbrengst)", ok,
+       f"2026 t/m peildatum: {got_oi:,.0f} EUR in {exp_n} projecten (onafhankelijk: {exp_oi:,.0f})")
+
+# ------------------------------------------------------------------ PowerPoint-inhoud en macro-verpakking
+ok = v(w0, "PPT!B14") == 20 and str(v(w0, "PPT!B6")).startswith("Omzet FY 2026") and v(w0, "PPT!E3") == v(w0, "Dashboard!B8")
+record("PowerPoint-inhoud staat klaar (verborgen tabblad PPT)", ok,
+       f"{v(w0, 'PPT!B14')} projecten in de projecttabel; kernboodschap: '{v(w0, 'PPT!B6')}'")
+
+import zipfile  # noqa: E402
+from oletools.olevba import VBA_Parser  # noqa: E402
+import inject_cache  # noqa: E402
+import package_xlsm  # noqa: E402
+
+inj = WORK / "pkg_cache.xlsx"
+inject_cache.main(str(base), str(WORK / "t01_basis.xlsx"), str(inj))
+xlsm = WORK / "pkg.xlsm"
+n_btn = package_xlsm.main(str(inj), str(xlsm))
+vp = VBA_Parser(str(xlsm))
+mods = {n: src for (_f, _s, n, src) in vp.extract_macros()}
+subs = set()
+for src in mods.values():
+    for ln in src.splitlines():
+        if ln.startswith("Public Sub "):
+            subs.add(ln.split()[2].split("(")[0])
+zx = zipfile.ZipFile(xlsm)
+macros_in_buttons = set()
+for nme in zx.namelist():
+    if nme.startswith("xl/drawings/drawing"):
+        macros_in_buttons |= {m.split("!")[1] for m in __import__("re").findall(r'macro="([^"]+)"', zx.read(nme).decode()) if "!" in m}
+ct = zx.read("[Content_Types].xml").decode()
+ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 4 and n_btn == len(B.BUTTONS)
+      and "macroEnabled.main+xml" in ct and "shStoplicht.cls" in mods)
+record("Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's", ok,
+       f"{len(mods)} VBA-modules (oletools); {n_btn} knoppen → {sorted(macros_in_buttons)}. Let op: uitvoering in Excel zelf is hier niet getest.")
 
 errs = [r for r in results if r[2] != "GESLAAGD"]
 (WORK / "testresultaten.json").write_text(json.dumps(results, ensure_ascii=False, indent=1, default=str))

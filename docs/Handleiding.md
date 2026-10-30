@@ -1,58 +1,93 @@
 # Handleiding RDFO-prototype
 
-Bronvervanging, verversen, kwartaalvastlegging en correcties. Dezelfde tekst staat in de werkmap (tab *Handleiding*).
+Dit bestand maakt de RDFO-rapportage, het dashboard, de projectoverzichten, het stoplicht en de PowerPoint uit twee SAP-exports: ZPMW03 en Woningetalage. Eén keer per kwartaal lees je de exports in, controleer je, vul je aan en leg je de prognose vast. Vastgelegde prognoses veranderen daarna nooit meer.
 
-## Ontwerpkeuze
+## Elk kwartaal in 5 stappen
 
-- **Keuze** — Excel met gestructureerde lagen en formule-staging op kolomnaam; géén Power Query, géén macro's.
-- **Waarom geen Power Query (nu)** — De bronnen worden per ronde handmatig vervangen en zijn klein (tientallen tot honderden regels). Een plak-tabblad met staging op kolomnaam geeft hetzelfde voordeel als Power Query (kolomvolgorde mag wijzigen, aliassen, dubbele headers op positie) maar werkt in elke Excelversie, rekent direct mee, is cel-voor-cel controleerbaar en kon in dit prototype automatisch getest worden. Power Query-queries kunnen in deze bouwomgeving niet worden uitgevoerd of getest; een ongeteste query opleveren past niet bij 'beloof niets dat niet werkt'.
-- **Wanneer wél Power Query** — Als bronnen uit een vaste map/SharePoint komen of groter worden dan ~500 regels. De staginglaag (STG_*) is dan 1-op-1 te vervangen door een query die dezelfde interne veldnamen (Veldwoordenboek) oplevert; rapportage en versiebeheer blijven ongewijzigd.
-- **Waarom geen macro's** — Vastleggen is bewust een handmatige plak-als-waarden-stap met automatische revisie, dubbel-detectie en controles. Er is dus geen upload- of snapshotknop; dat wordt nergens gesuggereerd.
-- **Waarom een grootboek (long format)** — Elke vastgelegde waarde is één regel: Import-ID, bronbestand, importdatum, status, versiejaar, versie, revisie, peildatum, doeljaar, WBS, historische projectnaam/type/IFRS, kengetal, waarde, eenheid, toelichting. Nieuwe kengetallen of versies vragen geen nieuwe kolommen of bladen; rapportage leest alleen actieve vastgestelde regels.
+**1. Bronnen inlezen** — Knop op Start
 
-## A. Nieuwe bronupload (elke rapportageronde)
+Klik op Start op de knop 'Bronnen inlezen'. Kies eerst de ZPMW03-export, daarna de Woningetalage-export. Vul de peildatum (bijv. 30-09-2026) en de versie (bijv. Q3) in.
 
-- 1. Exporteer ZPMW03 en Woningetalage zoals gebruikelijk. Wijzig niets in de export.
-- 2. Tab SRC_ZPMW03: selecteer alles (Ctrl+A) → Delete. Plak de volledige export inclusief kopregel in cel A1.
-- 3. Tab SRC_Woningetalage: idem. Dubbele headers (Proj.srt, Profitctr.) en jaarheaders (2028, -2033 …) gewoon laten staan.
-- 4. Parameters: vul P_RJ (rapportagejaar), P_Peildatum, P_UploadVJ, P_UploadVersie, P_ImportID (nieuw, uniek), bestandsnamen, importdatum en het verwachte aantal regels per bron.
-- 5. Excel rekent automatisch. Open Controle: los alle FOUT-regels op (bijv. nieuw project → regel toevoegen in Mapping). Lees de WAARSCHUWINGEN en de uitzonderingslijsten onderaan.
-- 6. Vastgelegde versies (Budget/Q1/Q2/…) veranderen hierdoor NIET; alleen de kolom 'Upload … concept' en de uploadgedreven bladen (planning, woningmatrix, meerjarendoorkijk) wijzigen.
+*Let op:* Het bestand rekent alles opnieuw en opent het tabblad Controle. Eerdere vastgelegde prognoses blijven ongewijzigd.
 
-## B. Kwartaalprognose vastleggen (HANDMATIG — geen knop)
+**2. Controleren** — Tabblad Controle
 
-- 1. Voorwaarde: Controle toont 0 fouten en de upload is inhoudelijk akkoord (concept = de te vast te stellen jaarprognose).
-- 2. Parameters › P_StatusVastleg = 'Vastgesteld' (of 'Concept' voor een voorlopige vastlegging die nog niet meetelt).
-- 3. Tab Vastleggen: lees regel 4 (al vastgesteld? dan wordt het een correctie). Noteer 'Te plakken regels' en de rijen.
-- 4. Selecteer Vastleggen!A8:R<laatste rij> en kopieer (Ctrl+C).
-- 5. Tab Vastlegging: ga naar kolom A op de 'Eerste vrije rij' (cel D3) en kies Plakken speciaal › Waarden (Ctrl+Alt+V, W).
-- 6. Controleer: 'Actieve regels' neemt toe, 'Genegeerde dubbele regels' blijft 0, Controle blijft zonder fouten. In de RDFO is de versiekolom nu gevuld.
-- 7. Voeg een regel toe aan Importlog met hetzelfde Import-ID. Sla de werkmap op met de versie in de bestandsnaam.
-- Nooit: regels in Vastlegging wijzigen of verwijderen, of formules in Vastlegging kolom A–R plakken.
+Bekijk bovenaan het tabblad Controle het aantal FOUT en WAARSCHUWING. Los elke FOUT op. Meest voorkomend: een nieuw project → voeg het toe onderaan Invoer › 2. Projecten.
 
-## C. Correctie op een vastgestelde versie
+*Let op:* Onderaan Controle staan de lijsten met nieuwe, vervallen en verliesprojecten. Niets verdwijnt stil.
 
-- 1. Pas bron of aanvullende invoer aan zodat Vastleggen de juiste waarden toont.
-- 2. Vul Parameters › P_ToelCorrectie met de reden (verplicht). Vastleggen toont automatisch revisie = hoogste revisie + 1.
-- 3. Kopieer en plak zoals bij B. Alleen de hoogste vastgestelde revisie per sleutel telt; de oude regel blijft bewaard (audittrail).
-- 4. Wil je slechts één project corrigeren: plak alleen de betreffende regels. RDFO markeert versies met een correctie met ●.
+**3. Aanvullen** — Tabbladen Invoer en Stoplicht
 
-## D. Dubbele import
+Vul aan wat niet in SAP staat: taakstellingen, eliminaties, AK-dekking en fees (Invoer › 3), toelichtingen (Invoer › 4) en de gele cellen op het tabblad Stoplicht.
 
-- Wordt hetzelfde blok twee keer geplakt (zelfde sleutel én revisie), dan telt de eerste regel en wordt de tweede als dubbel gemarkeerd (Vastlegging kolom V, Controle). Er ontstaat geen dubbeltelling. Verwijder de dubbele regels bij voorkeur niet maar documenteer in Importlog; verwijderen mag alleen als ze aantoonbaar identiek zijn.
+*Let op:* Wat je niet invult, staat in de rapportage als 'n.b.' — nooit stil als nul.
 
-## E. Aanvullende invoer en toelichtingen
+**4. Vastleggen** — Knop op Start of Historie
 
-- Invoer_Aanvullend: taakstellingen, eliminaties, AK-dekking, fees, overige resultaten per doeljaar/versie/rubriek, regio- of projectniveau, in EUR en managementteken. Status Vastgesteld telt in versiekolommen; Concept alleen in de upload-kolom; Fictieve aanname alleen als P_Demo = Ja; Voorbeeld nooit. Ontbreekt een post, dan toont RDFO n.b.
-- Invoer_Toelichting: één tekst per project/doeljaar/versie; zichtbaar in Projecten en Projectdetail.
-- Invoer_Koperstype: optionele verdeling Belegger/Particulier voor toekomstige verkopen. Zonder invoer: Onbekend.
+Klik op 'Prognose vastleggen' en bevestig. De jaarprognose van deze versie (bijv. Q3) wordt als vaste waarden toegevoegd aan het tabblad Historie.
 
-## F. Rapporteren en naar PowerPoint
+*Let op:* Bestaat de versie al? Dan vraagt de knop om een toelichting en maakt een correctie (nieuwe revisie). Twee keer klikken geeft geen dubbeltelling.
 
-- Selecties (doeljaar, versie, type, project) staan bovenaan het Dashboard en sturen alle rapporten aan.
-- RDFO, Dashboard, Projecten en Woningen hebben een afdrukbereik (A4 liggend). Kopieer een bereik als afbeelding (Start › Kopiëren › Als afbeelding) of plak grafieken als gekoppelde grafiek in PowerPoint.
-- Eenheid wijzigen via Parameters › P_Eenheid (EUR, EUR x 1.000, EUR mln). Bronprecisie blijft in EUR.
+**5. Rapporteren** — Dashboard en knop 'Maak PowerPoint'
 
-## G. Nieuw jaar
+Kies op het Dashboard het doeljaar en de versie. Klik op 'Maak PowerPoint' voor de presentatie.
 
-- Zet P_RJ, P_UploadVJ en P_VJ op het nieuwe jaar. Kolomkoppen ('OP.BOB <jaar>') en titels schuiven automatisch mee. Controleer in Veldwoordenboek of alle velden 'OK' zijn en of de jaarheader-mapping (tabel A) nog klopt.
+*Let op:* De PowerPoint wordt opgeslagen naast dit Excelbestand en direct geopend.
+
+## De tabbladen
+
+| Tabblad | Wat staat er | Wat doe je er |
+|---|---|---|
+| Start | Knoppen, status en snelkoppelingen. | Hier begin je. |
+| Dashboard | Kerncijfers, grafieken en de filters doeljaar, versie, opstal/deelneming en project. | Filters kiezen (gele cellen). |
+| RDFO | De volledige RDFO: Budget, Q1–Q4 vastgelegd, upload, realisatie, to go, verschillen. | Alleen lezen. |
+| Projecten | Per project: prognoses per versie, realisatie, to go, BOR, marge, orderintake, stoplicht. | Filteren met de pijltjes. |
+| Projectdetail | Eén project in detail: gegevens, verloop, planning, woningverkopen. | Project kiezen bovenaan. |
+| Woningen | Verkopen per maand en kwartaal, jaarverwachting per versie, koperstype, segment, projectmatrix. | Alleen lezen. |
+| Orderintake | Orderintake per kwartaal en per project (PEW-omzet en PEW-BOR). | Alleen lezen. |
+| Stoplicht | Stoplicht per project: verkoop, omgevingsvergunning, RvS, netcongestie, totaal. | Gele cellen invullen; uitgangspunten rechts. |
+| Controle | Alle controles met status en uitzonderingslijsten. | Na elke inleesronde bekijken. |
+| Invoer | Instellingen, projectenlijst, aanvullende posten, toelichtingen, koperstype. | Gele cellen invullen. |
+| Historie | Alle vastgelegde prognoses en de importlog. | Nooit wijzigen: alleen de knop voegt toe. |
+| Handleiding | Deze uitleg en de bijlagen. |  |
+
+## Stoplicht invullen
+
+- Per project vul je in: Omgevingsvergunning (Ja / In procedure / Nee), RvS (Geen / Laag / Midden / Hoog) en Netcongestie (Geen / Laag / Midden / Hoog).
+- Verkoop kleurt automatisch op basis van het verkochte percentage uit de Woningetalage. Wijkt de beoordeling af? Vul dan 'Verkocht % handmatig' in.
+- De uitgangspunten staan rechts op het tabblad: vanaf welk percentage verkoop groen of oranje is, en welke waarde welke kleur krijgt. Pas daar aan; alle lichten kleuren direct mee.
+- Totaal = de slechtste kleur van de ingevulde lichten. Een leeg rondje betekent: niet ingevuld of niet van toepassing.
+- Het stoplicht komt terug in Projecten, op het Dashboard en in de PowerPoint.
+
+## Een vastgelegde prognose corrigeren
+
+1. Pas de bron of de aanvullende invoer aan zodat de cijfers kloppen.
+2. Klik op 'Prognose vastleggen'. De knop ziet dat de versie al bestaat en vraagt om een toelichting.
+3. De correctie krijgt een hogere revisie. Alleen de nieuwste revisie telt; de oude regel blijft bewaard. In de RDFO staat ● achter de versie.
+
+## Spelregels
+
+- Wijzig nooit iets op het tabblad Historie. Alleen de knop 'Prognose vastleggen' voegt regels toe.
+- Voeg nieuwe projecten altijd onderaan toe in Invoer › 2. Niet sorteren of tussenvoegen: het stoplicht hoort bij de regel.
+- Bedragen in de bron zijn hele euro's; de rapportage toont EUR x 1.000 of EUR mln (instelbaar).
+- Omzet en resultaat zijn positief, verlies is negatief (rood). Er wordt nooit een absolute waarde genomen.
+- Woningaantallen en bedragen zijn al op aandeelbasis; het aandeel wordt niet nog eens toegepast.
+
+## Problemen oplossen
+
+| Probleem | Oplossing |
+|---|---|
+| De knoppen doen niets / gele balk 'Macro's zijn uitgeschakeld' | Klik op 'Inhoud inschakelen'. Komt het bestand uit e-mail of internet: sluit het, klik met rechts op het bestand › Eigenschappen › vink 'Blokkering opheffen' aan. |
+| Mijn organisatie staat geen macro's toe | Alles rekent ook zonder macro's. Rechtermuisknop op een tabbladnaam › Zichtbaar maken › Bron_ZPMW03 / Bron_Woningetalage: plak de export in A1. Vastleggen: kopieer op het verborgen tabblad Concept A8:R(laatste regel) en plak als waarden op de eerste vrije rij van Historie. |
+| 'Maak PowerPoint' geeft een foutmelding | PowerPoint moet op deze computer geïnstalleerd zijn. Sluit open dialoogvensters in PowerPoint en probeer opnieuw. |
+| Er staat 'n.b.' in de RDFO | Er is (nog) geen vastgelegde waarde of aanvullende invoer. Dat is bewust geen nul. |
+| Een oranje subtotaal in de RDFO | Minstens één onderliggende post is n.b.; het subtotaal is dus onvolledig. |
+| Nieuw rapportagejaar | Zet in Invoer › 1 het rapportagejaar, het versiejaar van de upload en het versiejaar in de rapporten op het nieuwe jaar. Kolomkoppen schuiven mee. |
+| Ik wil de rekenbladen zien | Klik op Start op 'Toon / verberg rekenbladen'. |
+| Excel meldt bij openen dat inhoud is hersteld en de knoppen werken niet | Importeer de macro's handmatig: Alt+F11 › Bestand › Bestand importeren › macros/modRDFO.bas. Klik daarna met rechts op elke knop › Macro toewijzen. |
+
+## Waarom zo gebouwd
+
+- **Macro's** — Drie knoppen nemen het handwerk over: bronnen inlezen (bestandskiezer), prognose vastleggen en PowerPoint maken. Alle berekeningen blijven gewone Excel-formules, zodat het bestand ook zonder macro's rekent en controleerbaar blijft.
+- **Waarom geen Power Query** — Met de knop 'Bronnen inlezen' is het inlezen al één klik. Power Query zou een tweede mechanisme toevoegen zonder extra voordeel; de staginglaag zoekt kolommen al op naam.
+- **Grootboek** — Elke vastgelegde waarde is één regel met versie, revisie, peildatum, doeljaar, kengetal en waarde. Nieuwe versies vragen geen nieuwe kolommen.

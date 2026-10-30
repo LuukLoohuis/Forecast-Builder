@@ -1,4 +1,4 @@
-"""Schrijft de documentatie (handleiding, mapping, productievragen, testresultaten) als markdown naar docs/."""
+"""Schrijft de handleiding, mapping, productievragen en testresultaten als markdown naar docs/."""
 import json
 import sys
 from pathlib import Path
@@ -22,27 +22,30 @@ def table(head, rows):
 
 def main(results_path=None):
     DOCS.mkdir(exist_ok=True)
-    h = ["# Handleiding RDFO-prototype", "",
-         "Bronvervanging, verversen, kwartaalvastlegging en correcties. Dezelfde tekst staat in de werkmap (tab *Handleiding*).", ""]
-    h += ["## Ontwerpkeuze", ""] + [f"- **{k}** — {v}" for k, v in DOC.ONTWERPKEUZE] + [""]
-    for sec, lines in DOC.HANDLEIDING:
-        h += [f"## {sec}", ""] + [f"- {ln}" for ln in lines] + [""]
+    h = ["# Handleiding RDFO-prototype", "", DOC.INLEIDING, "",
+         "## Elk kwartaal in 5 stappen", ""]
+    for i, (t, wat, waar, let) in enumerate(DOC.STAPPEN):
+        h += [f"**{i+1}. {t}** — {waar}", "", wat, "", f"*Let op:* {let}", ""]
+    h += ["## De tabbladen", "", table(["Tabblad", "Wat staat er", "Wat doe je er"], DOC.TABBLADEN), ""]
+    h += ["## Stoplicht invullen", ""] + [f"- {x}" for x in DOC.STOPLICHT] + [""]
+    h += ["## Een vastgelegde prognose corrigeren", ""] + [f"{i+1}. {x}" for i, x in enumerate(DOC.CORRECTIE)] + [""]
+    h += ["## Spelregels", ""] + [f"- {x}" for x in DOC.SPELREGELS] + [""]
+    h += ["## Problemen oplossen", "", table(["Probleem", "Oplossing"], DOC.FAQ), ""]
+    h += ["## Waarom zo gebouwd", ""] + [f"- **{k}** — {v}" for k, v in DOC.ONTWERPKEUZE] + [""]
     (DOCS / "Handleiding.md").write_text("\n".join(h))
 
-    m = ["# Bron-naar-rapportagemapping", "",
-         "Elke rapportageregel met bron, berekening, benodigde aanvullende invoer en openstaande definitie. Ook in de werkmap (tab *Rapportagemapping*).", "",
-         table(["Rapportageregel", "Bron", "Berekening", "Aanvullende invoer", "Openstaande definitie"], DOC.MAPPING)]
+    m = ["# Van bron naar rapport", "", "Elke rapportregel met bron, berekening, aanvullende invoer en open punt. Ook in de werkmap (Handleiding › bijlage B).", "",
+         table(["Rapportregel", "Bron", "Berekening", "Aanvullende invoer", "Open punt"], DOC.MAPPING)]
     (DOCS / "Rapportagemapping.md").write_text("\n".join(m) + "\n")
-
-    p = ["# Productievragen", "", "Te beantwoorden vóór productie. Het prototype draait op expliciete demo-aannames.", "",
+    p = ["# Vragen vóór productie", "", "Het prototype draait op expliciete demo-aannames.", "",
          table(["Nr", "Thema", "Vraag", "Raakt"], [(i + 1,) + q for i, q in enumerate(DOC.PRODUCTIEVRAGEN)])]
     (DOCS / "Productievragen.md").write_text("\n".join(p) + "\n")
-
     if results_path and Path(results_path).exists():
         res = json.loads(Path(results_path).read_text())
         t = ["# Testresultaten", "",
              "Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zoals een gebruiker dat doet, "
-             "door LibreOffice herberekend en vergeleken met een onafhankelijke pandas-berekening op de bronbestanden.", "",
+             "door LibreOffice herberekend en vergeleken met een onafhankelijke pandas-berekening. "
+             "De macro's zelf (VBA) zijn hier niet in Excel uitgevoerd; getest is dat het VBA-project leesbaar is en de knoppen naar bestaande macro's verwijzen.", "",
              table(["Nr", "Test", "Uitkomst / bewijs", "Resultaat"], [(i + 1, a, b, c) for i, (a, b, c) in enumerate(res)])]
         (DOCS / "Testresultaten.md").write_text("\n".join(t) + "\n")
 
