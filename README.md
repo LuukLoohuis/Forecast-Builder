@@ -21,6 +21,7 @@ Grafieken volgen de IBCS/Zebra-notatie: realisatie massief, prognose gearceerd, 
 | [docs/Rapportagemapping.md](docs/Rapportagemapping.md) | Van bron naar rapport, per regel |
 | [docs/Productievragen.md](docs/Productievragen.md) | Vragen vóór productie |
 | [docs/Testresultaten.md](docs/Testresultaten.md) | Uitgevoerde scenario-tests |
+| [docs/Overdracht_Copilot.md](docs/Overdracht_Copilot.md) | Overdracht voor Copilot/ontwikkelaar, inclusief opzet scenarioanalyse |
 | [macros/](macros) | VBA-broncode (ook handmatig te importeren) |
 
 ## Opnieuw bouwen en testen
