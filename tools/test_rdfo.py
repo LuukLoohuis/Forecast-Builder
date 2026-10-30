@@ -390,7 +390,7 @@ for nme in zx.namelist():
     if nme.startswith("xl/drawings/drawing"):
         macros_in_buttons |= {m.split("!")[1] for m in __import__("re").findall(r'macro="([^"]+)"', zx.read(nme).decode()) if "!" in m}
 ct = zx.read("[Content_Types].xml").decode()
-ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 4 and n_btn == len(B.BUTTONS)
+ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 6 and n_btn == len(B.BUTTONS)
       and "macroEnabled.main+xml" in ct and "shStoplicht.cls" in mods)
 record("Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's", ok,
        f"{len(mods)} VBA-modules (oletools); {n_btn} knoppen → {sorted(macros_in_buttons)}. Let op: uitvoering in Excel zelf is hier niet getest.")

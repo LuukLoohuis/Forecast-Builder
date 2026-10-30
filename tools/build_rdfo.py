@@ -2842,24 +2842,24 @@ def build_controle(wb, ws):
          "Koppeling op WBS/Stufe 3 klopt niet met projectniveau."),
         ("Bedragen", "Som kwartalen ≠ jaartotaal (OP.BOB/OP.BOR RJ en RJ+1)", f'=COUNTIF({zc("C_Kwartaal")},1)', "0", 'IF({v}=0,"OK","FOUT")',
          "Kwartaalvelden en jaartotaal worden nooit bij elkaar opgeteld; ze moeten aansluiten."),
-        ("Bedragen", "OP.BOB + Kosten ≠ OP.BOR (LJ, RJ, RJ+1)", f'=COUNTIF({zc("C_BobKostBor")},1)', "0", 'IF({v}=0,"OK","FOUT")', ""),
+        ("Bedragen", "OP.BOB + Kosten ≠ OP.BOR (LJ, RJ, RJ+1)", f'=COUNTIF({zc("C_BobKostBor")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Opbrengsten en kosten sluiten niet aan op het resultaat. Vaak: kosten met ander teken in de export. Welke regels: STG_ZPMW03, kolom C_BobKostBor = 1."),
         ("Bedragen", "OP.BOB RJ bevat kwartalen vóór peildatum (geen restant?)",
          f'=SUMPRODUCT((P_PeilMaand>=3)*((COUNTIF({zc("BOB_RJ_Q1")},"<0")+COUNTIF({zc("BOB_RJ_Q1")},">0"))))'
          f'+(P_PeilMaand>=6)*(COUNTIF({zc("BOB_RJ_Q2")},"<0")+COUNTIF({zc("BOB_RJ_Q2")},">0"))'
          f'+(P_PeilMaand>=9)*(COUNTIF({zc("BOB_RJ_Q3")},"<0")+COUNTIF({zc("BOB_RJ_Q3")},">0"))', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
          "Demo-aanname: OP.BOB RJ = restant na peildatum. Afwijking → definitie in productie controleren (dubbeltelling met LJ!)."),
-        ("Bedragen", "Portefeuille BOB ≠ som OP.BOB RJ..RJ+8 + onverdeeld", f'=COUNTIF({zc("C_Portefeuille")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', ""),
-        ("Bedragen", "PEW opbrengst ≠ BOB VJ + BOB LJ + portefeuille", f'=COUNTIF({zc("C_PEW")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', ""),
-        ("Woningen", "Aantal ≠ vorig jaar + 12 mnd + volgend jaar + latere jaren", f'=COUNTIF({ec("C_Aantal")},1)', "0", 'IF({v}=0,"OK","FOUT")', ""),
-        ("Woningen", "Etalage ≠ aantal − cumulatief actual", f'=COUNTIF({ec("C_Etalage")},1)', "0", 'IF({v}=0,"OK","FOUT")', ""),
-        ("Woningen", "Cumulatief ≠ t/m vorig jaar + huidig jaar actual", f'=COUNTIF({ec("C_Cum")},1)', "0", 'IF({v}=0,"OK","FOUT")', ""),
+        ("Bedragen", "Portefeuille BOB ≠ som OP.BOB RJ..RJ+8 + onverdeeld", f'=COUNTIF({zc("C_Portefeuille")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Portefeuille sluit niet aan op de jaarverdeling. Rapportage gebruikt de jaarvelden. Regels: STG_ZPMW03, kolom C_Portefeuille = 1."),
+        ("Bedragen", "PEW opbrengst ≠ BOB VJ + BOB LJ + portefeuille", f'=COUNTIF({zc("C_PEW")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "PEW wijkt af van gerealiseerd + portefeuille (bijv. PEW nog niet bijgewerkt). Regels: STG_ZPMW03, kolom C_PEW = 1."),
+        ("Woningen", "Aantal ≠ vorig jaar + 12 mnd + volgend jaar + latere jaren", f'=COUNTIF({ec("C_Aantal")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Verkopen per jaar tellen niet op tot het aantal woningen. Regels: STG_Woningetalage, kolom C_Aantal = 1."),
+        ("Woningen", "Etalage ≠ aantal − cumulatief actual", f'=COUNTIF({ec("C_Etalage")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Etalage (nog te verkopen) klopt niet met aantal en verkocht. Regels: STG_Woningetalage, kolom C_Etalage = 1."),
+        ("Woningen", "Cumulatief ≠ t/m vorig jaar + huidig jaar actual", f'=COUNTIF({ec("C_Cum")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Cumulatief verkocht sluit niet aan. Regels: STG_Woningetalage, kolom C_Cum = 1."),
         ("Woningen", "Huidig jr Totaal ≠ som hjr-maanden t/m peilmaand", f'=COUNTIF({ec("C_HJ")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Controleert ook de peilmaand."),
-        ("Woningen", "Beleggers + Particulier ≠ Totaal", f'=COUNTIF({ec("C_BP")},1)', "0", 'IF({v}=0,"OK","FOUT")', ""),
-        ("Woningen", "Huidig/Volgend jaar ≠ som maanden/kwartalen", f'=COUNTIF({ec("C_Jaren")},1)', "0", 'IF({v}=0,"OK","FOUT")', ""),
+        ("Woningen", "Beleggers + Particulier ≠ Totaal", f'=COUNTIF({ec("C_BP")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Splitsing beleggers/particulier telt niet op. Regels: STG_Woningetalage, kolom C_BP = 1."),
+        ("Woningen", "Huidig/Volgend jaar ≠ som maanden/kwartalen", f'=COUNTIF({ec("C_Jaren")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Jaartotaal sluit niet aan op de maanden/kwartalen. Regels: STG_Woningetalage, kolom C_Jaren = 1."),
         ("Woningen", "Niet-geïnterpreteerde kolommen bevatten waarden", f'=COUNTIF({ec("C_NietGeinterp")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
          "Rond en negatieve jaarkoppen: eerst betekenis vastleggen in Invoer › 6."),
-        ("Woningen", "Aantal woningen wijkt af van Mapping", f'=COUNTIF({ec("C_MapAantal")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', ""),
-        ("Woningen", "Woningen bij project met 'Woningen meetellen = Nee'", f'=COUNTIF({ec("C_Meetellen")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', ""),
+        ("Woningen", "Aantal woningen wijkt af van Mapping", f'=COUNTIF({ec("C_MapAantal")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Werk het aantal woningen bij in Invoer › 2 (rapportage gebruikt de Woningetalage)."),
+        ("Woningen", "Woningen bij project met 'Woningen meetellen = Nee'", f'=COUNTIF({ec("C_Meetellen")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Zet 'Woningen meetellen' op Ja in Invoer › 2, anders ontbreken deze woningen."),
         ("Weging", "Woningen niet dubbel gewogen: rapporttotaal = brontotaal", '=SUMIFS(V_W_Aantal,V_Meetellen,"Ja")', f'=SUM({ec("Aantal")})',
          'IF(ABS({v}-{n})<=P_Tol,"OK","FOUT")', '="Met aandeel nogmaals gewogen zou het "&FIXED(SUMPRODUCT(IFERROR(V_W_Aantal*V_Aandeel/100,0)),0)&" zijn — wordt bewust NIET gedaan."'),
         ("Stoplicht", "Stoplichtinvoer hoort bij een ander project (lijst verschoven?)", '=SUMPRODUCT((SL_Stempel<>"")*(SL_Stempel<>SL_WBS))', "0",
@@ -2874,7 +2874,7 @@ def build_controle(wb, ws):
          'IF({v}=0,"OK","FOUT")', "Alleen Concept of Vastgesteld."),
         ("Versies", "Ongeldige versie in Vastlegging", '=COUNTIF(L_WBS,"?*")-' + "-".join(f'COUNTIFS(L_WBS,"?*",L_Versie,"{v}")' for v in VERSIES), "0",
          'IF({v}=0,"OK","FOUT")', "Alleen Budget/Q1/Q2/Q3/Q4."),
-        ("Versies", "Concept-regels in Vastlegging (tellen niet mee)", '=COUNTIFS(L_WBS,"?*",L_Status,"Concept")', "info", '"INFO"', ""),
+        ("Versies", "Concept-regels in Vastlegging (tellen niet mee)", '=COUNTIFS(L_WBS,"?*",L_Status,"Concept")', "info", '"INFO"', "Ter informatie; alleen Vastgesteld telt mee."),
         ("Versies", "Actieve correcties (revisie > 0)", '=COUNTIFS(L_Revisie,">0",L_Actief,1)', "info", '"INFO"', "Gemarkeerd met ● in RDFO."),
         ("Versies", '="Uploadversie "&P_UploadVersie&" "&P_UploadVJ&" al vastgesteld (regels)"', f"={frozen}", "info", '"INFO"',
          "Ja: concept dient als aansluitcontrole; opnieuw plakken = correctie."),
@@ -2930,7 +2930,7 @@ def build_controle(wb, ws):
             ws[f"{c}{r}"].font = font(9, c == "G", GREY if c in "CH" else "000000")
             ws[f"{c}{r}"].border = Border(bottom=thin)
             ws[f"{c}{r}"].alignment = Alignment(vertical="top", wrap_text=c in "DH", horizontal="right" if c in "EF" else None)
-        ws[f"E{r}"].number_format = '#,##0.##;[Red]-#,##0.##;0'
+        ws[f"E{r}"].number_format = 'General'
     rl = r0 + len(checks) - 1
     ws["D4"] = f'=COUNTIF($G${r0}:$G${rl},"FOUT")'
     ws["D5"] = f'=COUNTIF($G${r0}:$G${rl},"WAARSCHUWING")'
@@ -2985,6 +2985,10 @@ BUTTONS = [
     ("Dashboard", "R1", "T2", "Maak PowerPoint", "RDFO_MaakPowerPoint", "geel"),
     ("Historie", "P2", "R3", "Prognose vastleggen", "RDFO_PrognoseVastleggen", "geel"),
     ("Controle", "G2", "H3", "Bronnen opnieuw inlezen", "RDFO_BronnenInlezen", "geel"),
+    ("Controle", "E2", "F3", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
+    ("Start", "G18", "G19", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
+    ("Start", "G22", "G23", "Bestand leegmaken", "RDFO_LeegMaken", "blauw"),
+    ("Invoer", "J27", "L28", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
 ]
 
 
@@ -3057,6 +3061,9 @@ def build_start(wb, ws):
         cell.font = font(9)
     put(ws, "G13", "n.b. = niet beschikbaar (geen nul)", color=GREY, size=8)
     put(ws, "G14", "n.v.t. = niet van toepassing", color=GREY, size=8)
+    put(ws, "G17", "Beheer", bold=True, color=NAVY, size=11)
+    put(ws, "G20", "Zet WBS-elementen uit ZPMW03 die nog niet in de projectlijst staan onderaan Invoer › 2.", color=GREY, size=8, wrap=True)
+    put(ws, "G24", "Leeg format: wist bronnen, projectlijst, invoer, stoplicht en Historie. Instellingen blijven.", color=GREY, size=8, wrap=True)
     put(ws, "G15", "● groen  ● oranje  ● rood  ○ leeg", color=GREY, size=8)
     landscape(ws, "A1:G35")
 

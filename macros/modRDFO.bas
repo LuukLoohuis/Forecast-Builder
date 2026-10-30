@@ -44,7 +44,7 @@ End Function
 ' ================================================================= 1. BRONNEN INLEZEN
 Public Sub RDFO_BronnenInlezen()
     Dim fZ As Variant, fE As Variant, peilTxt As String, peil As Date, versie As String
-    Dim nZ As Long, nE As Long, impId As String, flt As String
+    Dim nZ As Long, nE As Long, impId As String, flt As String, ontbreekt As String, nieuw As Long
 
     flt = "Excel-bestanden (*.xlsx;*.xlsm;*.xls),*.xlsx;*.xlsm;*.xls"
     fZ = Application.GetOpenFilename(flt, , "Stap 1 van 2: kies de ZPMW03-export (Annuleren = overslaan)")
@@ -98,6 +98,11 @@ Public Sub RDFO_BronnenInlezen()
     Application.Calculation = xlCalculationAutomatic
     Application.CalculateFull
     RDFO_OutlookJaren
+    ontbreekt = ""
+    If nZ >= 0 Then ontbreekt = ontbreekt & OntbrekendeKolommen("STG_ZPMW03")
+    If nE >= 0 Then ontbreekt = ontbreekt & OntbrekendeKolommen("STG_Woningetalage")
+    nieuw = 0
+    If nZ >= 0 Then nieuw = NieuweProjecten()
     Application.ScreenUpdating = True
     ThisWorkbook.Worksheets("Controle").Activate
     ThisWorkbook.Worksheets("Controle").Range("A1").Select
@@ -105,7 +110,9 @@ Public Sub RDFO_BronnenInlezen()
            IIf(nE >= 0, nE & " regels Woningetalage", "Woningetalage overgeslagen") & "." & vbCr & vbCr & _
            "Controle: " & ThisWorkbook.Worksheets("Controle").Range("D4").Value & " fout(en), " & _
            ThisWorkbook.Worksheets("Controle").Range("D5").Value & " waarschuwing(en)." & vbCr & _
-           "Los eventuele fouten op en klik daarna op 'Prognose vastleggen'.", vbInformation, "Bronnen inlezen"
+           IIf(ontbreekt <> "", vbCr & "Deze kolommen zijn niet gevonden (kolomnaam in de export wijkt af):" & ontbreekt & vbCr, "") & _
+           IIf(nieuw > 0, vbCr & nieuw & " WBS-element(en) staan nog niet in de projectlijst. Klik op 'Nieuwe projecten toevoegen'." & vbCr, "") & _
+           vbCr & "Los eventuele fouten op en klik daarna op 'Prognose vastleggen'.", vbInformation, "Bronnen inlezen"
     Exit Sub
 Fout:
     Application.Calculation = xlCalculationAutomatic
@@ -114,41 +121,203 @@ Fout:
 End Sub
 
 Private Function LeesBron(ByVal pad As String, ByVal doelblad As String, ByVal sleutel As String) As Long
-    Dim wbS As Workbook, ws As Worksheet, src As Worksheet, f As Range, gevonden As Range
-    Dim laatsteRij As Long, laatsteKol As Long, n As Long
+    ' Zoekt de kopregel (eerste 30 rijen, alle tabbladen), neemt alles vanaf die kopregel over als waarden
+    ' (zonder klembord) en zet de kopregel in rij 1. Spaties rond kolomkoppen worden verwijderd.
+    Dim wbS As Workbook, ws As Worksheet, src As Worksheet, kopRij As Long, sleutelKol As Long
+    Dim laatsteRij As Long, laatsteKol As Long, n As Long, r As Long, k As Long, data As Variant, f As Range
 
     Set wbS = Workbooks.Open(Filename:=pad, ReadOnly:=True, UpdateLinks:=0)
     For Each ws In wbS.Worksheets
-        Set f = ws.Rows(1).Find(What:=sleutel, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
-        If Not f Is Nothing Then
-            Set src = ws
-            Set gevonden = f
-            Exit For
-        End If
+        For r = 1 To 30
+            For k = 1 To 200
+                If LCase(SchoneKop(ws.Cells(r, k).Value)) = LCase(sleutel) Then
+                    Set src = ws: kopRij = r: sleutelKol = k
+                    Exit For
+                End If
+            Next k
+            If Not src Is Nothing Then Exit For
+        Next r
+        If Not src Is Nothing Then Exit For
     Next ws
     If src Is Nothing Then
         wbS.Close SaveChanges:=False
-        MsgBox "De kolom '" & sleutel & "' staat niet in rij 1 van " & BestandsNaam(pad) & "." & vbCr & _
+        MsgBox "De kolom '" & sleutel & "' is niet gevonden in de eerste 30 rijen van " & BestandsNaam(pad) & "." & vbCr & _
                "Is dit de juiste export? Dit bestand is overgeslagen.", vbExclamation
         LeesBron = -1
         Exit Function
     End If
-    laatsteRij = src.Cells.Find("*", , xlFormulas, , xlByRows, xlPrevious).Row
-    laatsteKol = src.Cells.Find("*", , xlFormulas, , xlByColumns, xlPrevious).Column
-    If laatsteRij - 1 > BRON_CAPACITEIT Then
-        MsgBox "Let op: de export heeft " & laatsteRij - 1 & " regels; het bestand rekent met maximaal " & _
+    Set f = src.Cells.Find("*", , xlFormulas, , xlByRows, xlPrevious)
+    laatsteRij = f.Row
+    Set f = src.Cells.Find("*", , xlFormulas, , xlByColumns, xlPrevious)
+    laatsteKol = f.Column
+    If laatsteRij - kopRij > BRON_CAPACITEIT Then
+        MsgBox "Let op: de export heeft " & laatsteRij - kopRij & " regels; het bestand rekent met maximaal " & _
                BRON_CAPACITEIT & ". Controle meldt dit als fout.", vbExclamation
     End If
+    data = src.Range(src.Cells(kopRij, 1), src.Cells(laatsteRij, laatsteKol)).Value
+    wbS.Close SaveChanges:=False
+    For k = 1 To UBound(data, 2)
+        If Not IsEmpty(data(1, k)) Then data(1, k) = SchoneKop(data(1, k))
+    Next k
+    For r = 2 To UBound(data, 1)
+        If Trim(CStr(data(r, sleutelKol))) <> "" Then n = n + 1
+    Next r
     With ThisWorkbook.Worksheets(doelblad)
         .Cells.Clear
-        src.Range(src.Cells(1, 1), src.Cells(laatsteRij, laatsteKol)).Copy
-        .Range("A1").PasteSpecial Paste:=xlPasteValuesAndNumberFormats
-        Application.CutCopyMode = False
+        .Range("A1").Resize(UBound(data, 1), UBound(data, 2)).Value = data
     End With
-    n = Application.WorksheetFunction.CountA(src.Range(src.Cells(2, gevonden.Column), src.Cells(laatsteRij, gevonden.Column)))
-    wbS.Close SaveChanges:=False
     LeesBron = n
 End Function
+
+Private Function SchoneKop(ByVal v As Variant) As String
+    If IsError(v) Then Exit Function
+    SchoneKop = Application.WorksheetFunction.Trim(Replace(Replace(CStr(v), Chr(160), " "), vbLf, " "))
+End Function
+
+Private Function OntbrekendeKolommen(ByVal stg As String) As String
+    ' Kolommen die het bestand zoekt maar niet vindt (STG-blad rij 4 = ONTBREEKT; rij 2 = gezochte kop).
+    Dim ws As Worksheet, k As Long, t As String
+    Set ws = ThisWorkbook.Worksheets(stg)
+    For k = 2 To ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+        If CStr(ws.Cells(4, k).Text) = "ONTBREEKT" Then t = t & vbCr & "   - " & ws.Cells(2, k).Text
+    Next k
+    OntbrekendeKolommen = t
+End Function
+
+Private Function KolomNr(ByVal ws As Worksheet, ByVal kop As String) As Long
+    Dim f As Range
+    Set f = ws.Rows(1).Find(What:=kop, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    If Not f Is Nothing Then KolomNr = f.Column
+End Function
+
+Private Function NieuweProjecten() As Long
+    Dim wsZ As Worksheet, c As Long, r As Long, map As Range, w As String
+    Set wsZ = ThisWorkbook.Worksheets("Bron_ZPMW03")
+    Set map = Nm("Map_WBS")
+    c = KolomNr(wsZ, "WBS-element")
+    If c = 0 Then Exit Function
+    For r = 2 To wsZ.Cells(wsZ.Rows.Count, c).End(xlUp).Row
+        w = Trim(CStr(wsZ.Cells(r, c).Value))
+        If w <> "" Then If Application.WorksheetFunction.CountIf(map, w) = 0 Then NieuweProjecten = NieuweProjecten + 1
+    Next r
+End Function
+
+' ================================================================= 1b. NIEUWE PROJECTEN NAAR MAPPING
+Public Sub RDFO_ProjectenToevoegen()
+    Dim wsZ As Worksheet, wsE As Worksheet, map As Range, r As Long, i As Long, n As Long, vrij As Long
+    Dim cW As Long, cP As Long, cO As Long, eS As Long, eA As Long, eH As Long, wbs As String, m As Variant, eerste As Range
+
+    Set wsZ = ThisWorkbook.Worksheets("Bron_ZPMW03")
+    Set wsE = ThisWorkbook.Worksheets("Bron_Woningetalage")
+    Set map = Nm("Map_WBS")
+    cW = KolomNr(wsZ, "WBS-element"): cP = KolomNr(wsZ, "Projectdefinitie"): cO = KolomNr(wsZ, "Omschrijving")
+    eS = KolomNr(wsE, "Stufe 3"): eA = KolomNr(wsE, "Aantal woningen"): eH = KolomNr(wsE, "Aandeel Heijm.")
+    If cW = 0 Then
+        MsgBox "Er is nog geen ZPMW03 ingelezen (kolom 'WBS-element' niet gevonden). Klik eerst op 'Bronnen inlezen'.", vbExclamation
+        Exit Sub
+    End If
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    vrij = 1
+    For r = 2 To wsZ.Cells(wsZ.Rows.Count, cW).End(xlUp).Row
+        wbs = Trim(CStr(wsZ.Cells(r, cW).Value))
+        If wbs <> "" And Application.WorksheetFunction.CountIf(map, wbs) = 0 Then
+            Do While vrij <= map.Rows.Count
+                If Trim(CStr(map.Cells(vrij, 1).Value)) = "" Then Exit Do
+                vrij = vrij + 1
+            Loop
+            If vrij > map.Rows.Count Then
+                MsgBox "De projectlijst op Invoer is vol (" & map.Rows.Count & " regels). " & n & " project(en) toegevoegd; de rest niet.", vbExclamation
+                Exit For
+            End If
+            With map.Cells(vrij, 1)
+                .Value = wbs
+                If cP > 0 Then .Offset(0, 1).Value = wsZ.Cells(r, cP).Value
+                If cO > 0 Then .Offset(0, 2).Value = wsZ.Cells(r, cO).Value
+                .Offset(0, 5).Value = "Opstal"
+                .Offset(0, 6).Value = "Nee"
+                m = CVErr(xlErrNA)
+                If eS > 0 Then m = Application.Match(wbs, wsE.Columns(eS), 0)
+                If Not IsError(m) Then
+                    If eA > 0 Then .Offset(0, 3).Value = wsE.Cells(m, eA).Value
+                    If eH > 0 Then .Offset(0, 4).Value = wsE.Cells(m, eH).Value
+                    .Offset(0, 6).Value = "Ja"
+                End If
+                .Resize(1, 8).Interior.Color = RGB(255, 235, 156)
+            End With
+            If eerste Is Nothing Then Set eerste = map.Cells(vrij, 1)
+            n = n + 1
+        End If
+    Next r
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True
+    If n = 0 Then
+        MsgBox "Alle WBS-elementen uit ZPMW03 staan al in de projectlijst.", vbInformation, "Nieuwe projecten"
+    Else
+        ThisWorkbook.Worksheets("Invoer").Activate
+        eerste.Select
+        MsgBox n & " nieuw(e) project(en) toegevoegd aan Invoer › 2 (oranje gemarkeerd)." & vbCr & vbCr & _
+               "Controleer per regel:" & vbCr & "   - Projectnaam" & vbCr & "   - Type: Opstal of Deelneming (standaard Opstal)" & vbCr & _
+               "   - Woningen meetellen (Ja als het project in de Woningetalage staat)", vbInformation, "Nieuwe projecten"
+    End If
+End Sub
+
+' ================================================================= 1c. BESTAND LEEGMAKEN
+Public Sub RDFO_LeegMaken()
+    Dim antw As String, il As Range
+    If MsgBox("Hiermee maak je een leeg format. Dit wordt gewist:" & vbCr & _
+              "   - ingelezen ZPMW03 en Woningetalage" & vbCr & _
+              "   - projectlijst (Invoer › 2), aanvullende posten, toelichtingen, koperstype" & vbCr & _
+              "   - stoplichtinvoer" & vbCr & _
+              "   - Historie: alle vastgelegde prognoses en het importlog" & vbCr & vbCr & _
+              "Instellingen (regio, uitgangspunten stoplicht) blijven staan." & vbCr & _
+              "Tip: sla eerst een kopie op via 'Opslaan als'. Doorgaan?", _
+              vbYesNo + vbExclamation + vbDefaultButton2, "Bestand leegmaken") <> vbYes Then Exit Sub
+    antw = InputBox("Typ LEEG om te bevestigen.", "Bestand leegmaken")
+    If UCase(Trim(antw)) <> "LEEG" Then Exit Sub
+
+    On Error GoTo Fout
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+    ThisWorkbook.Worksheets("Bron_ZPMW03").Cells.Clear
+    ThisWorkbook.Worksheets("Bron_Woningetalage").Cells.Clear
+    With Nm("Map_WBS").Resize(, 8)
+        .ClearContents
+        .Interior.Color = Nm("P_Regio").Interior.Color
+    End With
+    Nm("A_Doel").Resize(, 12).ClearContents
+    Nm("T_Key").Offset(0, -8).Resize(, 5).ClearContents
+    Nm("T_Txt").Resize(, 3).ClearContents
+    Nm("KT_WBS").Resize(, 6).ClearContents
+    Nm("KT_WBS").Offset(0, 10).ClearContents
+    With ThisWorkbook.Worksheets("Stoplicht")
+        .Range("E8:H107").ClearContents
+        .Range("P8:P107").ClearContents
+    End With
+    Nm("L_ImportID").Resize(, 18).ClearContents
+    Set il = ThisWorkbook.Worksheets("Historie").Range(ThisWorkbook.Worksheets("Historie").Cells(6, IMPORTLOG_KOLOM), _
+             ThisWorkbook.Worksheets("Historie").Cells(HISTORIE_LAATSTE_RIJ, IMPORTLOG_KOLOM + 10))
+    il.ClearContents
+    Nm("P_BronZ").Value = "": Nm("P_BronE").Value = ""
+    Nm("P_RegelsZ").Value = 0: Nm("P_RegelsE").Value = 0
+    Nm("P_ImportID").Value = "": Nm("P_ToelCorrectie").Value = ""
+    Application.Calculation = xlCalculationAutomatic
+    Application.CalculateFull
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    ThisWorkbook.Worksheets("Start").Activate
+    MsgBox "Het bestand is leeg. Volgende stappen:" & vbCr & _
+           "1. Bronnen inlezen (ZPMW03 en Woningetalage)" & vbCr & _
+           "2. Nieuwe projecten toevoegen en Type controleren" & vbCr & _
+           "3. Controle nalopen, daarna Prognose vastleggen", vbInformation, "Bestand leegmaken"
+    Exit Sub
+Fout:
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    MsgBox "Leegmaken is niet helemaal gelukt: " & Err.Description, vbExclamation
+End Sub
 
 Private Function StandaardPeildatum() As Date
     Dim d As Date, q As Integer

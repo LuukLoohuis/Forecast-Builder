@@ -12,7 +12,7 @@ Klik op Start op de knop 'Bronnen inlezen'. Kies eerst de ZPMW03-export, daarna 
 
 **2. Controleren** — Tabblad Controle
 
-Bekijk bovenaan het tabblad Controle het aantal FOUT en WAARSCHUWING. Los elke FOUT op. Meest voorkomend: een nieuw project → voeg het toe onderaan Invoer › 2. Projecten.
+Bekijk bovenaan het tabblad Controle het aantal FOUT en WAARSCHUWING. Los elke FOUT op. Meest voorkomend: nieuwe projecten → klik op 'Nieuwe projecten toevoegen' en controleer daarna Type (Opstal/Deelneming) in Invoer › 2.
 
 *Let op:* Onderaan Controle staan de lijsten met nieuwe, vervallen en verliesprojecten. Niets verdwijnt stil.
 
@@ -77,6 +77,9 @@ Kies op het Dashboard het doeljaar en de versie. Gebruik Outlook als basis voor 
 
 | Probleem | Oplossing |
 |---|---|
+| Ik wil met een leeg bestand beginnen (eigen regio, echte data) | Klik op Start op 'Bestand leegmaken' en typ LEEG. Bronnen, projectlijst, invoer, stoplicht en Historie worden gewist; instellingen blijven. Daarna: Bronnen inlezen › Nieuwe projecten toevoegen › Type controleren. |
+| Na inlezen is alles leeg of staat 'Nieuwe projecten: … FOUT' | De WBS-elementen uit je export staan nog niet in de projectlijst; alleen projecten in Invoer › 2 tellen mee. Klik op 'Nieuwe projecten toevoegen' en controleer per regel Type en Woningen meetellen. |
+| Controle meldt 'ontbrekende kolommen' | Het bestand zoekt kolommen op naam (zie Handleiding › Veldwoordenboek). Na inlezen noemt de melding welke kolomnamen niet gevonden zijn. Hernoem de kolom in de export of pas de naam aan in de export-layout in SAP. |
 | De knoppen doen niets / gele balk 'Macro's zijn uitgeschakeld' | Klik op 'Inhoud inschakelen'. Komt het bestand uit e-mail of internet: sluit het, klik met rechts op het bestand › Eigenschappen › vink 'Blokkering opheffen' aan. |
 | Mijn organisatie staat geen macro's toe | Alles rekent ook zonder macro's. Rechtermuisknop op een tabbladnaam › Zichtbaar maken › Bron_ZPMW03 / Bron_Woningetalage: plak de export in A1. Vastleggen: kopieer op het verborgen tabblad Concept A8:R(laatste regel) en plak als waarden op de eerste vrije rij van Historie. |
 | 'Maak PowerPoint' geeft een foutmelding | PowerPoint moet op deze computer geïnstalleerd zijn. Sluit open dialoogvensters in PowerPoint en probeer opnieuw. |
