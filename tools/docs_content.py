@@ -126,7 +126,7 @@ MAPPING = [
     ("RDFO › IFRS-eliminaties", "—", "Som Invoer › 3. IFRS J/N alleen als memo.", "Verplicht", "Regel voor IFRS-eliminatie per project."),
     ("RDFO › Omzet IFRS", "—", "Omzet old + IFRS-eliminaties.", "—", ""),
     ("RDFO › Projectresultaten / BOR", "ZPMW03", "FY RJ = −Bruto (omzet) result. LJ − OP.BOR RJ; RJ+1 = −OP.BOR RJ+1. Geen ABS.", "—", "Behandeling verliesvoorzieningen."),
-    ("RDFO › AK-dekking", "ZPMW03 + Invoer › 2 (AK %)", "Invoer › 3 als die is ingevuld; anders per project (omzet − BOR) = kosten / 1,05 x AK %. Wordt mee vastgelegd.", "AK % per project", "Klopt de deler 1,05 en waar komen de AK-percentages vandaan?"),
+    ("RDFO › AK-dekking", "ZPMW03 + Invoer › 2 (AK %)", "Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) / 1,05 x AK %. Wordt mee vastgelegd.", "AK % per project", "Waar komen de AK-percentages vandaan (tabel AK Percentages)?"),
     ("RDFO › fees, overige, taakstelling EBIT", "—", "Som Invoer › 3 (FY en Actual YTD apart).", "Verplicht", ""),
     ("Outlook › DAEB, funnel, target", "Invoer › 8 en 9", "DAEB-omzet x percentage per jaar; funnel en target per jaar.", "Ja", "Komt DAEB-omzet uit de ZPMW DAEB-export?"),
     ("Outlook › kansen en risico's, reserves", "Invoer › 10 en 11", "Saldo per jaar (risico negatief); reserves x % gereed (cumulatief).", "Ja", ""),

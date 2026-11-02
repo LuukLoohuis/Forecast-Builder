@@ -138,6 +138,7 @@ def z_fields():
     for o in range(2, 9):
         f.append(dict(n=f"BOB_RJ{o}", h=f'="OP.BOB "&(P_RJ+{o})', k="num"))
         f.append(dict(n=f"BOR_RJ{o}", h=f'="OP.BOR "&(P_RJ+{o})', k="num"))
+        f.append(dict(n=f"Kosten_RJ{o}", h=f'="Kosten "&(P_RJ+{o})', k="num"))
     f += [
         dict(n="BOB_ONV", h="OP.BOB onverd.", k="num"),
         dict(n="BOR_ONV", h="OP.BOR onverd.", k="num"),
@@ -164,12 +165,15 @@ def z_derived():
         ("M_OmzFY1", neg("BOB_RJ1"), "FY omzet RJ+1 = -OP.BOB RJ+1 (volledig jaar)"),
         ("M_BorFY1", neg("BOR_RJ1"), "FY BOR RJ+1 = -OP.BOR RJ+1"),
         ("M_OmzQ4", neg("BOB_RJ_Q4"), "Omzet Q4 RJ"),
+        ("M_KostFY", '=IFERROR([Kosten_LJ]+[Kosten_RJ],"n.b.")', "Kosten FY RJ = Kosten LJ + Kosten RJ"),
+        ("M_KostFY1", '=IFERROR(+[Kosten_RJ1],"n.b.")', "Kosten RJ+1"),
         ("M_BorQ4", neg("BOR_RJ_Q4"), "BOR Q4 RJ"),
     ]
     for q in range(1, 5):
         d.append((f"M_OmzRJ1_Q{q}", neg(f"BOB_RJ1_Q{q}"), f"Omzet RJ+1 Q{q}"))
         d.append((f"M_BorRJ1_Q{q}", neg(f"BOR_RJ1_Q{q}"), f"BOR RJ+1 Q{q}"))
     for o in range(2, 9):
+        d.append((f"M_KostRJ{o}", f'=IFERROR(+[Kosten_RJ{o}],"n.b.")', f"Kosten RJ+{o}"))
         d.append((f"M_OmzRJ{o}", neg(f"BOB_RJ{o}"), f"Omzet RJ+{o}"))
         d.append((f"M_BorRJ{o}", neg(f"BOR_RJ{o}"), f"BOR RJ+{o}"))
     d += [
@@ -234,7 +238,7 @@ def e_fields():
         dict(n="VolgendJaar", h="Volgend jaar", k="num"),
     ]
     for intern in ["Rond", "Y_RJ2", "Y_RJ3", "Y_RJ4", "Y_RJ5", "Y_RJ6", "Y_NEG1", "Y_NEG2", "Y_NEG3"]:
-        f.append(dict(n=intern, ym=intern, k="num"))
+        f.append(dict(n=intern, ym=intern, k="num", opt=True))
     return f
 
 
@@ -306,7 +310,7 @@ def build_stg(wb, ws, src, fields, derived, cols_out):
         else:
             put(ws, f"{c}2", f["h"], color=GREY)
             ws[f"{c}3"] = f'=IFERROR(MATCH({c}2,{src}!$1:$1,0),0)'
-        ws[f"{c}4"] = f'=IF({c}3=0,"ONTBREEKT","OK")'
+        ws[f"{c}4"] = f'=IF({c}3=0,"{"niet aanwezig" if f.get("opt") else "ONTBREEKT"}","OK")'
         if "month" in f:
             put(ws, f"{c}5", f["month"], color=GREY)
         for rr in (2, 3, 4):
@@ -315,7 +319,8 @@ def build_stg(wb, ws, src, fields, derived, cols_out):
             if f["k"] == "key":
                 ws[f"{c}{r}"] = (f'=IF({c}$3=0,"",IF(INDEX({SRCR},$A{r},{c}$3)&""="","",INDEX({SRCR},$A{r},{c}$3)&""))')
             else:
-                ws[f"{c}{r}"] = f'=IF($B{r}="","",IF({c}$3=0,"n.b.",INDEX({SRCR},$A{r},{c}$3)))'
+                leeg = "0" if f.get("opt") else '"n.b."'
+                ws[f"{c}{r}"] = f'=IF($B{r}="","",IF({c}$3=0,{leeg},INDEX({SRCR},$A{r},{c}$3)))'
             if f["k"] == "num":
                 ws[f"{c}{r}"].number_format = FMT_RAW
     for j, (n, tpl, desc) in enumerate(derived):
@@ -834,6 +839,8 @@ def verw_columns():
     money += [(f"OmzRJ{o}", f"M_OmzRJ{o}", f"Omzet RJ+{o}") for o in range(2, 9)] + [("OmzONV", "M_OmzONV", "Omzet onverdeeld")]
     money += [(f"BorRJ{o}", f"M_BorRJ{o}", f"BOR RJ+{o}") for o in range(2, 9)] + [("BorONV", "M_BorONV", "BOR onverdeeld")]
     money += [("PEWOmz", "M_PEWOmz", "PEW omzet"), ("PEWBor", "M_PEWBor", "PEW BOR")]
+    money += [("KostFY", "M_KostFY", "Kosten FY RJ"), ("KostFY1", "M_KostFY1", "Kosten RJ+1")] + \
+             [(f"KostRJ{o}", f"M_KostRJ{o}", f"Kosten RJ+{o}") for o in range(2, 7)]
     for n, f, lab in money:
         c.append((n, lab, f'=IF($A{{r}}="","",IF($J{{r}}=0,"n.b.",SUMIFS({zr(f)},{zkey},$A{{r}})))', FMT_EUR))
     won = ["Aantal", "VJ_B", "VJ_P", "VJ_T", "HJ_B", "HJ_P", "HJ_T", "Cum_B", "Cum_P", "Cum_T", "Etalage"] + \
@@ -857,10 +864,10 @@ def verw_columns():
     c.append(("OI_Kw", "Orderintake kwartaal", '=IF([OI_Datum]="","",ROUNDUP(MONTH([OI_Datum])/3,0))', "0"))
     c.append(("OI_Key", "Sorteersleutel orderintake", '=IF([OI_Datum]="","",[OI_Datum]+ROW()/100000)', "0.00000"))
     c.append(("VerkochtPct", "Verkocht % (cumulatief / totaal)", '=IF($A{r}="","",IF(OR($G{r}="Nee",NOT(ISNUMBER([W_Aantal]))),"n.v.t.",IF([W_Aantal]>0,[W_Cum_T]/[W_Aantal],"n.v.t.")))', FMT_PCT))
-    # AK-dekking per jaar = (omzet - BOR) = kosten / factor x AK %
-    ak_src = [("OmzFY", "BorFY"), ("OmzFY1", "BorFY1")] + [(f"OmzRJ{o}", f"BorRJ{o}") for o in range(2, 7)]
-    for k, (o_, b_) in enumerate(ak_src):
-        c.append((f"AK{k}", f"AK-dekking RJ+{k}", f'=IF(AND(ISNUMBER([AKPct]),ISNUMBER([{o_}]),ISNUMBER([{b_}])),([{o_}]-[{b_}])/P_AKFactor*[AKPct],"")', FMT_EUR))
+    # AK-dekking per jaar = kosten (ZPMW03) / factor x AK %
+    ak_src = ["KostFY", "KostFY1"] + [f"KostRJ{o}" for o in range(2, 7)]
+    for k, k_ in enumerate(ak_src):
+        c.append((f"AK{k}", f"AK-dekking RJ+{k}", f'=IF(AND(ISNUMBER([AKPct]),ISNUMBER([{k_}])),[{k_}]/P_AKFactor*[AKPct],"")', FMT_EUR))
     # woningverkopen per productsegment en koperstype (RJ en RJ+1)
     for y, src in ((0, "W_HuidigJaar"), (1, "W_VolgendJaar")):
         sales = f'IF($G{{r}}="Ja",N([{src}]),0)'
@@ -3314,7 +3321,7 @@ def build_controle(wb, ws):
         ("Kolommen", "Woningetalage: ontbrekende kolommen", f'=COUNTIF(STG_Woningetalage!$B$4:${elast}$4,"ONTBREEKT")', "0", 'IF({v}=0,"OK","FOUT")',
          "Zie Handleiding › bijlage Veldwoordenboek."),
         ("Kolommen", "Woningetalage: jaarheaders uit mapping niet gevonden", '=COUNTIF(YM_Gevonden,"NEE")', "0",
-         'IF({v}=0,"OK","WAARSCHUWING")', "Invoer › 6. Jaarkolommen Woningetalage bijwerken."),
+         'IF({v}=0,"OK","WAARSCHUWING")', "Alleen info over latere jaren. Gaat het om jaren die je wilt rapporteren? Pas dan Invoer › 6 aan."),
         ("Sleutels", "Dubbele WBS-elementen in ZPMW03", f'=COUNTIF({zc("Dubbel")},">1")', "0", 'IF({v}=0,"OK","FOUT")',
          "Een WBS mag één regel hebben; dubbel = dubbeltelling in de aggregatie."),
         ("Sleutels", "Dubbele Stufe 3 in Woningetalage", f'=COUNTIF({ec("Dubbel")},">1")', "0", 'IF({v}=0,"OK","FOUT")', "Idem."),
@@ -3327,13 +3334,14 @@ def build_controle(wb, ws):
          "Project afgesloten of ontbreekt in export? Historie blijft zichtbaar (lijst hieronder)."),
         ("Koppeling", "Woningetalage-Stufe 3 niet in ZPMW03", f'=COUNTIF({ec("InZPMW03")},0)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Lijst hieronder."),
         ("Koppeling", "Woningetalage-Stufe 3 niet in Mapping", f'=COUNTIF({ec("InMapping")},0)', "0", 'IF({v}=0,"OK","FOUT")', "Woningen worden anders niet gerapporteerd."),
-        ("Koppeling", "ZPMW03-WBS niet in Woningetalage", f'=COUNTIF({zc("InEtalage")},0)', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
-         "Toegestaan voor projecten zonder woningen (Woningen meetellen = Nee)."),
+        ("Koppeling", "Woningproject (meetellen = Ja) staat niet in Woningetalage", '=COUNTIFS(V_WBS,"?*",V_Meetellen,"Ja",V_nE,0)', "0",
+         'IF({v}=0,"OK","WAARSCHUWING")', "Zet in Invoer › 2 'Woningen meetellen' op Nee als het project geen woningen heeft."),
         ("Koppeling", "Projectdefinitie (ZPMW03) ≠ Project (Woningetalage) bij zelfde WBS", f'=COUNTIF({ec("C_Projdef")},1)', "0", 'IF({v}=0,"OK","FOUT")',
          "Koppeling op WBS/Stufe 3 klopt niet met projectniveau."),
         ("Bedragen", "Som kwartalen ≠ jaartotaal (OP.BOB/OP.BOR RJ en RJ+1)", f'=COUNTIF({zc("C_Kwartaal")},1)', "0", 'IF({v}=0,"OK","FOUT")',
          "Kwartaalvelden en jaartotaal worden nooit bij elkaar opgeteld; ze moeten aansluiten."),
-        ("Bedragen", "OP.BOB + Kosten ≠ OP.BOR (LJ, RJ, RJ+1)", f'=COUNTIF({zc("C_BobKostBor")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Opbrengsten en kosten sluiten niet aan op het resultaat. Vaak: kosten met ander teken in de export. Welke regels: STG_ZPMW03, kolom C_BobKostBor = 1."),
+        ("Bedragen", "OP.BOB + Kosten ≠ OP.BOR (LJ, RJ, RJ+1)", f'=COUNTIF({zc("C_BobKostBor")},1)', "info", '"INFO"',
+         "Ter info. Normaal bij projecten in uitvoering: kosten worden eerder geboekt dan omzet en resultaat. Geen actie nodig."),
         ("Bedragen", "OP.BOB RJ bevat kwartalen vóór peildatum (geen restant?)",
          f'=SUMPRODUCT((P_PeilMaand>=3)*((COUNTIF({zc("BOB_RJ_Q1")},"<0")+COUNTIF({zc("BOB_RJ_Q1")},">0"))))'
          f'+(P_PeilMaand>=6)*(COUNTIF({zc("BOB_RJ_Q2")},"<0")+COUNTIF({zc("BOB_RJ_Q2")},">0"))'

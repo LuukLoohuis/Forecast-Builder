@@ -110,7 +110,7 @@ Gebouwd op basis van de oorspronkelijke RDFO van de gebruiker (tabbladen BHTS, B
 |---|---|---|
 | Bandbreedte (5 scenario's) | Tabblad **Bandbreedte** (vervangt Stoplicht) + verborgen **SCEN** | Per project en jaar RJ..RJ+4: optimistisch (verkoop haalt `SC_Opt`, max `SC_Max` x), basis (upload), afslag (`SC_Afslag` van de geplande verkopen), gewogen (x kans %), 0-100 (kans ≥ `SC_Grens` of Ja/Nee). Realisatie blijft altijd staan. |
 | DAEB, funnel, target | Invoer › 8 en 9 → Outlook | DAEB-omzet x % per jaar; funnel en target per jaar. |
-| AK-dekking | Invoer › 2 (AK %) → VERW `AK0..AK6` → Outlook en RDFO | (omzet − BOR) / `P_AKFactor` x AK %; aanvullende invoer gaat voor; kengetal `AK-dekking FY` wordt mee vastgelegd. |
+| AK-dekking | Invoer › 2 (AK %) → VERW `AK0..AK6` → Outlook en RDFO | Kosten (ZPMW03: Kosten LJ + Kosten RJ, daarna Kosten per jaar) / `P_AKFactor` (1,05) x AK %; aanvullende invoer gaat voor; kengetal `AK-dekking FY` wordt mee vastgelegd. |
 | Kansen en risico's | Invoer › 10 → Outlook, PowerPoint | Saldo per jaar, risico negatief. |
 | Reserves / PCM | Invoer › 11 → Outlook | Reserves x % gereed (cumulatief) per jaar. |
 | Gebieden | Invoer › 7 en 2 → RDFO (onderaan), PowerPoint | Som per gebied uit Projecten. |
@@ -118,7 +118,7 @@ Gebouwd op basis van de oorspronkelijke RDFO van de gebruiker (tabbladen BHTS, B
 | Woningsegmentatie | Invoer › 2 (7 productsegmenten + % belegger) → Woningen | Controle meldt Verdeelfout. |
 | Template | `RDFO_template.xlsm` (build met `template=True`) | Alle invoer, bronregels en Historie leeg. |
 
-Open punten voor de gebruiker: gelden 50% afslag en 90% optimistisch? Komt DAEB-omzet uit de ZPMW DAEB-export (nu handmatig)? Klopt de AK-deler 1,05?
+Bevestigd door de gebruiker: 50% afslag, 90% optimistisch, AK-deler 1,05. Open: komt DAEB-omzet uit de ZPMW DAEB-export (nu handmatig)?
 
 ## 7. Werkwijze voor wijzigingen
 

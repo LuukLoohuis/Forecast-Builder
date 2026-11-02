@@ -205,7 +205,7 @@ End Function
 ' ================================================================= 1b. NIEUWE PROJECTEN NAAR MAPPING
 Public Sub RDFO_ProjectenToevoegen()
     Dim wsZ As Worksheet, wsE As Worksheet, map As Range, r As Long, i As Long, n As Long, vrij As Long
-    Dim cW As Long, cP As Long, cO As Long, eS As Long, eA As Long, eH As Long, wbs As String, m As Variant, eerste As Range
+    Dim cW As Long, cP As Long, cO As Long, eS As Long, eA As Long, eH As Long, wbs As String, m As Variant, eerste As Range, naam As String
 
     Set wsZ = ThisWorkbook.Worksheets("Bron_ZPMW03")
     Set wsE = ThisWorkbook.Worksheets("Bron_Woningetalage")
@@ -233,7 +233,11 @@ Public Sub RDFO_ProjectenToevoegen()
             With map.Cells(vrij, 1)
                 .Value = wbs
                 If cP > 0 Then .Offset(0, 1).Value = wsZ.Cells(r, cP).Value
-                If cO > 0 Then .Offset(0, 2).Value = wsZ.Cells(r, cO).Value
+                If cO > 0 Then
+                    naam = Trim(CStr(wsZ.Cells(r, cO).Value))
+                    If Application.WorksheetFunction.CountIf(map.Offset(0, 2), naam) > 0 Then naam = naam & " (" & wbs & ")"
+                    .Offset(0, 2).Value = naam
+                End If
                 .Offset(0, 5).Value = "Opstal"
                 .Offset(0, 6).Value = "Nee"
                 .Offset(0, 9).Value = "Nee"
