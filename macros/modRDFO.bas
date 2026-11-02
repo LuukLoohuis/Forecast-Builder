@@ -419,7 +419,12 @@ Public Sub RDFO_PrognoseVastleggen()
         If antw <> vbOK Then Exit Sub
     End If
 
-    r0 = wsH.Range("D3").Value
+    ' eerste vrije rij: onder de laatste gevulde WBS-cel van het grootboek (niet afhankelijk van een formule)
+    With Nm("L_WBS")
+        r0 = .Cells(.Rows.Count, 1).End(xlUp).Row + 1
+        If Trim(CStr(.Cells(.Rows.Count, 1).Value)) <> "" Then r0 = .Row + .Rows.Count
+        If r0 < .Row Then r0 = .Row
+    End With
     If r0 + n - 1 > HISTORIE_LAATSTE_RIJ Then
         MsgBox "Historie is vol (maximaal rij " & HISTORIE_LAATSTE_RIJ & "). Vraag om de formules in Historie verder door te trekken.", vbCritical
         Exit Sub
@@ -698,7 +703,8 @@ Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, B
     grootte = IIf(nr > 15, 8, 9)
     Kop sld, tekstKop, x, y, w
 
-    Set shp = sld.Shapes.AddTable(nr, nk, x, y, w, nr * (grootte + 6))
+    ' zonder hoogte: PowerPoint kiest zelf een geldige hoogte; na het verkleinen van de letters krimpen de rijen
+    Set shp = sld.Shapes.AddTable(nr, nk, x, y, w)
     Set tbl = shp.Table
     On Error Resume Next
     tbl.ApplyStyle "{2D5ABB26-0587-4C30-8999-92F81FD0307C}", False
@@ -713,17 +719,17 @@ Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, B
     Next j
     On Error GoTo 0
 
+    On Error Resume Next   ' opmaak die PowerPoint niet accepteert wordt overgeslagen; de tekst komt er altijd in
     For i = 1 To nr
         For j = 1 To nk
             Set c = bron.Cells(reg(i), kol(j))
             txt = CelTekst(c)
+            tbl.Cell(i, j).Shape.TextFrame.TextRange.Text = txt
             bol = (txt = ChrW(9679) Or txt = ChrW(9675))
             With tbl.Cell(i, j).Shape
                 .TextFrame.MarginLeft = 3: .TextFrame.MarginRight = 3
                 .TextFrame.MarginTop = 1: .TextFrame.MarginBottom = 1
                 .TextFrame.VerticalAnchor = 3
-                .TextFrame.WordWrap = True
-                .TextFrame.TextRange.Text = txt
                 With .TextFrame.TextRange.Font
                     .Name = "Arial"
                     .Size = IIf(bol, grootte + 5, grootte)
@@ -758,15 +764,13 @@ Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, B
                 End If
             End With
             With tbl.Cell(i, j).Borders(3)
-                .Visible = True
                 .ForeColor.RGB = LIJN
                 .Weight = 0.5
             End With
         Next j
-        On Error Resume Next   ' te lage rij: PowerPoint houdt dan zelf de minimale hoogte aan
         tbl.Rows(i).Height = grootte + 6
-        On Error GoTo 0
     Next i
+    On Error GoTo 0
 End Sub
 
 Private Sub Grafiek(ByVal sld As Object, ByVal wsD As Worksheet, ByVal nr As Long, ByVal x As Single, ByVal y As Single, _
