@@ -192,6 +192,9 @@ def z_derived():
          "1 = Portefeuille BOB <> som OP.BOB RJ..RJ+8 + onverdeeld"),
         ("C_PEW", '=IFERROR(IF(ABS([PEW_BOB]-([BOB_VJ]+[BOB_LJ]+[Port_BOB]))>MAX(P_Tol,1000),1,0),1)',
          "1 = PEW opbrengst <> BOB VJ + BOB LJ + portefeuille"),
+        ("AfwTekst", '=MID(IF([C_Kwartaal]=1,", kwartalen vs jaar","")&IF([C_Portefeuille]=1,", portefeuille vs jaren","")'
+                     '&IF([C_PEW]=1,", PEW vs gerealiseerd + portefeuille",""),3,200)', "Welke bedragcontroles afwijken"),
+        ("AfwNr", '=IF([AfwTekst]="","",COUNTIF($[AfwTekst:col]$%d:[AfwTekst],"?*"))' % STG0, "Volgnummer regel met afwijking"),
         ("InMapping", f'=IF(COUNTIF(Invoer!$A${MAP0}:$A${MAP1},[WBS])>0,1,0)', "1 = WBS staat in Mapping"),
         ("Dubbel", f'=COUNTIF($B${STG0}:$B${STG1},[WBS])', "Aantal keer dat WBS voorkomt (>1 = dubbel)"),
         ("InEtalage", f'=COUNTIF(STG_Woningetalage!$B${STG0}:$B${STG1},[WBS])', "Aantal keer in Woningetalage"),
@@ -259,6 +262,10 @@ def e_derived():
         ("C_BP", '=IFERROR(IF(OR(ABS([VJ_B]+[VJ_P]-[VJ_T])>P_Tol,ABS([HJ_B]+[HJ_P]-[HJ_T])>P_Tol,ABS([Cum_B]+[Cum_P]-[Cum_T])>P_Tol),1,0),1)', "1 = Beleggers + Particulier <> Totaal"),
         ("C_Jaren", '=IFERROR(IF(OR(ABS([HuidigJaar]-SUM([M01]:[M12]))>P_Tol,ABS([VolgendJaar]-([VQ1]+[VQ2]+[VQ3]+[VQ4]))>P_Tol),1,0),1)', "1 = Huidig/Volgend jaar <> som maanden/kwartalen"),
         ("C_NietGeinterp", '=IFERROR(IF(ABS([Rond])+ABS([Y_NEG1])+ABS([Y_NEG2])+ABS([Y_NEG3])>0,1,0),1)', "1 = niet-geïnterpreteerde kolom bevat waarde"),
+        ("AfwTekst", '=MID(IF([C_Aantal]=1,", aantal","")&IF([C_Etalage]=1,", etalage","")&IF([C_Cum]=1,", cumulatief","")'
+                     '&IF([C_HJ]=1,", maanden t/m peilmaand","")&IF([C_BP]=1,", beleggers+particulier","")&IF([C_Jaren]=1,", jaar vs maanden/kwartalen","")'
+                     '&IF([C_NietGeinterp]=1,", Rond/negatieve jaren",""),3,200)', "Welke woningcontroles afwijken"),
+        ("AfwNr", '=IF([AfwTekst]="","",COUNTIF($[AfwTekst:col]$%d:[AfwTekst],"?*"))' % STG0, "Volgnummer regel met afwijking"),
         ("InZPMW03", f'=COUNTIF(STG_ZPMW03!$B${STG0}:$B${STG1},[Stufe3])', "Aantal keer in ZPMW03"),
         ("Dubbel", f'=COUNTIF($B${STG0}:$B${STG1},[Stufe3])', "Aantal keer dat Stufe 3 voorkomt"),
         ("C_Projdef", '=IF([InZPMW03]=0,0,IF(INDEX(STG_ZPMW03!$[Z:Projectdefinitie]$%d:$[Z:Projectdefinitie]$%d,MATCH([Stufe3],STG_ZPMW03!$B$%d:$B$%d,0))=[Project]&"",0,1))' % (STG0, STG1, STG0, STG1),
@@ -3347,15 +3354,15 @@ def build_controle(wb, ws):
          f'+(P_PeilMaand>=6)*(COUNTIF({zc("BOB_RJ_Q2")},"<0")+COUNTIF({zc("BOB_RJ_Q2")},">0"))'
          f'+(P_PeilMaand>=9)*(COUNTIF({zc("BOB_RJ_Q3")},"<0")+COUNTIF({zc("BOB_RJ_Q3")},">0"))', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
          "Demo-aanname: OP.BOB RJ = restant na peildatum. Afwijking → definitie in productie controleren (dubbeltelling met LJ!)."),
-        ("Bedragen", "Portefeuille BOB ≠ som OP.BOB RJ..RJ+8 + onverdeeld", f'=COUNTIF({zc("C_Portefeuille")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Portefeuille sluit niet aan op de jaarverdeling. Rapportage gebruikt de jaarvelden. Regels: STG_ZPMW03, kolom C_Portefeuille = 1."),
-        ("Bedragen", "PEW opbrengst ≠ BOB VJ + BOB LJ + portefeuille", f'=COUNTIF({zc("C_PEW")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "PEW wijkt af van gerealiseerd + portefeuille (bijv. PEW nog niet bijgewerkt). Regels: STG_ZPMW03, kolom C_PEW = 1."),
-        ("Woningen", "Aantal ≠ vorig jaar + 12 mnd + volgend jaar + latere jaren + Rond", f'=COUNTIF({ec("C_Aantal")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Verkopen per jaar tellen niet op tot het aantal woningen. Regels: STG_Woningetalage, kolom C_Aantal = 1."),
-        ("Woningen", "Etalage ≠ aantal − cumulatief actual", f'=COUNTIF({ec("C_Etalage")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Etalage (nog te verkopen) klopt niet met aantal en verkocht. Regels: STG_Woningetalage, kolom C_Etalage = 1."),
-        ("Woningen", "Cumulatief ≠ t/m vorig jaar + huidig jaar actual", f'=COUNTIF({ec("C_Cum")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Cumulatief verkocht sluit niet aan. Regels: STG_Woningetalage, kolom C_Cum = 1."),
+        ("Bedragen", "Portefeuille BOB ≠ som OP.BOB RJ..RJ+8 + onverdeeld", f'=COUNTIF({zc("C_Portefeuille")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Portefeuille sluit niet aan op de jaarverdeling. Rapportage gebruikt de jaarvelden. Zie de lijst 'ZPMW03: afwijkingen' onderaan."),
+        ("Bedragen", "PEW opbrengst ≠ BOB VJ + BOB LJ + portefeuille", f'=COUNTIF({zc("C_PEW")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "PEW wijkt af van gerealiseerd + portefeuille (bijv. PEW nog niet bijgewerkt). Zie de lijst 'ZPMW03: afwijkingen' onderaan."),
+        ("Woningen", "Aantal ≠ vorig jaar + 12 mnd + volgend jaar + latere jaren + Rond", f'=COUNTIF({ec("C_Aantal")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Verkopen per jaar tellen niet op tot het aantal woningen. Zie de lijst 'Woningetalage: afwijkingen' onderaan."),
+        ("Woningen", "Etalage ≠ aantal − cumulatief actual", f'=COUNTIF({ec("C_Etalage")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Etalage (nog te verkopen) klopt niet met aantal en verkocht. Zie de lijst 'Woningetalage: afwijkingen' onderaan."),
+        ("Woningen", "Cumulatief ≠ t/m vorig jaar + huidig jaar actual", f'=COUNTIF({ec("C_Cum")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Fout in de export zelf. Zie de lijst 'Woningetalage: afwijkingen' onderaan; meld die projecten bij de verkoopadministratie."),
         ("Woningen", "Huidig jr Totaal ≠ som hjr-maanden t/m peilmaand", f'=COUNTIF({ec("C_HJ")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
          "Klopt de peildatum (Invoer › 1)? Zo ja: in de export staan verkopen niet per maand. Het bestand gebruikt de maanden; meld het project bij de verkoopadministratie."),
-        ("Woningen", "Beleggers + Particulier ≠ Totaal", f'=COUNTIF({ec("C_BP")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Splitsing beleggers/particulier telt niet op. Regels: STG_Woningetalage, kolom C_BP = 1."),
-        ("Woningen", "Huidig/Volgend jaar ≠ som maanden/kwartalen", f'=COUNTIF({ec("C_Jaren")},1)', "0", 'IF({v}=0,"OK","FOUT")', "Jaartotaal sluit niet aan op de maanden/kwartalen. Regels: STG_Woningetalage, kolom C_Jaren = 1."),
+        ("Woningen", "Beleggers + Particulier ≠ Totaal", f'=COUNTIF({ec("C_BP")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Fout in de export zelf. Zie de lijst 'Woningetalage: afwijkingen' onderaan."),
+        ("Woningen", "Huidig/Volgend jaar ≠ som maanden/kwartalen", f'=COUNTIF({ec("C_Jaren")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Fout in de export zelf. Het bestand gebruikt de maanden en kwartalen. Zie de lijst onderaan."),
         ("Woningen", "Niet-geïnterpreteerde kolommen bevatten waarden", f'=COUNTIF({ec("C_NietGeinterp")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
          "Rond en negatieve jaarkoppen: eerst betekenis vastleggen in Invoer › 6."),
         ("Woningen", "Aantal woningen wijkt af van Mapping", f'=COUNTIF({ec("C_MapAantal")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Werk het aantal woningen bij in Invoer › 2 (rapportage gebruikt de Woningetalage)."),
@@ -3476,10 +3483,27 @@ def build_controle(wb, ws):
                 ws[f"{cB}{rr}"].number_format = FMT_EUR
         ws[f"{cA}{r+17}"] = f'=IF(COUNT({nr})=0,"(geen)","")'
         ws[f"{cA}{r+17}"].font = font(8, False, GREEN, True)
+    # afwijkingen per regel in de exports (WBS / project / welke controle)
+    r2 = r + 20
+    section(ws, r2, 2, "Afwijkingen in de exports zelf (eerste 25) — meld deze projecten bij de bronbeheerder", 7)
+    blokken = [("Woningetalage: afwijkingen", ec("AfwNr"), ec("Stufe3"), ec("OmschrStufe3"), ec("AfwTekst"), "B"),
+               ("ZPMW03: afwijkingen", zc("AfwNr"), zc("WBS"), zc("Omschrijving"), zc("AfwTekst"), "F")]
+    for lab, nr, a, b, t, c0 in blokken:
+        cA = c0
+        cB, cC = col(ord(c0) - 64 + 1), col(ord(c0) - 64 + 2)
+        put(ws, f"{cA}{r2+1}", lab, bold=True, color=NAVY, size=8)
+        for k in range(1, 26):
+            rr = r2 + 1 + k
+            for cc, src, gr in ((cA, a, False), (cB, b, True), (cC, t, False)):
+                ws[f"{cc}{rr}"] = f'=IFERROR(INDEX({src},MATCH({k},{nr},0)),"")'
+                ws[f"{cc}{rr}"].font = font(8, False, GREY if gr else "8A3B00")
+            ws[f"{cA}{rr}"].font = font(8)
+        ws[f"{cA}{r2+27}"] = f'=IF(COUNT({nr})=0,"(geen)","")'
+        ws[f"{cA}{r2+27}"].font = font(8, False, GREEN, True)
     widths(ws, {"B": 30, "C": 22, "D": 44, "E": 16, "F": 30, "G": 26, "H": 34, "I": 16})
     ws.column_dimensions["B"].width = 18
     ws.freeze_panes = "A9"
-    landscape(ws, f"A1:H{r+18}")
+    landscape(ws, f"A1:H{r2+28}")
 
 
 # ---------------------------------------------------------------------------------------------
