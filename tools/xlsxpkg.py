@@ -177,6 +177,11 @@ class Styles:
         lst.set('count', str(len(lst)))
         return i
 
+    def add_dxf(self, xml: str) -> int:
+        """voorwaardelijke opmaak: <font>/<fill>-xml -> dxfId"""
+        el = etree.fromstring('<dxf xmlns="%s">%s</dxf>' % (NS_M, xml))
+        return self._add('dxfs', el)
+
     def numfmt(self, code: str) -> int:
         if code in self.numfmts:
             return self.numfmts[code]
@@ -259,6 +264,14 @@ class SST:
 # ----------------------------------------------------------------------------------------------
 #  werkblad bewerken
 # ----------------------------------------------------------------------------------------------
+
+SHEET_ORDER = ['sheetPr', 'dimension', 'sheetViews', 'sheetFormatPr', 'cols', 'sheetData', 'sheetCalcPr', 'sheetProtection',
+               'protectedRanges', 'scenarios', 'autoFilter', 'sortState', 'dataConsolidate', 'customSheetViews', 'mergeCells',
+               'phoneticPr', 'conditionalFormatting', 'dataValidations', 'hyperlinks', 'printOptions', 'pageMargins',
+               'pageSetup', 'headerFooter', 'rowBreaks', 'colBreaks', 'customProperties', 'cellWatches', 'ignoredErrors',
+               'smartTags', 'drawing', 'legacyDrawing', 'legacyDrawingHF', 'drawingHF', 'picture', 'oleObjects', 'controls',
+               'webPublishItems', 'tableParts', 'extLst']
+
 
 class Sheet:
     """een werkblad-XML met hulpjes om cellen te zetten"""
@@ -345,6 +358,68 @@ class Sheet:
             etree.SubElement(c, M + 'v').text = repr(float(value)) if isinstance(value, float) else str(value)
         if style is not None:
             c.set('s', str(style))
+
+    def get(self, ref):
+        """inhoud van een cel als tekst zoals je hem typt: '=formule', een getal of een tekst; None = leeg"""
+        c = self.cell(ref, create=False)
+        if c is None:
+            return None
+        f = c.find(M + 'f')
+        if f is not None and f.text:
+            return '=' + f.text
+        t = c.get('t')
+        if t == 'inlineStr':
+            return ''.join(c.find(M + 'is').itertext())
+        v = c.find(M + 'v')
+        if v is None:
+            return None
+        if t == 's':
+            return ''.join(self.sst.t.findall(M + 'si')[int(v.text)].itertext())
+        return v.text
+
+    def set(self, ref, inhoud, style=None):
+        """zet '=formule', een getal (als tekst of getal) of een tekst; None/'' = leegmaken (opmaak blijft)"""
+        if inhoud is None or inhoud == '':
+            self.set_value(ref, None, style)
+        elif isinstance(inhoud, str) and inhoud.startswith('='):
+            self.set_formula(ref, inhoud, style)
+        else:
+            try:
+                x = float(inhoud)
+                self.set_value(ref, int(x) if x == int(x) and 'e' not in str(inhoud).lower() else x, style)
+            except (TypeError, ValueError):
+                self.set_value(ref, str(inhoud), style)
+
+    def add_element(self, el):
+        """element op de juiste plek in de werkblad-XML (de volgorde ligt vast in het schema)"""
+        name = etree.QName(el).localname
+        pos = SHEET_ORDER.index(name)
+        for i, ch in enumerate(self.t):
+            ln = etree.QName(ch).localname
+            if ln in SHEET_ORDER and SHEET_ORDER.index(ln) > pos:
+                self.t.insert(i, el)
+                return el
+        self.t.append(el)
+        return el
+
+    def add_list_validation(self, sqref, items):
+        dvs = self.t.find(M + 'dataValidations')
+        if dvs is None:
+            dvs = self.add_element(etree.Element(M + 'dataValidations', count='0'))
+        dv = etree.SubElement(dvs, M + 'dataValidation', type='list', allowBlank='1', showErrorMessage='1', sqref=sqref)
+        etree.SubElement(dv, M + 'formula1').text = '"%s"' % ','.join(items)
+        dvs.set('count', str(len(dvs)))
+
+    def add_cf(self, sqref, formula, dxf_id):
+        prio = max([int(r.get('priority', '0')) for r in self.t.iter(M + 'cfRule')] + [0]) + 1
+        cf = etree.Element(M + 'conditionalFormatting', sqref=sqref)
+        rule = etree.SubElement(cf, M + 'cfRule', type='expression', dxfId=str(dxf_id), priority=str(prio))
+        etree.SubElement(rule, M + 'formula').text = formula
+        existing = self.t.findall(M + 'conditionalFormatting')
+        if existing:
+            existing[-1].addnext(cf)
+        else:
+            self.add_element(cf)
 
     def formulas(self):
         for f in self.t.iter(M + 'f'):

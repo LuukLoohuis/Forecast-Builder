@@ -134,15 +134,20 @@ def doorrekenen(src, dst):
         lo.kill()
 
 
+VERGELIJK = [('1. Cashflow', 'Cashflow', 'B4:J21'), ('1. Cashflow', 'Cashflow', 'D23:F23'),
+             ('1. Cashflow', 'Cashflow', 'D26:F26'), ('CF - hulp VENA', 'CF - hulp VENA', 'C3:BK4'),
+             ('2. Ontw PEW', '2. Ontw PEW', 'E7:I30'), ('Aansluiting opbrengsten', 'Aansluiting opbrengsten', 'B15:J29'),
+             ('CF - opbrengsten', 'CF - opbrengsten', 'G57:Z194'), ('CF - kosten', 'CF - kosten', 'H59:AA77')]
+
+
 def vergelijk(nieuw, fo_path):
     import openpyxl
     a = openpyxl.load_workbook(fo_path, data_only=True)
     b = openpyxl.load_workbook(nieuw, data_only=True)
     fouten = 0
-    for blad, bereik in (('1. Cashflow', 'B4:J26'), ('CF - hulp VENA', 'C3:BK4'), ('2. Ontw PEW', 'E7:I27'),
-                         ('3. Restant bdgt', 'E7:K20'), ('Aansluiting opbrengsten', 'B15:J29')):
+    for blad_a, blad_b, bereik in VERGELIJK:
         n = 0
-        for ra, rb in zip(a[blad][bereik], b[blad][bereik]):
+        for ra, rb in zip(a[blad_a][bereik], b[blad_b][bereik]):
             for ca, cb in zip(ra, rb):
                 va, vb = ca.value, cb.value
                 if isinstance(va, (int, float)) or isinstance(vb, (int, float)):
@@ -150,13 +155,13 @@ def vergelijk(nieuw, fo_path):
                     y = vb if isinstance(vb, (int, float)) else 0
                     if abs(x - y) > 0.01 and not (va in (None, '') and vb in (None, '', 0)):
                         if n < 5:
-                            print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad, ca.coordinate, va, vb))
+                            print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, ca.coordinate, va, vb))
                         n += 1
                 elif (va or '') != (vb or ''):
                     if n < 5:
-                        print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad, ca.coordinate, va, vb))
+                        print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, ca.coordinate, va, vb))
                     n += 1
-        print('  %-26s %-8s %s' % (blad, bereik, 'gelijk' if n == 0 else '%d verschillen' % n))
+        print('  %-18s -> %-24s %-9s %s' % (blad_a, blad_b, bereik, 'gelijk' if n == 0 else '%d verschillen' % n))
         fouten += n
     return fouten, b
 
@@ -179,11 +184,11 @@ def main():
         print('  %-16s %-12s %s' % (ws.cell(r, 2).value, ws.cell(r, 4).value, ws.cell(r, 8).value))
     for r in range(23, 28):
         print('  %-50s %s %s' % (ws.cell(r, 2).value, ws.cell(r, 3).value, ws.cell(r, 4).value or ''))
-    for r in range(31, 44):
+    for r in range(31, 43):
         print('  %-62s %-28s %s' % (ws.cell(r, 2).value, ws.cell(r, 3).value, ws.cell(r, 4).value))
     print('  Start E8/E9/C11: %s / %s / %s' % (ws['E8'].value, ws['E9'].value, ws['C11'].value))
     fouten_cellen = []
-    for blad in ('Start', 'Prognose kosten', 'Prognose opbrengsten', 'Controle oud FO', '1. Cashflow', 'CF - hulp VENA'):
+    for blad in ('Start', 'Cashflow', '2. Ontw PEW', 'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA'):
         for row in wb[blad].iter_rows():
             for c in row:
                 if isinstance(c.value, str) and c.value.startswith('#') and c.value[1:4].isupper():

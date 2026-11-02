@@ -6,7 +6,8 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
 ## Eenmalig: overstappen vanuit een oud FO
 1. Open het werkbestand en sta macro's toe.
 2. Klik op `Start` op **Oud FO inlezen...** en kies het FO van vorig kwartaal.
-3. Controleer tab `Controle oud FO`: de cashflow moet per periode gelijk zijn ("OK").
+3. Controleer tab `Controle oud FO`: de cashflow moet per periode gelijk zijn ("OK"). De transportregels, de methode per
+   kostenpost en de correctieregel staan daarna klaar met standaardwaarden.
 4. Vul op `Start` het opleveringskwartaal in (blok 1) en sla op onder een nieuwe naam.
 
 ## Elk kwartaal
@@ -20,14 +21,17 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
 4. Salesforce prijslijst → rij *Prijslijst dump*. Zet de exportdatum op tab `Prijslijst` (cel C1).
 5. `Aansluiting opbrengsten`: SKO ↔ prijslijst ↔ PEW sluit aan (kolom J "OK"). Vraag ontbrekende documentatie op
    (SKO gunning, termijnschema's, afrekenstaat MMW, specificatie overige opbrengsten).
-6. **Opbrengsten:** bouwplanning en verkooptempo op `CF - opbrengsten`.
-   Wil je een kwartaal anders? Vul het bedrag in de gele regel op `Prognose opbrengsten`.
-7. **Kosten:** per post op `Prognose kosten`, kolom C:
-   - *Handmatig* = jouw verdeling op `CF - kosten` (zoals altijd);
-   - *Voorstel* = restant budget gelijk verdeeld t/m oplevering.
+6. **Opbrengsten** op `CF - opbrengsten`, per woningtype:
+   - bouwtermijnen per kwartaal;
+   - daaronder de **transportregel** (aantal woningen notarieel geleverd per kwartaal). De grondtermijn volgt het transport, en bouwtermijnen tellen vanaf transport;
+   - verkooptempo in rij 49-52;
+   - wil je een bedrag bijsturen? Gebruik de gele correctieregel (rij 192).
+7. **Kosten** op `CF - kosten`:
+   - de bouwtermijnen volgen de geplande bouwtermijnen van de opbrengsten (overschrijven mag);
+   - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd) of *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan).
 
-   Blok 2 laat het verschil zien.
-8. Blok 4 op `Start`: alle controles groen.
+   Rij 75 is het definitieve totaal.
+8. Blok 4 op `Start`: alle controles groen. Bekijk tab `Cashflow` (tabel en grafiek) en `2. Ontw PEW`.
 9. **Scenario bijwerken**: bekijk `Dashboard` en `Scenario's` (start bouw, verkoop, transport, grondtermijn).
 10. **PowerPoint maken**: het scenario wordt eerst bijgewerkt. Daarna komen alle dia's, inclusief de datum op dia 1 en de
    kaarten van dia 10 (blok 6 op `Start`), uit dit bestand.

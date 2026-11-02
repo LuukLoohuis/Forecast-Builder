@@ -6,8 +6,9 @@ Option Explicit
 '  Knoppen op tab Start:
 '    Plakken / Inlezen...   per invoertabblad (FO - vorig, FO - huidig, FO - actuals, Prijslijst dump):
 '                           leegmaken, export erin (klembord of bestand), hulpkolommen doortrekken, status op Start
-'    Oud FO inlezen...      neemt alle tabbladen van een FO in de oude opzet over (formules en waarden), zet
-'                           1. Cashflow en CF - hulp VENA weer op de prognosebladen en vult tab Controle oud FO
+'    Oud FO inlezen...      neemt alle tabbladen van een FO in de oude opzet over (formules en waarden), zet de nieuwe
+'                           onderdelen terug (tab _sjabloon: transportregels, methode, voorstel, ...), vult tab Vorige
+'                           prognose (kolom CF vorig kwartaal) en tab Controle oud FO
 '    Nieuw kwartaal starten cashflow bewaren als vorige prognose, FO - huidig -> FO - vorig, huidig en actuals leeg
 '    Scenario bijwerken     (module CashflowNaarPowerPoint) scenariomodel uit de FO-tabbladen van dit bestand
 '    PowerPoint maken       eerst Scenario bijwerken, dan Naar PowerPoint
@@ -15,12 +16,11 @@ Option Explicit
 ' =====================================================================================
 
 Private Const SH_START As String = "Start"
-Private Const SH_CF As String = "1. Cashflow"
-Private Const SH_VENA As String = "CF - hulp VENA"
+Private Const SH_CF As String = "Cashflow"            ' vervangt 1. Cashflow (zelfde opbouw)
+Private Const SH_CF_OUD As String = "1. Cashflow"     ' in een oud FO
 Private Const SH_VORIGE As String = "Vorige prognose"
 Private Const SH_CONTROLE As String = "Controle oud FO"
-Private Const SH_PK As String = "Prognose kosten"
-Private Const SH_PO As String = "Prognose opbrengsten"
+Private Const SH_SJABLOON As String = "_sjabloon"     ' blad / cel / inhoud: na Oud FO inlezen terugzetten
 Private Const TITEL As String = "FO-werkbestand"
 
 Private Const RIJ_VORIG As Long = 15                 ' rijen op tab Start (blok 2)
@@ -30,13 +30,12 @@ Private Const RIJ_PRIJS As Long = 18
 Private Const KOL_DATUM As Long = 6                  ' Start kolom F: laatst ingelezen
 Private Const KOL_BESTAND As Long = 7                ' Start kolom G: bestand / klembord
 
-Private Const PK_METHODE As String = "C59:C70"       ' Prognose kosten: methode per post
-Private Const PO_HANDMATIG As String = "G12:Z12,G16:Z16,G20:Z20,G24:Z24,G28:Z28"   ' Prognose opbrengsten: handmatig
+Private Const TRANSPORTRIJEN As String = "13|26|36|46"   ' CF - opbrengsten: transportregel per woningtype
 
 ' tabbladen die 'Oud FO inlezen' overneemt (zelfde naam in het oude FO)
 Private Const FO_BLADEN As String = "Toelichting onderlegger|Behind the scens|Prijslijst dump|Prijslijst|Aansluiting opbrengsten|" & _
     "Notities FO gesprek|CF - opbrengsten|CF - kosten|Verkooptempo|FO - vorig|FO - huidig|FO - actuals|1. Ontw businessc FD|" & _
-    "1. Cashflow|2. Ontw PEW|3. Restant bdgt|5. K&R businessc|CF - hulp VENA"
+    "2. Ontw PEW|5. K&R businessc|CF - hulp VENA"
 
 ' =====================================================================================
 '  knoppen
@@ -270,8 +269,8 @@ End Sub
 Public Sub NieuwKwartaalStarten()
     Dim wsH As Worksheet, wsV As Worksheet, wsA As Worksheet, h As Long, n As Long
     If MsgBox("Nieuw kwartaal starten:" & vbCrLf & vbCrLf & _
-              "1. de definitieve cashflow (1. Cashflow) wordt bewaard als vorige prognose (tab Vorige prognose) en " & _
-              "komt in kolom J 'CF vorig kwartaal';" & vbCrLf & _
+              "1. de cashflow (tab Cashflow) wordt bewaard als vorige prognose (tab Vorige prognose); " & _
+              "die verschijnt in kolom J 'CF vorig kwartaal';" & vbCrLf & _
               "2. FO - huidig wordt FO - vorig;" & vbCrLf & _
               "3. FO - huidig en FO - actuals worden leeggemaakt voor de nieuwe exports." & vbCrLf & vbCrLf & _
               "Doe dit pas als het vorige FO helemaal klaar is. Doorgaan?", vbQuestion + vbYesNo, "Nieuw kwartaal starten") <> vbYes Then Exit Sub
@@ -304,7 +303,7 @@ Public Sub NieuwKwartaalStarten()
 End Sub
 
 Private Function BewaarVorigePrognose() As Long
-    ' 1. Cashflow -> tab Vorige prognose (waarden) en kolom J (CF vorig kwartaal) = huidige CF x 1000
+    ' tab Cashflow -> tab Vorige prognose (waarden); kolom J (CF vorig kwartaal) op tab Cashflow leest daaruit
     Dim wsC As Worksheet, wsV As Worksheet, kop As Long, kolJ As Long, r As Long, c As Long, i As Long
     Set wsC = ThisWorkbook.Worksheets(SH_CF)
     Set wsV = ThisWorkbook.Worksheets(SH_VORIGE)
@@ -323,12 +322,11 @@ Private Function BewaarVorigePrognose() As Long
     r = kop + 1
     Do While IsNumeric(wsC.Cells(r, kolJ).Value) And Not IsEmpty(wsC.Cells(r, kolJ).Value) And i < 60
         wsV.Cells(8 + i, 2).Value = wsC.Cells(r, kolJ).Value
-        wsV.Cells(8 + i, 3).Value = wsC.Cells(r, kolJ + 1).Value
+        wsV.Cells(8 + i, 3).Value = CStr(wsC.Cells(r, kolJ + 1).Value)
         wsV.Cells(8 + i, 4).Value = wsC.Cells(r, kolJ + 2).Value
         wsV.Cells(8 + i, 5).Value = wsC.Cells(r, kolJ + 4).Value
         wsV.Cells(8 + i, 6).Value = wsC.Cells(r, kolJ + 6).Value
         wsV.Cells(8 + i, 7).Value = wsC.Cells(r, kolJ + 7).Value
-        wsC.Cells(r, kolJ + 8).Value = wsC.Cells(r, kolJ + 7).Value
         i = i + 1
         r = r + 1
     Loop
@@ -356,8 +354,8 @@ Public Sub OudFOInlezen()
     End If
     If MsgBox("Alle FO-tabbladen van dit werkbestand (FO - vorig/huidig/actuals, prijslijst, Aansluiting opbrengsten, " & _
               "CF - opbrengsten, CF - kosten, 1. Cashflow, enz.) worden overschreven met de inhoud van:" & vbCrLf & CStr(pad) & _
-              vbCrLf & vbCrLf & "Op Prognose kosten wordt elke post weer 'Handmatig' en de handmatige opbrengsten worden leeggemaakt, " & _
-              "zodat de uitkomst gelijk is aan het oude FO (zie daarna tab Controle oud FO). Doorgaan?", _
+              vbCrLf & vbCrLf & "De nieuwe onderdelen (transportregels, methode per kostenpost, voorstel, correctieregel) worden daarna " & _
+              "teruggezet; zonder aanpassingen is de uitkomst gelijk aan het oude FO (zie tab Controle oud FO). Doorgaan?", _
               vbQuestion + vbYesNo, "Oud FO inlezen") <> vbYes Then Exit Sub
     On Error GoTo Fout
     stap = "oud FO openen"
@@ -389,19 +387,15 @@ Public Sub OudFOInlezen()
         End If
     Next i
 
-    stap = "verwijzingen naar de prognosebladen"
-    NaarPrognose ThisWorkbook.Worksheets(SH_CF)
-    NaarPrognose ThisWorkbook.Worksheets(SH_VENA)
+    stap = "opzet controleren"
+    OpzetControleren waarschuwing
+    stap = "nieuwe onderdelen terugzetten (_sjabloon)"
+    SjabloonTerugzetten waarschuwing
     stap = "hulpkolommen"
     HulpBijwerken ThisWorkbook.Worksheets("FO - vorig"), "X|Y", 17, LaatsteRij(ThisWorkbook.Worksheets("FO - vorig"), 21)
     HulpBijwerken ThisWorkbook.Worksheets("FO - huidig"), "X|Y", 17, LaatsteRij(ThisWorkbook.Worksheets("FO - huidig"), 21)
     HulpBijwerken ThisWorkbook.Worksheets("FO - actuals"), "Q|R", 2, LaatsteRij(ThisWorkbook.Worksheets("FO - actuals"), 16)
-    stap = "prognose op handmatig"
-    ThisWorkbook.Worksheets(SH_PK).Range(PK_METHODE).Value = "Handmatig"
-    ThisWorkbook.Worksheets(SH_PO).Range(PO_HANDMATIG).ClearContents
-    stap = "opzet controleren"
-    OpzetControleren waarschuwing
-    stap = "controle vullen"
+    stap = "vorige prognose en controle vullen"
     ControleVullen wbO, CStr(pad)
     If zelfGeopend Then wbO.Close SaveChanges:=False
     Set wbO = Nothing
@@ -547,16 +541,29 @@ Private Function BinnenTekst(f As String, p As Long) As Boolean
     BinnenTekst = (n Mod 2 = 1)
 End Function
 
-Private Sub NaarPrognose(ws As Worksheet)
-    ' 1. Cashflow en CF - hulp VENA: de totalen komen van de prognosebladen (zelfde rij en kolom als op CF - kosten/opbrengsten)
-    Dim c As Range, f As String, g As String
-    For Each c In ws.UsedRange
-        If c.HasFormula Then
-            f = c.Formula
-            g = Replace(Replace(f, "'CF - kosten'!", "'" & SH_PK & "'!"), "'CF - opbrengsten'!", "'" & SH_PO & "'!")
-            If g <> f Then c.Formula = g
+Private Sub SjabloonTerugzetten(ByRef waarschuwing As String)
+    ' tab _sjabloon: per regel blad, cel en inhoud ('=formule', waarde of leeg) van de onderdelen die een oud FO niet heeft
+    Dim ws As Worksheet, r As Long, blad As String, cel As String, inhoud As String, mis As Long
+    Set ws = ThisWorkbook.Worksheets(SH_SJABLOON)
+    r = 2
+    Do While Len(CStr(ws.Cells(r, 1).Value)) > 0
+        blad = CStr(ws.Cells(r, 1).Value)
+        cel = CStr(ws.Cells(r, 2).Value)
+        inhoud = CStr(ws.Cells(r, 3).Value)
+        On Error Resume Next
+        If Len(inhoud) = 0 Then
+            ThisWorkbook.Worksheets(blad).Range(cel).ClearContents
+        Else
+            ThisWorkbook.Worksheets(blad).Range(cel).Formula = inhoud
         End If
-    Next c
+        If Err.Number <> 0 Then
+            Err.Clear
+            mis = mis + 1
+        End If
+        On Error GoTo 0
+        r = r + 1
+    Loop
+    If mis > 0 Then waarschuwing = waarschuwing & "- " & mis & " cel(len) van het sjabloon konden niet worden teruggezet." & vbCrLf
 End Sub
 
 Private Sub OpzetControleren(ByRef waarschuwing As String)
@@ -569,10 +576,15 @@ Private Sub OpzetControleren(ByRef waarschuwing As String)
     fout = fout & Controleer("CF - opbrengsten", "B189", "overige opbrengsten in")
     fout = fout & Controleer("CF - opbrengsten", "B194", "totaal opbrengsten")
     fout = fout & Controleer("CF - opbrengsten", "B196", "periode in cashflow sap")
-    fout = fout & Controleer(SH_CF, "B3", "jaar")
+    ' de transportregels komen in lege rijen onder de bouwtermijnen; stond daar iets, dan melden
+    Dim t As Variant
+    For Each t In Split(TRANSPORTRIJEN, "|")
+        If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - opbrengsten").Range("B" & t & ":Z" & t)) > 0 Then
+            fout = fout & "    CF - opbrengsten rij " & t & " was niet leeg; daar staat nu de transportregel" & vbCrLf
+        End If
+    Next t
     If Len(fout) > 0 Then
-        waarschuwing = waarschuwing & "- de opzet van het oude FO wijkt af van de standaard; de prognosebladen kunnen dan niet " & _
-                       "kloppen. Controleer:" & vbCrLf & fout
+        waarschuwing = waarschuwing & "- de opzet van het oude FO wijkt af van de standaard; controleer:" & vbCrLf & fout
     End If
 End Sub
 
@@ -583,20 +595,31 @@ Private Function Controleer(blad As String, cel As String, begin As String) As S
 End Function
 
 Private Sub ControleVullen(wbO As Workbook, pad As String)
-    ' cashflow van het oude FO als waarden naast die van dit werkbestand (tab Controle oud FO)
-    Dim wsO As Worksheet, wsK As Worksheet, i As Long, r As Long
+    ' cashflow van het oude FO (1. Cashflow, waarden) naar tab Controle oud FO (per jaar en kwartaal) en kolom
+    ' 'CF vorig kwartaal' naar tab Vorige prognose, zodat tab Cashflow kolom J doorloopt
+    Dim wsO As Worksheet, wsK As Worksheet, wsV As Worksheet, i As Long, r As Long
     Set wsK = ThisWorkbook.Worksheets(SH_CONTROLE)
-    wsK.Range("D9:D60,G9:G60,J9:J60").ClearContents
+    Set wsV = ThisWorkbook.Worksheets(SH_VORIGE)
+    wsK.Range("B9:D60,G9:G60,J9:J60").ClearContents
     wsK.Range("D5").Value = BestandsNaam(pad)
     wsK.Range("D6").Value = Now
-    Set wsO = ZoekBlad(wbO, SH_CF)
+    Set wsO = ZoekBlad(wbO, SH_CF_OUD)
+    If wsO Is Nothing Then Set wsO = ZoekBlad(wbO, SH_CF)
     If wsO Is Nothing Then Exit Sub
+    wsV.Range("B8:G67").ClearContents
+    wsV.Range("D5").Value = "oud FO: " & BestandsNaam(pad)
     For i = 0 To 51
         r = 4 + i
-        If IsNumeric(wsO.Cells(r, 2).Value) And Not IsEmpty(wsO.Cells(r, 2).Value) Then
-            If Not IsError(wsO.Cells(r, 4).Value) Then wsK.Cells(9 + i, 4).Value = wsO.Cells(r, 4).Value
-            If Not IsError(wsO.Cells(r, 6).Value) Then wsK.Cells(9 + i, 7).Value = wsO.Cells(r, 6).Value
-            If Not IsError(wsO.Cells(r, 8).Value) Then wsK.Cells(9 + i, 10).Value = wsO.Cells(r, 8).Value
+        If Not IsNumeric(wsO.Cells(r, 2).Value) Or IsEmpty(wsO.Cells(r, 2).Value) Then Exit For
+        wsK.Cells(9 + i, 2).Value = wsO.Cells(r, 2).Value
+        wsK.Cells(9 + i, 3).Value = CStr(wsO.Cells(r, 3).Value)
+        If Not IsError(wsO.Cells(r, 4).Value) Then wsK.Cells(9 + i, 4).Value = wsO.Cells(r, 4).Value
+        If Not IsError(wsO.Cells(r, 6).Value) Then wsK.Cells(9 + i, 7).Value = wsO.Cells(r, 6).Value
+        If Not IsError(wsO.Cells(r, 8).Value) Then wsK.Cells(9 + i, 10).Value = wsO.Cells(r, 8).Value
+        If i < 60 Then
+            wsV.Cells(8 + i, 2).Value = wsO.Cells(r, 2).Value
+            wsV.Cells(8 + i, 3).Value = CStr(wsO.Cells(r, 3).Value)
+            If Not IsError(wsO.Cells(r, 10).Value) Then wsV.Cells(8 + i, 7).Value = wsO.Cells(r, 10).Value
         End If
     Next i
 End Sub

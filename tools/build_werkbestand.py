@@ -20,6 +20,7 @@ from lxml import etree
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import fo_aanpassingen  # noqa: E402
 import nieuwe_bladen  # noqa: E402
 import vba_project  # noqa: E402
 from xlsxpkg import (CT, CT_CHART, CT_CHARTCOLORS, CT_CHARTSTYLE, CT_DRAWING, CT_SHEET, M, PR, R, SST, T_DRAWING,  # noqa: E402
@@ -40,14 +41,10 @@ LAYOUT = [
     ('Prijslijst dump', 'fo', 'Prijslijst dump', 'shPrijslijstDump'),
     ('Prijslijst', 'fo', 'Prijslijst', 'shPrijslijst'),
     ('Aansluiting opbrengsten', 'fo', 'Aansluiting opbrengsten', 'shAansluiting'),
-    ('Verkooptempo', 'fo', 'Verkooptempo', 'shVerkooptempo'),
     ('CF - opbrengsten', 'fo', 'CF - opbrengsten', 'shCFOpbrengsten'),
     ('CF - kosten', 'fo', 'CF - kosten', 'shCFKostenFO'),
-    ('Prognose opbrengsten', 'new', 'Prognose opbrengsten', 'shPrognoseOpbr'),
-    ('Prognose kosten', 'new', 'Prognose kosten', 'shPrognoseKosten'),
-    ('1. Cashflow', 'fo', '1. Cashflow', 'shCashflow'),
-    ('2. Ontw PEW', 'fo', '2. Ontw PEW', 'shOntwPEW'),
-    ('3. Restant bdgt', 'fo', '3. Restant bdgt', 'shRestantBdgt'),
+    ('Cashflow', 'new', 'Cashflow', 'shCashflow'),
+    ('2. Ontw PEW', 'new', '2. Ontw PEW', 'shOntwPEW'),
     ('CF - hulp VENA', 'fo', 'CF - hulp VENA', 'shVENA'),
     ('Dashboard', 'sc', 'Dashboard', 'shDashboard'),
     ("Scenario's", 'sc', "Scenario's", 'shScenarios'),
@@ -59,13 +56,13 @@ LAYOUT = [
     ('Notities FO gesprek', 'fo', 'Notities FO gesprek', 'shNotities'),
     ('Vorige prognose', 'new', 'Vorige prognose', 'shVorigePrognose'),
     ('Controle oud FO', 'new', 'Controle oud FO', 'shControleOudFO'),
+    ('Verkooptempo', 'fo', 'Verkooptempo', 'shVerkooptempo'),
     ('Behind the scens', 'fo', 'Behind the scens', 'shBehindScens'),
     ('Toelichting onderlegger', 'fo', 'Toelichting onderlegger', 'shToelichting'),
     ('1. Ontw businessc FD', 'fo', '1. Ontw businessc FD', 'shOntwBusinesscase'),
     ('5. K&R businessc', 'fo', '5. K&R businessc', 'shKRBusinesscase'),
+    ('_sjabloon', 'new', '_sjabloon', 'shSjabloon'),
 ]
-REWIRE_SHEETS = ['1. Cashflow', 'CF - hulp VENA']
-REWIRE = [("'CF - kosten'!", "'Prognose kosten'!"), ("'CF - opbrengsten'!", "'Prognose opbrengsten'!")]
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
 DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3)}
 
@@ -196,21 +193,25 @@ class Copier:
 # ------------------------------------------------------------------------------------------------
 
 def oud_cashflow(fo_path):
+    """periodes van '1. Cashflow' uit het FO (waarden van Excel): jaar, Q, kosten, omzet, CF, CF vorig kwartaal"""
     import openpyxl
     wb = openpyxl.load_workbook(fo_path, data_only=True)
     ws = wb['1. Cashflow']
     out = []
-    for r in range(4, 56):
-        if ws.cell(r, 2).value is None and ws.cell(r, 3).value is None:
-            out.append({})
-            continue
-        if not isinstance(ws.cell(r, 2).value, (int, float)):
-            out.append({})
-            continue
-        out.append({'D': ws.cell(r, 4).value, 'F': ws.cell(r, 6).value, 'H': ws.cell(r, 8).value})
-    while out and not out[-1]:
-        out.pop()
+    for r in range(4, 60):
+        jaar = ws.cell(r, 2).value
+        if not isinstance(jaar, (int, float)):
+            break
+        out.append({'B': int(jaar), 'C': ws.cell(r, 3).value or '', 'D': ws.cell(r, 4).value, 'F': ws.cell(r, 6).value,
+                    'H': ws.cell(r, 8).value, 'J': ws.cell(r, 10).value})
     return out
+
+
+def pew_inhoud(fo_path):
+    """alle gevulde cellen van '2. Ontw PEW' (formules en waarden), voor het nieuwe jasje"""
+    import openpyxl
+    ws = openpyxl.load_workbook(fo_path)['2. Ontw PEW']
+    return {c.coordinate: c.value for row in ws.iter_rows() for c in row if c.value is not None}
 
 
 def merges_row57(fo: Package):
@@ -273,7 +274,7 @@ def main():
     sc = Package(a.scenario)
     fo = Package(a.fo)
     tmp_new = a.out + '.nieuw.tmp'
-    info = nieuwe_bladen.bouw(tmp_new, DEMO, merges_row57(fo), oud_cashflow(a.fo), os.path.basename(a.fo))
+    info = nieuwe_bladen.bouw(tmp_new, DEMO, oud_cashflow(a.fo), os.path.basename(a.fo), pew_inhoud(a.fo))
     new = Package(tmp_new)
     os.remove(tmp_new)
 
@@ -322,11 +323,30 @@ def main():
                 n += k
         note("'%s' -> '%s': %d formules" % (old, newname, n))
     part_of = {n: p for n, p, _, _ in final}
-    for sname in REWIRE_SHEETS:
-        t = dst.x(part_of[sname])
-        n = sum(replace_in_formulas(t, o, nw) for o, nw in REWIRE)
-        dst.put(part_of[sname], t)
-        note('%s: %d formules naar Prognose kosten/opbrengsten' % (sname, n))
+
+    # ---- CF - opbrengsten en CF - kosten: transport, correctie, methode, voorstel --------------------------
+    print('CF - opbrengsten en CF - kosten aanpassen')
+    stijl_t = new.x(new.sheet_part('_stijlen'))
+    st = {}
+    for naam, ref in info['stijlen'].items():
+        c = Sheet(stijl_t, sst).cell(ref, create=False)
+        st[naam] = maps['new'][0][int(c.get('s', '0'))]
+    sjabloon = []
+    for blad, functie in (('CF - opbrengsten', lambda sh: fo_aanpassingen.opbrengsten(sh, st, sjabloon, note)),
+                          ('CF - kosten', lambda sh: fo_aanpassingen.kosten(sh, st, sjabloon, styles, note))):
+        sh = Sheet(dst.x(part_of[blad]), sst)
+        functie(sh)
+        dst.put(part_of[blad], sh.t)
+    for ref, tekst in info['pew_extra'].items():
+        sjabloon.append(('2. Ontw PEW', ref, tekst))
+    # sjabloonlijst op het verborgen blad _sjabloon
+    sh = Sheet(dst.x(part_of['_sjabloon']), sst)
+    for i, (blad, ref, inhoud) in enumerate(sjabloon, 2):
+        sh.set_value('A%d' % i, blad)
+        sh.set_value('B%d' % i, ref)
+        sh.set_value('C%d' % i, inhoud if inhoud else None)
+    dst.put(part_of['_sjabloon'], sh.t)
+    note('_sjabloon: %d cellen' % len(sjabloon))
 
     # ---- cellen aanvullen --------------------------------------------------------------------------------
     print('Cellen aanvullen')

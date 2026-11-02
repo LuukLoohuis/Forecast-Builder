@@ -84,8 +84,9 @@ Option Explicit
 '       bouwtermijnen met drie koprijen (lege rij tussen jaar en kwartaal; MAX_RIJEN_BT = 133). Sjabloon v20 heeft geen tabel
 '       woningtypes meer (VT_TABEL ontbreekt zonder melding; met een ouder sjabloon vult de knop hem zoals altijd).
 '  v23: FO-werkbestand (FO en scenariomodel in een bestand): OphalenUitFO kan dit werkbestand zelf lezen (knop
-'       'Scenario bijwerken' op tab Start, zonder vragen); FOKosten leest dan de definitieve kosten van tab
-'       'Prognose kosten' (zelfde blok 'Onderdelen' als CF - kosten); tab CF kosten heet nu 'Scenario kosten';
+'       'Scenario bijwerken' op tab Start, zonder vragen); FOKosten volgt per post de methode in kolom C van
+'       CF - kosten (Voorstel = voorstelblok, VOORSTEL_RIJEN lager); het transport per type komt uit de regel
+'       'koopsom' (die volgt de transportregel); 1. Cashflow heet nu 'Cashflow'; tab CF kosten heet 'Scenario kosten';
 '       sjabloon v21 (v20 met vormnamen voor de datum op dia 1 en de kaarten van dia 10).
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
@@ -103,6 +104,7 @@ Private Const SH_TYPES As String = "Woningtypes"
 Private Const SH_INVOER As String = "Invoer"
 Private Const SH_KOSTEN As String = "Scenario kosten"  ' tab Scenario kosten (tot v23: CF kosten)
 Private Const KOST_RIJ1 As Long = 8                    ' eerste kostenpost (layout.KF_R1)
+Private Const VOORSTEL_RIJEN As Long = 41             ' werkbestand: voorstel per post op CF - kosten = rij post + 41
 Private Const KOST_N As Long = 20                      ' aantal posten (layout.N_KF)
 Private Const KOST_COL1 As Long = 9                    ' kolom I = periode 1 (layout.KF_COL1); B naam, C schuift mee met, E gerealiseerd
 Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
@@ -3494,7 +3496,7 @@ Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPe
     ' gerealiseerde bedrag (de kolommen onder 'Actuals', ook samengevoegd; anders de kolom vóór het eerste kwartaal; kwartalen t/m
     ' actuals tellen ook als gerealiseerd) en de prognose per periode (kolom = rij op tab Invoer; na de laatste periode: in de
     ' laatste periode). Rijen tot de eerste rij zonder label of met 'Totaal'. Zelfde regels als fo.py (_lees_kosten).
-    Dim wsC As Worksheet, wsK As Worksheet, rQ As Long, r As Long, c As Long, cc As Long, rr As Long, c1 As Long, n As Long, i As Long
+    Dim wsC As Worksheet, wsK As Worksheet, rs As Long, rQ As Long, r As Long, c As Long, cc As Long, rr As Long, c1 As Long, n As Long, i As Long
     Dim idxKol() As Long, cAct As Long, act() As Boolean, heeftAct As Boolean, ruw As Double, v As Double, rI As Long, kol As Long
     Dim naam As String, buiten As String, mee As String, mr As Range, rMax As Long
     Dim oudNaam(1 To KOST_N) As String, oudMee(1 To KOST_N) As String
@@ -3511,8 +3513,7 @@ Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPe
     wsC.Range(wsC.Cells(KOST_RIJ1, 2), wsC.Cells(KOST_RIJ1 + KOST_N - 1, 3)).ClearContents
     wsC.Range(wsC.Cells(KOST_RIJ1, 5), wsC.Cells(KOST_RIJ1 + KOST_N - 1, 5)).ClearContents
     wsC.Range(wsC.Cells(KOST_RIJ1, KOST_COL1), wsC.Cells(KOST_RIJ1 + KOST_N - 1, KOST_COL1 + MAX_PERIODES - 1)).ClearContents
-    Set wsK = ZoekBlad(wbF, "Prognose kosten")                 ' werkbestand: de definitieve kosten (voorstel of handmatig)
-    If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF - kosten")
+    Set wsK = ZoekBlad(wbF, "CF - kosten")
     If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF-kosten")
     If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF kosten")
     If wsK Is Nothing Then
@@ -3566,16 +3567,19 @@ Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPe
             Exit Do
         End If
         foStap = "post '" & naam & "' (rij " & r & ")"
+        ' werkbestand: methode in kolom C; 'Voorstel' = de bedragen uit het voorstelblok (VOORSTEL_RIJEN rijen lager)
+        rs = r
+        If LCase$(Trim$(TekstVan(wsK.Cells(r, 3).Value))) = "voorstel" Then rs = r + VOORSTEL_RIJEN
         ruw = 0
         For c = 3 To c1 - 1                                             ' alleen echte getallen (zoals fo.py; tekst telt niet)
             If act(c) Then
-                If IsGetal(wsK.Cells(r, c).Value) Then ruw = ruw + CDbl(wsK.Cells(r, c).Value)
+                If IsGetal(wsK.Cells(rs, c).Value) Then ruw = ruw + CDbl(wsK.Cells(rs, c).Value)
             End If
         Next c
         For c = c1 To UBound(idxKol)
             If idxKol(c) > 0 Then
                 v = 0
-                If IsGetal(wsK.Cells(r, c).Value) Then v = CDbl(wsK.Cells(r, c).Value)
+                If IsGetal(wsK.Cells(rs, c).Value) Then v = CDbl(wsK.Cells(rs, c).Value)
                 If v <> 0 Then
                     If idxKol(c) <= idxAct Then
                         ruw = ruw + v                                       ' kwartaal t/m actuals: gerealiseerd
