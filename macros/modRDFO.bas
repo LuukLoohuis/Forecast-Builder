@@ -460,21 +460,29 @@ End Sub
 Public Sub RDFO_MaakPowerPoint()
     Dim pp As Object, pres As Object, sld As Object, spec As Range, r As Long, dia As Long, vorige As Long
     Dim soort As String, wsD As Worksheet, terug As Worksheet, zicht As XlSheetVisibility, pad As String, melding As String
+    Dim overgeslagen As String, stap As String
 
     On Error GoTo Fout
+    stap = "herberekenen"
     Application.CalculateFull
+    stap = "grafieken bijwerken"
+    On Error Resume Next   ' niet essentieel voor de presentatie
     RDFO_OutlookJaren
+    On Error GoTo Fout
     Set terug = ActiveSheet
     Set wsD = ThisWorkbook.Worksheets("Dias")
     zicht = wsD.Visible
     wsD.Visible = xlSheetVisible
 
+    stap = "PowerPoint starten"
     Set pp = CreateObject("PowerPoint.Application")
     pp.Visible = True
     Set pres = pp.Presentations.Add(True)
     pres.PageSetup.SlideWidth = 960
     pres.PageSetup.SlideHeight = 540
+    stap = "titeldia"
     TitelDia pres
+    stap = "dia's"
 
     Set spec = Nm("PPT_Spec")
     vorige = -1
@@ -486,23 +494,38 @@ Public Sub RDFO_MaakPowerPoint()
                 vorige = dia
             End If
             soort = spec.Cells(r, 4).Text
+            ' elk onderdeel apart: lukt er één niet, dan gaat de rest gewoon door en volgt aan het eind een melding
+            On Error Resume Next
+            Err.Clear
             Select Case soort
                 Case "kpi": Tegels sld, Nm(spec.Cells(r, 5).Text), spec.Cells(r, 6).Value, spec.Cells(r, 7).Value, spec.Cells(r, 8).Value, spec.Cells(r, 9).Value
                 Case "tabel": Tabel sld, Nm(spec.Cells(r, 5).Text), spec.Cells(r, 6).Value, spec.Cells(r, 7).Value, spec.Cells(r, 8).Value, spec.Cells(r, 10).Text
                 Case "grafiek": Grafiek sld, wsD, CLng(spec.Cells(r, 5).Value), spec.Cells(r, 6).Value, spec.Cells(r, 7).Value, spec.Cells(r, 8).Value, spec.Cells(r, 9).Value, spec.Cells(r, 10).Text
                 Case "opsomming": Opsomming sld, Nm(spec.Cells(r, 5).Text), spec.Cells(r, 6).Value, spec.Cells(r, 7).Value, spec.Cells(r, 8).Value, spec.Cells(r, 9).Value
             End Select
+            If Err.Number <> 0 Then
+                overgeslagen = overgeslagen & vbCr & "   - dia " & sld.SlideIndex & " (" & soort & " " & spec.Cells(r, 5).Text & "): " & Err.Description
+                Err.Clear
+            End If
+            On Error GoTo Fout
         End If
     Next r
 
+    stap = "opslaan"
     wsD.Visible = zicht
     terug.Activate
     pad = OpslagMap() & Application.PathSeparator & "RDFO " & T("P_Regio") & " " & T("Sel_Versie") & " " & T("P_VJ") & " " & Format(Now, "yyyy-mm-dd hhnn") & ".pptx"
     pres.SaveAs pad
-    MsgBox "PowerPoint gemaakt en opgeslagen:" & vbCr & pad, vbInformation, "Maak PowerPoint"
+    If overgeslagen = "" Then
+        MsgBox "PowerPoint gemaakt en opgeslagen:" & vbCr & pad, vbInformation, "Maak PowerPoint"
+    Else
+        MsgBox "PowerPoint gemaakt en opgeslagen:" & vbCr & pad & vbCr & vbCr & _
+               "Deze onderdelen zijn overgeslagen:" & overgeslagen & vbCr & vbCr & _
+               "Stuur deze melding door als je wilt dat het wordt opgelost.", vbExclamation, "Maak PowerPoint"
+    End If
     Exit Sub
 Fout:
-    melding = Err.Description
+    melding = Err.Description & IIf(stap <> "", " (bij: " & stap & ")", "")
     On Error Resume Next
     wsD.Visible = zicht
     terug.Activate
@@ -630,11 +653,11 @@ Private Sub Tegels(ByVal sld As Object, ByVal blok As Range, ByVal x As Single, 
         Vlak sld, tx, y, tw, h, LICHT
         Vlak sld, tx, y, tw, 3, GEEL
         Set sh = sld.Shapes.AddTextbox(1, tx + 6, y + 8, tw - 12, 14)
-        Tekst sh, blok.Cells(k, 1).Text, 8.5, NAVY, True
+        Tekst sh, CelTekst(blok.Cells(k, 1)), 8.5, NAVY, True
         Set sh = sld.Shapes.AddTextbox(1, tx + 6, y + 24, tw - 12, 28)
-        Tekst sh, blok.Cells(k, 2).Text, 19, NAVY, True
+        Tekst sh, CelTekst(blok.Cells(k, 2)), 19, NAVY, True
         Set sh = sld.Shapes.AddTextbox(1, tx + 6, y + h - 18, tw - 12, 14)
-        Tekst sh, blok.Cells(k, 3).Text, 8, GRIJS, False
+        Tekst sh, CelTekst(blok.Cells(k, 3)), 8, GRIJS, False
     Next k
 End Sub
 
@@ -651,6 +674,7 @@ End Function
 Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal tekstKop As String)
     Dim gew As Range, kol() As Long, nk As Long, k As Long, reg() As Long, nr As Long, r As Long, som As Double
     Dim shp As Object, tbl As Object, i As Long, j As Long, c As Range, txt As String, grootte As Single, bol As Boolean
+    Dim breedte As Single, kleur As Variant
 
     Set gew = bron.Rows(1).Offset(-1, 0)
     ReDim kol(1 To bron.Columns.Count)
@@ -681,9 +705,13 @@ Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, B
     On Error GoTo 0
     tbl.FirstRow = True
     tbl.HorizBanding = False
+    On Error Resume Next   ' PowerPoint weigert te smalle kolommen: dan blijft de standaardbreedte staan
     For j = 1 To nk
-        tbl.Columns(j).Width = w * gew.Cells(1, kol(j)).Value / som
+        breedte = w * gew.Cells(1, kol(j)).Value / som
+        If breedte < 20 Then breedte = 20
+        tbl.Columns(j).Width = breedte
     Next j
+    On Error GoTo 0
 
     For i = 1 To nr
         For j = 1 To nk
@@ -703,7 +731,10 @@ Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, B
                         .Color.RGB = WIT
                         .Bold = True
                     Else
-                        .Color.RGB = c.DisplayFormat.Font.Color
+                        kleur = c.DisplayFormat.Font.Color
+                        If IsNull(kleur) Then kleur = 0
+                        If kleur < 0 Or kleur > 16777215 Then kleur = 0
+                        .Color.RGB = kleur
                         .Bold = c.Font.Bold
                         .Italic = c.Font.Italic
                     End If
@@ -719,7 +750,8 @@ Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, B
                 End If
                 If i = 1 Then
                     .Fill.ForeColor.RGB = NAVY
-                ElseIf c.DisplayFormat.Interior.ColorIndex <> xlColorIndexNone And c.DisplayFormat.Interior.Color <> WIT Then
+                ElseIf c.DisplayFormat.Interior.ColorIndex <> xlColorIndexNone And c.DisplayFormat.Interior.Color <> WIT _
+                       And c.DisplayFormat.Interior.Color >= 0 And c.DisplayFormat.Interior.Color <= 16777215 Then
                     .Fill.ForeColor.RGB = c.DisplayFormat.Interior.Color
                 Else
                     .Fill.ForeColor.RGB = WIT
@@ -731,7 +763,9 @@ Private Sub Tabel(ByVal sld As Object, ByVal bron As Range, ByVal x As Single, B
                 .Weight = 0.5
             End With
         Next j
+        On Error Resume Next   ' te lage rij: PowerPoint houdt dan zelf de minimale hoogte aan
         tbl.Rows(i).Height = grootte + 6
+        On Error GoTo 0
     Next i
 End Sub
 
@@ -756,7 +790,13 @@ Private Sub Grafiek(ByVal sld As Object, ByVal wsD As Worksheet, ByVal nr As Lon
         Set sh = sld.Shapes.AddPicture(bestand, False, True, x, y)
     End If
     sh.LockAspectRatio = True
-    If sh.Width / sh.Height > w / h Then sh.Width = w Else sh.Height = h
+    If sh.Height <= 0 Or h <= 0 Then
+        sh.Width = w
+    ElseIf sh.Width / sh.Height > w / h Then
+        sh.Width = w
+    Else
+        sh.Height = h
+    End If
     sh.Left = x + (w - sh.Width) / 2
     sh.Top = y
 End Sub
