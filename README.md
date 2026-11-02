@@ -2,18 +2,35 @@
 
 Een overzichtelijk RDFO-bestand met knoppen (macro's), gebouwd op **uitsluitend fictieve data**.
 
-**Oplevering:** [`RDFO_prototype.xlsm`](RDFO_prototype.xlsm). Open het bestand en klik op *Inhoud inschakelen*.
+**Oplevering:**
+- [`RDFO_prototype.xlsm`](RDFO_prototype.xlsm): gevuld met fictieve demodata.
+- [`RDFO_template.xlsm`](RDFO_template.xlsm): dezelfde werkmap, maar leeg (geen data, geen historie). Hiermee begin je met echte data.
+
+Open het bestand en klik op *Inhoud inschakelen*.
 
 | Knop (tabblad Start) | Wat gebeurt er |
 |---|---|
 | 1 Bronnen inlezen | Je kiest de ZPMW03- en Woningetalage-export en vult de peildatum en versie in. Daarna rekent het bestand alles opnieuw en opent het tabblad Controle. |
 | 2 Prognose vastleggen | Voegt de jaarprognose (bijv. Q3) toe aan Historie. Bestaat de versie al, dan wordt het een correctie met toelichting. |
 | 3 Maak PowerPoint | Maakt een presentatie in geel/donkerblauw met kerncijfers, RDFO, projecten met stoplicht, prognoseverloop, outlook, orderintake, woningen en aandachtspunten. Tabellen zijn echte PowerPoint-tabellen (zelf aan te passen); een lege toelichtingskolom en jaren zonder cijfers worden weggelaten. Een voorbeeld staat in [docs/Voorbeeld_PowerPoint.pptx](docs/Voorbeeld_PowerPoint.pptx). |
-| Toon / verberg rekenbladen | Toont of verbergt de bron- en rekenbladen. |
+| Nieuwe projecten toevoegen | Zet WBS-elementen uit ZPMW03 die nog niet in de projectlijst staan onderaan Invoer › 2. |
+| Bestand leegmaken | Wist bronnen, projectlijst, invoer, stoplicht en Historie. Instellingen blijven staan. |
+| Toon / verberg rekenbladen | Toont of verbergt de bron- en rekenbladen en de Historie. |
 
-Er zijn 12 zichtbare tabbladen: Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook, Stoplicht, Controle, Invoer, Historie en Handleiding. Bronnen en tussenberekeningen staan op verborgen bladen.
+Er zijn 11 zichtbare tabbladen: Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook, Bandbreedte, Controle, Invoer en Handleiding.
+- **Bandbreedte** bevat het stoplicht en vijf scenario's per jaar: optimistisch, basis, afslag, gewogen en 0-100.
+- **Outlook** toont per jaar ook DAEB, acquisitiefunnel, target, AK-dekking, kansen en risico's, reserves en de bandbreedte.
+- **RDFO** toont onderaan het overzicht per gebied.
+- **Woningen** toont de verkopen per productsegment en per koperstype.
 
-Grafieken volgen de IBCS/Zebra-notatie: realisatie massief, prognose gearceerd, budget grijs of als streep, afwijkingen groen of rood, en watervallen voor de brug van budget naar prognose.
+Bronnen, tussenberekeningen en Historie staan op verborgen bladen. Je ziet ze via de knop *Toon / verberg rekenbladen*.
+
+Grafieken volgen de IBCS/Zebra-opbouw in Heijmans-kleuren:
+- realisatie donkerblauw;
+- prognose geel;
+- budget grijs;
+- afwijkingen groen of rood;
+- bandbreedte als gele band van het laagste naar het hoogste scenario.
 
 | Document | Inhoud |
 |---|---|

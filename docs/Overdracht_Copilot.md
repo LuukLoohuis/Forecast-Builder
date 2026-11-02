@@ -51,7 +51,7 @@ python tools/release.py <pad-naar-recalc.py> [werkmap]
 
 ## 3. Architectuur van de werkmap
 
-**Zichtbare bladen (12):** Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook, Stoplicht, Controle, Invoer, Historie, Handleiding.
+**Zichtbare bladen (11):** Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook, Bandbreedte, Controle, Invoer, Handleiding. Historie is verborgen (knop *Toon / verberg rekenbladen*).
 
 **Verborgen bladen:** `Bron_ZPMW03`, `Bron_Woningetalage` (ruwe export, kop in rij 1) → `STG_ZPMW03`, `STG_Woningetalage` (kolommen op naam gezocht, afgeleide velden, controlekolommen `C_*`) → `VERW_Project` (1 rij per project in de projectlijst) → `CALC_Versies` (totalen per versie) → rapportbladen. Verder `Concept` (wat vastgelegd wordt), `Lijsten`, `PPT` (teksten + dia-specificatie `PPT_Spec`), `Dias` (tabellen/grafieken voor de PowerPoint).
 
@@ -102,52 +102,23 @@ SAP-export ─► Bron_* ─► STG_* ─► VERW_Project ─► CALC_Versies �
 
 ---
 
-## 6. Volgende opdracht: scenarioanalyse met bandbreedte
+## 6. Scenarioanalyse en uitbreidingen (november 2026, gebouwd)
 
-**Wens gebruiker:** scenarioanalyse toevoegen, met een bandbreedte rond de prognose.
+Gebouwd op basis van de oorspronkelijke RDFO van de gebruiker (tabbladen BHTS, Bandbreedte 2027/2028, Kansen en risico's, Reserves, AK dekking, FY per gebied, Woningen):
 
-Hieronder een **voorstel**. Leg de open vragen (6.5) eerst voor aan de gebruiker.
-
-### 6.1 Doel
-Laten zien hoe zeker de prognose is: per jaar een **pessimistische – basis – optimistische** waarde voor omzet, BOR en woningverkopen (en eventueel orderintake), op regio- en projectniveau.
-
-### 6.2 Invoer (nieuw: Invoer › 7 "Scenario's", gele cellen)
-Per scenario (Pessimistisch / Optimistisch; Basis = huidige prognose) een paar eenvoudige knoppen:
-
-| Parameter | Voorbeeld pessimistisch | Voorbeeld optimistisch |
+| Onderdeel | Waar | Rekenregel |
 |---|---|---|
-| Woningverkopen (tempo, % van prognose) | 80% | 110% |
-| Vertraging verkoop/start bouw (maanden) | 6 | 0 |
-| Omzetrealisatie to go (% van prognose) | 90% | 105% |
-| BOR-marge (procentpunt) | −1,0 | +0,5 |
-| Alleen projecten met kans ≥ (Kans% uit ZPMW03) | 75% | 25% |
+| Bandbreedte (5 scenario's) | Tabblad **Bandbreedte** (vervangt Stoplicht) + verborgen **SCEN** | Per project en jaar RJ..RJ+4: optimistisch (verkoop haalt `SC_Opt`, max `SC_Max` x), basis (upload), afslag (`SC_Afslag` van de geplande verkopen), gewogen (x kans %), 0-100 (kans ≥ `SC_Grens` of Ja/Nee). Realisatie blijft altijd staan. |
+| DAEB, funnel, target | Invoer › 8 en 9 → Outlook | DAEB-omzet x % per jaar; funnel en target per jaar. |
+| AK-dekking | Invoer › 2 (AK %) → VERW `AK0..AK6` → Outlook en RDFO | (omzet − BOR) / `P_AKFactor` x AK %; aanvullende invoer gaat voor; kengetal `AK-dekking FY` wordt mee vastgelegd. |
+| Kansen en risico's | Invoer › 10 → Outlook, PowerPoint | Saldo per jaar, risico negatief. |
+| Reserves / PCM | Invoer › 11 → Outlook | Reserves x % gereed (cumulatief) per jaar. |
+| Gebieden | Invoer › 7 en 2 → RDFO (onderaan), PowerPoint | Som per gebied uit Projecten. |
+| Strapo's | Invoer › 2 (Strapo Ja/Nee) → Outlook "waarvan strapo's" | — |
+| Woningsegmentatie | Invoer › 2 (7 productsegmenten + % belegger) → Woningen | Controle meldt Verdeelfout. |
+| Template | `RDFO_template.xlsm` (build met `template=True`) | Alle invoer, bronregels en Historie leeg. |
 
-Plus per project een optionele afwijking (kolom in Invoer › 2 of aparte tabel: WBS, scenario, % omzet, % BOR, vertraging), zodat grote risicoprojecten apart te sturen zijn. Koppeling met het stoplicht ligt voor de hand: rood stoplicht → automatisch pessimistische factor (instelbaar).
-
-### 6.3 Rekenregels (voorstel)
-- Realisatie (actual) verandert nooit; alleen **to go** en toekomstige jaren worden geschaald.
-- Vertraging schuift omzet/woningen naar volgende jaren (niet weg), zodat het totaal per project gelijk blijft; alleen de verdeling over jaren verandert.
-- Bereken in een nieuw verborgen blad `SCEN_Project` (1 rij per project, zelfde rijvolgorde als `VERW_Project`) en tel op in `CALC_Versies` of een nieuw `CALC_Scenario`.
-- Geen `ABS`, `n.b.` blijft `n.b.`, tekenafspraken als in §4.
-- Scenario's worden **niet** vastgelegd in Historie (het zijn analyses), tenzij de gebruiker dat wil.
-
-### 6.4 Uitvoer
-- **Nieuw blad "Scenario's"** (zichtbaar, na Outlook): tabel per jaar met Pessimistisch / Basis / Optimistisch en budget; top-10 projecten met de grootste bandbreedte.
-- **Grafiek bandbreedte** in Zebra-stijl: basis als kolom (gearceerd voor prognose), bandbreedte als foutbalk/whisker of gestapelde zwevende balk (min → max), budget als streep. Hulpfuncties: `ibcs_columns`, `hatched`, `solid` in `build_rdfo.py`.
-- **Dashboard:** één tegel "Bandbreedte omzet FY: € x – y mln".
-- **PowerPoint:** extra dia "Scenario's en bandbreedte" via een regel in `build_ppt_spec` (soort `tabel` + `grafiek`), tabel als blok in `build_dias` met `table_head(...)`; `preview_pptx.py` pakt het dan automatisch mee.
-- **Controle:** check dat Basis = huidige prognose (aansluiting) en dat pessimistisch ≤ basis ≤ optimistisch.
-- **Tests** in `tools/test_rdfo.py`: basis = upload, 100%/0-maanden-scenario = basis, vertraging verschuift maar behoudt totaal, realisatie ongewijzigd.
-
-### 6.5 Open vragen voor de gebruiker
-1. Welke kengetallen moeten een bandbreedte krijgen: omzet, BOR, woningverkopen, orderintake?
-2. Twee scenario's (pessimistisch/optimistisch) of meer (bijv. ook "stress")?
-3. Regio-brede parameters genoeg, of ook per project instelbaar?
-4. Moet het stoplicht automatisch een project naar pessimistisch duwen?
-5. Bandbreedte alleen voor het doeljaar, of voor alle Outlook-jaren?
-6. Wil je scenario's kunnen vastleggen (bijv. "Q3 pessimistisch") voor vergelijking later?
-
----
+Open punten voor de gebruiker: gelden 50% afslag en 90% optimistisch? Komt DAEB-omzet uit de ZPMW DAEB-export (nu handmatig)? Klopt de AK-deler 1,05?
 
 ## 7. Werkwijze voor wijzigingen
 

@@ -11,7 +11,7 @@ Option Explicit
 Private Const HISTORIE_LAATSTE_RIJ As Long = 5005
 Private Const BRON_CAPACITEIT As Long = 500
 Private Const IMPORTLOG_KOLOM As Long = 24        ' kolom X op Historie
-Private Const VERBORGEN As String = "Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Lijsten,PPT,Dias"
+Private Const VERBORGEN As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Lijsten,PPT,Dias"
 
 ' ---------------------------------------------------------------- huisstijl
 Private Function NAVY() As Long
@@ -236,6 +236,7 @@ Public Sub RDFO_ProjectenToevoegen()
                 If cO > 0 Then .Offset(0, 2).Value = wsZ.Cells(r, cO).Value
                 .Offset(0, 5).Value = "Opstal"
                 .Offset(0, 6).Value = "Nee"
+                .Offset(0, 9).Value = "Nee"
                 m = CVErr(xlErrNA)
                 If eS > 0 Then m = Application.Match(wbs, wsE.Columns(eS), 0)
                 If Not IsError(m) Then
@@ -243,7 +244,7 @@ Public Sub RDFO_ProjectenToevoegen()
                     If eH > 0 Then .Offset(0, 4).Value = wsE.Cells(m, eH).Value
                     .Offset(0, 6).Value = "Ja"
                 End If
-                .Resize(1, 8).Interior.Color = RGB(255, 235, 156)
+                .Resize(1, 19).Interior.Color = RGB(255, 235, 156)
             End With
             If eerste Is Nothing Then Set eerste = map.Cells(vrij, 1)
             n = n + 1
@@ -267,8 +268,9 @@ Public Sub RDFO_LeegMaken()
     Dim antw As String, il As Range
     If MsgBox("Hiermee maak je een leeg format. Dit wordt gewist:" & vbCr & _
               "   - ingelezen ZPMW03 en Woningetalage" & vbCr & _
-              "   - projectlijst (Invoer › 2), aanvullende posten, toelichtingen, koperstype" & vbCr & _
-              "   - stoplichtinvoer" & vbCr & _
+              "   - projectlijst (Invoer › 2), aanvullende posten, toelichtingen, koperstype," & vbCr & _
+              "     gebieden, funnel en target, DAEB, kansen en risico's, reserves" & vbCr & _
+              "   - stoplicht- en scenario-invoer (tabblad Bandbreedte)" & vbCr & _
               "   - Historie: alle vastgelegde prognoses en het importlog" & vbCr & vbCr & _
               "Instellingen (regio, uitgangspunten stoplicht) blijven staan." & vbCr & _
               "Tip: sla eerst een kopie op via 'Opslaan als'. Doorgaan?", _
@@ -280,21 +282,31 @@ Public Sub RDFO_LeegMaken()
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     Application.Calculation = xlCalculationManual
-    ThisWorkbook.Worksheets("Bron_ZPMW03").Cells.Clear
-    ThisWorkbook.Worksheets("Bron_Woningetalage").Cells.Clear
-    With Nm("Map_WBS").Resize(, 8)
+    With ThisWorkbook.Worksheets("Bron_ZPMW03")
+        .Rows("2:" & .Rows.Count).ClearContents
+    End With
+    With ThisWorkbook.Worksheets("Bron_Woningetalage")
+        .Rows("2:" & .Rows.Count).ClearContents
+    End With
+    ThisWorkbook.Worksheets("Projectdetail").Range("C4").Value = ""
+    With Nm("Map_WBS").Resize(, 19)
         .ClearContents
         .Interior.Color = Nm("P_Regio").Interior.Color
     End With
+    Nm("Gebieden").ClearContents
+    Nm("MJ_Funnel").ClearContents
+    Nm("MJ_Target").ClearContents
+    Nm("DB_Omzet").Resize(, 7).ClearContents
+    Nm("KR_Project").Resize(, 6).ClearContents
+    Nm("RS_Project").Resize(, 6).ClearContents
     Nm("A_Doel").Resize(, 12).ClearContents
     Nm("T_Key").Offset(0, -8).Resize(, 5).ClearContents
     Nm("T_Txt").Resize(, 3).ClearContents
     Nm("KT_WBS").Resize(, 6).ClearContents
     Nm("KT_WBS").Offset(0, 10).ClearContents
-    With ThisWorkbook.Worksheets("Stoplicht")
-        .Range("E8:H107").ClearContents
-        .Range("P8:P107").ClearContents
-    End With
+    Nm("SL_Invoer1").ClearContents
+    Nm("SL_Invoer2").ClearContents
+    Nm("SL_Stempel").ClearContents
     Nm("L_ImportID").Resize(, 18).ClearContents
     Set il = ThisWorkbook.Worksheets("Historie").Range(ThisWorkbook.Worksheets("Historie").Cells(6, IMPORTLOG_KOLOM), _
              ThisWorkbook.Worksheets("Historie").Cells(HISTORIE_LAATSTE_RIJ, IMPORTLOG_KOLOM + 10))
@@ -396,9 +408,10 @@ Public Sub RDFO_PrognoseVastleggen()
         Nm("P_ToelCorrectie").Value = toel
         Application.CalculateFull
     Else
-        antw = MsgBox("Prognose " & versie & " vastleggen?" & vbCr & vbCr & n & " regels worden toegevoegd aan Historie " & _
-                      "(status: " & Nm("P_StatusVastleg").Value & ")." & vbCr & "Vastgelegde waarden veranderen daarna niet meer.", _
-                      vbOKCancel + vbQuestion, "Prognose vastleggen")
+        antw = MsgBox("Prognose " & versie & " vastleggen?" & vbCr & vbCr & _
+                      "Omzet " & Nm("P_UploadVJ").Value & ": € " & Format(Application.WorksheetFunction.Sum(Nm("V_OmzFY")) / 1000000, "0.0") & " mln" & vbCr & _
+                      "Woningverkopen " & Nm("P_UploadVJ").Value & ": " & Format(Application.WorksheetFunction.SumIfs(Nm("V_W_HuidigJaar"), Nm("V_Meetellen"), "Ja"), "0") & vbCr & vbCr & _
+                      "Daarna veranderen deze cijfers niet meer.", vbOKCancel + vbQuestion, "Prognose vastleggen")
         If antw <> vbOK Then Exit Sub
     End If
 
@@ -417,9 +430,9 @@ Public Sub RDFO_PrognoseVastleggen()
     Nm("P_ToelCorrectie").Value = ""
     Application.CalculateFull
     Application.ScreenUpdating = True
-    wsH.Activate
-    wsH.Cells(r0, 1).Select
-    MsgBox "Klaar: " & n & " regels vastgelegd voor " & versie & "." & vbCr & "Sla het bestand op.", vbInformation, "Prognose vastleggen"
+    ThisWorkbook.Worksheets("RDFO").Activate
+    If MsgBox("Klaar: " & versie & " is vastgelegd (" & n & " regels in Historie)." & vbCr & vbCr & _
+              "Bestand nu opslaan?", vbYesNo + vbInformation, "Prognose vastleggen") = vbYes Then ThisWorkbook.Save
 End Sub
 
 ' ================================================================= 3. REKENBLADEN
@@ -511,6 +524,20 @@ Public Sub RDFO_OutlookJaren()
             rij = basis + s - 1
             co.Chart.SeriesCollection(s).Values = wsO.Range(wsO.Cells(rij, 16), wsO.Cells(rij, 15 + n))
             co.Chart.SeriesCollection(s).XValues = wsO.Range(wsO.Cells(5, 16), wsO.Cells(5, 15 + n))
+        Next s
+    Next doel
+    ' bandbreedte: grafiekdata op Bandbreedte, kolommen Y (jaar) en Z..AC, vanaf rij 5; jaren RJ.. (= Outlook-jaar 2 e.v.)
+    Dim wsB As Worksheet, m As Long
+    Set wsB = ThisWorkbook.Worksheets("Bandbreedte")
+    m = n - 1
+    If m < 1 Then m = 1
+    If m > 5 Then m = 5
+    For Each doel In Split(Nm("BB_Grafieken").Value, ";")
+        delen = Split(doel, "|")
+        Set co = ThisWorkbook.Worksheets(delen(0)).ChartObjects(CLng(delen(1)))
+        For s = 1 To co.Chart.SeriesCollection.Count
+            co.Chart.SeriesCollection(s).Values = wsB.Range(wsB.Cells(5, 25 + s), wsB.Cells(4 + m, 25 + s))
+            co.Chart.SeriesCollection(s).XValues = wsB.Range(wsB.Cells(5, 25), wsB.Cells(4 + m, 25))
         Next s
     Next doel
 End Sub

@@ -122,7 +122,7 @@ def main(src, out):
         assert f'codeName="{code_name(n)}"'.encode() in files[p], f"codeName ontbreekt voor {n}"
     files["xl/vbaProject.bin"] = vbaproject.build_vba_project(
         {"modRDFO": vba_source(ROOT / "macros" / "modRDFO.bas")}, docs,
-        sheet_code={code_name("Stoplicht"): vba_source(ROOT / "macros" / "shStoplicht.cls")})
+        sheet_code={code_name("Bandbreedte"): vba_source(ROOT / "macros" / "shStoplicht.cls")})
     files["[Content_Types].xml"] = xml(ct)
     files["xl/_rels/workbook.xml.rels"] = xml(wbrels)
 

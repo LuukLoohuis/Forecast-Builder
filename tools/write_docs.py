@@ -23,11 +23,14 @@ def table(head, rows):
 def main(results_path=None):
     DOCS.mkdir(exist_ok=True)
     h = ["# Handleiding RDFO-prototype", "", DOC.INLEIDING, "",
-         "## Elk kwartaal in 5 stappen", ""]
+         "## Elk kwartaal in 5 stappen", "",
+         "Begin je met een leeg bestand? Gebruik `RDFO_template.xlsm` of de knop *Bestand leegmaken* op Start.", ""]
     for i, (t, wat, waar, let) in enumerate(DOC.STAPPEN):
         h += [f"**{i+1}. {t}** — {waar}", "", wat, "", f"*Let op:* {let}", ""]
     h += ["## De tabbladen", "", table(["Tabblad", "Wat staat er", "Wat doe je er"], DOC.TABBLADEN), ""]
     h += ["## Stoplicht invullen", ""] + [f"- {x}" for x in DOC.STOPLICHT] + [""]
+    h += ["## Bandbreedte: vijf scenario's", ""] + [f"- {x}" for x in DOC.BANDBREEDTE] + [""]
+    h += ["## Af en toe invullen (tabblad Invoer)", "", table(["Onderdeel", "Wat vul je in"], DOC.INVOER_EENMALIG), ""]
     h += ["## Een vastgelegde prognose corrigeren", ""] + [f"{i+1}. {x}" for i, x in enumerate(DOC.CORRECTIE)] + [""]
     h += ["## Spelregels", ""] + [f"- {x}" for x in DOC.SPELREGELS] + [""]
     h += ["## Problemen oplossen", "", table(["Probleem", "Oplossing"], DOC.FAQ), ""]

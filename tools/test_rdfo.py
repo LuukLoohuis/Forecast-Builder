@@ -39,7 +39,7 @@ def recalc(path):
     info = json.loads(out.stdout)
     # bewuste #N/A: gaten in de BOR%-lijn van de dashboardgrafiek (versie zonder vastgelegde waarde)
     info["total_errors"] = sum(1 for k, x in info.get("error_summary", {}).items() for loc in x["locations"]
-                               if not (k == "#N/A" and re.match(r"Outlook![P-W]\d+$", loc)))
+                               if not (k == "#N/A" and re.match(r"(Outlook![P-W]|Woningen!Q|Bandbreedte!AC)\d+$", loc)))
     return info, load_workbook(path, data_only=True)
 
 
@@ -128,7 +128,7 @@ verschil = sum(abs(w0["Concept"][f"U{r}"].value or 0) for r in range(B.C0, B.C1 
 ok = abs(v(w0, rd("omz_proj", "F")) - v(w0, rd("omz_proj", "H"))) < TOL and abs(v(w0, rd("bor_tot", "F")) - v(w0, rd("bor_tot", "H"))) < TOL \
     and verschil < TOL
 record("Q3-snapshot sluit aan op de bronbestanden", ok,
-       f"Q3 vastgelegd {v(w0, rd('omz_proj', 'F')):,.1f} = upload {v(w0, rd('omz_proj', 'H')):,.1f}; som |verschil| alle 280 conceptregels = 0")
+       f"Q3 vastgelegd {v(w0, rd('omz_proj', 'F')):,.1f} = upload {v(w0, rd('omz_proj', 'H')):,.1f}; som |verschil| alle {20 * len(B.KT)} conceptregels = 0")
 
 ok = v(w0, rd("omz_ops", "G")) == "n.b." and v(w0, rd("bor_tot", "G")) == "n.b." and v(w0, rd("omz_proj", "K")) * 1000 - EXP_ACT < TOL
 record("Ontbrekende Q4 en ontbrekende historische actuals niet als nul", ok,
@@ -187,7 +187,7 @@ def q4_frozen(wb, times=1, select=True):
 
 
 p, info, w4 = scenario("t03b_q4_vastgelegd", q4_frozen)
-ok = n == 280 and revs == {0} and abs(v(w4, rd("omz_proj", "G")) - v(w0, rd("omz_proj", "H"))) < TOL \
+ok = n == 20 * len(B.KT) and revs == {0} and abs(v(w4, rd("omz_proj", "G")) - v(w0, rd("omz_proj", "H"))) < TOL \
     and all(abs(v(w4, rd("omz_proj", c)) - v(w0, rd("omz_proj", c))) < TOL for c in "CDEF") \
     and v(w4, "CALC_Versies!B11") == "Vastgesteld" and abs(v(w4, rd("omz_proj", "N"))) < TOL
 record("Kwartaalvastlegging Q4: Concept → Historie (dezelfde kopieerstap als de macro)", ok,
@@ -205,7 +205,7 @@ record("Vastgelegde Q4 is onveranderlijk: latere upload herberekent haar niet", 
        f"Q4 vóór/na nieuwe upload: {v(w4, rd('omz_proj', 'G')):,.1f} / {v(w5, rd('omz_proj', 'G')):,.1f}; upload-concept {v(w5, rd('omz_proj', 'H')):,.1f}")
 
 p, info, w6 = scenario("t04_dubbele_import", lambda wb: q4_frozen(wb, times=2))
-ok = abs(v(w6, rd("omz_proj", "G")) - v(w4, rd("omz_proj", "G"))) < TOL and v(w6, "Historie!M3") == 280 and v(w6, "Controle!D4") == 0
+ok = abs(v(w6, rd("omz_proj", "G")) - v(w4, rd("omz_proj", "G"))) < TOL and v(w6, "Historie!M3") == 20 * len(B.KT) and v(w6, "Controle!D4") == 0
 record("Dubbele import veroorzaakt geen dubbeltelling", ok,
        f"Q4 na 2x plakken: {v(w6, rd('omz_proj', 'G')):,.1f} (1x: {v(w4, rd('omz_proj', 'G')):,.1f}); {v(w6, 'Historie!M3')} regels als dubbel genegeerd en gemeld")
 
@@ -297,32 +297,35 @@ record("Doeljaar 2027: jaarprognoses per versie, geen realisatie (n.v.t.), to go
 
 p, info, w12 = scenario("t09_demo_aannames", lambda wb: set_name(wb, "P_Demo", "Ja"))
 ebit = v(w12, rd("ebit", "H")) - v(w12, rd("bor_tot", "H"))
-ok = abs(v(w12, rd("ak", "H")) + 1400) < TOL and abs(ebit - (-1400 + 300 + 150)) < TOL and v(w12, "Controle!D5") >= 1 and v(w0, rd("ak", "H")) == "n.b."
+ak_c = B.VCOLS["AK0"]
+ak_som = sum(w0["VERW_Project"][f"{ak_c}{r}"].value or 0 for r in range(B.V0, B.V1 + 1)
+             if isinstance(w0["VERW_Project"][f"{ak_c}{r}"].value, (int, float))) / 1000
+ok = abs(v(w12, rd("ak", "H")) + 1400) < TOL and abs(ebit - (-1400 + 300 + 150)) < TOL and v(w12, "Controle!D5") >= 1 \
+    and ak_som > 0 and abs(v(w0, rd("ak", "H")) - ak_som) < TOL
 record("Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld)", ok,
-       f"P_Demo=Nee: AK-dekking '{v(w0, rd('ak', 'H'))}'; P_Demo=Ja: AK-dekking {v(w12, rd('ak', 'H')):,.0f} en Controle-waarschuwing")
+       f"P_Demo=Nee: AK-dekking = AK % x kosten = {v(w0, rd('ak', 'H')):,.0f}; P_Demo=Ja: fictieve AK-dekking {v(w12, rd('ak', 'H')):,.0f} gaat voor, met Controle-waarschuwing")
 
 
 # ------------------------------------------------------------------ stoplicht
-ws = w0["Stoplicht"]
+ws = w0["Bandbreedte"]
 rows_sl = {ws[f"A{r}"].value: r for r in range(B.SL0, B.SL1 + 1) if ws[f"A{r}"].value}
 r_wg = rows_sl["Duinwaard, De Watergaarde"]      # handmatig 0% verkocht, netcongestie Laag
 r_pk = rows_sl["Boswaard, Parkeergebouw"]        # geen woningen, netcongestie Hoog
-codes = lambda w, r: [w["Stoplicht"][f"{c}{r}"].value for c in "IJK"]  # noqa: E731
-hdrs = [w0["Stoplicht"].cell(row=7, column=c).value for c in range(1, 12)]
+codes = lambda w, r: [w["Bandbreedte"][f"{c}{r}"].value for c in "IJK"]  # noqa: E731
+hdrs = [w0["Bandbreedte"].cell(row=7, column=c).value for c in range(1, 12)]
 ok = codes(w0, r_wg) == [1, 3, 2] and codes(w0, r_pk) == [0, 3, 1] and not any("RvS" in str(h) or "Totaal" in str(h) for h in hdrs)
 record("Stoplicht (verkoop, omgevingsvergunning, netcongestie): kleur volgt uit invoer en uitgangspunten", ok,
        f"Watergaarde (0% verkocht, net Laag) → {codes(w0, r_wg)}; Parkeergebouw (geen woningen, net Hoog) → {codes(w0, r_pk)} (0 = leeg/n.v.t.)")
 
 
 def stoplicht_rules(wb):
-    st = wb["Stoplicht"]
-    st["U16"] = 0.0           # oranje vanaf 0% ...
-    st["U15"] = 0.0           # ... en groen vanaf 0% → verkoop altijd groen
-    for r in range(1, 60):    # netcongestie 'Laag' → groen
-        if st[f"S{r}"].value == "Netcongestie":
-            for rr in range(r + 2, r + 7):
-                if st[f"T{rr}"].value == "Laag":
-                    st[f"U{rr}"] = "Groen"
+    set_name(wb, "SL_Oranje", 0.0)     # oranje vanaf 0% ...
+    set_name(wb, "SL_Groen", 0.0)      # ... en groen vanaf 0% → verkoop altijd groen
+    sh, rng_ = name_ref(wb, "NET_W")   # netcongestie 'Laag' → groen
+    for row in wb[sh][rng_]:
+        c = row[0]
+        if c.value == "Laag":
+            wb[sh].cell(row=c.row, column=c.column + 1).value = "Groen"
 
 
 p, info, w13 = scenario("t10_stoplicht_uitgangspunten", stoplicht_rules)
@@ -337,7 +340,7 @@ exp_oi = float(-zz[(zz.oi.dt.year == 2026) & (zz.oi <= pd.Timestamp(2026, 9, 30)
 exp_n = int(((zz.oi.dt.year == 2026) & (zz.oi <= pd.Timestamp(2026, 9, 30))).sum())
 got_oi = v(w0, "Dashboard!Q8") * 1e6
 ow = w0["Outlook"]
-orow = {ow[f"B{r}"].value: r for r in range(5, 30) if ow[f"B{r}"].value}
+orow = {ow[f"B{r}"].value: r for r in range(5, 45) if ow[f"B{r}"].value}
 oi_years = {y: float(-zz[zz.oi.dt.year == y]["PEW opbrengst"].sum()) for y in (2025, 2026)}
 ok = (abs(got_oi - exp_oi) < 1 and str(v(w0, "Dashboard!Q9")).startswith(str(exp_n))
       and all(abs(ow[f"{c}{orow['Orderintake PEW-omzet']}"].value * 1000 - oi_years[y]) < 1 for c, y in (("C", 2025), ("D", 2026))))
@@ -368,6 +371,76 @@ ok = gew_toel == 0 and gew_jaar[:4] == [1, 1, 1, 1] and gew_jaar[4:] == [0, 0, 0
 record("PowerPoint: lege toelichtingskolom en jaren zonder cijfers vallen weg", ok,
        f"gewicht toelichting = {gew_toel}; gewichten jaarkolommen 2025-2032 = {gew_jaar}")
 
+# ------------------------------------------------------------------ bandbreedte (5 scenario's)
+bb = w0["Bandbreedte"]
+mapped = set(B.load_workbook(D / B.HIST_FILE)["Projectmapping"].iter_rows(min_row=2, max_col=1, values_only=True))
+mapped = {m[0] for m in mapped}
+zm = zz[zz["WBS-element"].isin(mapped)]
+fy27 = -zm["OP.BOB 2027"]
+exp_gew = float((fy27 * zm["Kans%"] / 100).sum()) / 1e6
+exp_nul = float(fy27[zm["Kans%"] >= 50].sum()) / 1e6
+basis = [bb[f"{c}7"].value for c in "BCD"]
+outl = [ow[f"{c}{orow['Omzet totaal']}"].value / 1000 for c in "DEF"]
+rows_bb = {k: [bb[f"{c}{6 + i}"].value for c in "BCD"] for i, k in enumerate(("opt", "bas", "afs", "gew", "nul"))}
+ok = (all(abs(a - b) < 0.001 for a, b in zip(basis, outl)) and abs(rows_bb["gew"][1] - exp_gew) < 0.001 and abs(rows_bb["nul"][1] - exp_nul) < 0.001
+      and all(rows_bb["opt"][k] >= rows_bb["bas"][k] - 1e-9 >= rows_bb["afs"][k] - 2e-9 for k in range(3)))
+record("Bandbreedte: basis = Outlook, gewogen = omzet x kans %, 0-100 = projecten met kans ≥ 50%", ok,
+       f"2027: optimistisch {rows_bb['opt'][1]:,.1f} · basis {rows_bb['bas'][1]:,.1f} · afslag {rows_bb['afs'][1]:,.1f} · "
+       f"gewogen {rows_bb['gew'][1]:,.1f} (onafhankelijk {exp_gew:,.1f}) · 0-100 {rows_bb['nul'][1]:,.1f} (onafhankelijk {exp_nul:,.1f}) mln")
+
+
+def scen_neutraal(wb):
+    set_name(wb, "SC_Afslag", 1.0)   # alle geplande verkopen lukken
+    set_name(wb, "SC_Opt", 0.0)      # nooit opschalen
+
+
+p, info, w14 = scenario("t11_bandbreedte_neutraal", scen_neutraal)
+b14 = w14["Bandbreedte"]
+ok = all(abs(b14[f"{c}6"].value - b14[f"{c}7"].value) < 1e-6 and abs(b14[f"{c}8"].value - b14[f"{c}7"].value) < 1e-6 for c in "BCDEF")
+record("Bandbreedte: afslag 100% en geen opschaling geeft precies het basisscenario", ok,
+       f"2026: optimistisch/basis/afslag = {b14['B6'].value:,.2f} / {b14['B7'].value:,.2f} / {b14['B8'].value:,.2f} mln")
+
+# ------------------------------------------------------------------ doorkijk: DAEB, funnel, target, kansen/risico's, reserves, AK
+g = lambda lab, c: ow[f"{c}{orow[lab]}"].value  # noqa: E731
+daeb27 = g("Omzet DAEB (Invoer › 9)", "E") * 1000
+kr26 = g("Kansen en risico's (saldo)", "D") * 1000
+pcm26 = g("Effect reserves (PCM)", "D") * 1000
+incl28 = g("Omzet incl. DAEB en funnel", "F") * 1000
+ok = (abs(daeb27 - (12e6 * 0.5 + 8e6 * 0.3)) < 1 and abs(kr26 - (1.7e6 - 4.63e6)) < 1
+      and abs(pcm26 - (1360938 * 1.0 + 1005704 * 0.21)) < 1 and abs(incl28 - (-zz["OP.BOB 2028"].sum() + 12e6 * 0.3 + 8e6 * 0.7 + 15e6)) < 1)
+record("Doorkijk: DAEB-verdeling, funnel, kansen/risico's en reserves rekenen per jaar mee", ok,
+       f"DAEB 2027 = {daeb27:,.0f}; saldo kansen/risico's 2026 = {kr26:,.0f}; PCM 2026 = {pcm26:,.0f}; omzet incl. 2028 = {incl28:,.0f}")
+
+# ------------------------------------------------------------------ woningsegmentatie en gebieden
+wn = w0["Woningen"]
+s0 = B.WON["seg0"]
+seg_tot = sum(wn[f"C{r}"].value for r in range(s0, s0 + len(B.PRODSEG) + 1))
+kt_tot = sum(wn[f"I{r}"].value for r in range(s0, s0 + 3))
+geb_tot = w0["RDFO"][f"E{B.RDFO_ROWS['geb0'] + 1 + (B.GB1 - B.GB0 + 2)}"].value
+ok = abs(seg_tot - won26) < 0.01 and abs(kt_tot - won26) < 0.01 and abs(geb_tot - v(w0, rd("omz_proj", "J"))) < TOL
+record("Woningen per productsegment en koperstype tellen op tot het totaal; gebieden tellen op tot de RDFO", ok,
+       f"segmenten {seg_tot:,.0f} = koperstypes {kt_tot:,.0f} = verkopen {won26}; totaal gebieden {geb_tot:,.1f} = RDFO {v(w0, rd('omz_proj', 'J')):,.1f}")
+
+
+def verdeelfout(wb):
+    inv = wb["Invoer"]
+    inv[f"L{B.MAP0}"] = 0.5
+    inv[f"M{B.MAP0}"] = None
+
+
+p, info, w15 = scenario("t12_verdeelfout", verdeelfout)
+ok = v(w15, "Controle!D4") == v(w0, "Controle!D4") + 1 and v(w15, f"Invoer!T{B.MAP0}") == "Verdeelfout"
+record("Verdeelfout in de woningverdeling wordt als FOUT gemeld", ok, f"Controle: {v(w15, 'Controle!D4')} FOUT (basis {v(w0, 'Controle!D4')})")
+
+# ------------------------------------------------------------------ lege templateversie
+tpl = WORK / "template.xlsx"
+B.build(str(tpl), template=True)
+info_t, wt = recalc(tpl)
+ok = (info_t["total_errors"] == 0 and v(wt, "Controle!D4") == 0 and wt["Invoer"][f"A{B.MAP0}"].value is None
+      and wt["Historie"][f"A{B.L0}"].value is None and wt["Bron_ZPMW03"]["A2"].value is None and v(wt, "Bandbreedte!B7") == 0)
+record("Lege templateversie: geen data, geen historie, geen formulefouten", ok,
+       f"formulefouten {info_t['total_errors']}; Controle {v(wt, 'Controle!D4')} FOUT; projectlijst, Historie en bronnen leeg")
+
 import zipfile  # noqa: E402
 from oletools.olevba import VBA_Parser  # noqa: E402
 import inject_cache  # noqa: E402
@@ -391,7 +464,7 @@ for nme in zx.namelist():
         macros_in_buttons |= {m.split("!")[1] for m in __import__("re").findall(r'macro="([^"]+)"', zx.read(nme).decode()) if "!" in m}
 ct = zx.read("[Content_Types].xml").decode()
 ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 6 and n_btn == len(B.BUTTONS)
-      and "macroEnabled.main+xml" in ct and "shStoplicht.cls" in mods)
+      and "macroEnabled.main+xml" in ct and "shBandbreedte.cls" in mods)
 record("Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's", ok,
        f"{len(mods)} VBA-modules (oletools); {n_btn} knoppen → {sorted(macros_in_buttons)}. Let op: uitvoering in Excel zelf is hier niet getest.")
 
