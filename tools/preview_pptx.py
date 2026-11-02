@@ -150,16 +150,15 @@ def main(src, out, workdir):
         trim(p)
         chart_png[i + 1] = p
 
-    # titeldia (geel vlak, donkerblauwe letters)
+    # titeldia: volledig geel, donkerblauwe letters
     s = prs.slides.add_slide(blank)
-    vlak(s, 0, 0, 300, 540, GEEL)
-    vlak(s, 300, 0, 8, 540, NAVY)
-    tekst(s, 40, 60, 230, 30, bk.val("P_Regio"), 14, NAVY, True)
-    tekst(s, 40, 470, 230, 40, "Voorbeeld — gemaakt met tools/preview_pptx.py", 9, NAVY)
-    tekst(s, 360, 190, 560, 110, bk.val("PPT_Titel"), 38, NAVY, True)
-    vlak(s, 362, 304, 90, 6, GEEL)
-    tekst(s, 360, 324, 560, 30, bk.val("PPT_Sub"), 16, NAVY)
-    tekst(s, 360, 356, 560, 20, "Bron: RDFO_prototype.xlsm", 10, GRIJS)
+    vlak(s, 0, 0, 960, 540, GEEL)
+    vlak(s, 0, 0, 960, 10, NAVY)
+    tekst(s, 72, 64, 600, 30, bk.val("P_Regio"), 16, NAVY, True)
+    tekst(s, 72, 180, 820, 130, bk.val("PPT_Titel"), 46, NAVY, True)
+    vlak(s, 74, 322, 120, 8, NAVY)
+    tekst(s, 72, 346, 820, 34, bk.val("PPT_Sub"), 20, NAVY)
+    tekst(s, 72, 470, 820, 20, "Voorbeeld — gemaakt met tools/preview_pptx.py  ·  bron: RDFO_prototype.xlsm", 10, NAVY)
 
     def nieuwe_dia(titel, kern):
         s = prs.slides.add_slide(blank)

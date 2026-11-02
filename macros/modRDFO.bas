@@ -75,6 +75,7 @@ Public Sub RDFO_BronnenInlezen()
     If VarType(fZ) <> vbBoolean Then nZ = LeesBron(CStr(fZ), "Bron_ZPMW03", "WBS-element")
     If VarType(fE) <> vbBoolean Then nE = LeesBron(CStr(fE), "Bron_Woningetalage", "Stufe 3")
 
+    Nm("CT_Bekeken").ClearContents   ' nieuwe bronnen = waarschuwingen opnieuw bekijken
     Nm("P_Peildatum").Value = peil
     Nm("P_RJ").Value = Year(peil)
     Nm("P_UploadVersie").Value = versie
@@ -603,21 +604,20 @@ Private Function Vlak(ByVal sld As Object, ByVal x As Single, ByVal y As Single,
 End Function
 
 Private Sub TitelDia(ByVal pres As Object)
+    ' volledig geel met donkerblauwe letters
     Dim sld As Object, sh As Object
     Set sld = pres.Slides.Add(1, 12)
-    Vlak sld, 0, 0, 300, 540, GEEL
-    Vlak sld, 300, 0, 8, 540, NAVY
-    Set sh = sld.Shapes.AddTextbox(1, 40, 60, 230, 30)
-    Tekst sh, T("P_Regio"), 14, NAVY, True
-    Set sh = sld.Shapes.AddTextbox(1, 40, 470, 230, 40)
-    Tekst sh, "Gemaakt op " & Format(Now, "dd-mm-yyyy hh:nn"), 9, NAVY, False
-    Set sh = sld.Shapes.AddTextbox(1, 360, 190, 560, 110)
-    Tekst sh, T("PPT_Titel"), 38, NAVY, True
-    Vlak sld, 362, 304, 90, 6, GEEL
-    Set sh = sld.Shapes.AddTextbox(1, 360, 324, 560, 30)
-    Tekst sh, T("PPT_Sub"), 16, NAVY, False
-    Set sh = sld.Shapes.AddTextbox(1, 360, 356, 560, 20)
-    Tekst sh, "Bron: " & ThisWorkbook.Name, 10, GRIJS, False
+    Vlak sld, 0, 0, 960, 540, GEEL
+    Vlak sld, 0, 0, 960, 10, NAVY
+    Set sh = sld.Shapes.AddTextbox(1, 72, 64, 600, 30)
+    Tekst sh, T("P_Regio"), 16, NAVY, True
+    Set sh = sld.Shapes.AddTextbox(1, 72, 180, 820, 130)
+    Tekst sh, T("PPT_Titel"), 46, NAVY, True
+    Vlak sld, 74, 322, 120, 8, NAVY
+    Set sh = sld.Shapes.AddTextbox(1, 72, 346, 820, 34)
+    Tekst sh, T("PPT_Sub"), 20, NAVY, False
+    Set sh = sld.Shapes.AddTextbox(1, 72, 470, 820, 20)
+    Tekst sh, "Gemaakt op " & Format(Now, "dd-mm-yyyy") & "  ·  bron: " & ThisWorkbook.Name, 10, NAVY, False
 End Sub
 
 Private Function NieuweDia(ByVal pres As Object, ByVal titel As String, ByVal kern As String) As Object

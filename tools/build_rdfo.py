@@ -1515,7 +1515,7 @@ NAVY_LT = "8A9BB8"   # vorige/concept-tint van donkerblauw
 AXIS = "6B7385"
 
 
-def txt(sz=800, color=AXIS, bold=False):
+def txt(sz=900, color=AXIS, bold=False):
     cp = CharacterProperties(sz=sz, b=bold, solidFill=color, latin=DFont(typeface="Arial"))
     return RichText(p=[Paragraph(pPr=ParagraphProperties(defRPr=cp), endParaRPr=cp)])
 
@@ -1526,7 +1526,7 @@ def _axes(ch, numfmt, secondary=False):
     ch.x_axis.delete = False
     ch.x_axis.tickLblPos = "low"
     ch.y_axis.txPr = txt()
-    ch.x_axis.txPr = txt(800, "333F55")
+    ch.x_axis.txPr = txt(950, "333F55")
     ch.y_axis.spPr = GraphicalProperties(ln=LineProperties(noFill=True))
     ch.x_axis.spPr = GraphicalProperties(ln=LineProperties(solidFill="BFC6D4", w=9525))
     ch.x_axis.majorTickMark = "none"
@@ -1555,7 +1555,7 @@ def style_chart(ch, colors, ytitle=None, numfmt="#,##0.0", w=16.5, h=7.2, labels
         ch.y_axis.title = ytitle
     if legend:
         ch.legend.position = "t"
-        ch.legend.txPr = txt(800, "333F55")
+        ch.legend.txPr = txt(900, "333F55")
     else:
         ch.legend = None
     if labels:
@@ -1565,7 +1565,7 @@ def style_chart(ch, colors, ytitle=None, numfmt="#,##0.0", w=16.5, h=7.2, labels
             setattr(ch.dataLabels, k, False)
         ch.dataLabels.numFmt = numfmt + ";-" + numfmt + ";"
         stacked = getattr(ch, "grouping", "") == "stacked"
-        ch.dataLabels.txPr = txt(750, "FFFFFF" if stacked else "333F55", stacked)
+        ch.dataLabels.txPr = txt(1000, "FFFFFF" if stacked else "14284B", True)
         ch.dataLabels.position = "ctr" if stacked else "outEnd"
     ch.gapWidth = 55
     return ch
@@ -1611,7 +1611,9 @@ def bar(ws, data_ref, cats_ref, anchor, colors, kind="col", grouping="clustered"
             setattr(ln.dataLabels, k, False)
         ln.dataLabels.numFmt = fmt + ";-" + fmt + ";"
         ln.dataLabels.position = "t"
-        ln.dataLabels.txPr = txt(750, "8A6A00", True)
+        ln.dataLabels.txPr = txt(950, "8A6A00", True)
+        for k_, sr_ in enumerate(ln.series):
+            sr_.idx = sr_.order = len(ch.series) + k_
         ch += ln
     ws.add_chart(ch, anchor)
     return ch
@@ -1635,13 +1637,13 @@ def solid(color):
     return GraphicalProperties(solidFill=color, ln=LineProperties(noFill=True))
 
 
-def series_labels(sr, fmt, color="333F55", pos=None, bold=False):
+def series_labels(sr, fmt, color="333F55", pos=None, bold=False, sz=1050):
     sr.dLbls = _DLL()
     sr.dLbls.showVal = True
     for k in ("showSerName", "showCatName", "showLegendKey", "showPercent"):
         setattr(sr.dLbls, k, False)
     sr.dLbls.numFmt = fmt
-    sr.dLbls.txPr = txt(750, color, bold)
+    sr.dLbls.txPr = txt(sz, color, bold)
     if pos:
         sr.dLbls.position = pos
 
@@ -1677,6 +1679,8 @@ def ibcs_columns(ws, anchor, cats, ac, fc, pl=None, total=None, w=17, h=8, numfm
             sr.marker.graphicalProperties = GraphicalProperties(solidFill="6B7385", ln=LineProperties(solidFill="6B7385", w=19050))
         ln.y_axis.axId = 100
         ln.y_axis.delete = True
+        for k_, sr_ in enumerate(ln.series):
+            sr_.idx = sr_.order = len(ch.series) + k_
         ch += ln
     ws.add_chart(ch, anchor)
     return ch
@@ -1697,13 +1701,15 @@ def waterfall(ws, anchor, cats, data, w=17, h=8, numfmt="#,##0.0", start_fc=Fals
     down.graphicalProperties = solid(BAD)
     end.graphicalProperties = hatched(NAVY) if end_fc else solid(NAVY)
     # gestapelde grafiek: alleen ctr/inEnd/inBase zijn geldige labelposities
-    series_labels(up, "+" + numfmt + ";-" + numfmt + ";;", "14284B", "ctr", True)
-    series_labels(down, '"−"' + numfmt + ";;;", "14284B", "ctr", True)
+    series_labels(up, "+" + numfmt + ";-" + numfmt + ";;", "FFFFFF", "ctr", True)
+    series_labels(down, '"−"' + numfmt + ";;;", "FFFFFF", "ctr", True)
+    series_labels(begin, numfmt + ";-" + numfmt + ";;", "14284B", "inEnd", True)
+    series_labels(end, numfmt + ";-" + numfmt + ";;", "14284B", "inEnd", True)
     ch.y_axis.delete = True
     ch.y_axis.majorGridlines = None
     if kind == "bar":
         ch.x_axis.scaling.orientation = "maxMin"
-        ch.x_axis.txPr = txt(800, "333F55")
+        ch.x_axis.txPr = txt(950, "333F55")
     ch.gapWidth = 30
     ws.add_chart(ch, anchor)
     return ch
@@ -1846,12 +1852,16 @@ def build_dashboard(wb, ws):
         o = S("F_OmzFY", v)
         put(ws, f"J{rr}", v, color=GREY, size=8)
         ws[f"K{rr}"] = f'=IF(ISNUMBER({o}),{o}/1000000,"n.b.")'
-        ws[f"L{rr}"] = f"=IF(ISNUMBER(K{rr}),K{rr},{'0' if i == 0 else f'L{rr-1}'})"
+        eerste = f"IFERROR(INDEX($K${D0+1}:$K${D0+5},MATCH(TRUE,INDEX(ISNUMBER($K${D0+1}:$K${D0+5}),0),0)),0)"
+        ws[f"L{rr}"] = f"=IF(ISNUMBER(K{rr}),K{rr},{eerste if i == 0 else f'L{rr-1}'})"
         for c in "KL":
             ws[f"{c}{rr}"].number_format = FMT_EUR1
             ws[f"{c}{rr}"].font = font(8, False, GREY)
     lastv = f'INDEX($J${D0+1}:$J${D0+5},MAX(IF(ISNUMBER(K{D0+1}),1,0),IF(ISNUMBER(K{D0+2}),2,0),IF(ISNUMBER(K{D0+3}),3,0),IF(ISNUMBER(K{D0+4}),4,0),IF(ISNUMBER(K{D0+5}),5,0),1))'
-    steps = [("Budget", "begin", f"=L{D0+1}")]
+    # geen budget vastgelegd? dan begint de waterval bij de eerste vastgelegde versie (geen sprong vanaf 0)
+    start_lab = (f'=IF(ISNUMBER(K{D0+1}),"Budget",IFERROR(INDEX($J${D0+1}:$J${D0+5},MATCH(TRUE,INDEX(ISNUMBER($K${D0+1}:$K${D0+5}),0),0))'
+                 f'&" (budget n.b.)","Budget"))')
+    steps = [(start_lab, "begin", f"=L{D0+1}")]
     steps += [(f"Δ {v}", "delta", f"=L{D0+1+i}-L{D0+i}") for i, v in enumerate(VERSIES[1:], start=1)]
     steps += [("Prognose", "eind", f"=L{D0+5}")]
     catsA, dataA = waterfall_rows(ws, D0, 2, steps)
@@ -2608,6 +2618,8 @@ def bandbreedte_chart(target_ws, anchor, w, h):
     series_labels(bas, "#,##0.0", NAVY, "r", True)
     ln.y_axis.axId = 100
     ln.y_axis.delete = True
+    for k_, sr_ in enumerate(ln.series):
+        sr_.idx = sr_.order = 2 + k_
     ch += ln
     ch.y_axis.scaling.min = 0
     from openpyxl.chart.legend import LegendEntry
@@ -2656,6 +2668,10 @@ def outlook_chart(target_ws, anchor, which, w, h, fmt=None):
     ln.y_axis.axId = 100
     ln.y_axis.delete = True
     ln.y_axis.scaling.min = 0
+    for k_, sr_ in enumerate(ln.series):
+        sr_.idx = sr_.order = 2 + k_
+    ch.y_axis.delete = True            # Zebra-stijl: geen waarde-as, de getallen staan boven de kolommen
+    ch.y_axis.majorGridlines = None
     ch += ln
     from openpyxl.chart.legend import LegendEntry
     ch.legend.legendEntry = [LegendEntry(idx=2, delete=True)]
@@ -3350,10 +3366,10 @@ def build_controle(wb, ws):
         ("Bedragen", "OP.BOB + Kosten ≠ OP.BOR (LJ, RJ, RJ+1)", f'=COUNTIF({zc("C_BobKostBor")},1)', "info", '"INFO"',
          "Ter info. Normaal bij projecten in uitvoering: kosten worden eerder geboekt dan omzet en resultaat. Geen actie nodig."),
         ("Bedragen", "OP.BOB RJ bevat kwartalen vóór peildatum (geen restant?)",
-         f'=SUMPRODUCT((P_PeilMaand>=3)*((COUNTIF({zc("BOB_RJ_Q1")},"<0")+COUNTIF({zc("BOB_RJ_Q1")},">0"))))'
-         f'+(P_PeilMaand>=6)*(COUNTIF({zc("BOB_RJ_Q2")},"<0")+COUNTIF({zc("BOB_RJ_Q2")},">0"))'
-         f'+(P_PeilMaand>=9)*(COUNTIF({zc("BOB_RJ_Q3")},"<0")+COUNTIF({zc("BOB_RJ_Q3")},">0"))', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
-         "Demo-aanname: OP.BOB RJ = restant na peildatum. Afwijking → definitie in productie controleren (dubbeltelling met LJ!)."),
+         f'=SUMPRODUCT((P_PeilMaand>=3)*((COUNTIF({zc("BOB_RJ_Q1")},"<-1000")+COUNTIF({zc("BOB_RJ_Q1")},">1000"))))'
+         f'+(P_PeilMaand>=6)*(COUNTIF({zc("BOB_RJ_Q2")},"<-1000")+COUNTIF({zc("BOB_RJ_Q2")},">1000"))'
+         f'+(P_PeilMaand>=9)*(COUNTIF({zc("BOB_RJ_Q3")},"<-1000")+COUNTIF({zc("BOB_RJ_Q3")},">1000"))', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
+         "Belangrijk: het bestand rekent FY = gerealiseerd (LJ) + OP.BOB RJ. Staan in OP.BOB ook de afgelopen kwartalen, dan telt de omzet dubbel. Vergelijk de FY-omzet met SAP."),
         ("Bedragen", "Portefeuille BOB ≠ som OP.BOB RJ..RJ+8 + onverdeeld", f'=COUNTIF({zc("C_Portefeuille")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Portefeuille sluit niet aan op de jaarverdeling. Rapportage gebruikt de jaarvelden. Zie de lijst 'ZPMW03: afwijkingen' onderaan."),
         ("Bedragen", "PEW opbrengst ≠ BOB VJ + BOB LJ + portefeuille", f'=COUNTIF({zc("C_PEW")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "PEW wijkt af van gerealiseerd + portefeuille (bijv. PEW nog niet bijgewerkt). Zie de lijst 'ZPMW03: afwijkingen' onderaan."),
         ("Woningen", "Aantal ≠ vorig jaar + 12 mnd + volgend jaar + latere jaren + Rond", f'=COUNTIF({ec("C_Aantal")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Verkopen per jaar tellen niet op tot het aantal woningen. Zie de lijst 'Woningetalage: afwijkingen' onderaan."),
@@ -3432,7 +3448,7 @@ def build_controle(wb, ws):
         ("Historie", "Vastgelegde versies zonder realisatie (blijft n.b.)", "=COUNTIFS(CALC_Versies!$C$5:$C$9,\">0\",CALC_Versies!$D$5:$D$9,0)", "info", '"INFO"',
          "Budget/Q1/Q2 hebben geen vastgelegde actuals; die worden niet als 0 getoond."),
     ]
-    header(ws, 8, 2, ["Nr", "Categorie", "Controle", "Resultaat", "Norm", "Status", "Toelichting / actie"], height=22)
+    header(ws, 8, 2, ["Nr", "Categorie", "Controle", "Resultaat", "Norm", "Status", "Toelichting / actie", "Bekeken?\n(x = akkoord)"], height=30)
     r0 = 9
     for i, (cat, txt, res, norm, st, act) in enumerate(checks):
         r = r0 + i
@@ -3441,8 +3457,12 @@ def build_controle(wb, ws):
         ws[f"D{r}"] = txt
         ws[f"E{r}"] = res
         ws[f"F{r}"] = norm if norm.startswith("=") else norm
-        ws[f"G{r}"] = "=" + st.replace("{v}", f"E{r}").replace("{n}", f"F{r}")
+        basis = st.replace("{v}", f"E{r}").replace("{n}", f"F{r}")
+        ws[f"G{r}"] = f'=IF(AND(I{r}<>"",{basis}="WAARSCHUWING"),"BEKEKEN",{basis})' if "WAARSCHUWING" in st else "=" + basis
         ws[f"H{r}"] = act
+        if "WAARSCHUWING" in st:
+            input_style(ws[f"I{r}"])
+            ws[f"I{r}"].alignment = Alignment(horizontal="center", vertical="top")
         for c in "BCDEFGH":
             ws[f"{c}{r}"].font = font(9, c == "G", GREY if c in "CH" else "000000")
             ws[f"{c}{r}"].border = Border(bottom=thin)
@@ -3451,6 +3471,9 @@ def build_controle(wb, ws):
     rl = r0 + len(checks) - 1
     ws["D4"] = f'=COUNTIF($G${r0}:$G${rl},"FOUT")'
     ws["D5"] = f'=COUNTIF($G${r0}:$G${rl},"WAARSCHUWING")'
+    ws["E5"] = f'=IF(COUNTIF($G${r0}:$G${rl},"BEKEKEN")>0,"+ "&COUNTIF($G${r0}:$G${rl},"BEKEKEN")&" bekeken (x in kolom I)","Bekeken? Zet een x in kolom I.")'
+    ws["E5"].font = font(9, False, GREY, True)
+    add_name(wb, "CT_Bekeken", f"Controle!$I${r0}:$I${rl}")
     for c in ("D4", "D5"):
         ws[c].font = font(14, True, NAVY)
         ws[c].alignment = Alignment(horizontal="left")
@@ -3459,6 +3482,7 @@ def build_controle(wb, ws):
     ws.conditional_formatting.add(f"G{r0}:G{rl}", FormulaRule(formula=[f'G{r0}="WAARSCHUWING"'], fill=fill(ORANGE_LT), font=Font(color="9C5700", bold=True)))
     ws.conditional_formatting.add(f"G{r0}:G{rl}", FormulaRule(formula=[f'G{r0}="OK"'], font=Font(color=GREEN, bold=True)))
     ws.conditional_formatting.add(f"G{r0}:G{rl}", FormulaRule(formula=[f'G{r0}="INFO"'], font=Font(color=GREY, bold=True)))
+    ws.conditional_formatting.add(f"G{r0}:G{rl}", FormulaRule(formula=[f'G{r0}="BEKEKEN"'], fill=fill("E3F1DF"), font=Font(color=GREEN, bold=True)))
     # uitzonderingslijsten
     r = rl + 3
     section(ws, r, 2, "Uitzonderingen (eerste 15 per lijst) — niets verdwijnt stil", 7)
@@ -3772,6 +3796,8 @@ def make_template(wb):
     clear(hi, [col(1 + j) for j in range(len(LCOLS))], L0, L1)
     clear(hi, [col(IL_COL + j) for j in range(11) if j != 8], 6, 6 + 200)
     wb["Projectdetail"]["C4"].value = None
+    for row in wb["Controle"].iter_rows(min_row=9, max_row=80, min_col=9, max_col=9):
+        row[0].value = None
 
 
 def build(out, test_results=None, template=False):
