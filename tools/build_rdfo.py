@@ -1686,6 +1686,29 @@ def ibcs_columns(ws, anchor, cats, ac, fc, pl=None, total=None, w=17, h=8, numfm
     return ch
 
 
+def mutatie_chart(target_ws, anchor, w, h):
+    """Mutaties per project als liggende balken (lengte = omvang): groen = hoger, rood = lager, getal met teken naast de balk."""
+    ch = BarChart()
+    ch.type, ch.grouping, ch.overlap = "bar", "clustered", 100
+    ch.add_data(DASH["mutData"], titles_from_data=True)
+    ch.set_categories(DASH["mutCats"])
+    style_chart(ch, [], numfmt="#,##0.00", w=w, h=h, legend=False)
+    up, down = ch.series
+    up.graphicalProperties = solid(GOOD)
+    down.graphicalProperties = solid(BAD)
+    series_labels(up, "+#,##0.00;-#,##0.00;;", "3B7A1E", "outEnd", True, 1100)
+    series_labels(down, '"−"#,##0.00;;;', BAD, "outEnd", True, 1100)
+    ch.x_axis.scaling.orientation = "maxMin"
+    ch.x_axis.tickLblPos = "low"
+    ch.x_axis.txPr = txt(1000, "14284B")
+    ch.y_axis.delete = True
+    ch.y_axis.majorGridlines = None
+    ch.y_axis.scaling.min = 0
+    ch.gapWidth = 40
+    target_ws.add_chart(ch, anchor)
+    return ch
+
+
 def waterfall(ws, anchor, cats, data, w=17, h=8, numfmt="#,##0.0", start_fc=False, end_fc=True, kind="col"):
     """Waterval in Zebra-stijl (gestapeld): geen waarde-as; de as begint net onder de laagste stand (zie waterfall_rows),
     zodat ook kleine verschillen zichtbaar zijn. Totalen staan in het categorielabel. data = 5 kolommen: basis, begin, plus, min, eind."""
@@ -1891,16 +1914,28 @@ def build_dashboard(wb, ws):
         rr = B0 + 1 + k
         ws[f"K{rr}"] = f"=IFERROR(MATCH(LARGE(Projecten!$AA${P0}:$AA${P1},{k}),Projecten!$AA${P0}:$AA${P1},0),0)"
         helper_style(ws[f"K{rr}"])
-        bsteps.append((f'=IF($K{rr}=0,"",LEFT(INDEX(Projecten!$B${P0}:$B${P1},$K{rr}),18))', "delta",
+        bsteps.append((f'=IF($K{rr}=0,"",LEFT(INDEX(Projecten!$B${P0}:$B${P1},$K{rr}),28))', "delta",
                        f"=IF($K{rr}=0,0,INDEX(Projecten!$Q${P0}:$Q${P1},$K{rr})*P_Factor/1000000)"))
     bsteps.append(("Overige", "delta", f"=IF(AND(ISNUMBER({vor}),ISNUMBER({sel})),({sel}-{vor})/1000000-SUM(C{B0+2}:C{B0+9}),0)"))
     bsteps.append(("=Sel_Versie", "eind", f"=IF(ISNUMBER({sel}),{sel}/1000000,0)"))
     catsC, dataC = waterfall_rows(ws, B0, 2, bsteps, fmt=FMT_EUR2, dec=2)
+    # mutatiegrafiek: per project een balk vanaf nul (groen = hoger, rood = lager), getal naast de balk
+    put(ws, f"M{B0+1}", "Hoger", color=GREY, size=8)
+    put(ws, f"N{B0+1}", "Lager", color=GREY, size=8)
+    for rr in range(B0 + 2, B0 + len(bsteps)):
+        ws[f"M{rr}"] = f'=IF(OR(B{rr}="",ROUND(C{rr},2)=0),NA(),IF(C{rr}>0,ROUND(C{rr},2),NA()))'
+        ws[f"N{rr}"] = f'=IF(OR(B{rr}="",ROUND(C{rr},2)=0),NA(),IF(C{rr}<0,ROUND(-C{rr},2),NA()))'
+        for c in "MN":
+            ws[f"{c}{rr}"].font = font(8, False, GREY)
+            ws[f"{c}{rr}"].number_format = "0.00"
+    DASH.update(mutCats=Reference(ws, min_col=2, min_row=B0 + 2, max_row=B0 + len(bsteps) - 1),
+                mutData=Reference(ws, min_col=13, max_col=14, min_row=B0 + 1, max_row=B0 + len(bsteps) - 1),
+                mutStart=f"C{B0+1}", mutEnd=f"C{B0+len(bsteps)}")
     put(ws, f"B{B0+len(bsteps)+1}", '=IF(Sel_Prev="","Budget heeft geen vorige versie: geen brug.","")', color=GREY, italic=True, size=8)
     # grafieken met dynamische titels in cellen
     gt = [("B12", '="Omzet "&Sel_Doeljaar&": van budget naar "&B%d&" (EUR mln)"' % (D0 + len(steps))),
           ("K12", '="Realisatie en nog te gaan, top 10 (EUR mln)"'),
-          ("B30", '="Grootste mutaties "&IF(Sel_Prev="","–",Sel_Prev)&" → "&Sel_Versie&" (EUR mln)"'),
+          ("B30", '="Grootste mutaties "&IF(Sel_Prev="","–",Sel_Prev)&" → "&Sel_Versie&": "&FIXED(%s,1)&" → "&FIXED(%s,1)&" mln"' % (DASH["mutStart"], DASH["mutEnd"])),
           ("K30", '="Omzet per jaar (EUR mln)"')]
     for ref, f in gt:
         ws[ref] = f
@@ -1909,7 +1944,7 @@ def build_dashboard(wb, ws):
     ibcs_columns(ws, "K13", Reference(ws, min_col=3, min_row=T0 + 1, max_row=T0 + 10),
                  Reference(ws, min_col=4, min_row=T0, max_row=T0 + 10), Reference(ws, min_col=5, min_row=T0, max_row=T0 + 10),
                  kind="bar", w=17, h=8)
-    waterfall(ws, "B31", catsC, dataC, w=17, h=8, numfmt="#,##0.00", kind="bar")
+    mutatie_chart(ws, "B31", 17, 8)
     DASH.update(catsA=catsA, dataA=dataA, catsC=catsC, dataC=dataC, T0=T0, D0=D0, stepsA=len(steps), stepsC=len(bsteps))
     put(ws, "B47", "IBCS-notatie: blauw = realisatie of vastgelegd, geel = prognose, grijs = budget, groen/rood = verbetering/verslechtering. "
         "Een versie zonder vastgelegde waarde telt als 'geen wijziging' in de waterval.", color=GREY, italic=True, size=8)
@@ -3231,7 +3266,7 @@ def build_dias(wb, ws):
 
     chart_block("Prognoseverloop (waterval)", lambda a, w, h: waterfall(ws, a, DASH["catsA"], DASH["dataA"], w=w, h=h), pt(436), pt(296))
     chart_block("Outlook omzet (klein)", lambda a, w, h: outlook_chart(ws, a, "omzet", w, h), pt(436), pt(296))
-    chart_block("Brug vorige → geselecteerd", lambda a, w, h: waterfall(ws, a, DASH["catsC"], DASH["dataC"], w=w, h=h, numfmt="#,##0.00", kind="bar"), pt(436), pt(376))
+    chart_block("Brug vorige → geselecteerd", lambda a, w, h: mutatie_chart(ws, a, w, h), pt(436), pt(376))
     chart_block("Realisatie vs to go", lambda a, w, h: ibcs_columns(ws, a, Reference(dws, min_col=3, min_row=T0 + 1, max_row=T0 + 10),
                 Reference(dws, min_col=4, min_row=T0, max_row=T0 + 10), Reference(dws, min_col=5, min_row=T0, max_row=T0 + 10),
                 kind="bar", w=w, h=h), pt(436), pt(376))

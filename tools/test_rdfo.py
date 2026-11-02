@@ -39,7 +39,7 @@ def recalc(path):
     info = json.loads(out.stdout)
     # bewuste #N/A: gaten in de BOR%-lijn van de dashboardgrafiek (versie zonder vastgelegde waarde)
     info["total_errors"] = sum(1 for k, x in info.get("error_summary", {}).items() for loc in x["locations"]
-                               if not (k == "#N/A" and re.match(r"(Outlook![P-W]|Woningen!Q|Bandbreedte!AC)\d+$", loc)))
+                               if not (k == "#N/A" and re.match(r"(Outlook![P-W]|Woningen!Q|Bandbreedte!AC|Dashboard![MN])\d+$", loc)))
     return info, load_workbook(path, data_only=True)
 
 
