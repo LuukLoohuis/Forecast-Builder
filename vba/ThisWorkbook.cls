@@ -9,4 +9,5 @@ Attribute VB_Customizable = True
 Private Sub Workbook_Open()
     On Error Resume Next
     CashflowNaarPowerPoint.KnoppenControleren
+    FOWerkbestand.StartKnoppen
 End Sub

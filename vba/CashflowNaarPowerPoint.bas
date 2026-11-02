@@ -83,6 +83,10 @@ Option Explicit
 '       (COVER_PROJECT, COVER_KWARTAAL) en in de voettekst VOET_TEKST in de dia-indeling (ZoekVorm zoekt ook in de indelingen);
 '       bouwtermijnen met drie koprijen (lege rij tussen jaar en kwartaal; MAX_RIJEN_BT = 133). Sjabloon v20 heeft geen tabel
 '       woningtypes meer (VT_TABEL ontbreekt zonder melding; met een ouder sjabloon vult de knop hem zoals altijd).
+'  v23: FO-werkbestand (FO en scenariomodel in een bestand): OphalenUitFO kan dit werkbestand zelf lezen (knop
+'       'Scenario bijwerken' op tab Start, zonder vragen); FOKosten leest dan de definitieve kosten van tab
+'       'Prognose kosten' (zelfde blok 'Onderdelen' als CF - kosten); tab CF kosten heet nu 'Scenario kosten';
+'       sjabloon v21 (v20 met vormnamen voor de datum op dia 1 en de kaarten van dia 10).
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -97,7 +101,7 @@ Private Const SH_DASH As String = "Dashboard"
 Private Const SH_MODEL As String = "Model"
 Private Const SH_TYPES As String = "Woningtypes"
 Private Const SH_INVOER As String = "Invoer"
-Private Const SH_KOSTEN As String = "CF kosten"        ' tab CF kosten (sinds v19; layout.KF_TAB)
+Private Const SH_KOSTEN As String = "Scenario kosten"  ' tab Scenario kosten (tot v23: CF kosten)
 Private Const KOST_RIJ1 As Long = 8                    ' eerste kostenpost (layout.KF_R1)
 Private Const KOST_N As Long = 20                      ' aantal posten (layout.N_KF)
 Private Const KOST_COL1 As Long = 9                    ' kolom I = periode 1 (layout.KF_COL1); B naam, C schuift mee met, E gerealiseerd
@@ -107,8 +111,8 @@ Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFI
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
 Private Const CEL_SJABLOON As String = "D130"
 Private Const CEL_NAAM As String = "D131"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v20.pptx"
-Private Const SJABLOON_VORIG As String = "Kwartaal_Template_cashflow_v19.pptx"   ' als v20 er niet staat
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v21.pptx"
+Private Const SJABLOON_VORIG As String = "Kwartaal_Template_cashflow_v20.pptx"   ' als v21 er niet staat
 Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
@@ -190,6 +194,8 @@ Private Const INVOER_COL1 As Long = 12        ' kolom L: eerste paar (verkocht, 
 Private Const INVOER_BREEDTE As Long = 2
 Private Const INVOER_RIJ1 As Long = 8
 Private Const INVOER_RIJN As Long = 500        ' zelfde grens als de formules (layout.IN_ROWMAX)
+
+Public OphalenGelukt As Boolean                    ' laatste OphalenUitFO gelukt (voor PowerPoint maken)
 
 Private Function Grafieken() As Variant
     ' vormnaam op de dia, kopcel van het blok op tabblad PowerPoint, aantal kolommen,
@@ -1719,16 +1725,8 @@ End Function
 '                        tabblad 'Verkooptempo', transport = verkoop. Fee-bedragen uit de cellen, per kwartaal gesplitst (FeeDelen).
 ' -------------------------------------------------------------------------------------
 Public Sub UitFOOphalen()
-    Dim pad As Variant, wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet, wsK As Worksheet
-    Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
-    Dim stap As String, bericht As String, nPer As Long, nTyp As Long, nKost As Long, k As Long, r As Long, waarschuwing As String
-    Dim idxAct As Long, aJaar As Long, aKw As Long, zelfGeopend As Boolean, foutNr As Long, foutOms As String
-    Dim rekenmodus As Long, iteratie As Boolean, col As Long, i As Long, j As Long, bewaren As Long, heeftPlanning As Boolean, nm As String
-    Dim vNaam(1 To MAX_TYPES) As String, vJaar(1 To MAX_TYPES) As Variant, vKw(1 To MAX_TYPES) As Variant
-    Dim vFee(1 To MAX_TYPES, 1 To 10) As Variant, vFeeNaam(1 To MAX_TYPES, 1 To 10) As String
-    Dim rijVan(IDX_MIN To IDX_MAX) As Long                        ' rijVan(jaar*4+kw) = rij op Invoer (0 = geen)
-    foStap = ""
-    On Error GoTo Fout
+    ' knop 'Ophalen uit FO' (tab Invoer): een FO-werkboek kiezen en inlezen
+    Dim pad As Variant
 #If Mac Then
     pad = Application.GetOpenFilename()
 #Else
@@ -1737,6 +1735,28 @@ Public Sub UitFOOphalen()
     If VarType(pad) = vbBoolean Then Exit Sub
     If MsgBox("Tab Invoer (cashflow, verkocht, transport), tab Woningtypes en tab CF kosten worden overschreven met de gegevens uit:" & vbCrLf & pad & _
               vbCrLf & vbCrLf & "De knoppen op het Dashboard blijven staan. Doorgaan?", vbQuestion + vbYesNo, "Ophalen uit FO") <> vbYes Then Exit Sub
+    OphalenUitFO CStr(pad), False, False
+End Sub
+
+Public Sub ScenarioBijwerken()
+    ' knop 'Scenario bijwerken' (tab Start): leest de FO-tabbladen van dit werkbestand zelf, zonder vragen
+    OphalenUitFO "", True, False
+End Sub
+
+Public Sub OphalenUitFO(ByVal pad As String, ByVal zelf As Boolean, ByVal stil As Boolean)
+    ' zelf = dit werkbestand is het FO (geen bestand openen, geen vraag over de vorige prognose);
+    ' stil = geen melding als het gelukt is (PowerPoint maken). OphalenGelukt zegt of het gelukt is.
+    Dim wbF As Workbook, wsCF As Worksheet, wsO As Worksheet, wsA As Worksheet, wsK As Worksheet
+    Dim wsI As Worksheet, wsT As Worksheet, wsD As Worksheet
+    Dim stap As String, bericht As String, nPer As Long, nTyp As Long, nKost As Long, k As Long, r As Long, waarschuwing As String
+    Dim idxAct As Long, aJaar As Long, aKw As Long, zelfGeopend As Boolean, foutNr As Long, foutOms As String
+    Dim rekenmodus As Long, iteratie As Boolean, col As Long, i As Long, j As Long, bewaren As Long, heeftPlanning As Boolean, nm As String
+    Dim vNaam(1 To MAX_TYPES) As String, vJaar(1 To MAX_TYPES) As Variant, vKw(1 To MAX_TYPES) As Variant
+    Dim vFee(1 To MAX_TYPES, 1 To 10) As Variant, vFeeNaam(1 To MAX_TYPES, 1 To 10) As String
+    Dim rijVan(IDX_MIN To IDX_MAX) As Long                        ' rijVan(jaar*4+kw) = rij op Invoer (0 = geen)
+    OphalenGelukt = False
+    foStap = ""
+    On Error GoTo Fout
     Set wsI = ThisWorkbook.Worksheets(SH_INVOER)
     Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
     Set wsD = ThisWorkbook.Worksheets(SH_DASH)
@@ -1747,7 +1767,7 @@ Public Sub UitFOOphalen()
         If IsGetal(wsT.Cells(TYPE_RIJ_STARTJAAR, TYPE_COL1 + (k - 1) * TYPE_BREEDTE).Value) Then heeftPlanning = True
     Next k
     bewaren = vbNo
-    If heeftPlanning Then
+    If heeftPlanning And Not zelf Then
         bewaren = MsgBox(BEWAAR_VRAAG, vbQuestion + vbYesNoCancel, "Ophalen uit FO")
         If bewaren = vbCancel Then Exit Sub
     End If
@@ -1777,7 +1797,12 @@ Public Sub UitFOOphalen()
     Application.Calculation = -4135                              ' xlCalculationManual
     Application.EnableEvents = False
     stap = "FO openen"
-    FOOpenen CStr(pad), wbF, zelfGeopend, iteratie
+    If zelf Then
+        Set wbF = ThisWorkbook
+        zelfGeopend = False
+    Else
+        FOOpenen pad, wbF, zelfGeopend, iteratie
+    End If
     Set wsCF = ZoekBlad(wbF, "1. Cashflow")
     If wsCF Is Nothing Then Set wsCF = ZoekBlad(wbF, "Cashflow")
     Set wsO = FOOpbrengstenBlad(wbF)
@@ -1872,13 +1897,14 @@ Public Sub UitFOOphalen()
     Application.EnableEvents = True
     Application.Calculate
     Application.ScreenUpdating = True
-    bericht = "Klaar: " & nPer & " periodes op tab Invoer en " & nTyp & " woningtype(n) op tab Woningtypes uit " & CStr(pad) & "."
+    bericht = "Klaar: " & nPer & " periodes op tab Invoer en " & nTyp & " woningtype(n) op tab Woningtypes uit " & IIf(zelf, "dit werkbestand", pad) & "."
     bericht = bericht & vbCrLf & nKost & " kostenpost(en) op tab CF kosten; controleer daar 'schuift mee met'."
     If idxAct > 0 Then bericht = bericht & vbCrLf & "Actuals t/m Q" & aKw & " " & aJaar & " (uit 'FO - actuals')."
     If bewaren = vbYes Then bericht = bericht & vbCrLf & "De planning van vóór het ophalen staat als vorige prognose in blok 4 en 6 van tab Woningtypes."
     bericht = bericht & vbCrLf & vbCrLf & "Controleer op het Dashboard de controle 'Invoer sluit aan op het FO' en de dekking van het verkooptempo-model."
     If Len(waarschuwing) > 0 Then bericht = bericht & vbCrLf & vbCrLf & "Let op:" & vbCrLf & waarschuwing
-    MsgBox bericht, IIf(Len(waarschuwing) > 0, vbExclamation, vbInformation), "Ophalen uit FO"
+    OphalenGelukt = True
+    If Not stil Then MsgBox bericht, IIf(Len(waarschuwing) > 0, vbExclamation, vbInformation), IIf(zelf, "Scenario bijwerken", "Ophalen uit FO")
     Exit Sub
 Fout:
     foutNr = Err.Number                                          ' eerst vastleggen: 'On Error Resume Next' hieronder wist Err
@@ -1892,7 +1918,7 @@ Fout:
     bericht = "Het ging mis bij: " & stap
     If Len(foStap) > 0 Then bericht = bericht & vbCrLf & "(" & foStap & ")"
     bericht = bericht & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms
-    MsgBox bericht, vbExclamation, "Ophalen uit FO"
+    MsgBox bericht, vbExclamation, IIf(zelf, "Scenario bijwerken", "Ophalen uit FO")
 End Sub
 
 Private Sub FOOpenen(pad As String, ByRef wbF As Workbook, ByRef zelfGeopend As Boolean, ByRef iteratie As Boolean)
@@ -3485,7 +3511,8 @@ Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPe
     wsC.Range(wsC.Cells(KOST_RIJ1, 2), wsC.Cells(KOST_RIJ1 + KOST_N - 1, 3)).ClearContents
     wsC.Range(wsC.Cells(KOST_RIJ1, 5), wsC.Cells(KOST_RIJ1 + KOST_N - 1, 5)).ClearContents
     wsC.Range(wsC.Cells(KOST_RIJ1, KOST_COL1), wsC.Cells(KOST_RIJ1 + KOST_N - 1, KOST_COL1 + MAX_PERIODES - 1)).ClearContents
-    Set wsK = ZoekBlad(wbF, "CF - kosten")
+    Set wsK = ZoekBlad(wbF, "Prognose kosten")                 ' werkbestand: de definitieve kosten (voorstel of handmatig)
+    If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF - kosten")
     If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF-kosten")
     If wsK Is Nothing Then Set wsK = ZoekBlad(wbF, "CF kosten")
     If wsK Is Nothing Then

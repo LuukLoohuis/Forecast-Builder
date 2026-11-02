@@ -1,4 +1,4 @@
-output/*.tmp
+output/*.tmp*
 __pycache__/
 *.pyc
 ~$*
