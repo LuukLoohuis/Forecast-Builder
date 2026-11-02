@@ -1703,8 +1703,6 @@ def waterfall(ws, anchor, cats, data, w=17, h=8, numfmt="#,##0.0", start_fc=Fals
     # gestapelde grafiek: alleen ctr/inEnd/inBase zijn geldige labelposities
     series_labels(up, "+" + numfmt + ";-" + numfmt + ";;", "FFFFFF", "ctr", True)
     series_labels(down, '"−"' + numfmt + ";;;", "FFFFFF", "ctr", True)
-    series_labels(begin, numfmt + ";-" + numfmt + ";;", "14284B", "inEnd", True)
-    series_labels(end, numfmt + ";-" + numfmt + ";;", "14284B", "inEnd", True)
     ch.y_axis.delete = True
     ch.y_axis.majorGridlines = None
     if kind == "bar":
