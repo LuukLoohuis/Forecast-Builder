@@ -1,7 +1,7 @@
 # Prompt: FO + Cashflow-scenario samenvoegen tot één werkbestand
 
-> Versie 2 – gebaseerd op `FO_Parkzoom_fictieve_demoversie.xlsx`, `Cashflow_scenario_leeg_3.xlsm`
-> (macro v22) en `Kwartaal_Template_cashflow_v20.pptx`. Open punten staan onderaan.
+> Versie 3 – open vragen beantwoord. Gebaseerd op `FO_Parkzoom_fictieve_demoversie.xlsx`, `Cashflow_scenario_leeg_3.xlsm`
+> (macro v22) en `Kwartaal_Template_cashflow_v20.pptx`.
 
 ---
 
@@ -53,8 +53,9 @@ consistent uit dit ene bestand komen.
   - `SAP vorig` (FR4) en `SAP huidig` (FR4) – de twee tabbladen waar het om draait
   - `SAP actuals` (FR5)
   - `SF prijslijst`
-- Per tabblad twee manieren: **zelf plakken** (vanaf cel A1) of een **knop "Inlezen…"** die een
-  exportbestand kiest en de inhoud overschrijft.
+- Per tabblad twee manieren: **zelf plakken** (vanaf cel A1) of een **macroknop "Inlezen…"** die een
+  exportbestand kiest (bestandsdialoog) en de inhoud van dat tabblad overschrijft. Dit geldt voor alle
+  vier de tabbladen, dus ook `SAP actuals`. **Geen Power Query.**
 - **Tussentijds opnieuw plakken moet altijd kunnen**: alle berekeningen zoeken op sleutel
   (WBS / CODA-postnr / bouwnummer / kostensoort), nooit op vaste rij. Rijen erbij of eraf mag.
 - Na plakken/inlezen: datum en bestandsnaam van de export op `Start` vastleggen, en een controle
@@ -85,9 +86,10 @@ Voorstelregels:
   uit `Aansluiting opbrengsten`, begrensd door het verkooptempo (zoals de huidige formules in
   `CF - opbrengsten`). Verkocht/te koop volgt uit `SF prijslijst` (status).
 - **Bouwkosten (aanneemsom, meerwerk)**: zelfde termijnschema en bouwplanning (zoals nu in `CF - kosten`).
-- **Overige kosten**: restant = actueel budget − werkelijk (uit `SAP huidig`), lineair verdeeld over
-  de resterende kwartalen t/m oplevering, of "volgt start bouw" / "volgt verkoop"
-  (keuze per post, zoals kolom *Schuift mee met* in het scenariobestand).
+- **Overige kosten**: restant budget = actueel budget − werkelijk (per post uit `SAP huidig`),
+  **gelijk verdeeld over de prognosekwartalen t/m het kwartaal van oplevering** (datum op `Start`,
+  zelfde als mijlpaal "verwachte oplevering" in `Notities FO gesprek`). Een negatief restant
+  (overschrijding) wordt niet verdeeld maar gemeld op `Checks`.
 - Het **bouwplanning-blok** (# woningen per termijn per kwartaal) blijft handmatige invoer: dat is
   de kern van de prognose.
 
@@ -131,9 +133,14 @@ Voorstelregels:
 - Controle voor export: elk getal op de dia's is terug te vinden op tabblad `PowerPoint`, en het
   eindsaldo/max. financiering op de dia's = de waarden op `1. Cashflow` en `Dashboard`.
 
-### 8. Startscherm en checks
+### 8. Cashflow terug naar SAP/VENA
+- `CF - hulp VENA` vult zich uit de **definitieve** CF (kosten en opbrengsten per maand/periode).
+- Het format blijft **exact** zoals nu (kolommen, volgorde, tekens, maandindeling), omdat het in dat
+  format in SAP/VENA wordt ingelezen. Voeg een check toe: totaal VENA = totaal definitieve CF.
+
+### 9. Startscherm en checks
 - `Start`: project, kwartaal, "cijfers per"-datum, status per invoertabblad (geplakt op, periode, OK/FOUT),
-  knoppen (Inlezen…, Huidig → Vorig, Oud FO inlezen…, Kwartaal afsluiten, Naar PowerPoint),
+  knoppen (Inlezen… per invoertabblad, Huidig → Vorig, Oud FO inlezen…, Kwartaal afsluiten, Naar PowerPoint),
   en de to-do-lijst uit `Notities FO gesprek`.
 - Alle bestaande checks blijven (Aansluiting OK/FOUT, CF-checks per termijn) en komen samen op `Start`,
   plus: niet-gemapte CODA-postnrs/kostensoortgroepen, SF-bouwnummers zonder type, som CF-kosten vs. PEW.
@@ -149,18 +156,17 @@ Voorstelregels:
 
 1. Lees beide werkbestanden en de PowerPoint en maak een **kaart**: per tabblad wat invoer, wat formule
    en wat uitvoer is, en welke verbinding er tussen FO en scenariobestand loopt (`UitFOOphalen`).
-2. Stel eerst de open vragen (zie hieronder) – **niet gokken**.
+2. Volg de besluiten hieronder; stel alleen nog vragen over wat daarna onduidelijk is – **niet gokken**.
 3. Lever een **tabbladenoverzicht** van het nieuwe bestand (naam, doel, bron, gebruikt door).
 4. Bouw daarna het bestand met de fictieve Parkzoom-data, lees het demo-FO in via "Oud FO inlezen"
    en laat met het controlerapport zien dat de uitkomst gelijk is aan het oude FO.
 5. Lever een werkinstructie van één A4: "kwartaal-FO in 8 stappen", aansluitend op `Notities FO gesprek`.
 
-## Open vragen
+## Besluiten (beantwoorde vragen)
 
-1. Blijft `SAP actuals` (FR5) een apart tabblad, of wil je echt alleen `SAP vorig` en `SAP huidig`?
-2. "Uploaden": bedoel je een knop die een bestand kiest (macro), of ook Power Query (inlezen uit een map)?
-3. Overige kosten: welk voorstel is het meest realistisch – restant budget lineair t/m oplevering,
-   of volgens de verdeling van de vorige prognose?
-4. Moet `CF - hulp VENA` (cashflow terug naar SAP) ook uit de definitieve CF komen?
-5. Is er nog een Python-versie (`forecast_builder/fo.py`, genoemd in de macro) die we moeten
-   meenemen of uitfaseren?
+1. `SAP actuals` (FR5) blijft een apart invoertabblad, met een eigen knop "Inlezen…".
+2. Inlezen gebeurt met een macroknop, niet met Power Query.
+3. Voorstel overige kosten: het restantbudget gelijk verdeeld tot en met het kwartaal van oplevering.
+4. `CF - hulp VENA` komt uit de definitieve CF, in exact hetzelfde format als nu.
+5. De Python-versie (`forecast_builder/fo.py`) wordt niet gebruikt. De VBA in
+   `Cashflow_scenario.xlsm` is de referentie. Verwijzingen naar `fo.py` in het commentaar mogen weg.
