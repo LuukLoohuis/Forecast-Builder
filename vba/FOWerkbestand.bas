@@ -32,6 +32,7 @@ Private Const KOL_BESTAND As Long = 7                ' Start kolom G: bestand / 
 ' de opzet van het FO waarop dit werkbestand is gebouwd staat op _sjabloon kolom E:F (sleutel, waarde); de waarden
 ' hieronder zijn alleen de terugval voor de standaardopzet
 Private Const TRANSPORTRIJEN As String = "13|26|36|46"   ' CF - opbrengsten: transportregel per woningtype
+'@@CONSTANTEN@@
 
 ' tabbladen die 'Oud FO inlezen' overneemt (zelfde naam in het oude FO)
 Private Const FO_BLADEN As String = "Toelichting onderlegger|Behind the scens|Prijslijst dump|Prijslijst|Aansluiting opbrengsten|" & _
@@ -236,12 +237,13 @@ Private Sub LeegMaken(ws As Worksheet, nKol As Long)
 End Sub
 
 Private Function LaatsteRij(ws As Worksheet, nKol As Long) As Long
-    ' laatste rij met iets in de exportkolommen
-    Dim c As Long, r As Long, m As Long
-    For c = 1 To nKol
-        r = ws.Cells(ws.Rows.Count, c).End(-4162).Row     ' xlUp
-        If r > m Then m = r
-    Next c
+    ' laatste rij met iets in de exportkolommen: vanaf de onderkant van het gebruikte bereik omhoog
+    Dim m As Long
+    m = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
+    Do While m > 1
+        If Application.WorksheetFunction.CountA(ws.Range(ws.Cells(m, 1), ws.Cells(m, nKol))) > 0 Then Exit Do
+        m = m - 1
+    Loop
     LaatsteRij = m
 End Function
 
@@ -371,10 +373,10 @@ Public Sub OudFOInlezen()
         MsgBox "Kies een ander FO-bestand dan dit werkbestand.", vbExclamation, TITEL
         Exit Sub
     End If
-    If MsgBox("Alle FO-tabbladen van dit werkbestand (FO - vorig/huidig/actuals, prijslijst, Aansluiting opbrengsten, " & _
-              "CF - opbrengsten, CF - kosten, 2. Ontw PEW, enz.) worden overschreven met de inhoud van:" & vbCrLf & CStr(pad) & _
-              vbCrLf & vbCrLf & "De nieuwe onderdelen (transportregels, methode per kostenpost, voorstel, correctieregel) worden daarna " & _
-              "teruggezet; zonder aanpassingen is de uitkomst gelijk aan het oude FO (zie tab Controle oud FO). Doorgaan?", _
+    If MsgBox("Het FO wordt omgezet naar dit werkbestand: exports, prijslijst, woningtypes en termijnschema, planning, " & _
+              "verkocht en getransporteerd, kosten, DAEB en de FD-kolom van 2. Ontw PEW. De invoer van dit werkbestand wordt " & _
+              "overschreven met die uit:" & vbCrLf & CStr(pad) & vbCrLf & vbCrLf & _
+              "Tab Controle oud FO laat daarna per periode zien of de cashflow gelijk is. Doorgaan?", _
               vbQuestion + vbYesNo, "Oud FO inlezen") <> vbYes Then Exit Sub
     On Error GoTo Fout
     stap = "oud FO openen"
@@ -385,47 +387,17 @@ Public Sub OudFOInlezen()
     For Each wb In Workbooks
         If LCase$(wb.FullName) = LCase$(CStr(pad)) Then Set wbO = wb
     Next wb
-    If Not wbO Is Nothing Then
-        ' het oude FO wordt hieronder tijdelijk aangepast (rijen invoegen): niet in een geopend bestand van de gebruiker
-        Application.Calculation = rekenmodus
-        Application.EnableEvents = True
-        Application.ScreenUpdating = True
-        MsgBox "Sluit eerst " & BestandsNaam(CStr(pad)) & " en klik daarna opnieuw op Oud FO inlezen.", vbExclamation, "Oud FO inlezen"
-        Exit Sub
+    If wbO Is Nothing Then
+        Application.DisplayAlerts = False
+        Set wbO = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
+        Application.DisplayAlerts = True
+        zelfGeopend = True
     End If
-    Application.DisplayAlerts = False
-    Set wbO = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
-    Application.DisplayAlerts = True
-    zelfGeopend = True
     wbO.Application.Calculate
-    ' zelfde opzet als het werkbestand: per woningtype rijen onder de transportregel (verkocht %, getransporteerd %,
-    ' grondprijs). Excel schuift alle verwijzingen in het oude FO mee; het oude bestand wordt niet bewaard.
-    stap = "rijen invoegen in het oude FO (CF - opbrengsten)"
-    RijenInvoegenOudFO wbO
-
-    bladen = Split(Cfg("fo_bladen", FO_BLADEN), "|")
-    For i = LBound(bladen) To UBound(bladen)
-        stap = "tabblad '" & bladen(i) & "'"
-        Set wsO = ZoekBlad(wbO, bladen(i))
-        If wsO Is Nothing Then
-            waarschuwing = waarschuwing & "- '" & bladen(i) & "' staat niet in het oude FO: niet overgenomen." & vbCrLf
-        Else
-            Set wsN = ThisWorkbook.Worksheets(bladen(i))
-            KopieerBlad wsO, wsN, waarschuwing
-            n = n + 1
-        End If
-    Next i
-
-    stap = "opzet controleren"
-    OpzetControleren waarschuwing
-    stap = "nieuwe onderdelen terugzetten (_sjabloon)"
-    SjabloonTerugzetten waarschuwing
-    stap = "verkocht en getransporteerd in % (CF - opbrengsten)"
-    VerkoopTransportOvernemen wbO, waarschuwing
-    stap = "hulpkolommen"
-    HulpBijwerken ThisWorkbook.Worksheets("FO - vorig"), HulpKolommen("FO - vorig"), 17, LaatsteRij(ThisWorkbook.Worksheets("FO - vorig"), 21)
-    HulpBijwerken ThisWorkbook.Worksheets("FO - huidig"), HulpKolommen("FO - huidig"), 17, LaatsteRij(ThisWorkbook.Worksheets("FO - huidig"), 21)
-    HulpBijwerken ThisWorkbook.Worksheets("FO - actuals"), HulpKolommen("FO - actuals"), 2, LaatsteRij(ThisWorkbook.Worksheets("FO - actuals"), 16)
+    ' omzetten naar de vaste opzet van dit werkbestand (exports, prijslijst, woningtypes, planning, verkoop, transport,
+    ' kosten, DAEB, PEW); het oude bestand verandert niet
+    stap = "omzetten"
+    waarschuwing = OmzettenOudFO(wbO)
     stap = "vorige prognose en controle vullen"
     ControleVullen wbO, CStr(pad)
     If zelfGeopend Then wbO.Close SaveChanges:=False
@@ -447,7 +419,7 @@ Public Sub OudFOInlezen()
 
     ThisWorkbook.Worksheets(SH_CONTROLE).Visible = -1
     ThisWorkbook.Worksheets(SH_CONTROLE).Activate
-    bericht = "Klaar: " & n & " tabbladen overgenomen uit " & BestandsNaam(CStr(pad)) & "." & vbCrLf & vbCrLf
+    bericht = "Klaar: " & BestandsNaam(CStr(pad)) & " is omgezet." & vbCrLf & vbCrLf
     If verschil = 0 Then
         bericht = bericht & "De cashflow is per periode gelijk aan het oude FO (tab Controle oud FO)."
     Else
@@ -796,3 +768,582 @@ End Function
 Private Function KolomLetter(n As Long) As String
     KolomLetter = Split(ThisWorkbook.Worksheets(1).Cells(1, n).Address(True, False), "$")(0)
 End Function
+
+' =====================================================================================
+'  Oud FO omzetten naar de vaste opzet van dit werkbestand (zelfde regels als tools/omzetten.py)
+' =====================================================================================
+
+Public Sub OudFOOmzettenTest(pad As String)
+    ' zonder vragen en meldingen (voor de controle buiten Excel)
+    Dim wbO As Workbook, logTekst As String
+    Set wbO = Workbooks.Open(pad, UpdateLinks:=0, ReadOnly:=True)
+    logTekst = OmzettenOudFO(wbO)
+    ControleVullen wbO, pad
+    wbO.Close SaveChanges:=False
+    ThisWorkbook.Worksheets(SH_START).Range("B4").Value = logTekst
+End Sub
+
+Private Function Tk(v As Variant) As String
+    If IsError(v) Then Exit Function
+    Tk = Trim$(CStr(v))
+End Function
+
+Private Function Nk(v As Variant) As Double
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+    If VarType(v) = vbString Then Exit Function
+    If IsNumeric(v) Then Nk = CDbl(v)
+End Function
+
+Private Function IsGetalW(v As Variant) As Boolean
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    If VarType(v) = vbString Or VarType(v) = vbBoolean Then Exit Function
+    IsGetalW = IsNumeric(v)
+End Function
+
+Private Function KwSleutels(ws As Worksheet, rj As Long, rq As Long, c1 As Long, c2 As Long) As Variant
+    ' kolom -> kwartaalindex (jaar*4+q), 0 voor kolommen zonder kwartaal
+    Dim a() As Long, c As Long, jaar As Long, q As String
+    ReDim a(1 To c2)
+    For c = c1 To c2
+        If IsGetalW(ws.Cells(rj, c).Value) Then jaar = CLng(ws.Cells(rj, c).Value)
+        q = UCase$(Tk(ws.Cells(rq, c).Value))
+        If jaar > 0 And q Like "Q[1-4]" Then a(c) = jaar * 4 + CLng(Mid$(q, 2, 1))
+    Next c
+    KwSleutels = a
+End Function
+
+Private Function KolStd(sleutel As Long, k1 As Long) As Long
+    ' kolom in dit werkbestand: actuals (G) voor alles vóór het eerste kwartaal, 0 = valt na het laatste kwartaal
+    If sleutel = 0 Or sleutel < k1 Then
+        KolStd = C_ACT
+    ElseIf sleutel - k1 < NQ Then
+        KolStd = C_Q1 + sleutel - k1
+    End If
+End Function
+
+Private Sub RijOver(wsB As Worksheet, rB As Long, sl As Variant, c1 As Long, c2 As Long, wsD As Worksheet, rD As Long, _
+                    k1 As Long, alleenQ As Boolean, deler As Double, ByRef logTekst As String)
+    ' waarden van een rij in het oude FO naar rij rD (per kwartaal; niet-kwartalen opgeteld in actuals); deel <> 0 = delen
+    Dim som() As Double, gezet() As Boolean, c As Long, k As Long, v As Variant
+    ReDim som(1 To C_Q1 + NQ): ReDim gezet(1 To C_Q1 + NQ)
+    For c = c1 To c2
+        v = wsB.Cells(rB, c).Value
+        If IsGetalW(v) Then
+            k = KolStd(CLng(sl(c)), k1)
+            If k = 0 Then
+                If CDbl(v) <> 0 Then logTekst = logTekst & "- " & wsD.Name & " rij " & rD & ": " & v & " na het laatste kwartaal valt weg" & vbCrLf
+            ElseIf Not (alleenQ And k = C_ACT) Then
+                som(k) = som(k) + CDbl(v)
+                gezet(k) = True
+            End If
+        End If
+    Next c
+    For k = C_ACT To C_Q1 + NQ - 1
+        If gezet(k) And som(k) <> 0 Then
+            If deler <> 0 Then wsD.Cells(rD, k).Value = som(k) / deler Else wsD.Cells(rD, k).Value = som(k)
+        End If
+    Next k
+End Sub
+
+Private Function RijMet(ws As Worksheet, kol As Long, r1 As Long, r2 As Long, begin As String) As Long
+    Dim r As Long
+    For r = r1 To r2
+        If LCase$(Tk(ws.Cells(r, kol).Value)) Like begin Then
+            RijMet = r
+            Exit Function
+        End If
+    Next r
+End Function
+
+Private Function OmzettenOudFO(wbO As Workbook) As String
+    Dim lg As String, wO As Worksheet, wK As Worksheet, wP As Worksheet, wD As Worksheet, ws As Worksheet
+    Dim maxR As Long, vk As Long, r As Long, c As Long, i As Long, j As Long, k As Long, n As Long
+    Dim kops(1 To 20) As Long, omz(1 To 20) As Long, nKop As Long, nOmz As Long, laatste As Long, euro As Long, per As Long
+    Dim sl As Variant, jaar As Long, k1 As Long, cf As Worksheet, hb As Long, won As Double, d As Long
+    Dim nPlan As Long, oRij(1 To 30) As Long, nO As Long, lab As String, term(1 To 20) As Long, aantT As Long
+    Dim kmw25 As Long, kmw75 As Long, kad As Long, ovr(1 To 10) As Long, nOv As Long, a0 As Long
+    Dim oudW(1 To 5) As Double, plW(1 To 5) As Variant, sleutel As String, kopP As Long, kType As Long
+    Dim bn() As Long, nBn As Long, x As Variant, basis As Double, tr As Long, t As Long, ov2() As Double, ov1() As Double
+    Dim regels As Variant, ond As Long, kr As Long, kb As Long, ksl As Variant, kc2 As Long
+
+    Set wO = ZoekBlad(wbO, "CF - opbrengsten")
+    If wO Is Nothing Then
+        OmzettenOudFO = "- CF - opbrengsten ontbreekt in het oude FO: niets omgezet." & vbCrLf
+        Exit Function
+    End If
+    Set wK = ThisWorkbook.Worksheets("CF - kosten")
+    Set wP = ThisWorkbook.Worksheets("Prijslijst")
+    Set wD = ThisWorkbook.Worksheets("CF - opbrengsten")
+
+    ' ---- exports: de export als waarden, de hulpkolommen houden hun formule -----------------------------------
+    Dim ex As Variant, nKol As Long, h As Long, arr As Variant
+    For Each ex In Array("FO - vorig|21", "FO - huidig|21", "FO - actuals|16", "Prijslijst dump|9")
+        Set ws = ZoekBlad(wbO, Split(ex, "|")(0))
+        nKol = CLng(Split(ex, "|")(1))
+        If ws Is Nothing Then
+            lg = lg & "- '" & Split(ex, "|")(0) & "' staat niet in het oude FO." & vbCrLf
+        Else
+            With ThisWorkbook.Worksheets(ws.Name)
+                LeegMaken ThisWorkbook.Worksheets(ws.Name), nKol
+                h = LaatsteRij(ws, nKol)
+                If h >= 1 Then
+                    arr = ws.Range(ws.Cells(1, 1), ws.Cells(h, nKol)).Value
+                    .Range(.Cells(1, 1), .Cells(h, nKol)).Value = arr
+                    ' tekst die op een getal lijkt (periode, jaar uit SAP) als tekst laten, zoals in de export
+                    For r = 1 To h
+                        For c = 1 To nKol
+                            If VarType(arr(r, c)) = vbString Then
+                                If Len(arr(r, c)) > 0 And IsNumeric(arr(r, c)) Then .Cells(r, c).Value = "'" & arr(r, c)
+                            End If
+                        Next c
+                    Next r
+                End If
+                HulpBijwerken ThisWorkbook.Worksheets(ws.Name), HulpKolommen(ws.Name), IIf(nKol = 21, 17, 2), h
+            End With
+        End If
+    Next ex
+    Set ws = ZoekBlad(wbO, "Behind the scens")
+    If Not ws Is Nothing Then
+        With ThisWorkbook.Worksheets("Behind the scens")
+            .UsedRange.ClearContents
+            .Range(ws.UsedRange.Address).Formula = ws.UsedRange.Formula
+        End With
+    End If
+
+    ' ---- opzet van het oude CF - opbrengsten ---------------------------------------------------------------
+    maxR = wO.UsedRange.Row + wO.UsedRange.Rows.Count - 1
+    vk = RijMet(wO, 2, 2, maxR, "verkooptempo")
+    For r = 2 To maxR
+        If LCase$(Tk(wO.Cells(r - 1, 6).Value)) = "# won" Then
+            If r < vk Then
+                nKop = nKop + 1: kops(nKop) = r
+            Else
+                nOmz = nOmz + 1: omz(nOmz) = r
+            End If
+        End If
+    Next r
+    If nKop = 0 Or nKop <> nOmz Then
+        OmzettenOudFO = lg & "- CF - opbrengsten: " & nKop & " bouwplanningsblokken en " & nOmz & " omzetblokken; niet omgezet." & vbCrLf
+        Exit Function
+    End If
+    If nKop > NT Then lg = lg & "- " & nKop & " woningtypes; dit werkbestand heeft er " & NT & ": de rest valt weg." & vbCrLf
+    For c = 7 To 80
+        If UCase$(Tk(wO.Cells(kops(1), c).Value)) Like "Q[1-4]" Then laatste = c
+    Next c
+    For r = omz(nOmz) To maxR
+        lab = LCase$(Tk(wO.Cells(r, 2).Value))
+        If Left$(lab, 9) = "termijnen" And InStr(lab, ChrW(8364)) > 0 Then euro = r: Exit For
+    Next r
+    per = RijMet(wO, 2, euro, maxR, "periode in cashflow*")
+    sl = KwSleutels(wO, euro - 1, euro, 7, laatste)
+    ' startjaar: eerste kwartaal in 1. Cashflow, anders van CF - opbrengsten
+    Set cf = ZoekBlad(wbO, "1. Cashflow")
+    If Not cf Is Nothing Then
+        For r = 4 To 80
+            If Tk(cf.Cells(r, 3).Value) Like "Q[1-4]" And IsGetalW(cf.Cells(r, 2).Value) Then jaar = CLng(cf.Cells(r, 2).Value): Exit For
+        Next r
+    End If
+    If jaar = 0 Then
+        For c = 7 To laatste
+            If sl(c) > 0 Then jaar = (sl(c) - 1) \ 4: Exit For
+        Next c
+    End If
+    k1 = jaar * 4 + 1
+    wD.Range("D3").Value = jaar
+    If per > 0 Then wD.Cells(PER_RIJ, 5).Value = wO.Cells(per, 5).Value
+
+    ' ---- prijslijst per bouwnummer -------------------------------------------------------------------------
+    Set ws = ZoekBlad(wbO, "Prijslijst")
+    If Not ws Is Nothing Then
+        kopP = RijMet(ws, 1, 1, 30, "bouwnummer")
+        If kopP > 0 Then
+            kType = KolNaam(ws, kopP, "type")
+            If LCase$(Tk(ws.Range("A1").Value)) Like "datum*" Then wP.Range("C1").Value = ws.Range("C1").Value
+            wP.Range(wP.Cells(P_BN1, 1), wP.Cells(P_BNN, 3)).ClearContents
+            ReDim bn(1 To ws.UsedRange.Rows.Count + 10)
+            For r = kopP + 1 To ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
+                If Len(Tk(ws.Cells(r, 1).Value)) > 0 And nBn < P_BNN - P_BN1 + 1 Then
+                    nBn = nBn + 1: bn(nBn) = r
+                    wP.Cells(P_BN1 + nBn - 1, 1).Value = ws.Cells(r, 1).Value
+                    For Each x In Array("termijnen / blok|2", "type|3", "kadastrale kosten|10", "bouwrente|17", "aanvullende rente|18", "korting|19")
+                        c = KolNaam(ws, kopP, CStr(Split(x, "|")(0)))
+                        If c > 0 Then wP.Cells(P_BN1 + nBn - 1, CLng(Split(x, "|")(1))).Value = ws.Cells(r, c).Value
+                    Next x
+                End If
+            Next r
+            lg = lg & "- prijslijst: " & nBn & " bouwnummers" & vbCrLf
+        End If
+    End If
+
+    ' ---- per woningtype -------------------------------------------------------------------------------------
+    Dim wA As Worksheet, sleutels(1 To 20) As String, nS As Long, f As String, p1 As Long, p2 As Long
+    Set wA = ZoekBlad(wbO, "Aansluiting opbrengsten")
+    If Not wA Is Nothing Then
+        For r = 1 To 40
+            f = wA.Cells(r, 3).Formula
+            p1 = InStr(1, f, "SUMIF(Prijslijst!", vbTextCompare)
+            If p1 > 0 Then
+                p1 = InStr(p1, f, Chr$(34))
+                p2 = InStr(p1 + 1, f, Chr$(34))
+                If p1 > 0 And p2 > p1 And nS < 20 Then nS = nS + 1: sleutels(nS) = Mid$(f, p1 + 1, p2 - p1 - 1)
+            End If
+        Next r
+    End If
+    ReDim ov1(1 To C_Q1 + NQ): ReDim ov2(1 To C_Q1 + NQ)
+    For i = 1 To nKop
+        If i > NT Then Exit For
+        hb = kops(i)
+        won = Nk(wO.Cells(hb - 1, 7).Value)
+        If won = 0 Then
+            lg = lg & "- type " & i & ": geen woningen, niet overgenomen" & vbCrLf
+        Else
+            ' naam: na ' - ' in de titel, anders kolom C, anders na 'Termijnen '
+            lab = Tk(wO.Cells(hb, 2).Value)
+            If InStr(lab, " - ") > 0 Then
+                lab = Trim$(Mid$(lab, InStr(lab, " - ") + 3))
+            ElseIf Len(Tk(wO.Cells(hb, 3).Value)) > 0 Then
+                lab = Tk(wO.Cells(hb, 3).Value)
+            ElseIf LCase$(Left$(lab, 10)) = "termijnen " Then
+                lab = Trim$(Mid$(lab, 11))
+            End If
+            wP.Cells(P_TYPE1 + i - 1, 2).Value = lab
+            sleutel = ""
+            If i <= nS Then sleutel = sleutels(i)
+            wP.Cells(P_TYPE1 + i - 1, 3).Value = IIf(sleutel = "", Empty, sleutel)
+            ' planningsrijen en omzetrijen
+            nPlan = 0
+            r = hb + 1
+            Do While Len(Tk(wO.Cells(r, 2).Value)) > 0 And r < hb + 40
+                nPlan = nPlan + 1: r = r + 1
+            Loop
+            nO = 0
+            r = omz(i) + 1
+            Do While Len(Tk(wO.Cells(r, 2).Value)) > 0 And nO < 30
+                nO = nO + 1: oRij(nO) = r: r = r + 1
+            Loop
+            d = oRij(2) - (hb + 1)
+            aantT = 0: kmw25 = 0: kmw75 = 0: kad = 0: nOv = 0
+            For j = 2 To nO
+                lab = LCase$(Tk(wO.Cells(oRij(j), 2).Value))
+                If InStr(lab, "meerwerk") > 0 And InStr(lab, "25") > 0 Then
+                    kmw25 = oRij(j)
+                ElseIf InStr(lab, "meerwerk") > 0 And InStr(lab, "75") > 0 Then
+                    kmw75 = oRij(j)
+                ElseIf oRij(j) - d >= hb + 1 And oRij(j) - d <= hb + nPlan Then
+                    If aantT < NTERM Then aantT = aantT + 1: term(aantT) = oRij(j)
+                ElseIf InStr(lab, "kadast") > 0 Or InStr(lab, "rente") > 0 Then
+                    kad = oRij(j)
+                ElseIf nOv < 10 Then
+                    nOv = nOv + 1: ovr(nOv) = oRij(j)
+                End If
+            Next j
+            ' bedragen zoals het oude FO rekende; handmatig als de prijslijst ze niet verklaart
+            oudW(1) = won
+            oudW(2) = Nk(wO.Cells(oRij(1), 4).Value)
+            basis = 0
+            For j = 1 To aantT
+                If Nk(wO.Cells(term(j), 3).Value) <> 0 Then basis = Nk(wO.Cells(term(j), 4).Value) / Nk(wO.Cells(term(j), 3).Value): Exit For
+            Next j
+            oudW(3) = basis
+            If kmw25 > 0 Then
+                oudW(4) = Nk(wO.Cells(kmw25, 4).Value) / 0.25
+            ElseIf kmw75 > 0 Then
+                oudW(4) = Nk(wO.Cells(kmw75, 4).Value) / 0.75
+            Else
+                oudW(4) = 0
+            End If
+            If kad > 0 Then oudW(5) = Nk(wO.Cells(kad, 4).Value) Else oudW(5) = 0
+            For j = 1 To 5: plW(j) = Empty: Next j
+            If sleutel <> "" And kType > 0 Then
+                plW(1) = 0: plW(2) = 0: plW(3) = 0: plW(4) = 0: plW(5) = 0
+                For n = 1 To nBn
+                    If Tk(ws.Cells(bn(n), kType).Value) = sleutel Then
+                        plW(1) = plW(1) + 1
+                        plW(2) = plW(2) + PrijsW(ws, bn(n), kopP, "grondkosten start verkoop (facturatie)")
+                        plW(3) = plW(3) + PrijsW(ws, bn(n), kopP, "aanneemsom start verkoop") + PrijsW(ws, bn(n), kopP, "totaal woonwensen in von")
+                        plW(4) = plW(4) + PrijsW(ws, bn(n), kopP, "totaal woonwensen in ob")
+                        plW(5) = plW(5) + PrijsW(ws, bn(n), kopP, "kadastrale kosten") + PrijsW(ws, bn(n), kopP, "bouwrente") + _
+                                 PrijsW(ws, bn(n), kopP, "aanvullende rente") + PrijsW(ws, bn(n), kopP, "korting")
+                    End If
+                Next n
+            End If
+            For j = 1 To 5
+                If IsEmpty(plW(j)) Then
+                    wP.Cells(P_TYPE1 + i - 1, 13 + j).Value = oudW(j)
+                ElseIf Abs(plW(j) - oudW(j)) > 1 Then
+                    wP.Cells(P_TYPE1 + i - 1, 13 + j).Value = oudW(j)
+                    lg = lg & "- type " & i & ": bedrag " & j & " uit het oude FO wijkt af van de prijslijst; handmatig gezet" & vbCrLf
+                End If
+            Next j
+            ' termijnschema
+            a0 = P_AANS1 + P_BLOK * (i - 1)
+            For j = 1 To aantT
+                wP.Cells(a0 + 1 + j, 12).Value = Tk(wO.Cells(term(j), 2).Value)
+                wP.Cells(a0 + 1 + j, 13).Value = Nk(wO.Cells(term(j), 3).Value)
+            Next j
+            ' planning, verkocht, transport, kadastrale kosten
+            hb = 6 + BLOK * (i - 1)                 ' titelrij in dit werkbestand
+            tr = hb + NTERM + 1
+            For j = 1 To aantT
+                wD.Range(wD.Cells(hb + j, C_ACT), wD.Cells(hb + j, C_Q1 + NQ - 1)).ClearContents
+                RijOver wO, term(j) - d, sl, 7, laatste, wD, hb + j, k1, False, 0, lg
+            Next j
+            wD.Range(wD.Cells(tr + 1, C_Q1), wD.Cells(tr + 1, C_Q1 + NQ - 1)).ClearContents
+            wD.Range(wD.Cells(tr + 2, C_ACT), wD.Cells(tr + 2, C_Q1 + NQ - 1)).ClearContents
+            RijOver wO, vk + i, sl, 7, laatste, wD, tr + 1, k1, True, won, lg
+            RijOver wO, oRij(1), sl, 7, laatste, wD, tr + 2, k1, False, won, lg
+            If sleutel = "" Then wD.Cells(VK_RIJ + i, 4).Value = Nk(wO.Cells(vk + i, 4).Value)
+            If kad > 0 Then RijOver wO, kad, sl, 7, laatste, wD, OZ1 + OBLOK * (i - 1) + 1 + NTERM + 3, k1, False, 0, lg
+            For j = 1 To nOv
+                basis = Nk(wO.Cells(ovr(j), 5).Value)
+                For c = 7 To laatste
+                    k = KolStd(CLng(sl(c)), k1)
+                    If k > 0 Then ov2(k) = ov2(k) + Nk(wO.Cells(ovr(j), c).Value) * basis
+                Next c
+            Next j
+            lg = lg & "- type " & i & " (" & wP.Cells(P_TYPE1 + i - 1, 2).Value & "): " & aantT & " termijnen, " & won & " woningen" & vbCrLf
+            ' kosten: budget aanneemsom, KAO, % per termijn en eigen planning als die afwijkt
+            KostenOmzetten wbO, wO, i, kops(i), term, aantT, d, sl, laatste, k1, lg
+        End If
+    Next i
+    ' overige opbrengsten
+    r = 0
+    For j = euro To maxR
+        If LCase$(Tk(wO.Cells(j, 2).Value)) Like "overige opbrengsten in*" Then r = j: Exit For
+    Next j
+    If r > 0 Then
+        For j = r + 1 To r + 3
+            If Len(Tk(wO.Cells(j, 2).Formula)) = 0 Then Exit For
+            For c = 7 To laatste
+                k = KolStd(CLng(sl(c)), k1)
+                If k > 0 Then ov1(k) = ov1(k) + Nk(wO.Cells(j, c).Value)
+            Next c
+        Next j
+    End If
+    For k = C_ACT To C_Q1 + NQ - 1
+        If ov1(k) <> 0 Then wD.Cells(OV1_RIJ, k).Value = ov1(k): wD.Cells(OV1_RIJ, 2).Value = "Overige opbrengsten (uit het oude FO)"
+        If ov2(k) <> 0 Then wD.Cells(OV2_RIJ, k).Value = ov2(k): wD.Cells(OV2_RIJ, 2).Value = "Overige / verschillen per type (uit het oude FO)"
+    Next k
+    ' aansluiting: SKO per regel (kolom B van de vergelijkingsblokken)
+    If Not wA Is Nothing Then
+        regels = Split(P_REGELS, "|")
+        n = 0
+        For r = 1 To wA.UsedRange.Row + wA.UsedRange.Rows.Count
+            If LCase$(Left$(Tk(wA.Cells(r, 1).Value), 12)) = "vergelijking" Then
+                n = n + 1
+                If n <= NT Then
+                    j = r + 2
+                    Do While Len(Tk(wA.Cells(j, 1).Value)) > 0
+                        For c = 0 To UBound(regels)
+                            If Tk(wA.Cells(j, 1).Value) = regels(c) And IsGetalW(wA.Cells(j, 2).Value) Then
+                                wP.Cells(P_AANS1 + P_BLOK * (n - 1) + 2 + c, 2).Value = wA.Cells(j, 2).Value
+                            End If
+                        Next c
+                        j = j + 1
+                    Loop
+                End If
+            End If
+        Next r
+    End If
+    ' DAEB
+    DaebOmzetten wbO, wO, kops, nKop, sl, laatste, k1, lg
+    ' kostenposten (prognose; Aanneemsom en Kopersmeerwerk volgen de termijnen)
+    Dim wKo As Worksheet, posten As Long, toel As Long
+    Set wKo = ZoekBlad(wbO, "CF - kosten")
+    If Not wKo Is Nothing Then
+        ond = RijMet(wKo, 2, 2, 300, "onderdelen")
+        If ond > 0 Then
+            kc2 = 0
+            For c = 7 To 80
+                If UCase$(Tk(wKo.Cells(ond, c).Value)) Like "Q[1-4]" Then kc2 = c
+                If LCase$(Tk(wKo.Cells(ond, c).Value)) = "toelichting" Then toel = c
+            Next c
+            ksl = KwSleutels(wKo, ond - 1, ond, 7, kc2)
+            r = ond + 1
+            Do While Len(Tk(wKo.Cells(r, 2).Value)) > 0 And LCase$(Left$(Tk(wKo.Cells(r, 2).Value), 6)) <> "totaal" And posten < NPOST
+                If toel > 0 Then wK.Cells(K_POST1 + posten, C_TOEL).Value = wKo.Cells(r, toel).Value
+                lab = LCase$(Tk(wKo.Cells(r, 2).Value))
+                If lab <> "aanneemsom" And lab <> "kopersmeerwerk" Then
+                    wK.Range(wK.Cells(K_POST1 + posten, C_Q1), wK.Cells(K_POST1 + posten, C_Q1 + NQ - 1)).ClearContents
+                    RijOver wKo, r, ksl, 7, kc2, wK, K_POST1 + posten, k1, True, 0, lg
+                End If
+                posten = posten + 1
+                r = r + 1
+            Loop
+        End If
+    End If
+    ' PEW: meest recente FD en toelichting
+    PewOmzetten wbO, lg
+    OmzettenOudFO = lg
+End Function
+
+Private Function PrijsW(ws As Worksheet, r As Long, kopP As Long, naam As String) As Double
+    Dim c As Long
+    c = KolNaam(ws, kopP, naam)
+    If c > 0 Then PrijsW = Nk(ws.Cells(r, c).Value)
+End Function
+
+Private Function KolNaam(ws As Worksheet, r As Long, naam As String) As Long
+    Dim c As Long
+    For c = 1 To 40
+        If LCase$(Tk(ws.Cells(r, c).Value)) = naam Then
+            KolNaam = c
+            Exit Function
+        End If
+    Next c
+End Function
+
+Private Sub KostenOmzetten(wbO As Workbook, wO As Worksheet, i As Long, hbOud As Long, term() As Long, aantT As Long, d As Long, _
+                           sl As Variant, laatste As Long, k1 As Long, ByRef lg As String)
+    Dim wKo As Worksheet, wK As Worksheet, kopTekst As String, r As Long, kr As Long, kRij(1 To 20) As Long, n As Long
+    Dim ksl As Variant, kc2 As Long, c As Long, kb As Long, j As Long, afwijk As Boolean, c2 As Long, sK As Double, sP As Double
+    Set wKo = ZoekBlad(wbO, "CF - kosten")
+    If wKo Is Nothing Then Exit Sub
+    Set wK = ThisWorkbook.Worksheets("CF - kosten")
+    kopTekst = Tk(wO.Cells(hbOud, 2).Value)
+    For r = 2 To 120
+        If Tk(wKo.Cells(r, 2).Value) = kopTekst And Len(kopTekst) > 0 Then kr = r: Exit For
+        If LCase$(Tk(wKo.Cells(r, 2).Value)) = "onderdelen" Then Exit For
+    Next r
+    If kr = 0 Then Exit Sub
+    r = kr + 1
+    Do While Len(Tk(wKo.Cells(r, 2).Value)) > 0 And n < 20
+        If Left$(LCase$(Tk(wKo.Cells(r, 2).Value)), 10) = "aanneemsom" Or Left$(LCase$(Tk(wKo.Cells(r, 2).Value)), 8) = "meerwerk" Then Exit Do
+        If InStr(LCase$(Tk(wKo.Cells(r, 2).Value)), "meerwerk") = 0 Then n = n + 1: kRij(n) = r
+        r = r + 1
+    Loop
+    For c = 7 To 80
+        If UCase$(Tk(wKo.Cells(kr, c).Value)) Like "Q[1-4]" Then kc2 = c
+    Next c
+    ksl = KwSleutels(wKo, kr - 1, kr, 7, kc2)
+    kb = 3 + KBLOK * (i - 1)
+    wK.Cells(kb, 4).Value = Nk(wKo.Cells(kr - 1, 4).Value)
+    wK.Cells(kb, 6).Value = Nk(wKo.Cells(kr - 1, 6).Value)
+    For j = 1 To n
+        If j > NTERM Then Exit For
+        wK.Cells(kb + 1 + j, 3).Value = Nk(wKo.Cells(kRij(j), 3).Value)
+        ' eigen planning (HWB) alleen als die afwijkt van de planning van de opbrengsten
+        afwijk = False
+        sK = 0: sP = 0
+        For c = 7 To kc2
+            sK = sK + Nk(wKo.Cells(kRij(j), c).Value)
+        Next c
+        If j <= aantT Then
+            For c = 7 To laatste
+                sP = sP + Nk(wO.Cells(term(j) - d, c).Value)
+                For c2 = 7 To kc2
+                    If ksl(c2) = sl(c) And sl(c) > 0 Then
+                        If Abs(Nk(wKo.Cells(kRij(j), c2).Value) - Nk(wO.Cells(term(j) - d, c).Value)) > 0.000000001 Then afwijk = True
+                    End If
+                Next c2
+            Next c
+        End If
+        If Abs(sK - sP) > 0.000000001 Then afwijk = True
+        If afwijk Then
+            wK.Range(wK.Cells(kb + 1 + j, C_ACT), wK.Cells(kb + 1 + j, C_Q1 + NQ - 1)).ClearContents
+            RijOver wKo, kRij(j), ksl, 7, kc2, wK, kb + 1 + j, k1, False, 0, lg
+            lg = lg & "- type " & i & ": kostenplanning termijn " & j & " wijkt af van de opbrengsten: overgenomen" & vbCrLf
+        End If
+    Next j
+End Sub
+
+Private Sub DaebOmzetten(wbO As Workbook, wO As Worksheet, kops() As Long, nKop As Long, sl As Variant, laatste As Long, _
+                         k1 As Long, ByRef lg As String)
+    Dim wD As Worksheet, r0 As Long, r As Long, lab As String, comp As Long, g As Long, i As Long, aantal As Variant
+    Dim rv As Long, c As Long, wv As Worksheet, kop As Long, rij As Long, acol As Long, vsl As Variant, vk As Long
+    Set wD = ThisWorkbook.Worksheets("CF - opbrengsten")
+    For r = 2 To wO.UsedRange.Row + wO.UsedRange.Rows.Count
+        lab = LCase$(Tk(wO.Cells(r, 2).Value))
+        If InStr(lab, "daeb") > 0 And Left$(lab, 9) <> "omzet hvg" And Left$(lab, 10) <> "termijnen " Then r0 = r: Exit For
+    Next r
+    If r0 = 0 Then Exit Sub
+    For r = r0 - 3 To r0 - 1
+        If Len(Tk(wO.Cells(r, 3).Value)) > 0 And Nk(wO.Cells(r, 5).Value) <> 0 And comp < 2 Then
+            wD.Cells(DAEB_KOP_RIJ - 3 + comp, 3).Value = Tk(wO.Cells(r, 3).Value)
+            wD.Cells(DAEB_KOP_RIJ - 3 + comp, 5).Value = Nk(wO.Cells(r, 5).Value)
+            comp = comp + 1
+        End If
+    Next r
+    g = 0: i = 0
+    For r = r0 + 1 To r0 + 40
+        lab = Tk(wO.Cells(r, 2).Value)
+        If LCase$(Left$(lab, 6)) = "totaal" Then Exit For
+        If Len(lab) = 0 Then
+            If i > 0 Then g = g + 1: i = 0
+            If Len(Tk(wO.Cells(r + 1, 2).Value)) = 0 Then Exit For
+        ElseIf g < 2 And i < 8 Then
+            wD.Cells(DAEB_KOP_RIJ + 1 + g * 9 + i, 2).Value = lab
+            If IsGetalW(wO.Cells(r, 3).Value) Then wD.Cells(DAEB_KOP_RIJ + 1 + g * 9 + i, 3).Value = wO.Cells(r, 3).Value
+            RijOver wO, r, sl, 7, laatste, wD, DAEB_KOP_RIJ + 1 + g * 9 + i, k1, False, 0, lg
+            i = i + 1
+        End If
+    Next r
+    ' aantal en verkoop: regels in het blok, anders Verkooptempo (de DAEB-rij of de rij na de koopwoningtypes)
+    aantal = Empty
+    For r = r0 To r0 + 60
+        lab = LCase$(Tk(wO.Cells(r, 2).Value))
+        If Left$(lab, 11) = "aantal daeb" Then aantal = wO.Cells(r, 4).Value
+        If Left$(lab, 24) = "verkoop en levering daeb" Then rv = r
+    Next r
+    If rv > 0 Then RijOver wO, rv, sl, 7, laatste, wD, DAEB_VERKOOP_RIJ, k1, True, 0, lg
+    Set wv = ZoekBlad(wbO, "Verkooptempo")
+    If (IsEmpty(aantal) Or rv = 0) And Not wv Is Nothing Then
+        kop = RijMet(wv, 1, 1, 30, "verkooptempo")
+        If kop > 0 Then
+            For r = kop + 1 To kop + 20
+                If InStr(LCase$(Tk(wv.Cells(r, 1).Value)), "daeb") > 0 Then rij = r: Exit For
+            Next r
+            If rij = 0 Then
+                r = kop + 1 + nKop
+                If Len(Tk(wv.Cells(r, 1).Value)) > 0 And LCase$(Left$(Tk(wv.Cells(r, 1).Value), 6)) <> "totaal" Then rij = r
+            End If
+            If rij > 0 Then
+                acol = 3
+                For c = 1 To 40
+                    If LCase$(Tk(wv.Cells(kop, c).Value)) = "aantal" Then acol = c: Exit For
+                Next c
+                If IsEmpty(aantal) Then aantal = wv.Cells(rij, acol).Value
+                If rv = 0 Then
+                    vsl = KwSleutels(wv, kop - 1, kop, 2, 40)
+                    For c = 2 To 40
+                        If vsl(c) > 0 And c <> acol Then
+                            vk = KolStd(CLng(vsl(c)), k1)
+                            If vk > 0 And Nk(wv.Cells(rij, c).Value) <> 0 Then wD.Cells(DAEB_VERKOOP_RIJ, vk).Value = wv.Cells(rij, c).Value
+                        End If
+                    Next c
+                End If
+            End If
+        End If
+    End If
+    wD.Cells(DAEB_AANTAL_RIJ, 4).Value = aantal
+    lg = lg & "- DAEB-blok overgenomen (" & comp & " componenten, aantal " & aantal & ")" & vbCrLf
+End Sub
+
+Private Sub PewOmzetten(wbO As Workbook, ByRef lg As String)
+    Dim wO As Worksheet, wN As Worksheet, kop As Long, r As Long, c As Long, fd As Long, toel As Long, eind As Long
+    Set wO = ZoekBlad(wbO, "2. Ontw PEW")
+    If wO Is Nothing Then Exit Sub
+    Set wN = ThisWorkbook.Worksheets("2. Ontw PEW")
+    For r = 1 To 12
+        For c = 3 To 16
+            If LCase$(Tk(wO.Cells(r, c).Value)) = "huidig" Then kop = r
+        Next c
+        If kop > 0 Then Exit For
+    Next r
+    If kop = 0 Then Exit Sub
+    For c = 3 To 20
+        If LCase$(Tk(wO.Cells(kop, c).Value)) = "meest recente fd" Then fd = c
+        If LCase$(Tk(wO.Cells(kop - 1, c).Value)) = "toelichting" Then toel = c
+    Next c
+    If fd = 0 Then fd = 5
+    For r = kop + 1 To kop + 40
+        If LCase$(Tk(wO.Cells(r, 3).Value)) = "totaal opbrengsten" Then eind = r: Exit For
+    Next r
+    For r = kop + 2 To eind - 1
+        If LCase$(Tk(wO.Cells(r, 3).Value)) <> "totaal kosten" And Len(Tk(wO.Cells(r, 3).Value)) > 0 Then
+            If IsGetalW(wO.Cells(r, fd).Value) Then wN.Cells(r, 5).Value = wO.Cells(r, fd).Value
+            If toel > 0 Then wN.Cells(r, 11).Value = wO.Cells(r, toel).Value
+        End If
+    Next r
+End Sub

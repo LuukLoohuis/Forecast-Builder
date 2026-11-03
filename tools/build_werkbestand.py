@@ -192,6 +192,21 @@ def daeb_uit_verkooptempo(sh, oz, wb, st, sjabloon):
          % (aantal, v.cell(rij, 1).value, r1, r1 + 1))
 
 
+def vba_constanten():
+    """vaste plekken van het standaard-FO voor de macro Oud FO inlezen (OmzettenOudFO)"""
+    import standaard_fo as S
+    from xlsxpkg import col2num as cn
+    w = {'NT': S.NT, 'NTERM': S.NTERM, 'NQ': S.NQ, 'C_ACT': S.C_ACT, 'C_Q1': S.C_Q1, 'BLOK': S.BLOK, 'VK_RIJ': S.VK,
+         'OZ1': S.OZ1, 'OBLOK': S.OBLOK, 'OV1_RIJ': S.OV1, 'OV2_RIJ': S.OV2, 'PER_RIJ': S.PER, 'DAEB_KOP_RIJ': S.DAEB_KOP,
+         'DAEB_AANTAL_RIJ': S.DAEB_AANTAL, 'DAEB_VERKOOP_RIJ': S.DAEB_VERKOOP, 'KBLOK': S.KBLOK, 'K_POST1': S.K_POST1,
+         'NPOST': S.NPOST, 'C_TOEL': cn(S.TOEL), 'P_TYPE1': S.P_TYPE1, 'P_AANS1': S.P_AANS1, 'P_BLOK': S.P_BLOK,
+         'P_BN1': S.P_BN1, 'P_BNN': S.P_BNN}
+    regels = ["' vaste plekken (gegenereerd uit tools/standaard_fo.py)"]
+    regels += ['Private Const %s As Long = %d' % (k, v) for k, v in w.items()]
+    regels.append('Private Const P_REGELS As String = "%s"' % '|'.join(S.P_REGELS))
+    return '\r\n'.join(regels)
+
+
 def project_uit_bestandsnaam(pad):
     """'20261001_FO_Parkzoom_2_Q4.xlsx' -> 'Parkzoom 2'"""
     n = os.path.splitext(os.path.basename(pad))[0]
@@ -761,7 +776,10 @@ def main():
         src = open(f, 'rb').read() if os.path.exists(f) else vba_project.document_module_source(code)
         modules.append({'name': code, 'document': True, 'code': src})
     for m in VBA_STD:
-        modules.append({'name': m, 'document': False, 'code': open(os.path.join(vdir, m + '.bas'), 'rb').read()})
+        code = open(os.path.join(vdir, m + '.bas'), 'rb').read()
+        if b"'@@CONSTANTEN@@" in code:
+            code = code.replace(b"'@@CONSTANTEN@@", vba_constanten().encode('cp1252'))
+        modules.append({'name': m, 'document': False, 'code': code})
     for m in modules:
         assert b'\r\n' in m['code'] and b'\n' not in m['code'].replace(b'\r\n', b''), 'regeleinden ' + m['name']
         m['code'].decode('cp1252')

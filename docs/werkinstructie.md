@@ -1,53 +1,49 @@
 # Werkinstructie · kwartaal-FO met het FO-werkbestand
 
 Alles gebeurt in één bestand. Zet het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v21.pptx`) in dezelfde map.
-Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze cellen worden berekend.
+Gele cellen vul je zelf in, lichtblauwe komen uit SAP of Salesforce, grijze worden berekend.
 
-## Eenmalig: overstappen vanuit een oud FO
-1. Open het werkbestand en sta macro's toe.
-2. Klik op `Start` op **Oud FO inlezen...** en kies het FO van vorig kwartaal.
-3. Controleer tab `Controle oud FO`: de cashflow moet per periode gelijk zijn ("OK"). De transportregels, de methode per
-   kostenpost en de correctieregel staan daarna klaar met standaardwaarden.
-4. Vul op `Start` het opleveringskwartaal in (blok 1) en sla op onder een nieuwe naam.
+## Eenmalig: een project overzetten
+1. Kopieer `FO_werkbestand_sjabloon.xlsm`, geef het de projectnaam en open het (macro's toestaan).
+2. `Start` → **Oud FO inlezen...** → kies het FO van vorig kwartaal. De macro zet het om:
+   - exports en prijslijst;
+   - woningtypes en termijnschema;
+   - planning, verkocht/transport (in %);
+   - kosten, DAEB en de FD-kolom van het PEW.
+3. Bekijk `Controle oud FO`: per periode de cashflow van het oude FO naast het werkbestand. Lees ook de meldingen van de
+   macro (bijvoorbeeld bedragen die handmatig zijn gezet omdat de prijslijst ze niet verklaarde).
+4. Vul op `Start` de projectnaam en het opleveringskwartaal in. Op `CF - opbrengsten` staat in D3 het eerste jaar van de kwartalen.
 
 ## Elk kwartaal
 
 **Voor het FO-gesprek**
 1. **Nieuw kwartaal starten** (Start): FO - huidig wordt FO - vorig, de cashflow wordt de vorige prognose.
-2. SAP PEW-export (FR4) van de huidige periode → rij *FO - huidig*: **Plakken** (eerst de export kopiëren vanaf A1)
-   of **Inlezen...** (bestand kiezen).
-3. SAP actuals (FR5) → rij *FO - actuals*. Check SAP op correcties in de werkelijke opbrengsten.
-4. Salesforce prijslijst → rij *Prijslijst dump*. Zet de exportdatum op tab `Prijslijst` (cel C1).
-5. `Aansluiting opbrengsten`: SKO ↔ prijslijst ↔ PEW sluit aan (kolom J "OK"). Boek de bedragen van "te boeken in
-   SAP" (onderaan, per SAP-nummer en kostendrager) in SAP. Vraag ontbrekende documentatie op (SKO gunning,
-   termijnschema's, afrekenstaat MMW, specificatie overige opbrengsten).
-6. Verkocht t/m nu komt uit de prijslijst (status Verkocht of Getransporteerd).
-7. **Opbrengsten** op `CF - opbrengsten`, per woningtype:
-   - bouwtermijnen per kwartaal (samen met de ontwikkelaar, op de bouwplanning);
-   - daaronder **verkocht %** en **getransporteerd %** per kwartaal (van alle woningen van het type). Transport kan niet vóór verkoop. De grondtermijn volgt het transport, en bouwtermijnen tellen vanaf transport;
-   - na goedkeuring SWK eventueel een **grondprijsaanpassing** per woning;
-   - wil je een bedrag bijsturen? Gebruik de gele correctieregel boven het totaal (demo: rij 204).
-   - DAEB-woningen? Vul onderaan het blok "Opbrengsten DAEB" in (demo: rij 212-239), of gebruik het DAEB-blok dat het FO al had. Het DAEB-woningtype en de scenario's vullen zich vanzelf.
-8. **Kosten** op `CF - kosten`:
-   - de bouwtermijnen volgen de geplande bouwtermijnen van de opbrengsten; een eigen planning (HWB) mag je eroverheen zetten;
-   - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd), *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan) of *Transport* (restantbudget naar rato van het transport, bijvoorbeeld de grond). Bij Voorstel en Transport gaat een zelf ingevuld kwartaal voor.
+2. **Exports:** Plakken of Inlezen op `Start`:
+   - SAP FO-overzicht (FR4) → *FO - huidig*;
+   - SAP actuals (FR5) → *FO - actuals*;
+   - Salesforce → *Prijslijst dump*.
+3. `Prijslijst`:
+   - nieuwe bouwnummers met hun type;
+   - exportdatum in C1;
+   - controleer per woningtype de aansluiting (kolom J "OK");
+   - boek "te boeken in SAP" (per SAP-nummer en kostendrager) in SAP.
+4. `CF - opbrengsten`, per woningtype:
+   - planning bouwtermijnen (met de ontwikkelaar);
+   - **verkocht %** en **getransporteerd %** per kwartaal (van alle woningen van het type);
+   - kadastrale kosten en rente (aantal woningen per kwartaal);
+   - na goedkeuring SWK eventueel een grondprijsaanpassing.
 
-   De totaalregel (demo: rij 75) is het definitieve totaal.
-9. Blok 4 op `Start`: alle controles groen. Bekijk `Dashboard` (cashflow en kerncijfers) en `2. Ontw PEW`.
-10. **Scenario's**: vul op `Scenario's` een andere start bouw, verkoop, transport of grondtermijn in. de verborgen rekenbladen
-   rekenen automatisch mee met de CF-tabbladen; daar hoef je niets te doen.
-11. **PowerPoint maken**: alle dia's, inclusief de datum op dia 1 en de
-   kaarten van dia 10 (blok 6 op `Start`), uit dit bestand.
+   Eventueel ook de correctieregel en het DAEB-blok onderaan.
+5. `CF - kosten`:
+   - per type de planning van de bouwtermijnen kosten (HWB; standaard gelijk aan de opbrengsten);
+   - per post *Handmatig*, *Voorstel* (restantbudget gelijk verdeeld t/m oplevering) of *Transport* (naar rato van het transport). Bij Voorstel en Transport gaat een zelf ingevuld kwartaal voor.
+6. `2. Ontw PEW`: meest recente FD en toelichting.
+7. `Start` blok 4: alle controles groen. Bekijk `Dashboard` en `Scenario's`.
+8. **PowerPoint maken.**
 
 **Na het FO-gesprek**
-1. Correcties verwerken (prognose, toelichtingen) en opnieuw **PowerPoint maken**.
-2. `CF - hulp VENA` inlezen in SAP/VENA (zelfde format als altijd; loopt mee met de definitieve cashflow).
-3. Datumvelden Projectbuilder en de verdeling van woningaantallen in de tijd bijwerken.
-
-## Werkbestand voor een ander project
-Het werkbestand wordt gebouwd uit het FO van het project zelf (zie README, "Werkbestand voor een ander project"); de
-rijnummers volgen dan dat FO. Lees daarna alleen oude FO's van hetzelfde project in.
+1. Correcties verwerken en opnieuw **PowerPoint maken**.
+2. `CF - hulp VENA` inlezen in SAP/VENA (zelfde format als altijd).
 
 ## Als er tussentijds iets verandert
-Plak of lees de nieuwe export opnieuw in; alles rekent mee, ook het Dashboard en de scenario's. Klik daarna op
-**PowerPoint maken** als de presentatie bijgewerkt moet worden.
+Plak of lees de nieuwe export opnieuw in; alles rekent mee, ook het Dashboard en de scenario's.
