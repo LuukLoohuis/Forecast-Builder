@@ -24,14 +24,14 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
 6. **Opbrengsten** op `CF - opbrengsten`, per woningtype:
    - bouwtermijnen per kwartaal;
    - daaronder de **transportregel** (aantal woningen notarieel geleverd per kwartaal). De grondtermijn volgt het transport, en bouwtermijnen tellen vanaf transport;
-   - verkooptempo in rij 49-52;
-   - wil je een bedrag bijsturen? Gebruik de gele correctieregel (rij 192).
-   - DAEB-woningen? Vul onderaan het blok "Opbrengsten DAEB" in (rij 200-227). Woningtype 5 en de scenario's vullen zich vanzelf.
+   - verkooptempo onder de bouwplanning (in het demo-FO rij 49-52);
+   - wil je een bedrag bijsturen? Gebruik de gele correctieregel boven het totaal (demo: rij 192).
+   - DAEB-woningen? Vul onderaan het blok "Opbrengsten DAEB" in (demo: rij 200-227), of gebruik het DAEB-blok dat het FO al had. Het DAEB-woningtype en de scenario's vullen zich vanzelf.
 7. **Kosten** op `CF - kosten`:
    - de bouwtermijnen volgen de geplande bouwtermijnen van de opbrengsten (overschrijven mag);
    - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd) of *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan).
 
-   Rij 75 is het definitieve totaal.
+   De totaalregel (demo: rij 75) is het definitieve totaal.
 8. Blok 4 op `Start`: alle controles groen. Bekijk `Dashboard` (cashflow en kerncijfers) en `2. Ontw PEW`.
 9. **Scenario's**: vul op `Scenario's` een andere start bouw, verkoop, transport of grondtermijn in. `Invoer`, `Woningtypes`
    en `Scenario kosten` rekenen automatisch mee met de CF-tabbladen; daar hoef je niets te doen.
@@ -44,6 +44,10 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
 1. Correcties verwerken (prognose, toelichtingen) en opnieuw **PowerPoint maken**.
 2. `CF - hulp VENA` inlezen in SAP/VENA (zelfde format als altijd; loopt mee met de definitieve cashflow).
 3. Datumvelden Projectbuilder en de verdeling van woningaantallen in de tijd bijwerken.
+
+## Werkbestand voor een ander project
+Het werkbestand wordt gebouwd uit het FO van het project zelf (zie README, "Werkbestand voor een ander project"); de
+rijnummers volgen dan dat FO. Lees daarna alleen oude FO's van hetzelfde project in.
 
 ## Als er tussentijds iets verandert
 Plak of lees de nieuwe export opnieuw in; alles rekent mee, ook het Dashboard en de scenario's. Klik daarna op

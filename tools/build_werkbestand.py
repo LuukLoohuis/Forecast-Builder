@@ -21,12 +21,13 @@ from lxml import etree
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import fo_aanpassingen  # noqa: E402
+import opzet as opzet_fo  # noqa: E402
 import scenario_koppeling  # noqa: E402
 import nieuwe_bladen  # noqa: E402
 import vba_project  # noqa: E402
 from xlsxpkg import (CT, CT_CHART, CT_CHARTCOLORS, CT_CHARTSTYLE, CT_DRAWING, CT_SHEET, M, PR, R, SST, T_DRAWING,  # noqa: E402
                      T_SHEET, Package, Sheet, Styles, col2num, num2col, parse, rels_name, relative, replace_in_formulas,
-                     resolve, split_ref, tobytes)
+                     resolve, split_ref, tobytes, unshare)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -64,8 +65,78 @@ LAYOUT = [
     ('_sjabloon', 'new', '_sjabloon', 'shSjabloon'),
     ('_koppeling', 'new', '_koppeling', 'shKoppeling'),
 ]
+VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW'}    # 2. Ontw PEW komt in een nieuw jasje
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
-DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3)}
+DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3),
+        'dia10': [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),
+                  ('Huidige PEW-basis', 'FD DO (Aanbieding)', '10 april 2026'),
+                  ('Mogelijk resultaat', '4,8%', 'Bij rentelasten richting nul')]}
+
+
+def indeling(oz):
+    """LAYOUT voor dit FO: de vaste tabbladen die het FO heeft, plus de extra FO-tabbladen (zoals '2B. Ontw PEW') na
+    '2. Ontw PEW', met een gemaakte codenaam"""
+    fo = [n for n, _ in oz['bladen']]
+    bekend = {src for _, o, src, _ in LAYOUT if o == 'fo'}
+    out = []
+    for item in LAYOUT:
+        if item[1] == 'fo' and item[2] not in fo:
+            note('tabblad %s staat niet in het FO: overgeslagen' % item[2])
+            continue
+        out.append(item)
+        if item[0] == '2. Ontw PEW':
+            for n in fo:
+                if n not in bekend and n not in VERVALLEN:
+                    code = 'shFO' + re.sub(r'[^A-Za-z0-9]', '', n)[:24]
+                    out.append((n, 'fo', n, code))
+                    note('extra FO-tabblad overgenomen: %s' % n)
+    return out
+
+
+def config(oz, layout):
+    """de opzet voor de macro's (FOWerkbestand: Cfg), op _sjabloon kolom E:F"""
+    from xlsxpkg import col2num as cn
+    ob, k, cf = oz['opbrengsten'], oz['kosten'], oz['cashflow']
+    hulp = {b: '|'.join('%s:%d' % (c, r[0]) for c, r in kol.items()) for b, kol in oz['hulpkolommen'].items()}
+    controles = ['CF - kosten|B%d|onderdelen' % k['onderdelen'], 'CF - kosten|B%d|totaal kosten' % k['totaal'],
+                 'CF - kosten|B%d|periode in cashflow' % k['periode'],
+                 'CF - opbrengsten|B%d|termijnen' % ob['euro_kop'], 'CF - opbrengsten|B%d|totaal opbrengsten' % ob['totaal'],
+                 'CF - opbrengsten|B%d|periode in cashflow' % ob['periode']]
+    return [
+        ('fo_bladen', '|'.join(src for _, o, src, _ in layout if o == 'fo') + '|2. Ontw PEW'),
+        ('transportrijen', '|'.join(str(t['tr']) for t in ob['types'])),
+        ('opbrengsten_kol1', cn(ob['eerste'])), ('opbrengsten_kol2', cn(ob['laatste'])),
+        ('opbrengsten_totaal', ob['totaal']), ('opbrengsten_correctie', ob['correctie']),
+        ('correctie_bereik', 'B%d:%s%d' % (ob['correctie'], ob['laatste'], ob['correctie'])),
+        ('daeb_totaal', ob.get('daeb_totaal') or 0),
+        ('daeb_bereik', 'B%d:%s%d' % (ob['daeb_sjabloon'], ob['laatste'], ob['daeb_eind'] + 1) if ob['daeb_sjabloon'] else ''),
+        ('voorstel_bereik', 'B%d:%s%d' % (k['voorstel_start'], k['status'], k['voorstel_eind'])),
+        ('controles', ';'.join(controles)),
+        ('cashflow_rij1', cf['periodes'][0][2]),
+    ] + [('hulp|' + b, v) for b, v in hulp.items()]
+
+
+def project_uit_bestandsnaam(pad):
+    """'20261001_FO_Zichten_2_Q4.xlsx' -> 'Zichten 2'"""
+    n = os.path.splitext(os.path.basename(pad))[0]
+    n = re.sub(r'^\d{6,8}[_ ]*', '', n)
+    n = re.sub(r'^FO[_ ]+', '', n, flags=re.I)
+    n = re.sub(r'[_ ]+Q[1-4]\b.*$', '', n)
+    n = re.sub(r'[_ ]+(fictieve|demo).*$', '', n, flags=re.I)
+    return n.replace('_', ' ').strip() or 'Project'
+
+
+EXTERN = re.compile(r"'?\[\d+\]([^'!\[\]]+)'?!")
+
+
+def lokale_verwijzingen(t):
+    """verwijzingen naar een extern bestand ('[2]FO - huidig'!) naar het tabblad in dit bestand"""
+    n = 0
+    for f in t.iter(M + 'f'):
+        if f.text and EXTERN.search(f.text):
+            f.text = EXTERN.sub(lambda m: "'%s'!" % m.group(1), f.text)
+            n += 1
+    return n
 
 
 def note(msg):
@@ -210,19 +281,13 @@ def verwijder_vormen(pkg: Package, sheet_part: str, namen) -> int:
     return n
 
 
-def oud_cashflow(fo_path):
+def oud_cashflow(fo_path, oz):
     """periodes van '1. Cashflow' uit het FO (waarden van Excel): jaar, Q, kosten, omzet, CF, CF vorig kwartaal"""
     import openpyxl
     wb = openpyxl.load_workbook(fo_path, data_only=True)
     ws = wb['1. Cashflow']
-    out = []
-    for r in range(4, 60):
-        jaar = ws.cell(r, 2).value
-        if not isinstance(jaar, (int, float)):
-            break
-        out.append({'B': int(jaar), 'C': ws.cell(r, 3).value or '', 'D': ws.cell(r, 4).value, 'F': ws.cell(r, 6).value,
-                    'H': ws.cell(r, 8).value, 'J': ws.cell(r, 10).value})
-    return out
+    return [{'B': jaar, 'C': q, 'D': ws.cell(r, 4).value, 'F': ws.cell(r, 6).value, 'H': ws.cell(r, 8).value,
+             'J': ws.cell(r, 10).value} for jaar, q, r in oz['cashflow']['periodes']]
 
 
 def pew_inhoud(fo_path):
@@ -285,14 +350,37 @@ def main():
     ap.add_argument('--pptx', default=os.path.join(ROOT, 'input', 'Kwartaal_Template_cashflow_v20.pptx'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'output', 'FO_Parkzoom_werkbestand.xlsm'))
     ap.add_argument('--pptx-out', default=os.path.join(ROOT, 'output', 'Kwartaal_Template_cashflow_v21.pptx'))
+    ap.add_argument('--project', help='projectnaam (standaard uit de bestandsnaam van het FO)')
+    ap.add_argument('--oplevering', help='jaar-kwartaal, bv. 2028-3 (standaard de markering Oplevering op CF - opbrengsten)')
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
+
+    print('Opzet van het FO lezen')
+    oz = opzet_fo.lees(a.fo)
+    ob, ko = oz['opbrengsten'], oz['kosten']
+    note('CF - opbrengsten: %d woningtypes, kolommen %s..%s, totaal rij %d; CF - kosten: posten rij %d-%d, totaal rij %d'
+         % (len(ob['types']), ob['eerste'], ob['laatste'], ob['totaal'], ko['posten'][0], ko['posten'][-1], ko['totaal']))
+    if os.path.abspath(a.fo) == os.path.abspath(ap.get_default('fo')):
+        project = dict(DEMO)
+    else:
+        opl = ob['mijlpalen'].get('oplevering')
+        project = {'project': project_uit_bestandsnaam(a.fo), 'oplevering': opl or (None, None)}
+    if a.project:
+        project['project'] = a.project
+    if a.oplevering:
+        j, q = a.oplevering.split('-')
+        project['oplevering'] = (int(j), int(q))
+    note('project %s, oplevering %s' % (project['project'], project['oplevering']))
+    layout = indeling(oz)
+    scenario_koppeling.configureer(oz)
 
     print('Bronnen lezen')
     sc = Package(a.scenario)
     fo = Package(a.fo)
     tmp_new = a.out + '.nieuw.tmp'
-    info = nieuwe_bladen.bouw(tmp_new, DEMO, oud_cashflow(a.fo), os.path.basename(a.fo), pew_inhoud(a.fo))
+    inv_tot = scenario_koppeling.INV_RN + 2
+    info = nieuwe_bladen.bouw(tmp_new, project, oud_cashflow(a.fo, oz), os.path.basename(a.fo), pew_inhoud(a.fo), oz,
+                              inv_tot, scenario_koppeling.DAEB_TYPE)
     new = Package(tmp_new)
     os.remove(tmp_new)
 
@@ -312,7 +400,7 @@ def main():
     srcs = {'fo': fo, 'new': new}
     src_states = {k: {n: st for n, _, st in p.sheets()} for k, p in srcs.items()}
     final = []        # (naam, part, state)
-    for name, origin, src_name, code in LAYOUT:
+    for name, origin, src_name, code in layout:
         if origin == 'sc':
             part, state = sc_sheets[src_name]
             t = dst.x(part)
@@ -326,6 +414,16 @@ def main():
             xf_map, dxf_map = maps[origin]
             part = copier.copy_sheet(p, p.sheet_part(src_name), xf_map, dxf_map, src_si[origin], code)
             state = src_states[origin][src_name]
+            if origin == 'fo':
+                t = dst.x(part)
+                g = unshare(t)
+                n = lokale_verwijzingen(t)
+                if g or n:
+                    dst.put(part, t)
+                if g:
+                    note('%s: %d gedeelde formules uitgeschreven' % (name, g))
+                if n:
+                    note('%s: %d formules verwezen naar een ander bestand; nu naar het tabblad in dit bestand' % (name, n))
         final.append((name, part, state, code))
     note('%d tabbladen' % len(final))
 
@@ -350,8 +448,8 @@ def main():
         c = Sheet(stijl_t, sst).cell(ref, create=False)
         st[naam] = maps['new'][0][int(c.get('s', '0'))]
     sjabloon = []
-    for blad, functie in (('CF - opbrengsten', lambda sh: fo_aanpassingen.opbrengsten(sh, st, sjabloon, note)),
-                          ('CF - kosten', lambda sh: fo_aanpassingen.kosten(sh, st, sjabloon, styles, note))):
+    for blad, functie in (('CF - opbrengsten', lambda sh: fo_aanpassingen.opbrengsten(sh, oz, st, sjabloon, note)),
+                          ('CF - kosten', lambda sh: fo_aanpassingen.kosten(sh, oz, st, sjabloon, styles, note))):
         sh = Sheet(dst.x(part_of[blad]), sst)
         functie(sh)
         dst.put(part_of[blad], sh.t)
@@ -363,6 +461,9 @@ def main():
         sh.set_value('A%d' % i, blad)
         sh.set_value('B%d' % i, ref)
         sh.set_value('C%d' % i, inhoud if inhoud else None)
+    for i, (sleutel, waarde) in enumerate(config(oz, layout), 1):
+        sh.set_value('E%d' % i, sleutel)
+        sh.set_value('F%d' % i, waarde)
     dst.put(part_of['_sjabloon'], sh.t)
     note('_sjabloon: %d cellen' % len(sjabloon))
 
@@ -390,9 +491,11 @@ def main():
     scenario_koppeling.daeb_woningtypes(sh_w, sh, st)
     dst.put(part_of['Woningtypes'], sh_w.t)
     sh.set_value('B1', 'Invoer — cashflow per periode en verkocht/transport per woningtype, automatisch uit het FO')
-    sh.set_value('B2', 'Formules: verwerkte kwartalen uit FO - actuals, prognose uit CF - kosten (rij 75) en CF - opbrengsten '
-                       '(rij 194); verkocht = verkooptempo, transport = transportregel op CF - opbrengsten. Niet overschrijven.')
-    sh.set_value('B3', 'Kolom J = vorige prognose (tab Vorige prognose). Rij 27-30: totalen en aansluiting op het PEW.')
+    sh.set_value('B2', 'Formules: verwerkte kwartalen uit FO - actuals, prognose uit CF - kosten (rij %d) en CF - opbrengsten '
+                       '(rij %d); verkocht = verkooptempo, transport = transportregel op CF - opbrengsten. Niet overschrijven.'
+                 % (ko['totaal'], ob['totaal']))
+    sh.set_value('B3', 'Kolom J = vorige prognose (tab Vorige prognose). Rij %d-%d: totalen en aansluiting op het PEW.'
+                 % (inv_tot, inv_tot + 3))
     sh.set_value('B4', None)
     sh.set_value('B5', '1 · CASHFLOW · automatisch uit FO - actuals en de CF-tabbladen')
     dst.put(part_of['Invoer'], sh.t)
@@ -410,8 +513,8 @@ def main():
     sh.set_value('W69', 'dit werkbestand')
     sh.set_value('Z69', 'tab Invoer, Woningtypes en Scenario kosten zijn formules op de FO-tabbladen')
     sh.set_formula('W70', 'Start!$E$12')
-    sh.set_formula('W71', 'SUM(Invoer!$F$8:$F$67)')
-    sh.set_formula('W72', 'SUM(Invoer!$D$8:$D$67)')
+    sh.set_formula('W71', 'SUM(Invoer!$F$8:$F$%d)' % scenario_koppeling.INV_RN)
+    sh.set_formula('W72', 'SUM(Invoer!$D$8:$D$%d)' % scenario_koppeling.INV_RN)
     sh.set_formula('W73', 'Start!$C$10')
     dst.put(part_of['Dashboard'], sh.t)
 
@@ -450,19 +553,12 @@ def main():
         sh.set_value('F%d' % r, vorm, style['F'])
     save('PowerPoint', sh)
 
-    for name, cols, first in (('FO - vorig', 'XY', 17), ('FO - huidig', 'XY', 17)):
+    for name, tot in (('FO - vorig', 1500), ('FO - huidig', 1500), ('FO - actuals', 6000)):
         sh = sheet(name)
-        last = max(int(split_ref(c.get('r'))[1]) for c in sh.t.iter(M + 'c')
-                   if c.get('r').startswith('X') and c.find(M + 'f') is not None)
-        extend_helpers(sh, cols, first, last, 1500)
+        for col, (first, last) in oz['hulpkolommen'][name].items():
+            extend_helpers(sh, col, first, last, tot)
+            note('%s: hulpkolom %s rij %d t/m %d (was t/m %d)' % (name, col, first, tot, last))
         save(name, sh)
-        note('%s: hulpkolommen X:Y t/m rij 1500 (was %d)' % (name, last))
-    sh = sheet('FO - actuals')
-    last = max(int(split_ref(c.get('r'))[1]) for c in sh.t.iter(M + 'c')
-               if c.get('r').startswith('Q') and c.find(M + 'f') is not None)
-    extend_helpers(sh, 'QR', 2, last, 6000)
-    save('FO - actuals', sh)
-    note('FO - actuals: hulpkolommen Q:R t/m rij 6000 (was %d)' % last)
 
     # ---- werkmap -------------------------------------------------------------------------------------------
     print('Werkmap samenstellen')
@@ -499,9 +595,15 @@ def main():
             if d.get('localSheetId') is not None:
                 sname = src_order[int(d.get('localSheetId'))]
                 sname = rename.get(sname, sname)
+                if sname not in names:
+                    continue
                 d.set('localSheetId', str(names.index(sname)))
             for old, nw in rename.items():
                 d.text = d.text.replace("'%s'!" % old, "'%s'!" % nw)
+            if re.search(r'\[\d+\]|#REF!', d.text or '') or any("'%s'!" % v in (d.text or '') or '%s!' % v in (d.text or '')
+                                                               for v in VERVALLEN - {'2. Ontw PEW'}):
+                note('naam %s overgeslagen (%s)' % (d.get('name'), d.text))
+                continue
             new_dn.append(d)
     add_names(wb, sc_order, SC_RENAME)
     add_names(fo.x('xl/workbook.xml'), [n for n, _, _ in fo.sheets()], {})
@@ -565,6 +667,10 @@ def main():
     note('%d modules' % len(modules))
 
     dst.save(a.out)
+    import json
+    with open(os.path.splitext(a.out)[0] + '.opzet.json', 'w') as fh:
+        json.dump({'fo': os.path.basename(a.fo), 'opzet': oz, 'invoer_laatste': scenario_koppeling.INV_RN,
+                   'invoer_totaal': inv_tot, 'daeb_type': scenario_koppeling.DAEB_TYPE}, fh, indent=1, default=str)
     print('Klaar: ' + a.out)
 
     # ---- PowerPoint-sjabloon v21: alleen vormnamen erbij -------------------------------------------------------

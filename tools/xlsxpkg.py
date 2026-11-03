@@ -434,3 +434,28 @@ def replace_in_formulas(tree, old: str, new: str) -> int:
             f.text = f.text.replace(old, new)
             n += 1
     return n
+
+
+def unshare(tree) -> int:
+    """gedeelde formules (t="shared") uitschrijven tot gewone formules per cel, zodat elke cel zijn eigen formuletekst
+    heeft (de aanpassingen lezen en zetten per cel)"""
+    from openpyxl.formula.translate import Translator
+    bron = {}
+    for f in tree.iter(M + 'f'):
+        if f.get('t') == 'shared' and f.get('ref') is not None and f.text:
+            bron[f.get('si')] = (f.getparent().get('r'), '=' + f.text)
+    n = 0
+    for f in tree.iter(M + 'f'):
+        if f.get('t') != 'shared':
+            continue
+        si = f.get('si')
+        r = f.getparent().get('r')
+        if si in bron:
+            oorsprong, tekst = bron[si]
+            if not f.text:
+                f.text = Translator(tekst, origin=oorsprong).translate_formula(r)[1:]
+            for a in ('t', 'si', 'ref'):
+                f.attrib.pop(a, None)
+            n += 1
+    return n
+

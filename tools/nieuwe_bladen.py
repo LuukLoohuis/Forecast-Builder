@@ -52,12 +52,46 @@ OVERRIDE_FILL = PatternFill('solid', fgColor='FFFDE68A', bgColor='FFFDE68A')
 
 MAANDEN = '"januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"'
 
-# kolommen van de bronbladen
-K_COLS = [L(c) for c in range(8, 28)]        # 'CF - kosten' H..AA
-O_COLS = [L(c) for c in range(7, 27)]        # 'CF - opbrengsten' G..Z
-K_POSTEN = list(range(59, 71))               # 'CF - kosten' posten (blok 'Onderdelen')
-# termijnblokken op 'CF - opbrengsten' (zoals de formule in rij 194) met de naam van het blok
 P_HUIDIG, P_OPL = 'p_huidig', 'p_oplevering'
+KO, OO, PW = "'CF - kosten'!", "'CF - opbrengsten'!", "'2. Ontw PEW'!"
+
+
+def verwijzingen(oz, inv_tot, daeb_type):
+    """celverwijzingen naar de FO-tabbladen volgens de opzet van het FO"""
+    ob, k, pw = oz['opbrengsten'], oz['kosten'], oz['pew']
+    p1, pn = k['posten'][0], k['posten'][-1]
+    off = k['voorstel_offset']
+    c0 = 3 + 3 * (daeb_type - 1)
+    daeb_van = ob['daeb'] or ob['daeb_sjabloon']
+    return {
+        'k_tot': '%s%s%d:%s%d' % (KO, k['eerste'], k['totaal'], k['laatste'], k['totaal']),
+        'k_tot_abs': '%s$%s$%d:$%s$%d' % (KO, k['eerste'], k['totaal'], k['laatste'], k['totaal']),
+        'k_per_abs': '%s$%s$%d:$%s$%d' % (KO, k['eerste'], k['periode'], k['laatste'], k['periode']),
+        'k_pew': '%sD%d' % (KO, k['pew_totaal']),
+        'k_methode': '%sC%d:C%d' % (KO, p1, pn), 'k_namen': '%sB%d:B%d' % (KO, p1, pn),
+        'k_status': '%s%s1:%s%d' % (KO, k['status'], _volgende(k['status']), k['voorstel_start'] - 1),
+        'k_check': '%sE%d' % (KO, k['check']),
+        'k_voorstel_status': '%s%s%d:%s%d' % (KO, k['status'], p1 + off, k['status'], pn + off),
+        'k_tot_rij': k['totaal'], 'k_status_kol': k['status'],
+        'o_tot': '%s%s%d:%s%d' % (OO, ob['eerste'], ob['totaal'], ob['laatste'], ob['totaal']),
+        'o_tot_abs': '%s$%s$%d:$%s$%d' % (OO, ob['eerste'], ob['totaal'], ob['laatste'], ob['totaal']),
+        'o_per_abs': '%s$%s$%d:$%s$%d' % (OO, ob['eerste'], ob['periode'], ob['laatste'], ob['periode']),
+        'o_corr': '%s%s%d:%s%d' % (OO, ob['eerste'], ob['correctie'], ob['laatste'], ob['correctie']),
+        'o_status': '%s%s1:%s%d' % (OO, ob['status'], ob['status'], ob['totaal'] - 1),
+        'o_tot_rij': ob['totaal'], 'o_corr_rij': ob['correctie'], 'o_status_kol': ob['status'],
+        'o_verkoop': '%d-%d' % (ob['types'][0]['verkoop'], ob['types'][-1]['verkoop']),
+        'pew_k': '%s%s%d' % (PW, pw['huidig'], pw['kosten_totaal']),
+        'pew_o': '%s%s%d' % (PW, pw['huidig'], pw['opbrengsten_totaal']),
+        'inv_h': 'Invoer!H8:H%d' % (inv_tot - 2), 'inv_ok': inv_tot + 3, 'inv_laatste': inv_tot - 2,
+        'daeb_naam': 'Woningtypes!$%s$7' % L(c0), 'daeb_aantal': 'Woningtypes!$%s$8' % L(c0),
+        'daeb_fees': 'Woningtypes!$%s$54:$%s$63' % (L(c0 + 1), L(c0 + 1)), 'daeb_type': daeb_type,
+        'daeb_rijen': 'rij %d e.v.' % daeb_van,
+    }
+
+
+def _volgende(kol):
+    from openpyxl.utils import column_index_from_string as ci
+    return L(ci(kol) + 1)
 
 
 def cell(ws, ref, value=None, font=F_BASE, fill_=None, fmt=None, align=None, border=None):
@@ -96,7 +130,7 @@ def status_rules(ws, rng):
 #  Start
 # ================================================================================================
 
-def maak_start(wb, demo):
+def maak_start(wb, demo, R):
     ws = wb.create_sheet('Start')
     ws.sheet_view.showGridLines = False
     ws.sheet_properties.tabColor = 'FEB900'
@@ -124,11 +158,11 @@ def maak_start(wb, demo):
         c = cell(ws, 'C%d' % r, val, F_BASE, FILL_INPUT if r == 6 else FILL_CALC)
         cell(ws, 'G%d' % r, note, F_NOTE)
     cell(ws, 'B8', 'Eerste prognosekwartaal · jaar en kwartaal')
-    cell(ws, 'C8', '=IF(C7="","",INT(C7/100))', F_BASE, FILL_CALC)
-    cell(ws, 'D8', '=IF(C7="","",ROUNDUP(MOD(C7,100)/3,0))', F_BASE, FILL_CALC)
+    cell(ws, 'C8', '=IF(F12>0,INT(F12/4),IF(C7="","",INT(C7/100)))', F_BASE, FILL_CALC)
+    cell(ws, 'D8', '=IF(F12>0,F12+1-4*INT(F12/4),IF(C7="","",ROUNDUP(MOD(C7,100)/3,0)))', F_BASE, FILL_CALC)
     cell(ws, 'E8', '=IF(C8="","","Q"&D8&" "&C8)', F_BOLD)
     cell(ws, 'F8', '=IF(C8="",0,C8*4+D8)', F_HELP, None, ';;;')
-    cell(ws, 'G8', 'uit de boekingsperiode; overschrijven mag', F_NOTE)
+    cell(ws, 'G8', 'het kwartaal na de laatste actuals (blok 2: FO - actuals); overschrijven mag', F_NOTE)
     cell(ws, 'B9', 'Oplevering · jaar en kwartaal')
     cell(ws, 'C9', demo['oplevering'][0], F_BASE, FILL_INPUT)
     cell(ws, 'D9', demo['oplevering'][1], F_BASE, FILL_INPUT)
@@ -136,7 +170,7 @@ def maak_start(wb, demo):
     cell(ws, 'F9', '=IF(C9="",0,C9*4+D9)', F_HELP, None, ';;;')
     cell(ws, 'G9', 'voorstel kosten: restant budget gelijk verdeeld t/m dit kwartaal', F_NOTE)
     cell(ws, 'B10', 'Cijfers per')
-    cell(ws, 'C10', '=IF(C7="","",EOMONTH(DATE(C8,MOD(C7,100),1),0))', F_BASE, FILL_INPUT, 'dd-mm-yyyy')
+    cell(ws, 'C10', '=IF(C7="","",EOMONTH(DATE(INT(C7/100),MOD(C7,100),1),0))', F_BASE, FILL_INPUT, 'dd-mm-yyyy')
     cell(ws, 'G10', 'standaard: einde boekingsperiode; overschrijven mag', F_NOTE)
     cell(ws, 'B11', 'Tekst in PowerPoint (dia 1 en 10)')
     cell(ws, 'C11', '=IF(C10="","","Cijfers per "&DAY(C10)&" "&CHOOSE(MONTH(C10),%s)&" "&YEAR(C10))' % MAANDEN,
@@ -188,9 +222,9 @@ def maak_start(wb, demo):
     cell(ws, 'D22', 'PEW', F_HEAD, FILL_HEAD)
     cell(ws, 'E22', 'verschil', F_HEAD, FILL_HEAD)
     prog = [
-        (23, 'Totaal kosten (CF - kosten, rij 75 ↔ PEW)', "=SUM('CF - kosten'!H75:AA75)", "=N('CF - kosten'!D55)"),
-        (24, 'Totaal opbrengsten (CF - opbrengsten, rij 194 ↔ PEW)', "=SUM('CF - opbrengsten'!G194:Z194)",
-         "=N('2. Ontw PEW'!G27)*1000"),
+        (23, 'Totaal kosten (CF - kosten, rij %d ↔ PEW)' % R['k_tot_rij'], "=SUM(%s)" % R['k_tot'], "=N(%s)" % R['k_pew']),
+        (24, 'Totaal opbrengsten (CF - opbrengsten, rij %d ↔ PEW)' % R['o_tot_rij'], "=SUM(%s)" % R['o_tot'],
+         "=N(%s)*1000" % R['pew_o']),
     ]
     for r, lab, a, b in prog:
         cell(ws, 'B%d' % r, lab)
@@ -198,14 +232,14 @@ def maak_start(wb, demo):
         cell(ws, 'D%d' % r, b, F_BASE, FILL_CALC, NUM)
         cell(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F_BASE, FILL_CALC, NUM)
     cell(ws, 'B25', 'Kostenposten op Voorstel')
-    cell(ws, 'C25', "=COUNTIF('CF - kosten'!C59:C70,\"Voorstel\")&\" van \"&COUNTIF('CF - kosten'!B59:B70,\"?*\")",
+    cell(ws, 'C25', "=COUNTIF(%s,\"Voorstel\")&\" van \"&COUNTIF(%s,\"?*\")" % (R['k_methode'], R['k_namen']),
          F_BASE, FILL_CALC, None, Alignment(horizontal='right'))
     cell(ws, 'G25', 'kies per post op CF - kosten, kolom C (blok Onderdelen)', F_NOTE)
     cell(ws, 'B26', 'Handmatige correctie opbrengsten')
-    cell(ws, 'C26', "=SUM('CF - opbrengsten'!G192:Z192)", F_BASE, FILL_CALC, NUM)
-    cell(ws, 'G26', 'gele regel 192 op CF - opbrengsten', F_NOTE)
+    cell(ws, 'C26', "=SUM(%s)" % R['o_corr'], F_BASE, FILL_CALC, NUM)
+    cell(ws, 'G26', 'gele regel %d op CF - opbrengsten' % R['o_corr_rij'], F_NOTE)
     cell(ws, 'B27', 'Eindsaldo cashflow (tab Invoer)')
-    cell(ws, 'C27', "=LOOKUP(2,1/ISNUMBER(Invoer!H8:H25),Invoer!H8:H25)", F_BOLD, FILL_CALC, NUM)
+    cell(ws, 'C27', "=LOOKUP(2,1/ISNUMBER(%s),%s)" % (R['inv_h'], R['inv_h']), F_BOLD, FILL_CALC, NUM)
 
     # 4 controles -----------------------------------------------------------------------------------
     section(ws, 29, '4 · CONTROLES')
@@ -215,29 +249,28 @@ def maak_start(wb, demo):
     cell(ws, 'E30', None, F_HEAD, FILL_HEAD)
     cell(ws, 'F30', 'Waar', F_HEAD, FILL_HEAD)
     cell(ws, 'G30', None, F_HEAD, FILL_HEAD)
-    ven_o = ("SUMPRODUCT(('CF - opbrengsten'!$G$196:$Z$196>=1)*('CF - opbrengsten'!$G$196:$Z$196<=60)"
-             "*'CF - opbrengsten'!$G$194:$Z$194)")
-    ven_k = ("SUMPRODUCT(('CF - kosten'!$H$77:$AA$77>=1)*('CF - kosten'!$H$77:$AA$77<=60)"
-             "*'CF - kosten'!$H$75:$AA$75)")
+    ven_o = "SUMPRODUCT((%s>=1)*(%s<=60)*%s)" % (R['o_per_abs'], R['o_per_abs'], R['o_tot_abs'])
+    ven_k = "SUMPRODUCT((%s>=1)*(%s<=60)*%s)" % (R['k_per_abs'], R['k_per_abs'], R['k_tot_abs'])
     checks = [
         ('Invoer compleet', '=COUNTIF(H15:H18,"OK")&" van 4 OK"', '=IF(COUNTIF(H15:H18,"OK")=4,"OK","LET OP")', 'blok 2'),
         ('Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW)',
          "=COUNTIF('Aansluiting opbrengsten'!J1:J300,\"FOUT\")&\" fout\"",
          "=IF(COUNTIF('Aansluiting opbrengsten'!J1:J300,\"FOUT\")=0,\"OK\",\"FOUT\")", 'Aansluiting opbrengsten, kolom J'),
         ('Opbrengsten volledig ingepland (bouwtermijnen, transport, verkoop)',
-         "=COUNTIF('CF - opbrengsten'!AD1:AD190,\"FOUT\")&\" fout\"",
-         "=IF(COUNTIF('CF - opbrengsten'!AD1:AD190,\"FOUT\")=0,\"OK\",\"FOUT\")", 'CF - opbrengsten, kolom AD'),
+         "=COUNTIF(%s,\"FOUT\")&\" fout\"" % R['o_status'],
+         "=IF(COUNTIF(%s,\"FOUT\")=0,\"OK\",\"FOUT\")" % R['o_status'], 'CF - opbrengsten, kolom %s' % R['o_status_kol']),
         ('Kosten volledig ingepland (per post de gekozen methode)',
-         "=COUNTIF('CF - kosten'!AD1:AE92,\"FOUT\")+COUNTIF('CF - kosten'!E72,\"FOUT\")&\" fout\"",
-         "=IF(COUNTIF('CF - kosten'!AD1:AE92,\"FOUT\")+COUNTIF('CF - kosten'!E72,\"FOUT\")=0,\"OK\",\"FOUT\")",
-         'CF - kosten, kolom AD/AE'),
+         "=COUNTIF(%s,\"FOUT\")+COUNTIF(%s,\"FOUT\")&\" fout\"" % (R['k_status'], R['k_check']),
+         "=IF(COUNTIF(%s,\"FOUT\")+COUNTIF(%s,\"FOUT\")=0,\"OK\",\"FOUT\")" % (R['k_status'], R['k_check']),
+         'CF - kosten, kolom %s' % R['k_status_kol']),
         ('Posten waar werkelijk > PEW (voorstel verdeelt dan niets)',
-         "=COUNTIF('CF - kosten'!AD100:AD111,\"OVERSCHRIJDING\")&\" post(en)\"",
-         "=IF(COUNTIF('CF - kosten'!AD100:AD111,\"OVERSCHRIJDING\")=0,\"OK\",\"LET OP\")", 'CF - kosten, voorstel'),
-        ('Handmatige correctie opbrengsten', "=FIXED(SUM('CF - opbrengsten'!G192:Z192),0)",
-         "=IF(SUM('CF - opbrengsten'!G192:Z192)=0,\"OK\",\"INFO\")", 'CF - opbrengsten, rij 192'),
-        ('Cashflow sluit aan op PEW', "=Invoer!D30&\" / \"&Invoer!F30",
-         "=IF(AND(Invoer!D30=\"OK\",Invoer!F30=\"OK\"),\"OK\",\"FOUT\")", 'Invoer, rij 30'),
+         "=COUNTIF(%s,\"OVERSCHRIJDING\")&\" post(en)\"" % R['k_voorstel_status'],
+         "=IF(COUNTIF(%s,\"OVERSCHRIJDING\")=0,\"OK\",\"LET OP\")" % R['k_voorstel_status'], 'CF - kosten, voorstel'),
+        ('Handmatige correctie opbrengsten', "=FIXED(SUM(%s),0)" % R['o_corr'],
+         "=IF(SUM(%s)=0,\"OK\",\"INFO\")" % R['o_corr'], 'CF - opbrengsten, rij %d' % R['o_corr_rij']),
+        ('Cashflow sluit aan op PEW', "=Invoer!D%d&\" / \"&Invoer!F%d" % (R['inv_ok'], R['inv_ok']),
+         "=IF(AND(Invoer!D%d=\"OK\",Invoer!F%d=\"OK\"),\"OK\",\"FOUT\")" % (R['inv_ok'], R['inv_ok']),
+         'Invoer, rij %d' % R['inv_ok']),
         ('CF - hulp VENA = definitieve cashflow',
          "=FIXED(ABS(N('CF - hulp VENA'!C3)-%s)+ABS(N('CF - hulp VENA'!C4)-%s),0)&\" verschil\"" % (ven_o, ven_k),
          "=IF(ABS(N('CF - hulp VENA'!C3)-%s)+ABS(N('CF - hulp VENA'!C4)-%s)<1,\"OK\",\"FOUT\")" % (ven_o, ven_k),
@@ -246,10 +279,11 @@ def maak_start(wb, demo):
          "=SUMPRODUCT(ISNUMBER(--'FO - huidig'!X17:X1500)*('FO - huidig'!Y17:Y1500=\"\")*ISNUMBER('FO - huidig'!R17:R1500)*('FO - huidig'!R17:R1500<>0))&\" regel(s)\"",
          "=IF(SUMPRODUCT(ISNUMBER(--'FO - huidig'!X17:X1500)*('FO - huidig'!Y17:Y1500=\"\")*ISNUMBER('FO - huidig'!R17:R1500)*('FO - huidig'!R17:R1500<>0))=0,\"OK\",\"FOUT\")",
          'Behind the scens, kolom A-C'),
-        ('DAEB-fees op Woningtypes (blok 5) = DAEB-blok op CF - opbrengsten',
-         "=IF(Woningtypes!$O$7=\"\",\"geen DAEB\",FIXED(SUM(Woningtypes!$P$54:$P$63),0)&\" van \"&FIXED(_koppeling!$C$418,0))",
-         "=IF(Woningtypes!$O$7=\"\",\"OK\",IF(Woningtypes!$O$8=\"\",\"LET OP: aantal DAEB-woningen ontbreekt\","
-         "IF(ABS(SUM(Woningtypes!$P$54:$P$63)-_koppeling!$C$418)<1,\"OK\",\"LET OP\")))", 'CF - opbrengsten rij 200-227'),
+        ('DAEB-fees op Woningtypes (type %d, blok 5) = DAEB-blok op CF - opbrengsten' % R['daeb_type'],
+         "=IF(%s=\"\",\"geen DAEB\",FIXED(SUM(%s),0)&\" van \"&FIXED(_koppeling!$C$418,0))" % (R['daeb_naam'], R['daeb_fees']),
+         "=IF(%s=\"\",\"OK\",IF(%s=\"\",\"LET OP: aantal DAEB-woningen ontbreekt\","
+         "IF(ABS(SUM(%s)-_koppeling!$C$418)<1,\"OK\",\"LET OP\")))" % (R['daeb_naam'], R['daeb_aantal'], R['daeb_fees']),
+         'CF - opbrengsten %s' % R['daeb_rijen']),
         ('Woningtypes dekken de opbrengsten (aantal × koopsom ÷ eigen opbrengsten)',
          "=FIXED(N(Dashboard!W13)*100,1)&\"%\"",
          "=IF(N(Dashboard!W13)=0,\"LET OP\",\"INFO\")", 'Dashboard W13 · Woningtypes'),
@@ -281,7 +315,8 @@ def maak_start(wb, demo):
         'SAP actuals (FR5) → FO - actuals. Check SAP op correcties in de werkelijke opbrengsten.',
         'Salesforce prijslijst → Prijslijst dump; zet de exportdatum op tab Prijslijst (cel C1).',
         'Controleer Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW) en vraag ontbrekende documentatie op.',
-        'CF - opbrengsten: per woningtype de bouwtermijnen en de transportregel, onderaan het verkooptempo; correctie in rij 192.',
+        'CF - opbrengsten: per woningtype de bouwtermijnen en de transportregel, onderaan het verkooptempo; correctie in rij %d.'
+        % R['o_corr_rij'],
         'CF - kosten: de bouwtermijnen volgen de planning van de opbrengsten (overschrijven mag); per post Handmatig of Voorstel (kolom C).',
         'Alle controles in blok 4 groen; bekijk Dashboard (cashflow) en 2. Ontw PEW.',
         'Bekijk Dashboard en Scenario\'s: Invoer, Woningtypes en Scenario kosten rekenen automatisch mee met de CF-tabbladen.',
@@ -297,9 +332,8 @@ def maak_start(wb, demo):
     section(ws, r, '6 · DIA 10 · UPDATE PEW')
     for i, h in enumerate(['Kaart', 'Waarde', 'Toelichting']):
         cell(ws, '%s%d' % (L(2 + i), r + 1), h, F_HEAD, FILL_HEAD)
-    dia10 = [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),
-             ('Huidige PEW-basis', 'FD DO (Aanbieding)', '10 april 2026'),
-             ('Mogelijk resultaat', '4,8%', 'Bij rentelasten richting nul')]
+    dia10 = demo.get('dia10') or [('Meest recente FD', None, None), ('Huidige PEW-basis', None, None),
+                                   ('Mogelijk resultaat', None, None)]
     for i, (a, b, c) in enumerate(dia10):
         rr = r + 2 + i
         cell(ws, 'B%d' % rr, a)
@@ -307,7 +341,7 @@ def maak_start(wb, demo):
         cell(ws, 'D%d' % rr, c, F_BASE, FILL_INPUT)
         ws.merge_cells('D%d:F%d' % (rr, rr))
     cell(ws, 'G%d' % (r + 4),
-         "=\"PEW-marge nu: \"&IFERROR(FIXED((N('2. Ontw PEW'!G27)-N('2. Ontw PEW'!G20))/N('2. Ontw PEW'!G27)*100,1),\"-\")&\"%\"",
+         "=\"PEW-marge nu: \"&IFERROR(FIXED((N(%s)-N(%s))/N(%s)*100,1),\"-\")&\"%%\"" % (R['pew_o'], R['pew_k'], R['pew_o']),
          F_NOTE)
     dia10_row = r + 2
 
@@ -324,60 +358,81 @@ def maak_start(wb, demo):
 NUM_PEW = '#,##0;-#,##0;"-"'
 
 
-def maak_pew(wb, inhoud):
-    """inhoud: {cel: waarde of formule} van '2. Ontw PEW' uit het FO. Geeft de extra (opmaak)teksten terug."""
+def maak_pew(wb, inhoud, pw):
+    """inhoud: {cel: waarde of formule} van '2. Ontw PEW' uit het FO; pw: de opzet van het blad (kolommen en rijen).
+    Geeft de extra (opmaak)teksten terug."""
     from openpyxl.chart import BarChart, Reference
     from openpyxl.formatting.rule import DataBarRule
+    from openpyxl.utils import column_index_from_string as ci
     ws = wb.create_sheet('2. Ontw PEW')
     ws.sheet_view.showGridLines = False
     ws.sheet_properties.tabColor = '003366'
-    for k, v in {'A': 2, 'B': 2, 'C': 34, 'D': 2, 'E': 13, 'F': 13, 'G': 13, 'H': 13, 'I': 13, 'J': 2, 'K': 58}.items():
+    kols = pw['kolommen']                                   # E .. laatste delta
+    iv, ih = kols.index(pw['vorig']), kols.index(pw['huidig'])
+    invoer, delta = kols[:iv], kols[ih + 1:]
+    toel = pw['toelichting']
+    kop, r1 = pw['kop'], pw['eerste']
+    rk = list(range(r1, pw['kosten_totaal'] - 1))           # kostengroepen
+    ro = list(range(pw['opbrengsten'], pw['opbrengsten_totaal'] - 1))
+    tk, to = pw['kosten_totaal'], pw['opbrengsten_totaal']
+    res = [r for r in (pw['resultaat'], pw['resultaat_pct']) if r]
+    chk = [r for r in pw['checks'] if r]
+    breed = {'A': 2, 'B': 2, 'C': 34, 'D': 2, toel: 58}
+    for c in kols:
+        breed[c] = 13
+    for c in range(ci(kols[-1]) + 1, ci(toel)):
+        breed[L(c)] = 2
+    for k, v in breed.items():
         ws.column_dimensions[k].width = v
     for ref, v in inhoud.items():
         ws[ref] = v
         ws[ref].font = F_BASE
     extra = {'B2': 'Ontwikkeling PEW', 'B3': 'x € 1.000 · huidig t.o.v. de vorige SAP-export en het meest recente FD · '
                                              'groen = gunstig, rood = ongunstig',
-             'C6': 'KOSTEN', 'C21': 'OPBRENGSTEN'}
+             'C%d' % (r1 - 1): 'KOSTEN', 'C%d' % (ro[0] - 1): 'OPBRENGSTEN'}
     cell(ws, 'B2', extra['B2'], F_TITLE)
     cell(ws, 'B3', extra['B3'], F_NOTE)
-    cell(ws, 'C4', None, F_HELP)
-    for c in 'EFGHI':
-        cell(ws, '%s4' % c, None, F_HEAD, FILL_SECTION)
-    cell(ws, 'E4', None, F_SECTION, FILL_SECTION)
-    cell(ws, 'K4', None, F_SECTION, FILL_SECTION)
-    for c in 'CEFGHIK':
-        cell(ws, '%s5' % c, None, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', vertical='center', wrap_text=True))
-    ws['C5'].alignment = Alignment(horizontal='left', vertical='center')
-    ws.row_dimensions[5].height = 30
-    for ref in ('C6', 'C21'):
+    cell(ws, 'C%d' % (kop - 1), None, F_HELP)
+    for c in kols:
+        cell(ws, '%s%d' % (c, kop - 1), None, F_HEAD, FILL_SECTION)
+    cell(ws, '%s%d' % (kols[0], kop - 1), None, F_SECTION, FILL_SECTION)
+    cell(ws, '%s%d' % (toel, kop - 1), None, F_SECTION, FILL_SECTION)
+    for c in ['C'] + kols + [toel]:
+        cell(ws, '%s%d' % (c, kop), None, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', vertical='center', wrap_text=True))
+    ws['C%d' % kop].alignment = Alignment(horizontal='left', vertical='center')
+    ws.row_dimensions[kop].height = 30
+    for ref in ('C%d' % (r1 - 1), 'C%d' % (ro[0] - 1)):
         cell(ws, ref, extra[ref], Font(name='Heijmans-BoldCon', size=10, color=Color(theme=6)))
-    for r in list(range(7, 19)) + list(range(22, 26)):
+    for r in rk + ro:
         cell(ws, 'C%d' % r, None, F_BASE, None, None, None, B_BOTTOM)
-        cell(ws, 'E%d' % r, None, F_BASE, FILL_INPUT, NUM_PEW, None, B_BOTTOM)
-        for c in 'FG':
-            cell(ws, '%s%d' % (c, r), None, F_BOLD if c == 'G' else F_BASE, None, NUM_PEW, None, B_BOTTOM)
-        for c in 'HI':
+        for c in invoer:
+            cell(ws, '%s%d' % (c, r), None, F_BASE, FILL_INPUT, NUM_PEW, None, B_BOTTOM)
+        for c in (pw['vorig'], pw['huidig']):
+            cell(ws, '%s%d' % (c, r), None, F_BOLD if c == pw['huidig'] else F_BASE, None, NUM_PEW, None, B_BOTTOM)
+        for c in delta:
             cell(ws, '%s%d' % (c, r), None, F_BASE, FILL_CALC, NUM_PEW, None, B_BOTTOM)
-        cell(ws, 'K%d' % r, None, F_NOTE, FILL_INPUT, None, Alignment(wrap_text=True, vertical='top'), B_BOTTOM)
-    for r in (20, 27):
-        for c in 'CEFGHIK':
-            cell(ws, '%s%d' % (c, r), None, F_BOLD if c != 'K' else F_NOTE, FILL_TOTAL, NUM_PEW if c in 'EFGHI' else None)
-    for r in (29, 30):
-        for c in 'CEFG':
+        cell(ws, '%s%d' % (toel, r), None, F_NOTE, FILL_INPUT, None, Alignment(wrap_text=True, vertical='top'), B_BOTTOM)
+    for r in (tk, to):
+        for c in ['C'] + kols + [toel]:
+            cell(ws, '%s%d' % (c, r), None, F_BOLD if c != toel else F_NOTE, FILL_TOTAL, NUM_PEW if c in kols else None)
+    for i, r in enumerate(res):
+        for c in ['C'] + kols[:ih + 1]:
             cell(ws, '%s%d' % (c, r), None, Font(name='Heijmans-BoldCon', size=11, color=Color(theme=6)), None,
-                 NUM_PEW if r == 29 else '0.0%')
-    for r in (32, 33):
-        for c in 'CEFG':
+                 NUM_PEW if i == 0 else '0.0%')
+    for r in chk:
+        for c in ['C'] + kols[:ih + 1]:
             cell(ws, '%s%d' % (c, r), None, F_HELP, None, '#,##0.0;-#,##0.0;"OK"' if c != 'C' else None)
-    # groen = gunstig: kosten lager (H/I > 0), opbrengsten hoger (H/I < 0)
+    # groen = gunstig: kosten lager (delta > 0), opbrengsten hoger (delta < 0)
     groen, rood = Font(color='FF15803D', bold=True), Font(color='FFB91C1C', bold=True)
-    ws.conditional_formatting.add('H7:I20', CellIsRule(operator='greaterThan', formula=['0.5'], font=groen))
-    ws.conditional_formatting.add('H7:I20', CellIsRule(operator='lessThan', formula=['-0.5'], font=rood))
-    ws.conditional_formatting.add('H22:I27', CellIsRule(operator='lessThan', formula=['-0.5'], font=groen))
-    ws.conditional_formatting.add('H22:I27', CellIsRule(operator='greaterThan', formula=['0.5'], font=rood))
-    ws.conditional_formatting.add('G7:G18', DataBarRule(start_type='num', start_value=0, end_type='max',
-                                                        color='FFFEB900', showValue=True))
+    if delta:
+        d1, d2 = delta[0], delta[-1]
+        ws.conditional_formatting.add('%s%d:%s%d' % (d1, r1, d2, tk), CellIsRule(operator='greaterThan', formula=['0.5'], font=groen))
+        ws.conditional_formatting.add('%s%d:%s%d' % (d1, r1, d2, tk), CellIsRule(operator='lessThan', formula=['-0.5'], font=rood))
+        ws.conditional_formatting.add('%s%d:%s%d' % (d1, ro[0], d2, to), CellIsRule(operator='lessThan', formula=['-0.5'], font=groen))
+        ws.conditional_formatting.add('%s%d:%s%d' % (d1, ro[0], d2, to), CellIsRule(operator='greaterThan', formula=['0.5'], font=rood))
+    h = pw['huidig']
+    ws.conditional_formatting.add('%s%d:%s%d' % (h, rk[0], h, rk[-1]),
+                                  DataBarRule(start_type='num', start_value=0, end_type='max', color='FFFEB900', showValue=True))
     ch = BarChart()
     ch.type = 'bar'
     ch.grouping = 'clustered'
@@ -385,13 +440,16 @@ def maak_pew(wb, inhoud):
     from openpyxl.chart import Series
     from openpyxl.chart.series import SeriesLabel
     from openpyxl.chart.data_source import StrRef
-    for col in (5, 6, 7):
-        s_ = Series(Reference(ws, min_col=col, min_row=7, max_row=18))
-        s_.tx = SeriesLabel(strRef=StrRef("'2. Ontw PEW'!$%s$5" % L(col)))
+    reeks = kols[:ih + 1]
+    for col in reeks:
+        s_ = Series(Reference(ws, min_col=ci(col), min_row=rk[0], max_row=rk[-1]))
+        s_.tx = SeriesLabel(strRef=StrRef("'2. Ontw PEW'!$%s$%d" % (col, kop)))
         ch.series.append(s_)
-    ch.set_categories(Reference(ws, min_col=3, min_row=7, max_row=18))
-    for s, kleur in zip(ch.series, ['B4C5CC', '9CA3AF', 'FEB900']):
-        s.graphicalProperties.solidFill = kleur
+    ch.set_categories(Reference(ws, min_col=3, min_row=rk[0], max_row=rk[-1]))
+    kleuren = ['D6DEE2', 'B4C5CC', '9CA3AF', 'FEB900'][-len(reeks):] if len(reeks) <= 4 else None
+    for i, s in enumerate(ch.series):
+        kl = kleuren[i] if kleuren else ('FEB900' if i == len(ch.series) - 1 else 'B4C5CC')
+        s.graphicalProperties.solidFill = kl
         s.graphicalProperties.line.noFill = True
     ch.title = 'Kosten per groep · FD, vorig en huidig (x € 1.000)'
     ch.x_axis.delete = False
@@ -402,8 +460,8 @@ def maak_pew(wb, inhoud):
     ch.legend.position = 'b'
     ch.height = 15
     ch.width = 18
-    ws.add_chart(ch, 'M4')
-    ws.freeze_panes = 'D6'
+    ws.add_chart(ch, '%s%d' % (L(ci(toel) + 2), kop - 1))
+    ws.freeze_panes = 'D%d' % (kop + 1)
     return extra
 
 
@@ -433,7 +491,7 @@ def maak_vorige_prognose(wb, vooraf=None, bron=''):
     return ws
 
 
-def maak_controle(wb, oud=None, bestand=''):
+def maak_controle(wb, oud=None, bestand='', inv_laatste=25):
     ws = wb.create_sheet('Controle oud FO')
     ws.sheet_view.showGridLines = False
     widths = {'A': 2, 'B': 8, 'C': 6, 'D': 15, 'E': 15, 'F': 11, 'G': 15, 'H': 15, 'I': 11, 'J': 15, 'K': 15, 'L': 11, 'M': 12}
@@ -450,7 +508,7 @@ def maak_controle(wb, oud=None, bestand=''):
              'Verschil', 'Status']
     for i, h in enumerate(heads):
         cell(ws, '%s8' % L(2 + i), h, F_HEAD, FILL_HEAD)
-    cf = "Invoer!$%s$8:$%s$25"
+    cf = "Invoer!$%s$8:$%s$" + str(inv_laatste)
     for i in range(52):
         r = 9 + i
         rij = oud[i] if oud and i < len(oud) else {}
@@ -510,18 +568,21 @@ def maak_sjabloon(wb):
     cell(ws, 'A1', 'Blad', F_BOLD)
     cell(ws, 'B1', 'Cel', F_BOLD)
     cell(ws, 'C1', 'Inhoud (wordt na Oud FO inlezen teruggezet)', F_BOLD)
+    ws.column_dimensions['E'].width = 22
+    ws.column_dimensions['F'].width = 60
     ws.column_dimensions['A'].width = 22
     ws.column_dimensions['C'].width = 120
     return ws
 
 
-def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud):
+def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud, oz, inv_tot, daeb_type):
     wb = Workbook()
     wb.remove(wb.active)
-    info = maak_start(wb, demo)
-    info['pew_extra'] = maak_pew(wb, pew_inhoud)
+    R = verwijzingen(oz, inv_tot, daeb_type)
+    info = maak_start(wb, demo, R)
+    info['pew_extra'] = maak_pew(wb, pew_inhoud, oz['pew'])
     maak_vorige_prognose(wb, oud_cashflow, 'uit ' + oud_bestand)
-    maak_controle(wb, oud_cashflow, oud_bestand)
+    maak_controle(wb, oud_cashflow, oud_bestand, R['inv_laatste'])
     info['stijlen'] = maak_stijlen(wb)
     maak_sjabloon(wb)
     h = wb.create_sheet('_koppeling')

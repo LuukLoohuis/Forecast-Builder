@@ -29,6 +29,8 @@ Private Const RIJ_PRIJS As Long = 18
 Private Const KOL_DATUM As Long = 6                  ' Start kolom F: laatst ingelezen
 Private Const KOL_BESTAND As Long = 7                ' Start kolom G: bestand / klembord
 
+' de opzet van het FO waarop dit werkbestand is gebouwd staat op _sjabloon kolom E:F (sleutel, waarde); de waarden
+' hieronder zijn alleen de terugval voor de standaardopzet
 Private Const TRANSPORTRIJEN As String = "13|26|36|46"   ' CF - opbrengsten: transportregel per woningtype
 
 ' tabbladen die 'Oud FO inlezen' overneemt (zelfde naam in het oude FO)
@@ -122,14 +124,15 @@ Private Sub InvoerInfo(rij As Long, ByRef blad As String, ByRef nKol As Long, By
     ' nKol = kolommen van de export (A..), hulp = hulpkolommen met formules rechts ervan, hulpRij = eerste rij met de formule
     Select Case rij
         Case RIJ_VORIG
-            blad = "FO - vorig": nKol = 21: hulp = "X|Y": hulpRij = 17
+            blad = "FO - vorig": nKol = 21: hulpRij = 17
         Case RIJ_HUIDIG
-            blad = "FO - huidig": nKol = 21: hulp = "X|Y": hulpRij = 17
+            blad = "FO - huidig": nKol = 21: hulpRij = 17
         Case RIJ_ACTUALS
-            blad = "FO - actuals": nKol = 16: hulp = "Q|R": hulpRij = 2
+            blad = "FO - actuals": nKol = 16: hulpRij = 2
         Case Else
-            blad = "Prijslijst dump": nKol = 9: hulp = "": hulpRij = 2
+            blad = "Prijslijst dump": nKol = 9: hulpRij = 2
     End Select
+    hulp = HulpKolommen(blad)
 End Sub
 
 Private Sub Plakken(rij As Long)
@@ -242,14 +245,32 @@ Private Function LaatsteRij(ws As Worksheet, nKol As Long) As Long
     LaatsteRij = m
 End Function
 
+Private Function HulpKolommen(blad As String) As String
+    ' hulpkolommen rechts van de export met de eerste rij met een formule, bv. "X:17|Y:30"
+    Select Case blad
+        Case "FO - vorig", "FO - huidig": HulpKolommen = Cfg("hulp|" & blad, "X:17|Y:17")
+        Case "FO - actuals": HulpKolommen = Cfg("hulp|" & blad, "Q:2|R:2")
+        Case Else: HulpKolommen = ""
+    End Select
+End Function
+
 Private Sub HulpBijwerken(ws As Worksheet, hulp As String, hulpRij As Long, laatste As Long)
-    ' de formule van de eerste rij doortrekken t/m de laatste exportrij (rijen daaronder houden hun formule)
-    Dim kolommen() As String, i As Long, f As String
-    If Len(hulp) = 0 Or laatste <= hulpRij Then Exit Sub
+    ' per hulpkolom ("X:17|Y:30", kolom:eerste formulerij) de formule van de eerste rij doortrekken t/m de laatste
+    ' exportrij (rijen daaronder houden hun formule); hulpRij geldt voor kolommen zonder eigen eerste rij
+    Dim kolommen() As String, i As Long, f As String, k As String, r1 As Long
+    If Len(hulp) = 0 Then Exit Sub
     kolommen = Split(hulp, "|")
     For i = LBound(kolommen) To UBound(kolommen)
-        f = ws.Range(kolommen(i) & hulpRij).FormulaR1C1
-        If Left$(f, 1) = "=" Then ws.Range(kolommen(i) & hulpRij & ":" & kolommen(i) & laatste).FormulaR1C1 = f
+        k = kolommen(i)
+        r1 = hulpRij
+        If InStr(k, ":") > 0 Then
+            r1 = CLng(Split(k, ":")(1))
+            k = Split(k, ":")(0)
+        End If
+        If laatste > r1 Then
+            f = ws.Range(k & r1).FormulaR1C1
+            If Left$(f, 1) = "=" Then ws.Range(k & r1 & ":" & k & laatste).FormulaR1C1 = f
+        End If
     Next i
 End Sub
 
@@ -282,7 +303,7 @@ Public Sub NieuwKwartaalStarten()
     h = LaatsteRij(wsH, 21)
     LeegMaken wsV, 21
     wsV.Range("A1:U" & h).Value = wsH.Range("A1:U" & h).Value
-    HulpBijwerken wsV, "X|Y", 17, h
+    HulpBijwerken wsV, HulpKolommen("FO - vorig"), 17, h
     LeegMaken wsH, 21
     LeegMaken wsA, 16
     With ThisWorkbook.Worksheets(SH_START)
@@ -372,7 +393,7 @@ Public Sub OudFOInlezen()
     End If
     wbO.Application.Calculate
 
-    bladen = Split(FO_BLADEN, "|")
+    bladen = Split(Cfg("fo_bladen", FO_BLADEN), "|")
     For i = LBound(bladen) To UBound(bladen)
         stap = "tabblad '" & bladen(i) & "'"
         Set wsO = ZoekBlad(wbO, bladen(i))
@@ -390,9 +411,9 @@ Public Sub OudFOInlezen()
     stap = "nieuwe onderdelen terugzetten (_sjabloon)"
     SjabloonTerugzetten waarschuwing
     stap = "hulpkolommen"
-    HulpBijwerken ThisWorkbook.Worksheets("FO - vorig"), "X|Y", 17, LaatsteRij(ThisWorkbook.Worksheets("FO - vorig"), 21)
-    HulpBijwerken ThisWorkbook.Worksheets("FO - huidig"), "X|Y", 17, LaatsteRij(ThisWorkbook.Worksheets("FO - huidig"), 21)
-    HulpBijwerken ThisWorkbook.Worksheets("FO - actuals"), "Q|R", 2, LaatsteRij(ThisWorkbook.Worksheets("FO - actuals"), 16)
+    HulpBijwerken ThisWorkbook.Worksheets("FO - vorig"), HulpKolommen("FO - vorig"), 17, LaatsteRij(ThisWorkbook.Worksheets("FO - vorig"), 21)
+    HulpBijwerken ThisWorkbook.Worksheets("FO - huidig"), HulpKolommen("FO - huidig"), 17, LaatsteRij(ThisWorkbook.Worksheets("FO - huidig"), 21)
+    HulpBijwerken ThisWorkbook.Worksheets("FO - actuals"), HulpKolommen("FO - actuals"), 2, LaatsteRij(ThisWorkbook.Worksheets("FO - actuals"), 16)
     stap = "vorige prognose en controle vullen"
     ControleVullen wbO, CStr(pad)
     If zelfGeopend Then wbO.Close SaveChanges:=False
@@ -542,10 +563,16 @@ Private Sub SjabloonTerugzetten(ByRef waarschuwing As String)
     ' Daarna krijgt het totaal (rij 194) de correctieregel (rij 192) erbij, en het DAEB-totaal als het lege blok terugkwam.
     Dim ws As Worksheet, wo As Worksheet, r As Long, blad As String, cel As String, inhoud As String, mis As Long
     Dim daebLeeg As Boolean, zetten As Boolean, c As Long, f As String
+    Dim rTot As Long, rCorr As Long, rDaeb As Long, k1 As Long, k2 As Long
     Set ws = ThisWorkbook.Worksheets(SH_SJABLOON)
     Set wo = ThisWorkbook.Worksheets("CF - opbrengsten")
-    daebLeeg = (Application.WorksheetFunction.CountIf(wo.Range("B1:B600"), "*daeb*") = 0) And _
-               (Application.WorksheetFunction.CountA(wo.Range("B200:Z228")) = 0)
+    rTot = CLng(Cfg("opbrengsten_totaal", "194"))
+    rCorr = CLng(Cfg("opbrengsten_correctie", "192"))
+    rDaeb = CLng(Cfg("daeb_totaal", "224"))                 ' 0 = het FO had een eigen DAEB-blok
+    k1 = CLng(Cfg("opbrengsten_kol1", "7"))
+    k2 = CLng(Cfg("opbrengsten_kol2", "26"))
+    daebLeeg = (rDaeb > 0) And (Application.WorksheetFunction.CountIf(wo.Range("B1:B600"), "*daeb*") = 0) And _
+               (Application.WorksheetFunction.CountA(wo.Range(Cfg("daeb_bereik", "B200:Z228"))) = 0)
     r = 2
     Do While Len(CStr(ws.Cells(r, 1).Value)) > 0
         blad = CStr(ws.Cells(r, 1).Value)
@@ -571,12 +598,12 @@ Private Sub SjabloonTerugzetten(ByRef waarschuwing As String)
         End If
         r = r + 1
     Loop
-    For c = 7 To 26                                           ' G..Z
-        f = wo.Cells(194, c).Formula
+    For c = k1 To k2
+        f = wo.Cells(rTot, c).Formula
         If Left$(f, 1) = "=" Then
-            If InStr(f, "192") = 0 Then f = f & "+" & KolomLetter(c) & "192"
-            If daebLeeg And InStr(f, "224") = 0 Then f = f & "+" & KolomLetter(c) & "224"
-            If f <> wo.Cells(194, c).Formula Then wo.Cells(194, c).Formula = f
+            If InStr(f, KolomLetter(c) & rCorr) = 0 Then f = f & "+" & KolomLetter(c) & rCorr
+            If daebLeeg And InStr(f, KolomLetter(c) & rDaeb) = 0 Then f = f & "+" & KolomLetter(c) & rDaeb
+            If f <> wo.Cells(rTot, c).Formula Then wo.Cells(rTot, c).Formula = f
         End If
     Next c
     If mis > 0 Then waarschuwing = waarschuwing & "- " & mis & " cel(len) van het sjabloon konden niet worden teruggezet." & vbCrLf
@@ -584,25 +611,29 @@ End Sub
 
 Private Sub OpzetControleren(ByRef waarschuwing As String)
     ' de prognosebladen volgen de rijen van de standaardopzet; wijkt het oude FO daarvan af, dan melden
-    Dim fout As String
-    fout = fout & Controleer("CF - kosten", "B58", "onderdelen")
-    fout = fout & Controleer("CF - kosten", "B75", "totaal kosten")
-    fout = fout & Controleer("CF - kosten", "B77", "periode in cashflow sap")
-    fout = fout & Controleer("CF - opbrengsten", "B128", "termijnen 1 in")
-    fout = fout & Controleer("CF - opbrengsten", "B189", "overige opbrengsten in")
-    fout = fout & Controleer("CF - opbrengsten", "B194", "totaal opbrengsten")
-    fout = fout & Controleer("CF - opbrengsten", "B196", "periode in cashflow sap")
+    ' de vaste rijen staan op _sjabloon (sleutel 'controles': blad|cel|begin;...)
+    Dim fout As String, c As Variant, d() As String, bereik As String, kolZ As String
+    For Each c In Split(Cfg("controles", "CF - kosten|B58|onderdelen;CF - kosten|B75|totaal kosten;" & _
+            "CF - kosten|B77|periode in cashflow sap;CF - opbrengsten|B128|termijnen 1 in;" & _
+            "CF - opbrengsten|B189|overige opbrengsten in;CF - opbrengsten|B194|totaal opbrengsten;" & _
+            "CF - opbrengsten|B196|periode in cashflow sap"), ";")
+        d = Split(c, "|")
+        If UBound(d) = 2 Then fout = fout & Controleer(d(0), d(1), d(2))
+    Next c
     ' onderdelen van het werkbestand die op vaste rijen staan: stond daar in het oude FO al iets, dan melden
-    If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - opbrengsten").Range("B192:Z192")) > 0 Then
-        fout = fout & "    CF - opbrengsten rij 192 was niet leeg; daar staat nu de correctieregel" & vbCrLf
+    bereik = Cfg("correctie_bereik", "B192:Z192")
+    If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - opbrengsten").Range(bereik)) > 0 Then
+        fout = fout & "    CF - opbrengsten " & bereik & " was niet leeg; daar staat nu de correctieregel" & vbCrLf
     End If
-    If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - kosten").Range("B93:AD112")) > 0 Then
-        fout = fout & "    CF - kosten rij 93-112 was niet leeg; daar staat nu het voorstelblok" & vbCrLf
+    bereik = Cfg("voorstel_bereik", "B93:AD112")
+    If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - kosten").Range(bereik)) > 0 Then
+        fout = fout & "    CF - kosten " & bereik & " was niet leeg; daar staat nu het voorstelblok" & vbCrLf
     End If
     ' de transportregels komen in lege rijen onder de bouwtermijnen; stond daar iets, dan melden
     Dim t As Variant
-    For Each t In Split(TRANSPORTRIJEN, "|")
-        If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - opbrengsten").Range("B" & t & ":Z" & t)) > 0 Then
+    kolZ = KolomLetter(CLng(Cfg("opbrengsten_kol2", "26")))
+    For Each t In Split(Cfg("transportrijen", TRANSPORTRIJEN), "|")
+        If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - opbrengsten").Range("B" & t & ":" & kolZ & t)) > 0 Then
             fout = fout & "    CF - opbrengsten rij " & t & " was niet leeg; daar staat nu de transportregel" & vbCrLf
         End If
     Next t
@@ -632,16 +663,16 @@ Private Sub ControleVullen(wbO As Workbook, pad As String)
     wsV.Range("B8:G67").ClearContents
     wsV.Range("D5").Value = "oud FO: " & BestandsNaam(pad)
     For i = 0 To 51
-        r = 4 + i
+        r = CLng(Cfg("cashflow_rij1", "4")) + i
         If Not IsNumeric(wsO.Cells(r, 2).Value) Or IsEmpty(wsO.Cells(r, 2).Value) Then Exit For
         wsK.Cells(9 + i, 2).Value = wsO.Cells(r, 2).Value
-        wsK.Cells(9 + i, 3).Value = CStr(wsO.Cells(r, 3).Value)
+        wsK.Cells(9 + i, 3).Value = Kwartaal(wsO.Cells(r, 3).Value)
         If Not IsError(wsO.Cells(r, 4).Value) Then wsK.Cells(9 + i, 4).Value = wsO.Cells(r, 4).Value
         If Not IsError(wsO.Cells(r, 6).Value) Then wsK.Cells(9 + i, 7).Value = wsO.Cells(r, 6).Value
         If Not IsError(wsO.Cells(r, 8).Value) Then wsK.Cells(9 + i, 10).Value = wsO.Cells(r, 8).Value
         If i < 60 Then
             wsV.Cells(8 + i, 2).Value = wsO.Cells(r, 2).Value
-            wsV.Cells(8 + i, 3).Value = CStr(wsO.Cells(r, 3).Value)
+            wsV.Cells(8 + i, 3).Value = Kwartaal(wsO.Cells(r, 3).Value)
             If Not IsError(wsO.Cells(r, 10).Value) Then wsV.Cells(8 + i, 7).Value = wsO.Cells(r, 10).Value
         End If
     Next i
@@ -660,6 +691,28 @@ End Sub
 ' =====================================================================================
 '  hulpjes
 ' =====================================================================================
+
+Private Function Cfg(sleutel As String, standaard As String) As String
+    ' opzet van het FO (_sjabloon kolom E: sleutel, F: waarde), anders de standaardwaarde
+    Dim ws As Worksheet, r As Variant
+    Cfg = standaard
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(SH_SJABLOON)
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Function
+    r = Application.Match(sleutel, ws.Range("E1:E200"), 0)
+    If Not IsError(r) Then
+        If Len(CStr(ws.Cells(r, 6).Value)) > 0 Then Cfg = CStr(ws.Cells(r, 6).Value)
+    End If
+End Function
+
+Private Function Kwartaal(v As Variant) As String
+    ' 'Q1'..'Q4'; een jaarrij (leeg of het jaartal in de kolom Q) wordt leeg
+    Dim t As String
+    If IsError(v) Then Exit Function
+    t = UCase$(Trim$(CStr(v)))
+    If t Like "Q[1-4]" Then Kwartaal = t
+End Function
 
 Private Function ZoekBlad(wb As Workbook, naam As String) As Worksheet
     Dim ws As Worksheet

@@ -15,84 +15,86 @@ from __future__ import annotations
 
 import re
 
-from xlsxpkg import Sheet, num2col
+from xlsxpkg import Sheet, col2num, num2col
 
 OK = "'CF - opbrengsten'!"
 KK = "'CF - kosten'!"
-KEYO = "_koppeling!$G$521:$Z$521"         # kwartaalindex per kolom van CF - opbrengsten (G..Z)
-KEYV = "_koppeling!$C$524:$Z$524"         # Verkooptempo kolom C..Z: kwartaalindex, -1 = kolom actuals
-KEYK = KK + "$H$96:$AA$96"
-MATO = OK + "$G$1:$Z$300"
-MATK = KK + "$H$1:$AA$300"
 ACT = 'p_actuals'
-INV_R1, N_KW = 8, 16
-INV_RN = INV_R1 + 1 + N_KW                  # 2 jaarrijen + 16 kwartalen: rij 8..25
 SLOTS = {'T': 10, 'X': 6, 'B': 10}
 KOOP_X0 = {'T': 16, 'X': 33, 'B': 82}       # eerste rij op Woningtypes
 HULP = '_koppeling!'
+VT_LAATSTE = 'AN'                           # Verkooptempo: kolommen C..AN doorzoeken
+INV_R1, INV_MAX = 8, 67                     # Invoer: perioderijen 8..67 (het scenariomodel rekent met 60 periodes)
+MAX_TYPES = 4                               # _koppeling: 100 rijen per type, DAEB vanaf rij 401
+
+# door configureer() gezet uit de opzet van het FO
+O1 = ON = K1 = KN = None
+KEYO = KEYV = KEYK = MATO = MATK = None
+O_TOT = K_TOT = K_OFF = WK = None
+INV_RN = N_JAAR = N_PRE = None
+DAEB_TYPE = None
+OZ = None
+
+
+def configureer(oz):
+    """kolommen en rijen uit de opzet (opzet.py) van het FO"""
+    global WK, O1, ON, K1, KN, KEYO, KEYV, KEYK, MATO, MATK, O_TOT, K_TOT, K_OFF, INV_RN, N_JAAR, N_PRE, DAEB_TYPE, OZ
+    OZ = oz
+    ob, k = oz['opbrengsten'], oz['kosten']
+    O1, ON = ob['eerste'], ob['laatste']
+    K1, KN = k['eerste'], k['laatste']
+    KEYO = "_koppeling!$%s$521:$%s$521" % (O1, ON)       # kwartaalindex per kolom van CF - opbrengsten
+    KEYV = "_koppeling!$C$524:$%s$524" % VT_LAATSTE       # Verkooptempo kolom C..: kwartaalindex, -1 = kolom actuals
+    KEYK = KK + "$%s$%d:$%s$%d" % (K1, k['sleutelrij'], KN, k['sleutelrij'])
+    MATO = OK + "$%s$1:$%s$%d" % (O1, ON, (ob.get('daeb_eind') or ob['max']) + 50)
+    MATK = KK + "$%s$1:$%s$%d" % (K1, KN, k['max'] + 20)
+    O_TOT, K_TOT, K_OFF = ob['totaal'], k['totaal'], k['voorstel_offset']
+    WK = k['werkelijk'] or 'K'
+    per = oz['cashflow']['periodes']
+    N_JAAR = sum(1 for p in per if not p[1])
+    n_q = len(per) - N_JAAR
+    n_kq = sum(1 for c in range(col2num(K1), col2num(KN) + 1) if c >= col2num(k['eerste_q']))
+    N_PRE = max(0, n_q - n_kq)                           # kwartalen v\u00f3\u00f3r de eerste kolom van CF - kosten (alleen actuals)
+    INV_RN = INV_R1 + len(per) - 1
+    if INV_RN > INV_MAX:
+        raise ValueError('1. Cashflow heeft %d periodes; het scenariomodel kan er 60 aan' % len(per))
+    n = len(ob['types'])
+    if n > MAX_TYPES:
+        raise ValueError('%d woningtypes; het werkbestand kan er %d aan' % (n, MAX_TYPES))
+    DAEB_TYPE = n + 1
 
 
 def structuur(o: Sheet, k: Sheet):
-    """woningtypes uit de opzet van CF - opbrengsten en CF - kosten"""
-    get = o.get
-    kop = [r for r in range(2, 48) if (get('F%d' % (r - 1)) or '').strip() == '# won']
-    omz = [r for r in range(48, 190) if (get('F%d' % (r - 1)) or '').strip() == '# won']
-    assert len(kop) == len(omz) == 4, (kop, omz)
-    vk = [r for r in range(2, 120) if (get('B%d' % r) or '').strip().lower() == 'verkooptempo'][0]
-    types = []
-    for i, (hb, oh) in enumerate(zip(kop, omz)):
-        plan, tr, d = [], None, None
-        r = hb + 1
-        while get('B%d' % r):
-            b = get('B%d' % r)
-            if b.startswith('Transport'):
-                tr = r
-            else:
-                m = re.match(r'=B(\d+)$', b)
-                assert m, (r, b)
-                if d is None:
-                    d = int(m.group(1)) - r
-                assert int(m.group(1)) - r == d, 'planningsrij %d past niet bij omzetrij %s' % (r, b)
-                plan.append(r)
-            r += 1
-        orows = []
-        r = oh + 1
-        while get('B%d' % r):
-            orows.append(r)
-            r += 1
-        koop = orows[0]
-        assert get('G%d' % koop) == '=G%d' % tr, (koop, tr)
-        # termijnblok op CF - kosten met dezelfde titel
-        kr = [r for r in range(2, 60) if k.get('B%d' % r) == "='CF - opbrengsten'!B%d" % hb]
-        krows = []
-        if kr:
-            r = kr[0] + 1
-            while k.get('B%d' % r) and not k.get('B%d' % r).lower().startswith(('aanneemsom', 'meerwerk')):
-                krows.append(r)
-                r += 1
-        types.append({'k': i + 1, 'hb': hb, 'plan': plan, 'd': d, 'tr': tr, 'koop': koop, 'omzet': orows,
-                      'verkoop': vk + 1 + i, 'kosten': krows})
+    """woningtypes uit de opzet, gecontroleerd op het aangepaste CF - opbrengsten"""
+    types = OZ['opbrengsten']['types']
+    for t in types:
+        assert (o.get('B%d' % t['tr']) or '').startswith('Transport'), t
+        assert o.get('%s%d' % (O1, t['koop'])) == '=%s%d' % (O1, t['tr']), (t['koop'], t['tr'])
+        for r in t['plan']:
+            assert o.get('B%d' % r) == '=B%d' % (r + t['d']), 'planningsrij %d past niet bij de omzetrij' % r
     return types
 
 
 def sleutelrijen(h: Sheet):
     """kwartaalindex (jaar x 4 + kw) per kolom van CF - opbrengsten (G..Z, kop rij 127/128) en Verkooptempo (C..Z, rij 2/3;
     -1 = de kolom 'actuals')"""
+    jr, kr = OZ['opbrengsten']['jaarrij'], OZ['opbrengsten']['euro_kop']
     h.set('B520', 'CF - opbrengsten: jaar')
     h.set('B521', 'CF - opbrengsten: kwartaalindex')
-    for i, c in enumerate(num2col(x) for x in range(7, 27)):
-        prev = num2col(6 + i)
-        h.set('%s520' % c, '=IF(ISNUMBER(%s%s$127),%s%s$127,%s)' % (OK, c, OK, c, '%s520' % prev if i else '""'))
-        h.set('%s521' % c, '=IF(AND(ISNUMBER(%s520),LEFT(%s%s$128&"",1)="Q"),%s520*4+VALUE(MID(%s%s$128,2,1)),0)'
-              % (c, OK, c, c, OK, c))
+    for i, c in enumerate(num2col(x) for x in range(col2num(O1), col2num(ON) + 1)):
+        prev = num2col(col2num(O1) - 1 + i)
+        h.set('%s520' % c, '=IF(ISNUMBER(%s%s$%d),%s%s$%d,%s)' % (OK, c, jr, OK, c, jr, '%s520' % prev if i else '""'))
+        h.set('%s521' % c, '=IF(AND(ISNUMBER(%s520),LEFT(%s%s$%d&"",1)="Q"),%s520*4+VALUE(MID(%s%s$%d,2,1)),0)'
+              % (c, OK, c, kr, c, OK, c, kr))
+    vk = (OZ.get('verkooptempo') or {}).get('kop') or 3
     h.set('A523', 'Verkooptempo: jaar')
     h.set('A524', 'Verkooptempo: kwartaalindex')
     V = 'Verkooptempo!'
-    for i, c in enumerate(num2col(x) for x in range(3, 27)):
+    for i, c in enumerate(num2col(x) for x in range(3, col2num(VT_LAATSTE) + 1)):
         prev = num2col(2 + i)
-        h.set('%s523' % c, '=IF(ISNUMBER(%s%s$2),%s%s$2,%s)' % (V, c, V, c, '%s523' % prev if i else '""'))
-        h.set('%s524' % c, '=IF(LOWER(TRIM(%s%s$3&""))="actuals",-1,IF(AND(ISNUMBER(%s523),LEFT(%s%s$3&"",1)="Q"),'
-                           '%s523*4+VALUE(MID(%s%s$3,2,1)),0))' % (V, c, c, V, c, c, V, c))
+        h.set('%s523' % c, '=IF(ISNUMBER(%s%s$%d),%s%s$%d,%s)' % (V, c, vk - 1, V, c, vk - 1, '%s523' % prev if i else '""'))
+        h.set('%s524' % c, '=IF(LOWER(TRIM(%s%s$%d&""))="actuals",-1,IF(AND(ISNUMBER(%s523),LEFT(%s%s$%d&"",1)="Q"),'
+                           '%s523*4+VALUE(MID(%s%s$%d,2,1)),0))' % (V, c, vk, c, V, c, vk, c, V, c, vk))
 
 
 def rij(mat, r):
@@ -107,7 +109,7 @@ def vul_hulp(h: Sheet, types, log):
         aant = "N(%sG%d)" % (OK, t['hb'] - 1)
         h.set('A%d' % R0, 'Type %d' % k)
         h.set('B%d' % R0, 'start (kwartaalindex)')
-        plan2d = "%s$G$%d:$Z$%d" % (OK, t['plan'][0], t['plan'][-1])
+        plan2d = "%s$%s$%d:$%s$%d" % (OK, O1, t['plan'][0], ON, t['plan'][-1])
         start = 'C%d' % R0
         h.set(start, '=IFERROR(_xlfn.AGGREGATE(15,6,%s/((%s<>0)*(%s>0)),1),0)' % (KEYO, plan2d, KEYO))
         h.set('D%d' % R0, 'aantal')
@@ -135,7 +137,7 @@ def vul_hulp(h: Sheet, types, log):
                 elif lijst == 'X':
                     p = src - t['d']
                     if p in t['plan']:
-                        h.set('A%d' % r, '=IF(SUMIFS(%s$G$%d:$Z$%d,%s,">0")<>0,%d,%d)' % (OK, p, p, KEYO, p, src))
+                        h.set('A%d' % r, '=IF(SUMIFS(%s$%s$%d:$%s$%d,%s,">0")<>0,%d,%d)' % (OK, O1, p, ON, p, KEYO, p, src))
                     else:
                         h.set('A%d' % r, src)
                     h.set('B%d' % r, '=%sB%d&""' % (OK, src))
@@ -152,7 +154,7 @@ def vul_hulp(h: Sheet, types, log):
                 R = rij(mat, 'A%d' % r)
                 if lijst == 'B':
                     # gerealiseerd: kolom actuals (K) + kwartalen t/m actuals; later: kwartalen erna
-                    h.set('L%d' % r, '=N(%sK%d)+SUMIFS(%s,%s,"<="&%s,%s,">0")' % (KK, src, R, key, ACT, key))
+                    h.set('L%d' % r, '=N(%s%s%d)+SUMIFS(%s,%s,"<="&%s,%s,">0")' % (KK, WK, src, R, key, ACT, key))
                     h.set('M%d' % r, '=SUMPRODUCT((%s<>0)*(%s>%s))' % (R, key, ACT))
                     h.set('J%d' % r, '=L%d+SUMIFS(%s,%s,">"&%s)' % (r, R, key, ACT))
                     h.set('K%d' % r, '=IF(J%d=0,"",(L%d*%s+SUMPRODUCT(%s*(%s>%s)*%s))/J%d)' % (r, r, ACT, R, key, ACT, key, r))
@@ -179,7 +181,7 @@ def vul_hulp(h: Sheet, types, log):
                 h.set('%s%d' % (c, s1), kop)
             rng = lambda c: '$%s$%d:$%s$%d' % (c, i1, c, iN)
             mat, key = (MATK, KEYK) if lijst == 'B' else (MATO, KEYO)
-            keyfirst = 'H' if lijst == 'B' else 'G'
+            keyfirst = K1 if lijst == 'B' else O1
             m = '$' + mode.replace('C', 'C$')
             for j in range(1, n_sl + 1):
                 r = s1 + j
@@ -226,8 +228,11 @@ def woningtypes(w: Sheet, types, slots, st):
         R0 = 1 + (k - 1) * 100
         lab = '%sB%d' % (OK, t['hb'])
         aant = '%sG%d' % (OK, t['hb'] - 1)
-        w.set('%s7' % cn, '=IF(N(%s)=0,"",IF(ISNUMBER(FIND(" - ",%s)),TRIM(MID(%s,FIND(" - ",%s)+3,200)),"Type %d"))'
-              % (aant, lab, lab, lab, k))
+        # naam zoals de macro (typeNaam): na ' - ' in de titel, anders kolom C naast de titel, anders na 'Termijnen '
+        labc = '%sC%d' % (OK, t['hb'])
+        w.set('%s7' % cn, '=IF(N(%s)=0,"",IF(ISNUMBER(FIND(" - ",%s)),TRIM(MID(%s,FIND(" - ",%s)+3,200)),'
+                          'IF(TRIM(%s&"")<>"",TRIM(%s&""),IF(LEFT(LOWER(%s),10)="termijnen ",TRIM(MID(%s,11,200)),"Type %d"))))'
+              % (aant, lab, lab, lab, labc, labc, lab, lab, k))
         w.set('%s8' % cn, '=IF(N(%s)=0,"",%s)' % (aant, aant))
         o1, oN = t['omzet'][1], t['omzet'][-1]
         koop = 'N(%sE%d)' % (OK, t['koop'])
@@ -248,8 +253,10 @@ def woningtypes(w: Sheet, types, slots, st):
 
 
 def invoer(inv: Sheet, types, st):
-    """kolommen A..J (periodes en cashflow) en verkocht/transport per type; rij 27-30 totalen en controle"""
+    """kolommen A..J (periodes en cashflow, zelfde periodes als het oude 1. Cashflow) en verkocht/transport per type;
+    onder de periodes de totalen en de controle"""
     a = "'FO - actuals'!"
+    pw = OZ['pew']
 
     def act(soort, jaar, q=None):
         f = 'SUMIFS(%s$K:$K,%s$Q:$Q,"%s",%s$P:$P,%s' % (a, a, soort, a, jaar)
@@ -257,25 +264,32 @@ def invoer(inv: Sheet, types, st):
             f += ',%s$R:$R,%s' % (a, q)
         return f + ')'
     r1 = INV_R1
-    inv.set('A%d' % r1, 0, st['verborgen'])
-    inv.set('A%d' % (r1 + 1), 0, st['verborgen'])
-    q1 = r1 + 2
-    inv.set('B%d' % r1, '=IFERROR(INT(($A$%d-1)/4)-2,"")' % q1, st['vet'])
-    inv.set('B%d' % (r1 + 1), '=IFERROR(INT(($A$%d-1)/4)-1,"")' % q1, st['vet'])
-    inv.set('C%d' % r1, None)
-    inv.set('C%d' % (r1 + 1), None)
-    inv.set('D%d' % r1, '=SUMPRODUCT(SUMIFS(%s$K:$K,%s$Q:$Q,"Kosten",%s$P:$P,$B%d-{0,1,2,3,4}))' % (a, a, a, r1), st['getal'])
-    inv.set('F%d' % r1, '=-SUMPRODUCT(SUMIFS(%s$K:$K,%s$Q:$Q,"Omzet",%s$P:$P,$B%d-{0,1,2,3,4}))' % (a, a, a, r1), st['getal'])
-    inv.set('D%d' % (r1 + 1), '=' + act('Kosten', '$B%d' % (r1 + 1)), st['getal'])
-    inv.set('F%d' % (r1 + 1), '=-' + act('Omzet', '$B%d' % (r1 + 1)), st['getal'])
+    q1 = r1 + N_JAAR
+    for j in range(N_JAAR):
+        r = r1 + j
+        inv.set('A%d' % r, 0, st['verborgen'])
+        inv.set('B%d' % r, '=IFERROR(INT(($A$%d-1)/4)-%d,"")' % (q1, N_JAAR - j), st['vet'])
+        inv.set('C%d' % r, None)
+        if j == 0:      # eerste jaarrij: ook de jaren ervoor
+            inv.set('D%d' % r, '=SUMPRODUCT(SUMIFS(%s$K:$K,%s$Q:$Q,"Kosten",%s$P:$P,$B%d-{0,1,2,3,4}))' % (a, a, a, r), st['getal'])
+            inv.set('F%d' % r, '=-SUMPRODUCT(SUMIFS(%s$K:$K,%s$Q:$Q,"Omzet",%s$P:$P,$B%d-{0,1,2,3,4}))' % (a, a, a, r), st['getal'])
+        else:
+            inv.set('D%d' % r, '=' + act('Kosten', '$B%d' % r), st['getal'])
+            inv.set('F%d' % r, '=-' + act('Omzet', '$B%d' % r), st['getal'])
+    kt = '%s$%s$%d:$%s$%d' % (KK, K1, K_TOT, KN, K_TOT)
+    ot = '%s$%s$%d:$%s$%d' % (OK, O1, O_TOT, ON, O_TOT)
     for r in range(q1, INV_RN + 1):
-        inv.set('A%d' % r, '=IFERROR(_xlfn.AGGREGATE(15,6,%s/(%s>0),ROW()-%d),"")' % (KEYK, KEYK, q1 - 1), st['verborgen'])
+        if r == q1:
+            a0 = '=IFERROR(_xlfn.AGGREGATE(15,6,%s/(%s>0),1)%s,"")' % (KEYK, KEYK, '-%d' % N_PRE if N_PRE else '')
+        else:
+            a0 = '=IF(A%d="","",IF(A%d+1>MAX(%s),"",A%d+1))' % (r - 1, r - 1, KEYK, r - 1)
+        inv.set('A%d' % r, a0, st['verborgen'])
         inv.set('B%d' % r, '=IF($A%d="","",INT(($A%d-1)/4))' % (r, r), st['vet'])
         inv.set('C%d' % r, '=IF($A%d="","","Q"&($A%d-4*$B%d))' % (r, r, r), st['vet'])
-        inv.set('D%d' % r, '=IF($A%d="","",%s+IF($A%d>=p_huidig,IFERROR(INDEX(%s$H$75:$AA$75,MATCH($A%d,%s,0)),0),0))'
-                % (r, act('Kosten', '$B%d' % r, '$C%d' % r), r, KK, r, KEYK), st['getal'])
-        inv.set('F%d' % r, '=IF($A%d="","",-%s+IF($A%d>=p_huidig,IFERROR(INDEX(%s$G$194:$Z$194,MATCH($A%d,%s,0)),0),0))'
-                % (r, act('Omzet', '$B%d' % r, '$C%d' % r), r, OK, r, KEYO), st['getal'])
+        inv.set('D%d' % r, '=IF($A%d="","",%s+IF($A%d>=p_huidig,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0))'
+                % (r, act('Kosten', '$B%d' % r, '$C%d' % r), r, kt, r, KEYK), st['getal'])
+        inv.set('F%d' % r, '=IF($A%d="","",-%s+IF($A%d>=p_huidig,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0))'
+                % (r, act('Omzet', '$B%d' % r, '$C%d' % r), r, ot, r, KEYO), st['getal'])
     tot = INV_RN + 2
     for r in range(r1, INV_RN + 1):
         inv.set('E%d' % r, '=IF(D%d="","",IFERROR(D%d/$D$%d,0))' % (r, r, tot), st['pct'])
@@ -289,16 +303,20 @@ def invoer(inv: Sheet, types, st):
             cv, ct = num2col(12 + 2 * (t['k'] - 1)), num2col(13 + 2 * (t['k'] - 1))
             naam = 'Woningtypes!$%s$7' % num2col(3 + 3 * (t['k'] - 1))
             for col, bron in ((cv, t['verkoop']), (ct, t['koop'])):
-                rng = '%s$G$%d:$Z$%d' % (OK, bron, bron)
+                rng = '%s$%s$%d:$%s$%d' % (OK, O1, bron, ON, bron)
                 inv.set('%s%d' % (col, r), '=IF(OR($B%d="",%s=""),"",IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)'
                                            '+IF($A%d=%s,SUMIFS(%s,%s,0),0))'
                         % (r, naam, r, rng, r, KEYO, r, ACT, rng, KEYO), st['aantal'])
+    # oude inhoud onder de periodes (tot de 60 rijen van het model) leeg
+    for r in range(INV_RN + 1, tot):
+        for c in 'ABCDEFGHIJ':
+            inv.set('%s%d' % (c, r), None)
     inv.set('C%d' % tot, 'Totaal', st['label_tot'])
     inv.set('D%d' % tot, '=SUM(D%d:D%d)' % (r1, INV_RN), st['getal_tot'])
     inv.set('F%d' % tot, '=SUM(F%d:F%d)' % (r1, INV_RN), st['getal_tot'])
     inv.set('C%d' % (tot + 1), 'PEW', st['tekst'])
-    inv.set('D%d' % (tot + 1), "=N('2. Ontw PEW'!G20)*1000", st['getal'])
-    inv.set('F%d' % (tot + 1), "=N('2. Ontw PEW'!G27)*1000", st['getal'])
+    inv.set('D%d' % (tot + 1), "=N('2. Ontw PEW'!%s%d)*1000" % (pw['huidig'], pw['kosten_totaal']), st['getal'])
+    inv.set('F%d' % (tot + 1), "=N('2. Ontw PEW'!%s%d)*1000" % (pw['huidig'], pw['opbrengsten_totaal']), st['getal'])
     inv.set('C%d' % (tot + 2), 'Check', st['tekst'])
     inv.set('D%d' % (tot + 2), '=ROUND(D%d-D%d,2)' % (tot, tot + 1), st['getal'])
     inv.set('F%d' % (tot + 2), '=ROUND(F%d-F%d,2)' % (tot, tot + 1), st['getal'])
@@ -308,27 +326,31 @@ def invoer(inv: Sheet, types, st):
 
 
 def scenario_kosten(sk: Sheet, st):
-    for i, p in enumerate(range(59, 71)):
+    k = OZ['kosten']
+    jaar_kol = (K1, num2col(col2num(WK) - 1))          # kolommen vóór 'werkelijk' (oude jaren)
+    q1 = num2col(col2num(WK) + 1)
+    sl = k['sleutelrij']
+    for i, p in enumerate(k['posten']):
         r = 8 + i
         sk.set('B%d' % r, '=IF(%sB%d="","",%sB%d&"")' % (KK, p, KK, p))
         sk.set('C%d' % r, '=IF(B%d="","",IF(OR(ISNUMBER(SEARCH({"promotie","verkoop","verhuur","makelaar","marketing"},B%d))),'
                           '"verkoop",IF(OR(ISNUMBER(SEARCH({"aanneemsom","bouwkosten","meerwerk","aansluit","reserve",'
                           '"bouwplaats","nutsvoorziening"},B%d))),"start bouw","vast")))' % (r, r, r))
         hv = '(%sC%d<>"Voorstel")' % (KK, p), '(%sC%d="Voorstel")' % (KK, p)
-        gr = lambda q: 'N(%sK%d)+SUM(%sH%d:J%d)+SUMIFS(%sL%d:AA%d,%sL$96:AA$96,"<="&%s)' % (KK, q, KK, q, q, KK, q, q, KK, ACT)
-        sk.set('E%d' % r, '=IF(B%d="","",%s*(%s)+%s*(%s))' % (r, hv[0], gr(p), hv[1], gr(p + 41)))
+        gr = lambda q: 'N(%s%s%d)+SUM(%s%s%d:%s%d)+SUMIFS(%s%s%d:%s%d,%s%s$%d:%s$%d,"<="&%s)' % (
+            KK, WK, q, KK, jaar_kol[0], q, jaar_kol[1], q, KK, q1, q, KN, q, KK, q1, sl, KN, sl, ACT)
+        sk.set('E%d' % r, '=IF(B%d="","",%s*(%s)+%s*(%s))' % (r, hv[0], gr(p), hv[1], gr(p + K_OFF)))
         for pi in range(60):
             c = num2col(9 + pi)
             key = 'INDEX(Invoer!$A$8:$A$67,%s$6)' % c
-            val = lambda q: 'IFERROR(INDEX(%s$H$%d:$AA$%d,MATCH(%s,%s,0)),0)' % (KK, q, q, key, KEYK)
-            sk.set('%s%d' % (c, r), '=IF(OR($B%d="",N(%s)<=%s),"",%s*%s+%s*%s)' % (r, key, ACT, hv[0], val(p), hv[1], val(p + 41)))
+            val = lambda q: 'IFERROR(INDEX(%s$%s$%d:$%s$%d,MATCH(%s,%s,0)),0)' % (KK, K1, q, KN, q, key, KEYK)
+            sk.set('%s%d' % (c, r), '=IF(OR($B%d="",N(%s)<=%s),"",%s*%s+%s*%s)' % (r, key, ACT, hv[0], val(p), hv[1], val(p + K_OFF)))
 
 
 # ================================================================================================
 #  DAEB: los blok 'Opbrengsten DAEB' op CF - opbrengsten -> woningtype 5 (soort DAEB, fees in blok 5)
 # ================================================================================================
 
-DAEB_TYPE = 5                       # typeblok op Woningtypes (kolom O..Q) en Invoer (kolom T/U)
 DR = 420                            # eerste hulprij van de termijnrijen op _koppeling
 DN = 40                             # rijen onder de koprij die meetellen
 SLOT1, SLOT2 = 463, 469             # fee-regels van component 1 en 2 op _koppeling
@@ -385,14 +407,14 @@ def daeb_hulp(h: Sheet, types, log):
     h.set('D413', "Verkooptempo: koprij (E414), koopwoningtypes (F414), kolom 'Aantal' (G414)")
     h.set('E414', '=IFERROR(MATCH("verkooptempo",Verkooptempo!$A$1:$A$30,0),0)')
     h.set('F414', '=%s' % '+'.join('(N(Woningtypes!%s8)>0)' % num2col(3 + 3 * i) for i in range(len(types))))
-    h.set('G414', '=IF(E414=0,3,IFERROR(MATCH("aantal",INDEX(Verkooptempo!$A$1:$Z$30,E414,0),0),3))')
+    h.set('G414', '=IF(E414=0,3,IFERROR(MATCH("aantal",INDEX(Verkooptempo!$A$1:$AN$30,E414,0),0),3))')
     h.set('B414', "DAEB-rij op Verkooptempo")
     pos = 'IF(AND($E$414>0,TRIM(INDEX(Verkooptempo!$A$1:$A$60,$E$414+$F$414+1)&"")<>"",'\
           'LEFT(LOWER(TRIM(INDEX(Verkooptempo!$A$1:$A$60,$E$414+$F$414+1)&"")),6)<>"totaal"),$E$414+$F$414+1,0)'
     h.set('C414', '=IF(C401=0,0,IFERROR(_xlfn.AGGREGATE(15,6,ROW(Verkooptempo!$A$1:$A$60)/ISNUMBER(SEARCH("daeb",'
                   'Verkooptempo!$A$1:$A$60)),1),%s))' % pos)
     h.set('B415', 'aantal DAEB-woningen')
-    h.set('C415', '=IF(C413>0,C413,IF(C414>0,N(INDEX(Verkooptempo!$A$1:$Z$60,C414,$G$414)),0))')
+    h.set('C415', '=IF(C413>0,C413,IF(C414>0,N(INDEX(Verkooptempo!$A$1:$AN$60,C414,$G$414)),0))')
     h.set('B416', "rij 'Verkoop en levering DAEB'")
     h.set('C416', '=IFERROR(MATCH("Verkoop en levering DAEB*",%s,0),0)' % B)
     h.set('C417', '=IF(C416=0,0,IF(SUMPRODUCT((INDEX(%s,C416,0)<>0)*1)>0,1,0))' % MATO)
@@ -493,6 +515,10 @@ def daeb_woningtypes(w: Sheet, inv: Sheet, st):
     w.set('%s10' % cn, '=IF(OR(%s7="",%s=0),"",INT((%s-1)/4))' % (cn, sk, sk))
     w.set('%s11' % cn, '=IF(OR(%s7="",%s=0),"",%s-4*INT((%s-1)/4))' % (cn, sk, sk, sk))
     w.set('%s15' % cp, None)
+    for r1, n in ((KOOP_X0['T'], SLOTS['T']), (KOOP_X0['X'], SLOTS['X']), (KOOP_X0['B'], SLOTS['B'])):
+        for r in range(r1, r1 + n):          # termijnen en bouwkosten: DAEB heeft fee-regels in blok 5
+            for c in (cn, cp, ck):
+                w.set('%s%d' % (c, r), None)
     w.set('%s48' % cn, '=IF(%s7="","","DAEB")' % cn)
     for r, hr in ((51, 408), (52, 409)):
         w.set('%s%d' % (cn, r), '=IF(OR(%s$7="",%s$C$%d=""),"",%s$C$%d)' % (cn, HULP, hr, HULP, hr))
@@ -508,7 +534,7 @@ def daeb_woningtypes(w: Sheet, inv: Sheet, st):
     cv, ct = num2col(12 + 2 * (DAEB_TYPE - 1)), num2col(13 + 2 * (DAEB_TYPE - 1))
     for r in range(INV_R1, INV_RN + 1):
         ro = rij(MATO, HULP + '$C$416')
-        rv = rij('Verkooptempo!$C$1:$Z$60', HULP + '$C$414')
+        rv = rij('Verkooptempo!$C$1:$%s$60' % VT_LAATSTE, HULP + '$C$414')
         uit_o = 'IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)+IF($A%d=%s,SUMIFS(%s,%s,0),0)' % (r, ro, r, KEYO, r, ACT, ro, KEYO)
         uit_v = 'IF(%s$C$414=0,0,IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)+IF($A%d=%s,SUMIFS(%s,%s,-1),0))' % (
             HULP, r, rv, r, KEYV, r, ACT, rv, KEYV)

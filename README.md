@@ -6,6 +6,7 @@ prognose op basis van een voorstel of met de hand, en een PowerPoint die uit het
 | Bestand | Wat |
 |---|---|
 | `output/FO_Parkzoom_werkbestand.xlsm` | het werkbestand (fictieve Parkzoom-data) |
+| `output/FO_Parkzoom_werkbestand.opzet.json` | de opzet van het FO waarop het is gebouwd (rijen, kolommen; voor de controle) |
 | `output/Kwartaal_Template_cashflow_v21.pptx` | PowerPoint-sjabloon: v20 met namen voor de vormen die nu ook gevuld worden (lay-out ongewijzigd) |
 | `docs/werkinstructie.md` | kwartaal-FO in stappen (één A4) |
 | `docs/prompt-forecast-1-bestand.md` | de uitgangspunten (prompt) |
@@ -89,9 +90,44 @@ Het verborgen hulpblad `_koppeling` zet de termijnen om naar regels per bouwkwar
   - LibreOffice leest alle 31 modules correct uit het bestand.
   - De macro's zijn **niet in Excel uitgevoerd**: daar is in deze omgeving geen Excel voor. Test bij het eerste gebruik de knoppen op een kopie.
   - Geeft Excel een melding over het VBA-project? Importeer dan `vba/FOWerkbestand.bas` en `vba/CashflowNaarPowerPoint.bas` via Alt+F11 → Bestand → Importeren, en zet de code van `vba/ThisWorkbook.cls` in ThisWorkbook.
-- Het scenariodeel rekent met de vier woningtypeblokken van de standaardopzet, plus het DAEB-blok als woningtype 5.
-- **Let op:** het werkbestand is gebouwd op de opzet van het demo-FO (4 woningtypes, kwartalen 2026-2029, vaste rijen). Een FO met een andere opzet (bijvoorbeeld 3 woningtypes, andere rijen of kwartalen tot 2030) past daar niet 1-op-1 in.
-- "Oud FO inlezen" gaat uit van de standaardopzet van het FO: transportregels in de lege rijen 13, 26, 36 en 46 van `CF - opbrengsten`, posten in rij 59-70 van `CF - kosten`. Wijkt een oud FO daarvan af, dan meldt de knop dat. `Controle oud FO` laat het effect zien.
+- **Getest op een echt FO (3 woningtypes, DAEB met AK fees en bijkomende kosten, kwartalen t/m 2030, 1. Cashflow vanaf 2019):**
+  - het werkbestand is uit dat FO gebouwd zonder iets aan te passen;
+  - de cashflow op `Invoer` (36 periodes, met totalen en controles), `CF - opbrengsten`, `CF - kosten`, `CF - hulp VENA`, `2. Ontw PEW` en `Aansluiting opbrengsten` zijn per cel gelijk aan de waarden die Excel in dat FO heeft opgeslagen;
+  - de controles die op FOUT staan, staan in het originele FO ook op FOUT (zie hieronder bij "Bevindingen bij een echt FO").
+  - het echte FO zelf staat niet in deze repository.
+- Het scenariodeel kan tot 4 woningtypes aan, plus het DAEB-blok als het volgende type (bij 4 typen: type 5), en tot 60 periodes.
+- "Oud FO inlezen" gaat uit van de opzet van het FO waarop het werkbestand is gebouwd (de rijen staan op het verborgen blad `_sjabloon`, kolom E:F). Lees dus een oud FO van hetzelfde project in. Wijkt het daarvan af, dan meldt de knop dat; `Controle oud FO` laat het effect zien.
+
+## Werkbestand voor een ander project
+
+```bash
+python3 tools/build_werkbestand.py --fo pad/naar/FO_Project_Q4.xlsx --out werkbestand/FO_Project_werkbestand.xlsm
+```
+
+```bash
+python3 tools/controleer.py werkbestand/FO_Project_werkbestand.xlsm --fo pad/naar/FO_Project_Q4.xlsx
+```
+
+Het script leest eerst de opzet van het FO (`tools/opzet.py`):
+- het aantal woningtypes, de bouwplanning en de lege rij eronder (daar komt de transportregel), en de omzetblokken;
+- de kwartaalkolommen, de check- en statuskolommen;
+- de totaalrij, de correctieregel (een lege rij boven het totaal) en een eventueel eigen DAEB-blok;
+- op `CF - kosten`: de posten, het totaal en de vrije rijen voor het voorstelblok;
+- de kolommen van `2. Ontw PEW` (ook met een extra kolom zoals "FD corr DAEB") en de periodes van `1. Cashflow`.
+
+Daarna bouwt het alles op die opzet:
+- de projectnaam komt uit de bestandsnaam (of `--project`);
+- het opleveringskwartaal komt uit de markering "Oplevering" boven de kwartalen (of `--oplevering 2030-2`);
+- extra tabbladen van het FO (zoals `2B. Ontw PEW`) gaan mee;
+- verwijzingen naar een ander bestand (`'[2]FO - huidig'!`) wijzen daarna naar het tabblad in het werkbestand;
+- namen die naar een ander bestand of naar `#REF!` wijzen, vallen weg.
+
+Het eerste prognosekwartaal is het kwartaal na de laatste actuals in `FO - actuals` (overschrijven mag op `Start`).
+
+**Bevindingen bij een echt FO.** Het script meldt wat het tegenkomt. Bij het geteste FO:
+- de grondtermijn van één woningtype verwees naar de lege rij onder de bouwplanning (uitkomst 0). In de transportregel is dat de eerste planningsrij geworden; de uitkomst bleef gelijk;
+- 2B. Ontw PEW gaf in Excel `#VALUE!` in de controlekolom (die verwees naar een ander bestand); nu rekent die kolom met `FO - huidig` van het werkbestand;
+- de kosten in `1. Cashflow` sloten niet aan op het PEW (FOUT, ook in het FO zelf): het PEW-bedrag was met de hand ingevuld en er stonden actuals van vóór de eerste kolom van `CF - kosten`. Het werkbestand vergelijkt met `2. Ontw PEW` en laat het verschil dus zien.
 
 ## Opnieuw bouwen
 

@@ -1,0 +1,479 @@
+{
+ "fo": "FO_Parkzoom_fictieve_demoversie.xlsx",
+ "opzet": {
+  "bladen": [
+   [
+    "Toelichting onderlegger",
+    "hidden"
+   ],
+   [
+    "Behind the scens",
+    "visible"
+   ],
+   [
+    "Prijslijst dump",
+    "visible"
+   ],
+   [
+    "Prijslijst",
+    "visible"
+   ],
+   [
+    "Aansluiting opbrengsten",
+    "visible"
+   ],
+   [
+    "Notities FO gesprek",
+    "visible"
+   ],
+   [
+    "CF - opbrengsten",
+    "visible"
+   ],
+   [
+    "CF - kosten",
+    "visible"
+   ],
+   [
+    "Verkooptempo",
+    "visible"
+   ],
+   [
+    "FO - vorig",
+    "visible"
+   ],
+   [
+    "FO - huidig",
+    "visible"
+   ],
+   [
+    "FO - actuals",
+    "visible"
+   ],
+   [
+    "1. Ontw businessc FD",
+    "hidden"
+   ],
+   [
+    "1. Cashflow",
+    "visible"
+   ],
+   [
+    "2. Ontw PEW",
+    "visible"
+   ],
+   [
+    "3. Restant bdgt",
+    "visible"
+   ],
+   [
+    "5. K&R businessc",
+    "hidden"
+   ],
+   [
+    "CF - hulp VENA",
+    "visible"
+   ]
+  ],
+  "opbrengsten": {
+   "eerste": "G",
+   "laatste": "Z",
+   "check": "AB",
+   "verschil": "AC",
+   "status": "AD",
+   "types": [
+    {
+     "k": 1,
+     "hb": 5,
+     "plan": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+     ],
+     "d": 52,
+     "tr": 13,
+     "omzet_kop": 56,
+     "omzet": [
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67
+     ],
+     "koop": 57,
+     "verkoop": 49,
+     "kosten": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+     ]
+    },
+    {
+     "k": 2,
+     "hb": 15,
+     "plan": [
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25
+     ],
+     "d": 57,
+     "tr": 26,
+     "omzet_kop": 71,
+     "omzet": [
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85
+     ],
+     "koop": 72,
+     "verkoop": 50,
+     "kosten": [
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26
+     ]
+    },
+    {
+     "k": 3,
+     "hb": 28,
+     "plan": [
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35
+     ],
+     "d": 63,
+     "tr": 36,
+     "omzet_kop": 90,
+     "omzet": [
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101
+     ],
+     "koop": 91,
+     "verkoop": 51,
+     "kosten": [
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38
+     ]
+    },
+    {
+     "k": 4,
+     "hb": 38,
+     "plan": [
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45
+     ],
+     "d": 68,
+     "tr": 46,
+     "omzet_kop": 105,
+     "omzet": [
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116
+     ],
+     "koop": 106,
+     "verkoop": 52,
+     "kosten": [
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50
+     ]
+    }
+   ],
+   "verkoop_kop": 48,
+   "euro_kop": 128,
+   "totaal": 194,
+   "periode": 196,
+   "correctie": 192,
+   "daeb": null,
+   "daeb_sjabloon": 200,
+   "max": 196,
+   "daeb_totaal": 224,
+   "daeb_eind": 227,
+   "kop_markering": {
+    "startbouw": "P",
+    "oplevering": "U"
+   },
+   "mijlpalen": {
+    "startbouw": [
+     2027,
+     2
+    ],
+    "oplevering": [
+     2028,
+     3
+    ]
+   },
+   "jaarrij": 127,
+   "daeb_kop": 205
+  },
+  "kosten": {
+   "eerste": "H",
+   "eerste_q": "L",
+   "laatste": "AA",
+   "onderdelen": 58,
+   "posten": [
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70
+   ],
+   "totaal": 75,
+   "pct": 76,
+   "periode": 77,
+   "pew_totaal": 55,
+   "check": 72,
+   "som": 71,
+   "status": "AD",
+   "totaalkol": "AC",
+   "toelichting": "AF",
+   "werkelijk": "K",
+   "voorstel_start": 93,
+   "voorstel_offset": 41,
+   "voorstel_eind": 112,
+   "sleutelrij": 96,
+   "max": 92,
+   "voorstel_eerste": 100,
+   "voorstel_laatste": 111
+  },
+  "pew": {
+   "kop": 5,
+   "fd": "E",
+   "vorig": "F",
+   "huidig": "G",
+   "kolommen": [
+    "E",
+    "F",
+    "G",
+    "H",
+    "I"
+   ],
+   "toelichting": "K",
+   "eerste": 7,
+   "kosten_totaal": 20,
+   "opbrengsten": 22,
+   "opbrengsten_totaal": 27,
+   "resultaat": 29,
+   "resultaat_pct": 30,
+   "checks": [
+    32,
+    33
+   ]
+  },
+  "cashflow": {
+   "kop": 3,
+   "periodes": [
+    [
+     2024,
+     "",
+     4
+    ],
+    [
+     2025,
+     "",
+     5
+    ],
+    [
+     2026,
+     "Q1",
+     6
+    ],
+    [
+     2026,
+     "Q2",
+     7
+    ],
+    [
+     2026,
+     "Q3",
+     8
+    ],
+    [
+     2026,
+     "Q4",
+     9
+    ],
+    [
+     2027,
+     "Q1",
+     10
+    ],
+    [
+     2027,
+     "Q2",
+     11
+    ],
+    [
+     2027,
+     "Q3",
+     12
+    ],
+    [
+     2027,
+     "Q4",
+     13
+    ],
+    [
+     2028,
+     "Q1",
+     14
+    ],
+    [
+     2028,
+     "Q2",
+     15
+    ],
+    [
+     2028,
+     "Q3",
+     16
+    ],
+    [
+     2028,
+     "Q4",
+     17
+    ],
+    [
+     2029,
+     "Q1",
+     18
+    ],
+    [
+     2029,
+     "Q2",
+     19
+    ],
+    [
+     2029,
+     "Q3",
+     20
+    ],
+    [
+     2029,
+     "Q4",
+     21
+    ]
+   ],
+   "totaal": 23,
+   "ok": 26
+  },
+  "verkooptempo": {
+   "kop": 3
+  },
+  "hulpkolommen": {
+   "FO - vorig": {
+    "X": [
+     17,
+     263
+    ],
+    "Y": [
+     29,
+     263
+    ]
+   },
+   "FO - huidig": {
+    "X": [
+     17,
+     263
+    ],
+    "Y": [
+     30,
+     263
+    ]
+   },
+   "FO - actuals": {
+    "Q": [
+     2,
+     4250
+    ],
+    "R": [
+     2,
+     4250
+    ]
+   }
+  }
+ },
+ "invoer_laatste": 25,
+ "invoer_totaal": 27,
+ "daeb_type": 5
+}

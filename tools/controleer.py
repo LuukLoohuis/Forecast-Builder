@@ -6,7 +6,9 @@
 3. Vergelijken: 1. Cashflow, CF - hulp VENA, 2. Ontw PEW en 3. Restant bdgt in het werkbestand tegen de waarden die
    Excel in het oorspronkelijke FO heeft opgeslagen; daarna de controles op tab Start.
 
-    python tools/controleer.py [werkbestand.xlsm]
+    python tools/controleer.py [werkbestand.xlsm] [--fo FO.xlsx]
+
+De opzet van het FO (welke rijen en kolommen) staat in <werkbestand>.opzet.json, die build_werkbestand.py schrijft.
 """
 from __future__ import annotations
 
@@ -134,33 +136,56 @@ def doorrekenen(src, dst):
         lo.kill()
 
 
-VERGELIJK = [('1. Cashflow', 'B4:J21', 'Invoer', 'B8:J25'), ('1. Cashflow', 'D23:F23', 'Invoer', 'D27:F27'),
-             ('1. Cashflow', 'D26:F26', 'Invoer', 'D30:F30'), ('CF - hulp VENA', 'C3:BK4', 'CF - hulp VENA', 'C3:BK4'),
-             ('2. Ontw PEW', 'E7:I30', '2. Ontw PEW', 'E7:I30'),
-             ('Aansluiting opbrengsten', 'B15:J29', 'Aansluiting opbrengsten', 'B15:J29'),
-             ('CF - opbrengsten', 'G57:Z194', 'CF - opbrengsten', 'G57:Z194'),
-             ('CF - kosten', 'H59:AA77', 'CF - kosten', 'H59:AA77')]
+def vergelijkingen(cfg, fo_wb):
+    """welke bereiken van het oude FO terug moeten komen in het werkbestand, volgens de opzet van het FO"""
+    from openpyxl.utils import get_column_letter as L
+    oz = cfg['opzet']
+    cf, ob, k, pw = oz['cashflow'], oz['opbrengsten'], oz['kosten'], oz['pew']
+    r1, rn = cf['periodes'][0][2], cf['periodes'][-1][2]
+    il, it = cfg['invoer_laatste'], cfg['invoer_totaal']
+    v = fo_wb['CF - hulp VENA']
+    out = [('1. Cashflow', 'B%d:J%d' % (r1, rn), 'Invoer', 'B8:J%d' % il),
+           ('1. Cashflow', 'D%d:F%d' % (cf['totaal'], cf['totaal']), 'Invoer', 'D%d:F%d' % (it, it)),
+           ('1. Cashflow', 'D%d:F%d' % (cf['ok'], cf['ok']), 'Invoer', 'D%d:F%d' % (it + 3, it + 3)),
+           ('CF - hulp VENA', 'C3:%s4' % L(v.max_column), 'CF - hulp VENA', 'C3:%s4' % L(v.max_column)),
+           ('2. Ontw PEW', 'E%d:%s%d' % (pw['eerste'], pw['kolommen'][-1], pw['resultaat_pct']), '2. Ontw PEW',
+            'E%d:%s%d' % (pw['eerste'], pw['kolommen'][-1], pw['resultaat_pct']))]
+    a = fo_wb['Aansluiting opbrengsten']
+    out.append(('Aansluiting opbrengsten', 'B1:J%d' % a.max_row, 'Aansluiting opbrengsten', 'B1:J%d' % a.max_row))
+    o = '%s%d:%s%d' % (ob['eerste'], ob['types'][0]['omzet'][0], ob['laatste'], ob['totaal'])
+    out.append(('CF - opbrengsten', o, 'CF - opbrengsten', o))
+    kk = '%s%d:%s%d' % (k['eerste'], k['posten'][0], k['laatste'], k['periode'])
+    out.append(('CF - kosten', kk, 'CF - kosten', kk))
+    bekend = {'2. Ontw PEW'}
+    for n, _ in oz['bladen']:
+        if 'PEW' in n and n not in bekend:
+            ws = fo_wb[n]
+            rng = 'E1:%s%d' % (L(ws.max_column), ws.max_row)
+            out.append((n, rng, n, rng))
+    return out
 
 
-def vergelijk(nieuw, fo_path):
+def vergelijk(nieuw, fo_path, cfg, toon=5):
     import openpyxl
     a = openpyxl.load_workbook(fo_path, data_only=True)
     b = openpyxl.load_workbook(nieuw, data_only=True)
     fouten = 0
-    for blad_a, ber_a, blad_b, ber_b in VERGELIJK:
+    for blad_a, ber_a, blad_b, ber_b in vergelijkingen(cfg, a):
         n = 0
         for ra, rb in zip(a[blad_a][ber_a], b[blad_b][ber_b]):
             for ca, cb in zip(ra, rb):
                 va, vb = ca.value, cb.value
+                if blad_a == '1. Cashflow' and ca.column == 3 and not (isinstance(va, str) and va.startswith('Q')):
+                    va = None           # jaarrij: in sommige FO's staat het jaar ook in kolom Q
                 if isinstance(va, (int, float)) or isinstance(vb, (int, float)):
                     x = va if isinstance(va, (int, float)) else 0
                     y = vb if isinstance(vb, (int, float)) else 0
                     if abs(x - y) > 0.01 and not (va in (None, '') and vb in (None, '', 0)):
-                        if n < 5:
+                        if n < toon:
                             print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, cb.coordinate, va, vb))
                         n += 1
                 elif (va or '') != (vb or ''):
-                    if n < 5:
+                    if n < toon:
                         print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, cb.coordinate, va, vb))
                     n += 1
         print('  %-24s %-9s -> %-24s %-9s %s' % (blad_a, ber_a, blad_b, ber_b, 'gelijk' if n == 0 else '%d verschillen' % n))
@@ -168,10 +193,10 @@ def vergelijk(nieuw, fo_path):
     return fouten, b
 
 
-def scenario(wb):
+def scenario(wb, cfg):
     """wat het scenariomodel nu (met formules) ziet"""
     w = wb['Woningtypes']
-    for k in range(4):
+    for k in range(cfg['daeb_type']):
         c = 3 + 3 * k
         naam = w.cell(7, c).value
         if not naam:
@@ -188,7 +213,7 @@ def scenario(wb):
     print('  Invoer verkocht/transport (type 1, 2) per periode:')
     print('     ' + ' '.join('%s%s:%s/%s,%s/%s' % (i.cell(r, 2).value, i.cell(r, 3).value or '', i.cell(r, 12).value,
                                                     i.cell(r, 13).value, i.cell(r, 14).value, i.cell(r, 15).value)
-                             for r in range(8, 26)))
+                             for r in range(8, cfg['invoer_laatste'] + 1)))
     k = wb['Scenario kosten']
     print('  Scenario kosten: ' + ' | '.join('%s (%s) gerealiseerd %s totaal %s' % (k.cell(r, 2).value, k.cell(r, 3).value,
                                                                                    round(k.cell(r, 5).value or 0), round(k.cell(r, 4).value or 0))
@@ -202,8 +227,16 @@ def scenario(wb):
 
 
 def main():
-    xlsm = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'output', 'FO_Parkzoom_werkbestand.xlsm')
-    fo = os.path.join(ROOT, 'input', 'FO_Parkzoom_fictieve_demoversie.xlsx')
+    import argparse
+    import json
+    ap = argparse.ArgumentParser()
+    ap.add_argument('xlsm', nargs='?', default=os.path.join(ROOT, 'output', 'FO_Parkzoom_werkbestand.xlsm'))
+    ap.add_argument('--fo', help='het FO waaruit het werkbestand is gebouwd (standaard: zoals in de .opzet.json)')
+    ap.add_argument('--toon', type=int, default=5, help='aantal verschillen per bereik om te tonen')
+    a = ap.parse_args()
+    xlsm = a.xlsm
+    cfg = json.load(open(os.path.splitext(xlsm)[0] + '.opzet.json'))
+    fo = a.fo or os.path.join(ROOT, 'input', cfg['fo'])
     tmp = tempfile.mkdtemp()
     test = os.path.join(tmp, 'test.xlsx')
     uit = os.path.join(tmp, 'doorgerekend.xlsx')
@@ -212,7 +245,7 @@ def main():
     print('Doorrekenen met LibreOffice')
     doorrekenen(test, uit)
     print('Vergelijken met het oorspronkelijke FO (waarden van Excel)')
-    fouten, wb = vergelijk(uit, fo)
+    fouten, wb = vergelijk(uit, fo, cfg, a.toon)
     ws = wb['Start']
     print('Controles op tab Start')
     for r in range(15, 19):
@@ -223,7 +256,7 @@ def main():
         print('  %-62s %-28s %s' % (ws.cell(r, 2).value, ws.cell(r, 3).value, ws.cell(r, 4).value))
     print('  Start E8/E9/C11: %s / %s / %s' % (ws['E8'].value, ws['E9'].value, ws['C11'].value))
     fouten_cellen = []
-    scenario(wb)
+    scenario(wb, cfg)
     for blad in ('Start', 'Invoer', 'Woningtypes', 'Scenario kosten', 'Dashboard', 'Model', '_koppeling', '2. Ontw PEW',
                  'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA', 'PowerPoint'):
         for row in wb[blad].iter_rows():
@@ -232,7 +265,7 @@ def main():
                         c.value == '#N/A' and blad in ('Model', 'PowerPoint')):   # NA() = bewust gat in grafiekreeksen
                     fouten_cellen.append('%s!%s=%s' % (blad, c.coordinate, c.value))
     print('Foutwaarden (#...): %d %s' % (len(fouten_cellen), fouten_cellen[:12]))
-    out = os.path.join(ROOT, 'output', 'doorgerekend_libreoffice.tmp.xlsx')
+    out = os.path.join(os.path.dirname(os.path.abspath(xlsm)), 'doorgerekend_libreoffice.tmp.xlsx')
     os.replace(uit, out)
     print('Doorgerekende kopie: ' + out)
     return 1 if fouten or fouten_cellen else 0
