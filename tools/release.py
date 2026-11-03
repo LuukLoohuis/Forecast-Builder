@@ -33,7 +33,7 @@ shutil.copy(raw, calc)
 info = json.loads(subprocess.run([sys.executable, recalc, str(calc), "600"], capture_output=True, text=True).stdout)
 print("herberekening:", info)
 # enige toegestane #N/A: bewuste gaten in de BOR%-lijn van de grafiek (versie zonder vastgelegde waarde)
-fouten = {k: [loc for loc in v["locations"] if not (k == "#N/A" and re.match(r"(Outlook![P-W]|Woningen!Q|Bandbreedte!AC|Dashboard![MN])\d+$", loc))]
+fouten = {k: [loc for loc in v["locations"] if not (k == "#N/A" and re.match(r"(Outlook![P-W]|Woningen!Q|Bandbreedte!A[CE]|Dashboard![MN])\d+$", loc))]
           for k, v in info.get("error_summary", {}).items()}
 assert info.get("status") in ("success", "errors_found") and not any(fouten.values()), info
 cached = work / "RDFO_cache.xlsx"
@@ -45,7 +45,7 @@ raw_t, calc_t, cached_t = work / "RDFO_template_raw.xlsx", work / "RDFO_template
 build_rdfo.build(str(raw_t), test_results=results, template=True)
 shutil.copy(raw_t, calc_t)
 info_t = json.loads(subprocess.run([sys.executable, recalc, str(calc_t), "600"], capture_output=True, text=True).stdout)
-fouten_t = {k: [loc for loc in v["locations"] if not (k == "#N/A" and re.match(r"(Outlook![P-W]|Woningen!Q|Bandbreedte!AC|Dashboard![MN])\d+$", loc))]
+fouten_t = {k: [loc for loc in v["locations"] if not (k == "#N/A" and re.match(r"(Outlook![P-W]|Woningen!Q|Bandbreedte!A[CE]|Dashboard![MN])\d+$", loc))]
             for k, v in info_t.get("error_summary", {}).items()}
 assert not any(fouten_t.values()), info_t
 inject_cache.main(str(raw_t), str(calc_t), str(cached_t))

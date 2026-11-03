@@ -135,35 +135,42 @@ def trim(path):
 
 
 def bandbreedte_png(wb, path):
+    """Zelfde opzet als de Excel-grafiek: gele lijn laagste–hoogste, basis als stip met getal, budget als streepje."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
     ws = wb["Bandbreedte"]
+    nf = lambda v: f"{v:,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")  # noqa: E731
     jaren = [str(ws.cell(row=5, column=2 + k).value) for k in range(3)]
-    namen = [ws.cell(row=6 + j, column=1).value for j in range(5)]
     w = [[float(ws.cell(row=6 + j, column=2 + k).value or 0) for k in range(3)] for j in range(5)]
-    kl = ["#5AA02C", "#14284B", "#E8912D", "#F5B800", "#8A93A6"]
-    mk = ["^", "|", "D", "o", "s"]
+    bud = [ws.cell(row=12, column=2 + k).value for k in range(3)]
+    lo = [min(v[k] for v in w) for k in range(3)]
+    hi = [max(v[k] for v in w) for k in range(3)]
+    basis = w[1]
+    navy, grijs = "#14284B", "#6B7385"
     fig, ax = plt.subplots(figsize=(6.2, 5.3), dpi=200)
+    span = max(hi) * 1.0 or 1
     for k in range(3):
-        lo, hi = min(v[k] for v in w), max(v[k] for v in w)
-        ax.plot([lo, hi], [k, k], color="#F8D873", lw=22, solid_capstyle="butt", zorder=1, label="Bandbreedte (laagste – hoogste)" if k == 0 else None)
-        ax.text(lo, k, f"{lo:,.1f}  ".replace(".", ","), ha="right", va="center", color="#B03A2E", fontweight="bold", fontsize=10)
-        ax.text(hi, k, f"  {hi:,.1f}".replace(".", ","), ha="left", va="center", color="#3B7A1E", fontweight="bold", fontsize=10)
-        ax.text(w[1][k], k - 0.32, f"{w[1][k]:,.1f}".replace(".", ","), ha="center", va="bottom", color="#14284B", fontweight="bold", fontsize=11)
-    for j in range(5):
-        ax.scatter([w[j][k] for k in range(3)], range(3), marker=mk[j], s=420 if j == 1 else 70, color=kl[j], zorder=3,
-                   linewidths=4 if j == 1 else 0.8, edgecolors="white" if j != 1 else kl[j], label=namen[j])
-    ax.set_yticks(range(3), jaren, fontsize=13, fontweight="bold", color="#14284B")
-    ax.set_ylim(2.6, -0.6)
+        ax.plot([lo[k], hi[k]], [k, k], color="#F8D873", lw=18, solid_capstyle="round", zorder=1)
+        if isinstance(bud[k], (int, float)):
+            ax.plot([bud[k]] * 2, [k - 0.13, k + 0.13], color=grijs, lw=3, zorder=2)
+            ax.text(bud[k], k + 0.2, f"budget {nf(bud[k])}", ha="center", va="top", fontsize=8.5, color=grijs)
+        ax.scatter(basis[k], k, s=330, color=navy, zorder=3, edgecolors="white", linewidths=2.5)
+        ax.text(basis[k], k - 0.24, nf(basis[k]), ha="center", va="bottom", fontsize=14, fontweight="bold", color=navy)
+        ax.text(lo[k] - span * 0.04, k, nf(lo[k]), ha="right", va="center", fontsize=10.5, color=grijs)
+        ax.text(hi[k] + span * 0.04, k, nf(hi[k]), ha="left", va="center", fontsize=10.5, color=grijs)
+    ax.set_yticks(range(3), jaren, fontsize=15, fontweight="bold", color=navy)
+    ax.set_ylim(2.55, -0.6)
     ax.set_xticks([])
-    for sp in ("top", "right", "bottom"):
-        ax.spines[sp].set_visible(False)
-    ax.spines["left"].set_color("#BFC6D4")
+    for sp in ax.spines.values():
+        sp.set_visible(False)
     ax.tick_params(left=False)
-    xmax = max(max(v) for v in w)
-    ax.set_xlim(0, xmax * 1.18)
-    ax.legend(ncol=2, loc="upper center", bbox_to_anchor=(0.5, 1.17), frameon=False, fontsize=8.5)
+    ax.set_xlim(0, max(hi) * 1.2)
+    h = [Line2D([], [], color="#F8D873", lw=9, solid_capstyle="round", label="Laagste – hoogste scenario"),
+         Line2D([], [], color=grijs, lw=2.5, marker="|", markersize=14, ls="", label="Budget"),
+         Line2D([], [], marker="o", ls="", markersize=12, color=navy, markeredgecolor="white", label="Basis (prognose)")]
+    ax.legend(handles=h, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.1), frameon=False, fontsize=8.5, handlelength=1.6)
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)

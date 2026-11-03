@@ -2533,6 +2533,11 @@ def build_stoplicht(wb, ws):
             ws[f"Z{rr+d}"] = f"=ROUND({fn}({c}6:{c}10),1)"
             ws[f"Z{rr+d}"].number_format = "#,##0.0"
         ws[f"{col(27 + k)}5"] = f"=P_RJ+{k}"
+        # budget: kort verticaal streepje per jaar (twee punten), lege regel ertussen
+        for d, dy in ((0, -0.14), (1, 0.14)):
+            ws[f"AD{rr+d}"] = f"=P_RJ+{k}+({dy})"
+            ws[f"AE{rr+d}"] = f'=IF(ISNUMBER({c}{r+1}),ROUND({c}{r+1},1),NA())'
+            ws[f"AE{rr+d}"].number_format = '"budget "#,##0.0'
     SC_CTX.update(ws=ws)
     put(ws, "J4", "Bandbreedte in beeld (EUR mln)", bold=True, color=NAVY, size=10)
     bandbreedte_chart(ws, "J5", 15.5, 6.6)
@@ -2704,8 +2709,8 @@ SC_CTX = {}
 
 
 def bandbreedte_chart(target_ws, anchor, w, h):
-    """Bandbreedte liggend: per jaar (verticale as) een gele band van laagste tot hoogste scenario,
-    met elk scenario als punt; laagste en hoogste staan als getal aan de uiteinden, de basis erboven."""
+    """Bandbreedte (rustig): per jaar een gele lijn van laagste tot hoogste scenario, de basis als donkerblauwe stip
+    met het getal erboven en het budget als grijs streepje. De vijf scenario's staan in de tabel ernaast."""
     from openpyxl.chart import ScatterChart, Series
     from openpyxl.chart.label import DataLabel
     sws = SC_CTX["ws"]
@@ -2717,48 +2722,54 @@ def bandbreedte_chart(target_ws, anchor, w, h):
     ch.graphical_properties = GraphicalProperties(ln=LineProperties(noFill=True))
     ch.plot_area.graphicalProperties = GraphicalProperties(noFill=True, ln=LineProperties(noFill=True))
     ch.display_blanks = "gap"
-    # band: één reeks, per jaar twee punten, lege regel ertussen = onderbreking
     n_rows = 3 * SC_YEARS - 1
+
+    def label(idx, pos, kleur, sz, bold, fmt="#,##0.0"):
+        dl = DataLabel(idx=idx, dLblPos=pos, showCatName=True, showVal=False, showSerName=False, showLegendKey=False, showPercent=False)
+        dl.numFmt = fmt
+        dl.txPr = txt(sz, kleur, bold)
+        return dl
+
+    def geen_labels(sr, lbls):
+        sr.dLbls = _DLL(dLbl=lbls)
+        for k_ in ("showVal", "showSerName", "showCatName", "showLegendKey", "showPercent"):
+            setattr(sr.dLbls, k_, False)
+
+    # 1. band: per jaar twee punten (laagste, hoogste), lege regel = onderbreking
     band = Series(Reference(sws, min_col=25, min_row=5, max_row=4 + n_rows), Reference(sws, min_col=26, min_row=5, max_row=4 + n_rows),
-                  title="Bandbreedte (laagste – hoogste)")
+                  title="Laagste – hoogste scenario")
     band.graphicalProperties.line.solidFill = "F8D873"
-    band.graphicalProperties.line.width = 330200      # 26 pt dik
-    band.graphicalProperties.line.cap = "flat"
+    band.graphicalProperties.line.width = 254000      # 20 pt
+    band.graphicalProperties.line.cap = "rnd"
     band.marker = Marker(symbol="none")
     band.smooth = False
-    lbls = []
-    for k in range(SC_YEARS):
-        for d, pos, kleur in ((0, "l", "B03A2E"), (1, "r", "3B7A1E")):
-            dl = DataLabel(idx=3 * k + d, dLblPos=pos, showCatName=True, showVal=False, showSerName=False,
-                           showLegendKey=False, showPercent=False)
-            dl.numFmt = "#,##0.0"
-            dl.txPr = txt(1050, kleur, True)
-            lbls.append(dl)
-    band.dLbls = _DLL(dLbl=lbls)
-    band.dLbls.showVal = False
-    for k_ in ("showSerName", "showCatName", "showLegendKey", "showPercent"):
-        setattr(band.dLbls, k_, False)
-    ch.series.append(band)
-    stijl = [("Optimistisch", GOOD, "triangle", 13), ("Basis (prognose)", NAVY, "dash", 28), ("Afslag op verkopen", "E8912D", "diamond", 12),
-             ("Gewogen met kans %", YELLOW, "circle", 12), ("0-100 (alles of niets)", "8A93A6", "square", 11)]
+    geen_labels(band, [label(3 * k + d, pos, "6B7385", 1100, False) for k in range(SC_YEARS) for d, pos in ((0, "l"), (1, "r"))])
+    # 2. budget: kort grijs streepje met bedrag eronder
+    bud = Series(Reference(sws, min_col=30, min_row=5, max_row=4 + n_rows), Reference(sws, min_col=31, min_row=5, max_row=4 + n_rows),
+                 title="Budget")
+    bud.graphicalProperties.line.solidFill = "6B7385"
+    bud.graphicalProperties.line.width = 38100       # 3 pt
+    bud.marker = Marker(symbol="none")
+    bud.smooth = False
+    geen_labels(bud, [label(3 * k + 1, "b", "6B7385", 900, False, '"budget "#,##0.0') for k in range(SC_YEARS)])
+    # 3. basis: donkerblauwe stip met het getal erboven
     jaren = Reference(sws, min_col=27, max_col=26 + SC_YEARS, min_row=5)
-    for j, (naam, kleur, sym, size) in enumerate(stijl):
-        sr = Series(jaren, Reference(sws, min_col=2, max_col=1 + SC_YEARS, min_row=6 + j), title=naam)
-        sr.graphicalProperties.line.noFill = True
-        sr.marker = Marker(symbol=sym, size=size)
-        sr.marker.graphicalProperties = GraphicalProperties(solidFill=kleur, ln=LineProperties(solidFill="FFFFFF" if sym != "dash" else kleur, w=6350))
-        if naam.startswith("Basis"):
-            sr.dLbls = _DLL()
-            sr.dLbls.showCatName = True
-            for k_ in ("showVal", "showSerName", "showLegendKey", "showPercent"):
-                setattr(sr.dLbls, k_, False)
-            sr.dLbls.position = "t"
-            sr.dLbls.numFmt = "#,##0.0"
-            sr.dLbls.txPr = txt(1150, NAVY, True)
+    bas = Series(jaren, Reference(sws, min_col=2, max_col=1 + SC_YEARS, min_row=7), title="Basis (prognose)")
+    bas.graphicalProperties.line.noFill = True
+    bas.marker = Marker(symbol="circle", size=17)
+    bas.marker.graphicalProperties = GraphicalProperties(solidFill=NAVY, ln=LineProperties(solidFill="FFFFFF", w=28575))
+    bas.dLbls = _DLL()
+    bas.dLbls.showCatName = True
+    for k_ in ("showVal", "showSerName", "showLegendKey", "showPercent"):
+        setattr(bas.dLbls, k_, False)
+    bas.dLbls.position = "t"
+    bas.dLbls.numFmt = "#,##0.0"
+    bas.dLbls.txPr = txt(1500, NAVY, True)
+    for sr in (band, bud, bas):
         ch.series.append(sr)
     for i_, sr_ in enumerate(ch.series):
         sr_.idx = sr_.order = i_
-    # assen: jaren verticaal (2026 boven), bedragen horizontaal zonder as-getallen
+    # assen: jaren verticaal (eerste jaar boven), bedragen horizontaal zonder as-getallen
     rj = OUT_CTX.get("rj", 2026)
     ch.y_axis.scaling.min = rj - 1
     ch.y_axis.scaling.max = rj + SC_YEARS
@@ -2767,14 +2778,14 @@ def bandbreedte_chart(target_ws, anchor, w, h):
     ch.y_axis.numFmt = f'[<{rj}]"";[>{rj + SC_YEARS - 1}]"";0'   # alleen de jaren met een band tonen (macro zet dit elk jaar goed)
     ch.y_axis.delete = False
     ch.y_axis.majorTickMark = "none"
-    ch.y_axis.txPr = txt(1200, NAVY, True)
+    ch.y_axis.txPr = txt(1500, NAVY, True)
     ch.y_axis.majorGridlines = None
-    ch.y_axis.spPr = GraphicalProperties(ln=LineProperties(solidFill="BFC6D4", w=9525))
+    ch.y_axis.spPr = GraphicalProperties(ln=LineProperties(noFill=True))
     ch.x_axis.delete = True
     ch.x_axis.scaling.min = 0
     ch.x_axis.majorGridlines = None
     ch.legend.position = "t"
-    ch.legend.txPr = txt(900, "333F55")
+    ch.legend.txPr = txt(1000, "333F55")
     ch.visible_cells_only = False   # grafiekdata staat in verborgen kolommen
     target_ws.add_chart(ch, anchor)
     return ch
@@ -3136,7 +3147,7 @@ def build_ppt(wb, ws):
         ("PPT_Msg7", '="Verkocht "&P_RJ&" t/m peildatum: "&Woningen!$H$5&" woningen  ·  jaarverwachting "&Woningen!$K$5&"  ·  etalage "&Woningen!$Q$5'),
         ("PPT_Control", '=Dashboard!$P$5'),
         ("PPT_ProjN", '=COUNTIF(Map_WBS,"?*")'),
-        ("PPT_Msg9", '="Omzet "&(P_RJ+1)&": € "&FIXED(MIN(Bandbreedte!$C$6:$C$10),1)&" – "&FIXED(MAX(Bandbreedte!$C$6:$C$10),1)&" mln  ·  basis € "&FIXED(Bandbreedte!$C$7,1)&" mln"'),
+        ("PPT_Msg9", '="Omzet "&(P_RJ+1)&": € "&FIXED(MIN(Bandbreedte!$C$6:$C$10),1)&" – "&FIXED(MAX(Bandbreedte!$C$6:$C$10),1)&" mln  ·  basis € "&FIXED(Bandbreedte!$C$7,1)&" mln"&IF(ISNUMBER(Bandbreedte!$C$12),"  ·  budget € "&FIXED(Bandbreedte!$C$12,1)&" mln","")'),
         ("PPT_Msg10", '="Saldo kansen en risico\'s: € "&FIXED(SUM(KR_Telt)/1000000,1)&" mln  ·  "&COUNTIF(KR_Soort,"Kans")&" kansen, "&COUNTIF(KR_Soort,"Risico")&" risico\'s"'),
         ("PPT_Msg11", '="Verkopen per kwartaal "&P_RJ&" (blauw) en "&(P_RJ+1)&" (geel) · de 15 projecten met de meeste verkopen"'),
         ("PPT_Msg8", '="Prognoseverloop en brug naar de geselecteerde versie  ·  groen = hoger, rood = lager"'),
