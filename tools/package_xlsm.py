@@ -125,6 +125,9 @@ def main(src, out):
         sheet_code={code_name("Bandbreedte"): vba_source(ROOT / "macros" / "shStoplicht.cls")})
     files["[Content_Types].xml"] = xml(ct)
     files["xl/_rels/workbook.xml.rels"] = xml(wbrels)
+    # grafieklabels: eigen getalnotatie gebruiken (zonder sourceLinked="0" neemt Excel de celopmaak over, bijv. "0,00")
+    for n in [n for n in files if re.fullmatch(r"xl/charts/chart\d+\.xml", n)]:
+        files[n] = re.sub(rb'(<(?:c:)?numFmt formatCode="[^"]*")(/>)', rb'\1 sourceLinked="0"\2', files[n])
 
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
         zout.writestr("[Content_Types].xml", files["[Content_Types].xml"])

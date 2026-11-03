@@ -1927,7 +1927,9 @@ def build_dashboard(wb, ws):
         ws[f"N{rr}"] = f'=IF(B{rr}="",0,MAX(0,ROUND(-C{rr},2)))'
         for c in "MN":
             ws[f"{c}{rr}"].font = font(8, False, GREY)
-            ws[f"{c}{rr}"].number_format = "0.00"
+        # Excel neemt de celopmaak over in de grafieklabels: nul = leeg, plus- en minteken erbij
+        ws[f"M{rr}"].number_format = '+#,##0.00;-#,##0.00;;'
+        ws[f"N{rr}"].number_format = '"−"#,##0.00;;;'
     DASH.update(mutCats=Reference(ws, min_col=2, min_row=B0 + 2, max_row=B0 + len(bsteps) - 1),
                 mutData=Reference(ws, min_col=13, max_col=14, min_row=B0 + 1, max_row=B0 + len(bsteps) - 1),
                 mutStart=f"C{B0+1}", mutEnd=f"C{B0+len(bsteps)}")
