@@ -117,7 +117,7 @@ def config(oz, layout):
 
 
 def project_uit_bestandsnaam(pad):
-    """'20261001_FO_Zichten_2_Q4.xlsx' -> 'Zichten 2'"""
+    """'20261001_FO_Parkzoom_2_Q4.xlsx' -> 'Parkzoom 2'"""
     n = os.path.splitext(os.path.basename(pad))[0]
     n = re.sub(r'^\d{6,8}[_ ]*', '', n)
     n = re.sub(r'^FO[_ ]+', '', n, flags=re.I)
