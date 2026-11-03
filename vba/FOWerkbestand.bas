@@ -537,27 +537,48 @@ Private Function BinnenTekst(f As String, p As Long) As Boolean
 End Function
 
 Private Sub SjabloonTerugzetten(ByRef waarschuwing As String)
-    ' tab _sjabloon: per regel blad, cel en inhoud ('=formule', waarde of leeg) van de onderdelen die een oud FO niet heeft
-    Dim ws As Worksheet, r As Long, blad As String, cel As String, inhoud As String, mis As Long
+    ' tab _sjabloon: per regel blad, cel en inhoud ('=formule', waarde of leeg) van de onderdelen die een oud FO niet heeft.
+    ' Regels met blad 'CF - opbrengsten|DAEB' (het lege DAEB-blok) alleen als het oude FO geen eigen DAEB-blok heeft.
+    ' Daarna krijgt het totaal (rij 194) de correctieregel (rij 192) erbij, en het DAEB-totaal als het lege blok terugkwam.
+    Dim ws As Worksheet, wo As Worksheet, r As Long, blad As String, cel As String, inhoud As String, mis As Long
+    Dim daebLeeg As Boolean, zetten As Boolean, c As Long, f As String
     Set ws = ThisWorkbook.Worksheets(SH_SJABLOON)
+    Set wo = ThisWorkbook.Worksheets("CF - opbrengsten")
+    daebLeeg = (Application.WorksheetFunction.CountIf(wo.Range("B1:B600"), "*daeb*") = 0) And _
+               (Application.WorksheetFunction.CountA(wo.Range("B200:Z228")) = 0)
     r = 2
     Do While Len(CStr(ws.Cells(r, 1).Value)) > 0
         blad = CStr(ws.Cells(r, 1).Value)
         cel = CStr(ws.Cells(r, 2).Value)
         inhoud = CStr(ws.Cells(r, 3).Value)
-        On Error Resume Next
-        If Len(inhoud) = 0 Then
-            ThisWorkbook.Worksheets(blad).Range(cel).ClearContents
-        Else
-            ThisWorkbook.Worksheets(blad).Range(cel).Formula = inhoud
+        zetten = True
+        If Right$(blad, 5) = "|DAEB" Then
+            blad = Left$(blad, Len(blad) - 5)
+            zetten = daebLeeg
         End If
-        If Err.Number <> 0 Then
-            Err.Clear
-            mis = mis + 1
+        If zetten Then
+            On Error Resume Next
+            If Len(inhoud) = 0 Then
+                ThisWorkbook.Worksheets(blad).Range(cel).ClearContents
+            Else
+                ThisWorkbook.Worksheets(blad).Range(cel).Formula = inhoud
+            End If
+            If Err.Number <> 0 Then
+                Err.Clear
+                mis = mis + 1
+            End If
+            On Error GoTo 0
         End If
-        On Error GoTo 0
         r = r + 1
     Loop
+    For c = 7 To 26                                           ' G..Z
+        f = wo.Cells(194, c).Formula
+        If Left$(f, 1) = "=" Then
+            If InStr(f, "192") = 0 Then f = f & "+" & KolomLetter(c) & "192"
+            If daebLeeg And InStr(f, "224") = 0 Then f = f & "+" & KolomLetter(c) & "224"
+            If f <> wo.Cells(194, c).Formula Then wo.Cells(194, c).Formula = f
+        End If
+    Next c
     If mis > 0 Then waarschuwing = waarschuwing & "- " & mis & " cel(len) van het sjabloon konden niet worden teruggezet." & vbCrLf
 End Sub
 
@@ -571,6 +592,13 @@ Private Sub OpzetControleren(ByRef waarschuwing As String)
     fout = fout & Controleer("CF - opbrengsten", "B189", "overige opbrengsten in")
     fout = fout & Controleer("CF - opbrengsten", "B194", "totaal opbrengsten")
     fout = fout & Controleer("CF - opbrengsten", "B196", "periode in cashflow sap")
+    ' onderdelen van het werkbestand die op vaste rijen staan: stond daar in het oude FO al iets, dan melden
+    If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - opbrengsten").Range("B192:Z192")) > 0 Then
+        fout = fout & "    CF - opbrengsten rij 192 was niet leeg; daar staat nu de correctieregel" & vbCrLf
+    End If
+    If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - kosten").Range("B93:AD112")) > 0 Then
+        fout = fout & "    CF - kosten rij 93-112 was niet leeg; daar staat nu het voorstelblok" & vbCrLf
+    End If
     ' de transportregels komen in lege rijen onder de bouwtermijnen; stond daar iets, dan melden
     Dim t As Variant
     For Each t In Split(TRANSPORTRIJEN, "|")

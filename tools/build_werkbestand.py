@@ -372,7 +372,9 @@ def main():
     sh_k = Sheet(dst.x(part_of['CF - kosten']), sst)
     types = scenario_koppeling.structuur(sh_o, sh_k)
     sh = Sheet(dst.x(part_of['_koppeling']), sst)
+    scenario_koppeling.sleutelrijen(sh)
     slots = scenario_koppeling.vul_hulp(sh, types, note)
+    scenario_koppeling.daeb_hulp(sh, types, note)
     dst.put(part_of['_koppeling'], sh.t)
     sh = Sheet(dst.x(part_of['Woningtypes']), sst)
     scenario_koppeling.woningtypes(sh, types, slots, st)
@@ -382,8 +384,11 @@ def main():
     sh.set_value('B3', 'Een ander woningtype of een andere termijnverdeling pas je aan op CF - opbrengsten (bouwplanning, '
                        'transport) en Aansluiting opbrengsten (koopsommen, % per termijn).')
     dst.put(part_of['Woningtypes'], sh.t)
+    sh_w = Sheet(dst.x(part_of['Woningtypes']), sst)
     sh = Sheet(dst.x(part_of['Invoer']), sst)
     scenario_koppeling.invoer(sh, types, st)
+    scenario_koppeling.daeb_woningtypes(sh_w, sh, st)
+    dst.put(part_of['Woningtypes'], sh_w.t)
     sh.set_value('B1', 'Invoer — cashflow per periode en verkocht/transport per woningtype, automatisch uit het FO')
     sh.set_value('B2', 'Formules: verwerkte kwartalen uit FO - actuals, prognose uit CF - kosten (rij 75) en CF - opbrengsten '
                        '(rij 194); verkocht = verkooptempo, transport = transportregel op CF - opbrengsten. Niet overschrijven.')

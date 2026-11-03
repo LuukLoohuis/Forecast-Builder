@@ -26,6 +26,7 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
    - daaronder de **transportregel** (aantal woningen notarieel geleverd per kwartaal). De grondtermijn volgt het transport, en bouwtermijnen tellen vanaf transport;
    - verkooptempo in rij 49-52;
    - wil je een bedrag bijsturen? Gebruik de gele correctieregel (rij 192).
+   - DAEB-woningen? Vul onderaan het blok "Opbrengsten DAEB" in (rij 200-227). Woningtype 5 en de scenario's vullen zich vanzelf.
 7. **Kosten** op `CF - kosten`:
    - de bouwtermijnen volgen de geplande bouwtermijnen van de opbrengsten (overschrijven mag);
    - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd) of *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan).

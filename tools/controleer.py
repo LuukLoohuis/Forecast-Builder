@@ -219,7 +219,7 @@ def main():
         print('  %-16s %-12s %s' % (ws.cell(r, 2).value, ws.cell(r, 4).value, ws.cell(r, 8).value))
     for r in range(23, 28):
         print('  %-50s %s %s' % (ws.cell(r, 2).value, ws.cell(r, 3).value, ws.cell(r, 4).value or ''))
-    for r in range(31, 43):
+    for r in range(31, 45):
         print('  %-62s %-28s %s' % (ws.cell(r, 2).value, ws.cell(r, 3).value, ws.cell(r, 4).value))
     print('  Start E8/E9/C11: %s / %s / %s' % (ws['E8'].value, ws['E9'].value, ws['C11'].value))
     fouten_cellen = []

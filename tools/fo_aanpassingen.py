@@ -5,12 +5,15 @@ CF - opbrengsten
     grondtermijn, dus zonder aanpassing dezelfde uitkomst); de grondtermijn volgt het transport;
   * de bouwtermijnen tellen vanaf transport (cumulatief begrensd door het transport i.p.v. door de verkoop);
   * rij 192: handmatige correctie per kwartaal, opgeteld in het totaal (rij 194);
-  * hulprijen 198-199: jaar en kwartaalindex per kolom (voor tab Cashflow).
+  * rij 200-227: leeg blok 'Opbrengsten DAEB' (fee-componenten, termijnen per kwartaal, aantal en verkoop); het totaal
+    (rij 224) telt mee in rij 194. In het sjabloon als 'CF - opbrengsten|DAEB': Oud FO inlezen zet het alleen terug als
+    het oude FO geen eigen DAEB-blok heeft; de formules op _koppeling zoeken het blok op aan de titel.
 CF - kosten
   * werkelijke kosten (kolom K, posten) direct uit FO - huidig (tab 3. Restant bdgt vervalt);
   * kolom C bij de posten: methode Handmatig of Voorstel; rij 75 (totaal) = definitief volgens die keuze;
   * voorstelblok rij 93-112 (post p -> rij p + 41): restant budget gelijk verdeeld t/m oplevering;
   * hulprijen 95-96: jaar en kwartaalindex per kolom.
+Rij 194 (totaal opbrengsten) staat niet in het sjabloon: een oud FO houdt zijn totaalformule, de macro zet er '+G192' achter.
 Elke gezette cel komt in de sjabloonlijst, zodat Oud FO inlezen hem na het overnemen terugzet.
 """
 from __future__ import annotations
@@ -25,6 +28,9 @@ K_POSTEN = list(range(59, 71))
 VOORSTEL = 41                                     # rij voorstel = rij post + 41
 VERKOOP_RIJEN = [49, 50, 51, 52]                  # verkooptempo per woningtype (CF - opbrengsten)
 P_H, P_O = 'p_huidig', 'p_oplevering'
+DAEB_KOP, DAEB_TOTAAL = 205, 224                 # koprij en totaalrij van het DAEB-blok op CF - opbrengsten
+MIJLPALEN = ['na akkoord SO', 'na akkoord VO', 'na akkoord DO', 'na omgevingsvergunning', 'na tekenen TKO',
+             'bij start bouw', 'bij gevelsluiting', 'bij oplevering']
 
 
 class Zetter:
@@ -90,24 +96,62 @@ def opbrengsten(sh: Sheet, st: dict, sjabloon: list, log):
         log('  type (verkoop rij %d): transport rij %d, grondtermijn rij %d, %d termijncellen vanaf transport'
             % (v, tr, grond, n))
 
-    # correctieregel en totaal
+    # correctieregel; het totaal (rij 194) krijgt correctie en DAEB erbij. Rij 194 staat niet in het sjabloon: na Oud FO
+    # inlezen houdt het oude FO zijn eigen totaalformule en zet de macro er alleen '+G192' achter
     z('B192', 'Handmatige correctie (€, per kwartaal)', st['invoer_label'])
     for c in O_COLS:
         z('%s192' % c, None, st['invoer_getal'])
+    z('AB192', '=SUM(G192:Z192)', st['getal'])
+    daeb_blok(sh, st, sjabloon, log)
+    for c in O_COLS:
         f = sh.get('%s194' % c)
         assert f.startswith('=') and '192' not in f
-        z('%s194' % c, f + '+%s192' % c)
-    z('AB192', '=SUM(G192:Z192)', st['getal'])
-    # hulprijen voor tab Cashflow
-    z('B198', 'hulp: jaar', st['hulp_links'])
-    z('B199', 'hulp: kwartaalindex (jaar × 4 + kw)', st['hulp_links'])
-    for i, c in enumerate(O_COLS):
-        prev = '%s198' % O_COLS[i - 1] if i else '""'
-        z('%s198' % c, '=IF(ISNUMBER(%s$127),%s$127,%s)' % (c, c, prev), st['hulp'])
-        z('%s199' % c, '=IF(AND(ISNUMBER(%s198),LEFT(%s$128&"",1)="Q"),%s198*4+VALUE(MID(%s$128,2,1)),0)' % (c, c, c, c),
-          st['hulp'])
+        sh.set('%s194' % c, f + '+%s192+%s%d' % (c, c, DAEB_TOTAAL))
     z('C2', 'geel = handmatig: bouwtermijnen en transport per woningtype, verkooptempo (rij 49-52), correctie (rij 192). '
             'Termijnen tellen vanaf transport.', st['notitie'])
+
+
+def daeb_blok(sh: Sheet, st: dict, sjabloon: list, log):
+    """leeg DAEB-blok in de opzet die de macro (LeesDaebBlok) ook kende: componenten (naam in C, totaal in E) in de drie
+    rijen boven de koprij, 'Startbouw' mag boven een kwartaal; termijnen per component als groep, gescheiden door een lege
+    rij, tot 'Totaal ...'; daaronder aantal en verkoop van de DAEB-woningen"""
+    r0 = DAEB_KOP
+    for r in range(200, 229):
+        for c in ['B', 'C', 'D', 'E', 'F'] + O_COLS + ['AB']:
+            assert not sh.get('%s%d' % (c, r)), 'rij %d van CF - opbrengsten is niet leeg' % r
+    z = Zetter(sh, 'CF - opbrengsten|DAEB', sjabloon)   # alleen terugzetten als een oud FO geen DAEB-blok heeft
+    z('C200', 'DAEB-woningen (corporatie): vul de fee-componenten (naam + totaal), de bedragen per kwartaal, het aantal '
+                   'en de verkoop in. Leeg = geen DAEB. Zet eventueel "Startbouw" boven het kwartaal van start bouw (rij 202).',
+           st['notitie'])
+    z('B%d' % (r0 - 3), 'Fee-component 1 · naam (C) en totaal € (E)', st['tekst'])
+    z('B%d' % (r0 - 2), 'Fee-component 2 · naam (C) en totaal € (E)', st['tekst'])
+    for r in (r0 - 3, r0 - 2):
+        z('C%d' % r, None, st['invoer_label'])
+        z('E%d' % r, None, st['invoer_getal'])
+    for c in O_COLS:
+        z('%s%d' % (c, r0 - 1), '=IF(ISNUMBER(%s$127),%s$127,"")' % (c, c), st['hulp'])
+        z('%s%d' % (c, r0), '=%s$128&""' % c, st['kop'])
+    z('B%d' % r0, 'Opbrengsten DAEB', st['kop_links'])
+    z('C%d' % r0, '%', st['kop'])
+    z('D%d' % r0, '€', st['kop'])
+    z('J%d' % r0, 'actuals', st['kop'])
+    for g, r1 in ((1, r0 + 1), (2, r0 + 10)):
+        for i, m in enumerate(MIJLPALEN):
+            r = r1 + i
+            z('B%d' % r, m, st['invoer_label'])
+            for c in ['C', 'D'] + O_COLS:
+                z('%s%d' % (c, r), None, st['invoer_getal'])
+            z('AB%d' % r, '=SUM(G%d:Z%d)' % (r, r), st['getal'])
+    z('B%d' % DAEB_TOTAAL, 'Totaal opbrengsten DAEB', st['label_tot'])
+    for c in O_COLS + ['AB']:
+        z('%s%d' % (c, DAEB_TOTAAL), '=SUM(%s%d:%s%d)' % (c, r0 + 1, c, DAEB_TOTAAL - 2), st['getal_tot'])
+    z('B226', 'Aantal DAEB-woningen', st['tekst'])
+    z('D226', None, st['invoer_getal'])
+    z('B227', 'Verkoop en levering DAEB (aantal woningen per kwartaal; transport = verkoop)', st['tekst'])
+    for c in O_COLS:
+        z('%s227' % c, None, st['invoer_getal'])
+    z('AB227', '=SUM(G227:Z227)', st['getal'])
+    log('  CF - opbrengsten: leeg DAEB-blok rij 200-227 (koprij %d, totaal rij %d in rij 194)' % (r0, DAEB_TOTAAL))
 
 
 def kosten(sh: Sheet, st: dict, sjabloon: list, styles, log):

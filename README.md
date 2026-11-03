@@ -42,6 +42,18 @@ Vervallen ten opzichte van het oude FO: `1. Cashflow` (de cashflowtabel staat nu
   - **Voorstel**: het blok onderaan (rij 100-111), met het restantbudget (PEW min wat al verwerkt is) gelijk verdeeld vanaf het eerste prognosekwartaal t/m het opleveringskwartaal op `Start`.
 - De totaalregel (rij 75) is het **definitieve** resultaat.
 
+**DAEB-fees.** Onderaan `CF - opbrengsten` (rij 200-227) staat een blok "Opbrengsten DAEB":
+- in de drie rijen boven de koprij per fee-component de naam (kolom C) en het totaal (kolom E);
+- daaronder per component een groep termijnen (mijlpaal, bedragen per kwartaal of in actuals), gescheiden door een lege rij;
+- het aantal DAEB-woningen en de verkoop/levering per kwartaal; "Startbouw" boven een kwartaal mag.
+
+Het totaal telt mee in rij 194. Woningtype 5 op `Woningtypes` wordt dan automatisch het DAEB-type:
+- naam, aantal en start bouw;
+- soort DAEB;
+- in blok 5 per component maximaal vijf fee-regels: per kwartaal "(1/2)", "(2/2)", een bedrag in actuals als "actuals". Bij meer delen één regel per termijn, en de rest samen in "overige termijnen".
+
+Verkoop en transport staan op `Invoer` (transport = verkoop). De formules zoeken het blok op aan de titel met "DAEB" en volgen dezelfde regels als de oude macro. Dat werkt dus ook voor het DAEB-blok van een oud FO. Staat het aantal daar niet, dan komt het uit de rij met "DAEB" op `Verkooptempo`.
+
 **Scenariomodel zonder knop.** `Invoer`, `Woningtypes` en `Scenario kosten` zijn formules op de FO-tabbladen, net zoals `Aansluiting opbrengsten` op de prijslijst. Het `Dashboard` en `Scenario's` rekenen dus altijd mee.
 
 | Tabblad | Wat erin staat |
@@ -71,12 +83,13 @@ Het verborgen hulpblad `_koppeling` zet de termijnen om naar regels per bouwkwar
   - Scenario met de start bouw drie kwartalen later (Q1 '28): de maximale financieringsbehoefte gaat van €1,6 mln naar €6,8 mln.
   - Scenario met de verkoop pas vanaf Q2 '27: €4,9 mln. Een kostenpost op Voorstel komt direct terug in `Scenario kosten`.
   - Getest met woningtype A pas in Q1 2028 getransporteerd en met een correctie van €250.000; de controles melden de afwijking van het PEW.
+  - DAEB getest met twee fee-componenten (€1,0 mln), actuals, een termijn over twee kwartalen, een Startbouw-markering en 30 woningen: woningtype 5 wordt DAEB met de juiste fee-regels, het `Model` telt €1,0 mln aan fees. Met 14 delen werkt de terugval naar één regel per termijn.
 - **Macro's:**
   - Het VBA-project is opnieuw opgebouwd uit `vba/`, zonder gecompileerde code. Excel compileert het bij het openen.
   - LibreOffice leest alle 31 modules correct uit het bestand.
   - De macro's zijn **niet in Excel uitgevoerd**: daar is in deze omgeving geen Excel voor. Test bij het eerste gebruik de knoppen op een kopie.
   - Geeft Excel een melding over het VBA-project? Importeer dan `vba/FOWerkbestand.bas` en `vba/CashflowNaarPowerPoint.bas` via Alt+F11 → Bestand → Importeren, en zet de code van `vba/ThisWorkbook.cls` in ThisWorkbook.
-- Het scenariodeel rekent met de vier woningtypeblokken van de standaardopzet. DAEB-fees (blok 5 op `Woningtypes`) vult het niet automatisch.
+- Het scenariodeel rekent met de vier woningtypeblokken van de standaardopzet, plus het DAEB-blok als woningtype 5.
 - "Oud FO inlezen" gaat uit van de standaardopzet van het FO: transportregels in de lege rijen 13, 26, 36 en 46 van `CF - opbrengsten`, posten in rij 59-70 van `CF - kosten`. Wijkt een oud FO daarvan af, dan meldt de knop dat. `Controle oud FO` laat het effect zien.
 
 ## Opnieuw bouwen

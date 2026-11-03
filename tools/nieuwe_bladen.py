@@ -246,6 +246,10 @@ def maak_start(wb, demo):
          "=SUMPRODUCT(ISNUMBER(--'FO - huidig'!X17:X1500)*('FO - huidig'!Y17:Y1500=\"\")*ISNUMBER('FO - huidig'!R17:R1500)*('FO - huidig'!R17:R1500<>0))&\" regel(s)\"",
          "=IF(SUMPRODUCT(ISNUMBER(--'FO - huidig'!X17:X1500)*('FO - huidig'!Y17:Y1500=\"\")*ISNUMBER('FO - huidig'!R17:R1500)*('FO - huidig'!R17:R1500<>0))=0,\"OK\",\"FOUT\")",
          'Behind the scens, kolom A-C'),
+        ('DAEB-fees op Woningtypes (blok 5) = DAEB-blok op CF - opbrengsten',
+         "=IF(Woningtypes!$O$7=\"\",\"geen DAEB\",FIXED(SUM(Woningtypes!$P$54:$P$63),0)&\" van \"&FIXED(_koppeling!$C$418,0))",
+         "=IF(Woningtypes!$O$7=\"\",\"OK\",IF(Woningtypes!$O$8=\"\",\"LET OP: aantal DAEB-woningen ontbreekt\","
+         "IF(ABS(SUM(Woningtypes!$P$54:$P$63)-_koppeling!$C$418)<1,\"OK\",\"LET OP\")))", 'CF - opbrengsten rij 200-227'),
         ('Woningtypes dekken de opbrengsten (aantal × koopsom ÷ eigen opbrengsten)',
          "=FIXED(N(Dashboard!W13)*100,1)&\"%\"",
          "=IF(N(Dashboard!W13)=0,\"LET OP\",\"INFO\")", 'Dashboard W13 · Woningtypes'),
