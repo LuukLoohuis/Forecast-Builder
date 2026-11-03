@@ -2722,7 +2722,7 @@ def bandbreedte_chart(target_ws, anchor, w, h):
     band = Series(Reference(sws, min_col=25, min_row=5, max_row=4 + n_rows), Reference(sws, min_col=26, min_row=5, max_row=4 + n_rows),
                   title="Bandbreedte (laagste – hoogste)")
     band.graphicalProperties.line.solidFill = "F8D873"
-    band.graphicalProperties.line.width = 266700      # 21 pt dik
+    band.graphicalProperties.line.width = 330200      # 26 pt dik
     band.graphicalProperties.line.cap = "flat"
     band.marker = Marker(symbol="none")
     band.smooth = False
@@ -2739,8 +2739,8 @@ def bandbreedte_chart(target_ws, anchor, w, h):
     for k_ in ("showSerName", "showCatName", "showLegendKey", "showPercent"):
         setattr(band.dLbls, k_, False)
     ch.series.append(band)
-    stijl = [("Optimistisch", GOOD, "triangle", 9), ("Basis (prognose)", NAVY, "dash", 22), ("Afslag op verkopen", "E8912D", "diamond", 9),
-             ("Gewogen met kans %", YELLOW, "circle", 9), ("0-100 (alles of niets)", "8A93A6", "square", 8)]
+    stijl = [("Optimistisch", GOOD, "triangle", 13), ("Basis (prognose)", NAVY, "dash", 28), ("Afslag op verkopen", "E8912D", "diamond", 12),
+             ("Gewogen met kans %", YELLOW, "circle", 12), ("0-100 (alles of niets)", "8A93A6", "square", 11)]
     jaren = Reference(sws, min_col=27, max_col=26 + SC_YEARS, min_row=5)
     for j, (naam, kleur, sym, size) in enumerate(stijl):
         sr = Series(jaren, Reference(sws, min_col=2, max_col=1 + SC_YEARS, min_row=6 + j), title=naam)
@@ -2759,11 +2759,12 @@ def bandbreedte_chart(target_ws, anchor, w, h):
     for i_, sr_ in enumerate(ch.series):
         sr_.idx = sr_.order = i_
     # assen: jaren verticaal (2026 boven), bedragen horizontaal zonder as-getallen
-    ch.y_axis.scaling.min = OUT_CTX.get("rj", 2026) - 0.5
-    ch.y_axis.scaling.max = OUT_CTX.get("rj", 2026) + SC_YEARS - 0.5
+    rj = OUT_CTX.get("rj", 2026)
+    ch.y_axis.scaling.min = rj - 1
+    ch.y_axis.scaling.max = rj + SC_YEARS
     ch.y_axis.scaling.orientation = "maxMin"
     ch.y_axis.majorUnit = 1
-    ch.y_axis.numFmt = "0"
+    ch.y_axis.numFmt = f'[<{rj}]"";[>{rj + SC_YEARS - 1}]"";0'   # alleen de jaren met een band tonen (macro zet dit elk jaar goed)
     ch.y_axis.delete = False
     ch.y_axis.majorTickMark = "none"
     ch.y_axis.txPr = txt(1200, NAVY, True)

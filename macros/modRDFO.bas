@@ -580,8 +580,9 @@ Public Sub RDFO_OutlookJaren()
         delen = Split(doel, "|")
         Set co = ThisWorkbook.Worksheets(delen(0)).ChartObjects(CLng(delen(1)))
         With co.Chart.Axes(2)
-            .MinimumScale = rj - 0.5
-            .MaximumScale = rj + 2.5
+            .MinimumScale = rj - 1
+            .MaximumScale = rj + 3
+            .TickLabels.NumberFormat = "[<" & rj & "]"""";[>" & (rj + 2) & "]"""";0"
         End With
     Next doel
 End Sub

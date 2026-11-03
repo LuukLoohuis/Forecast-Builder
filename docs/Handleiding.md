@@ -8,7 +8,7 @@ Begin je met een leeg bestand? Gebruik `RDFO_template.xlsm` of de knop *Bestand 
 
 **1. Inlezen** — Knop op Start
 
-Klik op 'Bronnen inlezen'. Kies eerst de ZPMW03-export en daarna de Woningetalage-export. Vul de peildatum in (bijv. 30-09-2026) en de versie (bijv. Q3).
+Klik op 'Bronnen inlezen'. Kies de ZPMW03-export, daarna de Woningetalage-export en tot slot (als die er is) de AK-percentages uit SAP. Vul de peildatum in (bijv. 30-09-2026) en de versie (bijv. Q3).
 
 *Let op:* Het bestand opent daarna het tabblad Controle. Eerder vastgezette prognoses blijven zoals ze waren.
 
@@ -43,10 +43,10 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 | Start | Knoppen en status. | Hier begin je. |
 | Dashboard | Kerncijfers en grafieken. Kies hier jaar, versie, opstal/deelneming of één project. | Gele cellen kiezen. |
 | RDFO | De RDFO: budget, Q1–Q4, upload, realisatie, to go en verschillen. Onderaan: per gebied. | Alleen lezen. |
-| Outlook | Alle jaren naast elkaar: omzet (ook DAEB, funnel, target), BOR, AK-dekking, kansen en risico's, reserves, bandbreedte, woningen, orderintake. | Alleen lezen. Basis voor het budget. |
+| Outlook | De 4 jaren na het lopende jaar: omzet (ook DAEB, funnel, target), BOR, AK-dekking, kansen en risico's, reserves, bandbreedte, woningen, orderintake. | Alleen lezen. Basis voor het budget. |
 | Projecten | Per project: alle versies, realisatie, to go, BOR, marge en stoplicht. | Filteren met de pijltjes. |
 | Projectdetail | Eén project in detail. | Project kiezen bovenaan. |
-| Woningen | Verkopen per maand en kwartaal, per versie, per productsegment en koperstype. | Alleen lezen. |
+| Woningen | Verkopen per maand en kwartaal, per project per kwartaal (dit en volgend jaar), per versie, per productsegment en koperstype. | Alleen lezen. |
 | Bandbreedte | Bovenaan de vijf scenario's per jaar met grafiek. Daaronder per project het stoplicht en de scenario's. | Gele cellen invullen. |
 | Controle | Alle controles. Rood = eerst oplossen. | Na elke keer inlezen bekijken. |
 | Invoer | Instellingen, projectlijst en alles wat niet in SAP staat. | Gele cellen invullen. |
@@ -61,7 +61,7 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 
 ## Bandbreedte: vijf scenario's
 
-- Het bestand rekent per project en per jaar vijf scenario's uit. Bovenaan het tabblad Bandbreedte zie je het totaal per jaar en een grafiek.
+- Het bestand rekent per project vijf scenario's uit, voor het lopende jaar en de twee jaren daarna. Bovenaan het tabblad Bandbreedte zie je het totaal per jaar; de grafiek toont per jaar een band van het laagste tot het hoogste scenario.
 - Optimistisch: de verkoop haalt aan het eind van het jaar minstens het ingestelde percentage (standaard 90%). De omzet groeit dan mee.
 - Basis: de omzet uit de prognose (upload).
 - Afslag: maar een deel van de geplande verkopen van dat jaar lukt (standaard 50%). De omzet daalt dan mee.
@@ -73,11 +73,11 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 
 | Onderdeel | Wat vul je in |
 |---|---|
-| 2. Projecten | Eén regel per project. Kies Type, Gebied, Strapo (Ja/Nee), AK % en hoe de woningen verdeeld zijn over de productsegmenten en kopers. |
+| 2. Projecten | Eén regel per project. Kies Type, Gebied, Strapo (Ja/Nee) en hoe de woningen verdeeld zijn over de productsegmenten en kopers. AK: het percentage komt uit de SAP-dump (kolom V); zet 'AK meenemen' op Nee als het niet mee moet, of vul in kolom K een eigen percentage in. |
 | 7. Gebieden | De lijst met gebieden. Die kun je per project kiezen. |
 | 8. Funnel en target | Per jaar de omzet uit de acquisitiefunnel en de target. Ook de deler voor de AK-dekking (standaard 1,05). |
 | 9. DAEB-omzet | Per project de DAEB-omzet en welk deel in welk jaar valt (samen 100%). |
-| 10. Kansen en risico's | Per kans of risico: project, omschrijving, jaar, soort en bedrag (altijd positief invullen). |
+| 10. Kansen en risico's | Per kans of risico een regel: kies het project, vul omschrijving, jaar en kwartaal, soort en bedrag in. Bijvoorbeeld: 2026 Q4, project X, hogere koopsom, € 1.500.000 (bedrag altijd positief; een risico telt als min). |
 | 11. Reserves | Per project de reserves en hoe ver het project klaar is. Het bestand rekent het effect per jaar uit. |
 
 ## Een vastgelegde prognose corrigeren

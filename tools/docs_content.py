@@ -9,7 +9,7 @@ INLEIDING = (
 # (titel, wat je doet, waar / welke knop, waar je op let)
 STAPPEN = [
     ("Inlezen",
-     "Klik op 'Bronnen inlezen'. Kies eerst de ZPMW03-export en daarna de Woningetalage-export. "
+     "Klik op 'Bronnen inlezen'. Kies de ZPMW03-export, daarna de Woningetalage-export en tot slot (als die er is) de AK-percentages uit SAP. "
      "Vul de peildatum in (bijv. 30-09-2026) en de versie (bijv. Q3).",
      "Knop op Start",
      "Het bestand opent daarna het tabblad Controle. Eerder vastgezette prognoses blijven zoals ze waren."),
@@ -37,10 +37,10 @@ TABBLADEN = [
     ("Start", "Knoppen en status.", "Hier begin je."),
     ("Dashboard", "Kerncijfers en grafieken. Kies hier jaar, versie, opstal/deelneming of één project.", "Gele cellen kiezen."),
     ("RDFO", "De RDFO: budget, Q1–Q4, upload, realisatie, to go en verschillen. Onderaan: per gebied.", "Alleen lezen."),
-    ("Outlook", "Alle jaren naast elkaar: omzet (ook DAEB, funnel, target), BOR, AK-dekking, kansen en risico's, reserves, bandbreedte, woningen, orderintake.", "Alleen lezen. Basis voor het budget."),
+    ("Outlook", "De 4 jaren na het lopende jaar: omzet (ook DAEB, funnel, target), BOR, AK-dekking, kansen en risico's, reserves, bandbreedte, woningen, orderintake.", "Alleen lezen. Basis voor het budget."),
     ("Projecten", "Per project: alle versies, realisatie, to go, BOR, marge en stoplicht.", "Filteren met de pijltjes."),
     ("Projectdetail", "Eén project in detail.", "Project kiezen bovenaan."),
-    ("Woningen", "Verkopen per maand en kwartaal, per versie, per productsegment en koperstype.", "Alleen lezen."),
+    ("Woningen", "Verkopen per maand en kwartaal, per project per kwartaal (dit en volgend jaar), per versie, per productsegment en koperstype.", "Alleen lezen."),
     ("Bandbreedte", "Bovenaan de vijf scenario's per jaar met grafiek. Daaronder per project het stoplicht en de scenario's.", "Gele cellen invullen."),
     ("Controle", "Alle controles. Rood = eerst oplossen.", "Na elke keer inlezen bekijken."),
     ("Invoer", "Instellingen, projectlijst en alles wat niet in SAP staat.", "Gele cellen invullen."),
@@ -55,7 +55,7 @@ STOPLICHT = [
 ]
 
 BANDBREEDTE = [
-    "Het bestand rekent per project en per jaar vijf scenario's uit. Bovenaan het tabblad Bandbreedte zie je het totaal per jaar en een grafiek.",
+    "Het bestand rekent per project vijf scenario's uit, voor het lopende jaar en de twee jaren daarna. Bovenaan het tabblad Bandbreedte zie je het totaal per jaar; de grafiek toont per jaar een band van het laagste tot het hoogste scenario.",
     "Optimistisch: de verkoop haalt aan het eind van het jaar minstens het ingestelde percentage (standaard 90%). De omzet groeit dan mee.",
     "Basis: de omzet uit de prognose (upload).",
     "Afslag: maar een deel van de geplande verkopen van dat jaar lukt (standaard 50%). De omzet daalt dan mee.",
@@ -65,11 +65,11 @@ BANDBREEDTE = [
 ]
 
 INVOER_EENMALIG = [
-    ("2. Projecten", "Eén regel per project. Kies Type, Gebied, Strapo (Ja/Nee), AK % en hoe de woningen verdeeld zijn over de productsegmenten en kopers."),
+    ("2. Projecten", "Eén regel per project. Kies Type, Gebied, Strapo (Ja/Nee) en hoe de woningen verdeeld zijn over de productsegmenten en kopers. AK: het percentage komt uit de SAP-dump (kolom V); zet 'AK meenemen' op Nee als het niet mee moet, of vul in kolom K een eigen percentage in."),
     ("7. Gebieden", "De lijst met gebieden. Die kun je per project kiezen."),
     ("8. Funnel en target", "Per jaar de omzet uit de acquisitiefunnel en de target. Ook de deler voor de AK-dekking (standaard 1,05)."),
     ("9. DAEB-omzet", "Per project de DAEB-omzet en welk deel in welk jaar valt (samen 100%)."),
-    ("10. Kansen en risico's", "Per kans of risico: project, omschrijving, jaar, soort en bedrag (altijd positief invullen)."),
+    ("10. Kansen en risico's", "Per kans of risico een regel: kies het project, vul omschrijving, jaar en kwartaal, soort en bedrag in. Bijvoorbeeld: 2026 Q4, project X, hogere koopsom, € 1.500.000 (bedrag altijd positief; een risico telt als min)."),
     ("11. Reserves", "Per project de reserves en hoe ver het project klaar is. Het bestand rekent het effect per jaar uit."),
 ]
 
@@ -128,7 +128,7 @@ MAPPING = [
     ("RDFO › IFRS-eliminaties", "—", "Som Invoer › 3. IFRS J/N alleen als memo.", "Verplicht", "Regel voor IFRS-eliminatie per project."),
     ("RDFO › Omzet IFRS", "—", "Omzet old + IFRS-eliminaties.", "—", ""),
     ("RDFO › Projectresultaten / BOR", "ZPMW03", "FY RJ = −Bruto (omzet) result. LJ − OP.BOR RJ; RJ+1 = −OP.BOR RJ+1. Geen ABS.", "—", "Behandeling verliesvoorzieningen."),
-    ("RDFO › AK-dekking", "ZPMW03 + Invoer › 2 (AK %)", "Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) / 1,05 x AK %. Wordt mee vastgelegd.", "AK % per project", "Waar komen de AK-percentages vandaan (tabel AK Percentages)?"),
+    ("RDFO › AK-dekking", "ZPMW03 + AK-percentages (SAP-dump) + Invoer › 2", "Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) / 1,05 x AK %. AK % = eigen % of anders de SAP-dump; niet als 'AK meenemen' = Nee. Wordt mee vastgelegd.", "AK meenemen / eigen %", ""),
     ("RDFO › fees, overige, taakstelling EBIT", "—", "Som Invoer › 3 (FY en Actual YTD apart).", "Verplicht", ""),
     ("Outlook › DAEB, funnel, target", "Invoer › 8 en 9", "DAEB-omzet x percentage per jaar; funnel en target per jaar.", "Ja", "Komt DAEB-omzet uit de ZPMW DAEB-export?"),
     ("Outlook › kansen en risico's, reserves", "Invoer › 10 en 11", "Saldo per jaar (risico negatief); reserves x % gereed (cumulatief).", "Ja", ""),

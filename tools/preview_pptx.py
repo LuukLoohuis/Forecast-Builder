@@ -134,6 +134,42 @@ def trim(path):
     (im.crop(box) if box else im).save(path)
 
 
+def bandbreedte_png(wb, path):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    ws = wb["Bandbreedte"]
+    jaren = [str(ws.cell(row=5, column=2 + k).value) for k in range(3)]
+    namen = [ws.cell(row=6 + j, column=1).value for j in range(5)]
+    w = [[float(ws.cell(row=6 + j, column=2 + k).value or 0) for k in range(3)] for j in range(5)]
+    kl = ["#5AA02C", "#14284B", "#E8912D", "#F5B800", "#8A93A6"]
+    mk = ["^", "|", "D", "o", "s"]
+    fig, ax = plt.subplots(figsize=(6.2, 5.3), dpi=200)
+    for k in range(3):
+        lo, hi = min(v[k] for v in w), max(v[k] for v in w)
+        ax.plot([lo, hi], [k, k], color="#F8D873", lw=22, solid_capstyle="butt", zorder=1, label="Bandbreedte (laagste – hoogste)" if k == 0 else None)
+        ax.text(lo, k, f"{lo:,.1f}  ".replace(".", ","), ha="right", va="center", color="#B03A2E", fontweight="bold", fontsize=10)
+        ax.text(hi, k, f"  {hi:,.1f}".replace(".", ","), ha="left", va="center", color="#3B7A1E", fontweight="bold", fontsize=10)
+        ax.text(w[1][k], k - 0.32, f"{w[1][k]:,.1f}".replace(".", ","), ha="center", va="bottom", color="#14284B", fontweight="bold", fontsize=11)
+    for j in range(5):
+        ax.scatter([w[j][k] for k in range(3)], range(3), marker=mk[j], s=420 if j == 1 else 70, color=kl[j], zorder=3,
+                   linewidths=4 if j == 1 else 0.8, edgecolors="white" if j != 1 else kl[j], label=namen[j])
+    ax.set_yticks(range(3), jaren, fontsize=13, fontweight="bold", color="#14284B")
+    ax.set_ylim(2.6, -0.6)
+    ax.set_xticks([])
+    for sp in ("top", "right", "bottom"):
+        ax.spines[sp].set_visible(False)
+    ax.spines["left"].set_color("#BFC6D4")
+    ax.tick_params(left=False)
+    xmax = max(max(v) for v in w)
+    ax.set_xlim(0, xmax * 1.18)
+    ax.legend(ncol=2, loc="upper center", bbox_to_anchor=(0.5, 1.17), frameon=False, fontsize=8.5)
+    fig.tight_layout()
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
 def main(src, out, workdir):
     bk = Book(src)
     wb = bk.wb
@@ -149,6 +185,14 @@ def main(src, out, workdir):
     for i, p in enumerate(pngs[-total:]):
         trim(p)
         chart_png[i + 1] = p
+    # de liggende bandbreedte (spreidingsgrafiek met X-waarden als label) rendert LibreOffice niet zoals Excel:
+    # voor de voorbeeldpresentatie tekenen we hem na met dezelfde cijfers
+    try:
+        import build_rdfo as B
+        nr = B.DIA_CHARTS.index("Bandbreedte") + 1
+        chart_png[nr] = bandbreedte_png(wb, Path(workdir) / "bandbreedte.png")
+    except Exception as e:  # noqa: BLE001
+        print("bandbreedte-voorbeeld niet nagetekend:", e)
 
     # titeldia: volledig geel, donkerblauwe letters
     s = prs.slides.add_slide(blank)

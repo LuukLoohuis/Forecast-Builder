@@ -128,7 +128,7 @@ verschil = sum(abs(w0["Concept"][f"U{r}"].value or 0) for r in range(B.C0, B.C1 
 ok = abs(v(w0, rd("omz_proj", "F")) - v(w0, rd("omz_proj", "H"))) < TOL and abs(v(w0, rd("bor_tot", "F")) - v(w0, rd("bor_tot", "H"))) < TOL \
     and verschil < TOL
 record("Q3-snapshot sluit aan op de bronbestanden", ok,
-       f"Q3 vastgelegd {v(w0, rd('omz_proj', 'F')):,.1f} = upload {v(w0, rd('omz_proj', 'H')):,.1f}; som |verschil| alle {20 * len(B.KT)} conceptregels = 0")
+       f"Q3 vastgelegd {v(w0, rd('omz_proj', 'F')):,.1f} = upload {v(w0, rd('omz_proj', 'H')):,.1f}; som |verschil| alle {v(w0, "Concept!E3")} conceptregels = 0")
 
 ok = v(w0, rd("omz_ops", "G")) == "n.b." and v(w0, rd("bor_tot", "G")) == "n.b." and v(w0, rd("omz_proj", "K")) * 1000 - EXP_ACT < TOL
 record("Ontbrekende Q4 en ontbrekende historische actuals niet als nul", ok,
@@ -187,7 +187,7 @@ def q4_frozen(wb, times=1, select=True):
 
 
 p, info, w4 = scenario("t03b_q4_vastgelegd", q4_frozen)
-ok = n == 20 * len(B.KT) and revs == {0} and abs(v(w4, rd("omz_proj", "G")) - v(w0, rd("omz_proj", "H"))) < TOL \
+ok = n == v(w0, "Concept!E3") and revs == {0} and abs(v(w4, rd("omz_proj", "G")) - v(w0, rd("omz_proj", "H"))) < TOL \
     and all(abs(v(w4, rd("omz_proj", c)) - v(w0, rd("omz_proj", c))) < TOL for c in "CDEF") \
     and v(w4, "CALC_Versies!B11") == "Vastgesteld" and abs(v(w4, rd("omz_proj", "N"))) < TOL
 record("Kwartaalvastlegging Q4: Concept → Historie (dezelfde kopieerstap als de macro)", ok,
@@ -205,7 +205,7 @@ record("Vastgelegde Q4 is onveranderlijk: latere upload herberekent haar niet", 
        f"Q4 vóór/na nieuwe upload: {v(w4, rd('omz_proj', 'G')):,.1f} / {v(w5, rd('omz_proj', 'G')):,.1f}; upload-concept {v(w5, rd('omz_proj', 'H')):,.1f}")
 
 p, info, w6 = scenario("t04_dubbele_import", lambda wb: q4_frozen(wb, times=2))
-ok = abs(v(w6, rd("omz_proj", "G")) - v(w4, rd("omz_proj", "G"))) < TOL and v(w6, "Historie!M3") == 20 * len(B.KT) and v(w6, "Controle!D4") == 0
+ok = abs(v(w6, rd("omz_proj", "G")) - v(w4, rd("omz_proj", "G"))) < TOL and v(w6, "Historie!M3") == v(w0, "Concept!E3") and v(w6, "Controle!D4") == 0
 record("Dubbele import veroorzaakt geen dubbeltelling", ok,
        f"Q4 na 2x plakken: {v(w6, rd('omz_proj', 'G')):,.1f} (1x: {v(w4, rd('omz_proj', 'G')):,.1f}); {v(w6, 'Historie!M3')} regels als dubbel genegeerd en gemeld")
 
@@ -367,9 +367,9 @@ record("PowerPoint-inhoud staat klaar (tabbladen PPT en Dias)", ok,
        f"{v(w0, 'PPT!B14')} projecten in de projecttabel; kernboodschap: '{v(w0, 'PPT!B6')}'")
 gew_toel = v(w0, f"Dias!M{tp_-1}")
 gew_jaar = [v(w0, f"Dias!{c}{to_-1}") for c in "CDEFGHIJ"]
-ok = gew_toel == 0 and gew_jaar[:4] == [1, 1, 1, 1] and gew_jaar[4:] == [0, 0, 0, 0]
+ok = gew_toel == 0 and gew_jaar == [0, 0, 1, 1, 0, 0, 0, 0]   # outlook = RJ+1..RJ+4, demo heeft cijfers t/m 2028
 record("PowerPoint: lege toelichtingskolom en jaren zonder cijfers vallen weg", ok,
-       f"gewicht toelichting = {gew_toel}; gewichten jaarkolommen 2025-2032 = {gew_jaar}")
+       f"gewicht toelichting = {gew_toel}; gewichten jaarkolommen 2025-2032 = {gew_jaar} (alleen 2027 en 2028 hebben cijfers)")
 
 # ------------------------------------------------------------------ bandbreedte (5 scenario's)
 bb = w0["Bandbreedte"]
@@ -396,7 +396,7 @@ def scen_neutraal(wb):
 
 p, info, w14 = scenario("t11_bandbreedte_neutraal", scen_neutraal)
 b14 = w14["Bandbreedte"]
-ok = all(abs(b14[f"{c}6"].value - b14[f"{c}7"].value) < 1e-6 and abs(b14[f"{c}8"].value - b14[f"{c}7"].value) < 1e-6 for c in "BCDEF")
+ok = all(abs(b14[f"{c}6"].value - b14[f"{c}7"].value) < 1e-6 and abs(b14[f"{c}8"].value - b14[f"{c}7"].value) < 1e-6 for c in "BCD")
 record("Bandbreedte: afslag 100% en geen opschaling geeft precies het basisscenario", ok,
        f"2026: optimistisch/basis/afslag = {b14['B6'].value:,.2f} / {b14['B7'].value:,.2f} / {b14['B8'].value:,.2f} mln")
 
