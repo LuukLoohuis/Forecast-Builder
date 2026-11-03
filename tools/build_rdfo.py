@@ -1923,8 +1923,8 @@ def build_dashboard(wb, ws):
     put(ws, f"M{B0+1}", "Hoger", color=GREY, size=8)
     put(ws, f"N{B0+1}", "Lager", color=GREY, size=8)
     for rr in range(B0 + 2, B0 + len(bsteps)):
-        ws[f"M{rr}"] = f'=IF(OR(B{rr}="",ROUND(C{rr},2)=0),NA(),IF(C{rr}>0,ROUND(C{rr},2),NA()))'
-        ws[f"N{rr}"] = f'=IF(OR(B{rr}="",ROUND(C{rr},2)=0),NA(),IF(C{rr}<0,ROUND(-C{rr},2),NA()))'
+        ws[f"M{rr}"] = f'=IF(B{rr}="",0,MAX(0,ROUND(C{rr},2)))'
+        ws[f"N{rr}"] = f'=IF(B{rr}="",0,MAX(0,ROUND(-C{rr},2)))'
         for c in "MN":
             ws[f"{c}{rr}"].font = font(8, False, GREY)
             ws[f"{c}{rr}"].number_format = "0.00"
@@ -2628,36 +2628,23 @@ SC_CTX = {}
 
 
 def bandbreedte_chart(target_ws, anchor, w, h):
-    """Bandbreedte per jaar: zwevende band (laagste → hoogste), basis als donkerblauwe streep, budget grijs."""
+    """Bandbreedte per jaar: de vijf scenario's als kolommen naast elkaar, elk met een eigen kleur en het getal erboven."""
     sws = SC_CTX["ws"]
     n = max(1, min(SC_YEARS, OUT_CTX.get("demo_n", SC_YEARS + 1) - 1))   # jaren met cijfers (macro past dit na inlezen aan)
-    cats = Reference(sws, min_col=25, min_row=5, max_row=4 + n)
     ch = BarChart()
-    ch.type, ch.grouping, ch.overlap = "col", "stacked", 100
-    ch.add_data(Reference(sws, min_col=26, max_col=27, min_row=4, max_row=4 + n), titles_from_data=True)
-    ch.set_categories(cats)
+    ch.type, ch.grouping, ch.overlap = "col", "clustered", -8
+    ch.add_data(Reference(sws, min_col=1, max_col=1 + n, min_row=6, max_row=10), from_rows=True, titles_from_data=True)
+    ch.set_categories(Reference(sws, min_col=2, max_col=1 + n, min_row=5))
     style_chart(ch, [], numfmt="#,##0", w=w, h=h, ymin=0)
-    ch.series[0].graphicalProperties = GraphicalProperties(noFill=True, ln=LineProperties(noFill=True))
-    ch.series[1].graphicalProperties = GraphicalProperties(solidFill=YELLOW, ln=LineProperties(solidFill="C9A000", w=9525))
-    ch.gapWidth = 60
-    ln = LineChart()
-    ln.add_data(Reference(sws, min_col=28, max_col=29, min_row=4, max_row=4 + n), titles_from_data=True)
-    ln.set_categories(cats)
-    bas, bud = ln.series
-    for sr, colr, sym, size in ((bas, NAVY, "dash", 22), (bud, "6B7385", "circle", 7)):
-        sr.graphicalProperties.line.noFill = True
-        sr.marker = Marker(symbol=sym, size=size)
-        sr.marker.graphicalProperties = GraphicalProperties(solidFill=colr, ln=LineProperties(solidFill=colr, w=19050))
-    series_labels(bas, "#,##0.0", NAVY, "r", True)
-    ln.y_axis.axId = 100
-    ln.y_axis.delete = True
-    for k_, sr_ in enumerate(ln.series):
-        sr_.idx = sr_.order = 2 + k_
-    ch += ln
-    ch.y_axis.scaling.min = 0
-    from openpyxl.chart.legend import LegendEntry
-    ch.legend.legendEntry = [LegendEntry(idx=0, delete=True)]
-    ch.visible_cells_only = False   # grafiekdata staat in verborgen kolommen
+    kleuren = [GOOD, NAVY, "E8912D", YELLOW, "B8BEC9"]   # optimistisch, basis, afslag, gewogen, 0-100
+    for sr, kl in zip(ch.series, kleuren):
+        sr.graphicalProperties = solid(kl)
+        series_labels(sr, "#,##0.0;-#,##0.0;;", "14284B", "outEnd", True, 900)
+        sr.dLbls.txPr.bodyPr.rot = -5400000
+        sr.dLbls.txPr.bodyPr.vert = "horz"
+    ch.y_axis.delete = True
+    ch.y_axis.majorGridlines = None
+    ch.gapWidth = 70
     target_ws.add_chart(ch, anchor)
     return ch
 

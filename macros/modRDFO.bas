@@ -559,7 +559,7 @@ Public Sub RDFO_OutlookJaren()
             co.Chart.SeriesCollection(s).XValues = wsO.Range(wsO.Cells(5, 16), wsO.Cells(5, 15 + n))
         Next s
     Next doel
-    ' bandbreedte: grafiekdata op Bandbreedte, kolommen Y (jaar) en Z..AC, vanaf rij 5; jaren RJ.. (= Outlook-jaar 2 e.v.)
+    ' bandbreedte: scenario's in rij 6..10, jaren in rij 5 vanaf kolom B; jaren RJ.. (= Outlook-jaar 2 e.v.)
     Dim wsB As Worksheet, m As Long
     Set wsB = ThisWorkbook.Worksheets("Bandbreedte")
     m = n - 1
@@ -569,8 +569,8 @@ Public Sub RDFO_OutlookJaren()
         delen = Split(doel, "|")
         Set co = ThisWorkbook.Worksheets(delen(0)).ChartObjects(CLng(delen(1)))
         For s = 1 To co.Chart.SeriesCollection.Count
-            co.Chart.SeriesCollection(s).Values = wsB.Range(wsB.Cells(5, 25 + s), wsB.Cells(4 + m, 25 + s))
-            co.Chart.SeriesCollection(s).XValues = wsB.Range(wsB.Cells(5, 25), wsB.Cells(4 + m, 25))
+            co.Chart.SeriesCollection(s).Values = wsB.Range(wsB.Cells(5 + s, 2), wsB.Cells(5 + s, 1 + m))
+            co.Chart.SeriesCollection(s).XValues = wsB.Range(wsB.Cells(5, 2), wsB.Cells(5, 1 + m))
         Next s
     Next doel
 End Sub
