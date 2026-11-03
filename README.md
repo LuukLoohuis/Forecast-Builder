@@ -52,7 +52,7 @@ Het totaal telt mee in rij 194. Woningtype 5 op `Woningtypes` wordt dan automati
 - soort DAEB;
 - in blok 5 per component maximaal vijf fee-regels: per kwartaal "(1/2)", "(2/2)", een bedrag in actuals als "actuals". Bij meer delen één regel per termijn, en de rest samen in "overige termijnen".
 
-Verkoop en transport staan op `Invoer` (transport = verkoop). De formules zoeken het blok op aan de titel met "DAEB" en volgen dezelfde regels als de oude macro. Dat werkt dus ook voor het DAEB-blok van een oud FO. Staat het aantal daar niet, dan komt het uit de rij met "DAEB" op `Verkooptempo`.
+Verkoop en transport staan op `Invoer` (transport = verkoop). De formules zoeken het blok op aan de titel met "DAEB" en volgen dezelfde regels als de oude macro. Dat werkt dus ook voor het DAEB-blok van een oud FO. Staat het aantal daar niet, dan komt het van `Verkooptempo`: uit de rij met "DAEB" in de naam, of anders uit de eerste rij na de koopwoningtypes (bijvoorbeeld de naam van de corporatie), net als de oude macro. Getest op het DAEB-blok van een echt FO, met AK fees en bijkomende kosten.
 
 **Scenariomodel zonder knop.** `Invoer`, `Woningtypes` en `Scenario kosten` zijn formules op de FO-tabbladen, net zoals `Aansluiting opbrengsten` op de prijslijst. Het `Dashboard` en `Scenario's` rekenen dus altijd mee.
 
@@ -90,6 +90,7 @@ Het verborgen hulpblad `_koppeling` zet de termijnen om naar regels per bouwkwar
   - De macro's zijn **niet in Excel uitgevoerd**: daar is in deze omgeving geen Excel voor. Test bij het eerste gebruik de knoppen op een kopie.
   - Geeft Excel een melding over het VBA-project? Importeer dan `vba/FOWerkbestand.bas` en `vba/CashflowNaarPowerPoint.bas` via Alt+F11 → Bestand → Importeren, en zet de code van `vba/ThisWorkbook.cls` in ThisWorkbook.
 - Het scenariodeel rekent met de vier woningtypeblokken van de standaardopzet, plus het DAEB-blok als woningtype 5.
+- **Let op:** het werkbestand is gebouwd op de opzet van het demo-FO (4 woningtypes, kwartalen 2026-2029, vaste rijen). Een FO met een andere opzet (bijvoorbeeld 3 woningtypes, andere rijen of kwartalen tot 2030) past daar niet 1-op-1 in.
 - "Oud FO inlezen" gaat uit van de standaardopzet van het FO: transportregels in de lege rijen 13, 26, 36 en 46 van `CF - opbrengsten`, posten in rij 59-70 van `CF - kosten`. Wijkt een oud FO daarvan af, dan meldt de knop dat. `Controle oud FO` laat het effect zien.
 
 ## Opnieuw bouwen

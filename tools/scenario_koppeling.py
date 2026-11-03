@@ -20,7 +20,7 @@ from xlsxpkg import Sheet, num2col
 OK = "'CF - opbrengsten'!"
 KK = "'CF - kosten'!"
 KEYO = "_koppeling!$G$521:$Z$521"         # kwartaalindex per kolom van CF - opbrengsten (G..Z)
-KEYV = "_koppeling!$G$524:$Z$524"         # idem tabblad Verkooptempo
+KEYV = "_koppeling!$C$524:$Z$524"         # Verkooptempo kolom C..Z: kwartaalindex, -1 = kolom actuals
 KEYK = KK + "$H$96:$AA$96"
 MATO = OK + "$G$1:$Z$300"
 MATK = KK + "$H$1:$AA$300"
@@ -76,18 +76,23 @@ def structuur(o: Sheet, k: Sheet):
 
 
 def sleutelrijen(h: Sheet):
-    """kwartaalindex (jaar x 4 + kw) per kolom G..Z van CF - opbrengsten (kop rij 127/128) en Verkooptempo (rij 2/3)"""
+    """kwartaalindex (jaar x 4 + kw) per kolom van CF - opbrengsten (G..Z, kop rij 127/128) en Verkooptempo (C..Z, rij 2/3;
+    -1 = de kolom 'actuals')"""
     h.set('B520', 'CF - opbrengsten: jaar')
     h.set('B521', 'CF - opbrengsten: kwartaalindex')
-    h.set('B523', 'Verkooptempo: jaar')
-    h.set('B524', 'Verkooptempo: kwartaalindex')
     for i, c in enumerate(num2col(x) for x in range(7, 27)):
         prev = num2col(6 + i)
-        for rj, rk, bron, rjaar, rq in ((520, 521, OK, 127, 128), (523, 524, 'Verkooptempo!', 2, 3)):
-            h.set('%s%d' % (c, rj), '=IF(ISNUMBER(%s%s$%d),%s%s$%d,%s)' % (bron, c, rjaar, bron, c, rjaar,
-                                                                        '%s%d' % (prev, rj) if i else '""'))
-            h.set('%s%d' % (c, rk), '=IF(AND(ISNUMBER(%s%d),LEFT(%s%s$%d&"",1)="Q"),%s%d*4+VALUE(MID(%s%s$%d,2,1)),0)'
-                  % (c, rj, bron, c, rq, c, rj, bron, c, rq))
+        h.set('%s520' % c, '=IF(ISNUMBER(%s%s$127),%s%s$127,%s)' % (OK, c, OK, c, '%s520' % prev if i else '""'))
+        h.set('%s521' % c, '=IF(AND(ISNUMBER(%s520),LEFT(%s%s$128&"",1)="Q"),%s520*4+VALUE(MID(%s%s$128,2,1)),0)'
+              % (c, OK, c, c, OK, c))
+    h.set('A523', 'Verkooptempo: jaar')
+    h.set('A524', 'Verkooptempo: kwartaalindex')
+    V = 'Verkooptempo!'
+    for i, c in enumerate(num2col(x) for x in range(3, 27)):
+        prev = num2col(2 + i)
+        h.set('%s523' % c, '=IF(ISNUMBER(%s%s$2),%s%s$2,%s)' % (V, c, V, c, '%s523' % prev if i else '""'))
+        h.set('%s524' % c, '=IF(LOWER(TRIM(%s%s$3&""))="actuals",-1,IF(AND(ISNUMBER(%s523),LEFT(%s%s$3&"",1)="Q"),'
+                           '%s523*4+VALUE(MID(%s%s$3,2,1)),0))' % (V, c, c, V, c, c, V, c))
 
 
 def rij(mat, r):
@@ -375,10 +380,19 @@ def daeb_hulp(h: Sheet, types, log):
     h.set('B412', "rij 'Aantal DAEB-woningen'")
     h.set('C412', '=IFERROR(MATCH("Aantal DAEB*",%s,0),0)' % B)
     h.set('C413', '=IF(C412>0,N(INDEX(%s$D$1:$D$600,C412)),0)' % OK)
-    h.set('B414', "rij met 'DAEB' op Verkooptempo")
-    h.set('C414', '=IFERROR(_xlfn.AGGREGATE(15,6,ROW(Verkooptempo!$A$1:$A$60)/ISNUMBER(SEARCH("daeb",Verkooptempo!$A$1:$A$60)),1),0)')
+    # Verkooptempo: de rij met 'DAEB' in de naam, anders de eerste rij na de koopwoningtypes (zoals de macro; bv. de
+    # naam van de corporatie); kolom 'Aantal' op de koprij
+    h.set('D413', "Verkooptempo: koprij (E414), koopwoningtypes (F414), kolom 'Aantal' (G414)")
+    h.set('E414', '=IFERROR(MATCH("verkooptempo",Verkooptempo!$A$1:$A$30,0),0)')
+    h.set('F414', '=%s' % '+'.join('(N(Woningtypes!%s8)>0)' % num2col(3 + 3 * i) for i in range(len(types))))
+    h.set('G414', '=IF(E414=0,3,IFERROR(MATCH("aantal",INDEX(Verkooptempo!$A$1:$Z$30,E414,0),0),3))')
+    h.set('B414', "DAEB-rij op Verkooptempo")
+    pos = 'IF(AND($E$414>0,TRIM(INDEX(Verkooptempo!$A$1:$A$60,$E$414+$F$414+1)&"")<>"",'\
+          'LEFT(LOWER(TRIM(INDEX(Verkooptempo!$A$1:$A$60,$E$414+$F$414+1)&"")),6)<>"totaal"),$E$414+$F$414+1,0)'
+    h.set('C414', '=IF(C401=0,0,IFERROR(_xlfn.AGGREGATE(15,6,ROW(Verkooptempo!$A$1:$A$60)/ISNUMBER(SEARCH("daeb",'
+                  'Verkooptempo!$A$1:$A$60)),1),%s))' % pos)
     h.set('B415', 'aantal DAEB-woningen')
-    h.set('C415', '=IF(C413>0,C413,IF(C414>0,N(INDEX(Verkooptempo!$C$1:$C$60,C414)),0))')
+    h.set('C415', '=IF(C413>0,C413,IF(C414>0,N(INDEX(Verkooptempo!$A$1:$Z$60,C414,$G$414)),0))')
     h.set('B416', "rij 'Verkoop en levering DAEB'")
     h.set('C416', '=IFERROR(MATCH("Verkoop en levering DAEB*",%s,0),0)' % B)
     h.set('C417', '=IF(C416=0,0,IF(SUMPRODUCT((INDEX(%s,C416,0)<>0)*1)>0,1,0))' % MATO)
@@ -494,9 +508,9 @@ def daeb_woningtypes(w: Sheet, inv: Sheet, st):
     cv, ct = num2col(12 + 2 * (DAEB_TYPE - 1)), num2col(13 + 2 * (DAEB_TYPE - 1))
     for r in range(INV_R1, INV_RN + 1):
         ro = rij(MATO, HULP + '$C$416')
-        rv = rij('Verkooptempo!$G$1:$Z$60', HULP + '$C$414')
+        rv = rij('Verkooptempo!$C$1:$Z$60', HULP + '$C$414')
         uit_o = 'IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)+IF($A%d=%s,SUMIFS(%s,%s,0),0)' % (r, ro, r, KEYO, r, ACT, ro, KEYO)
-        uit_v = 'IF(%s$C$414=0,0,IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)+IF($A%d=%s,SUMIFS(%s,%s,0),0))' % (
+        uit_v = 'IF(%s$C$414=0,0,IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)+IF($A%d=%s,SUMIFS(%s,%s,-1),0))' % (
             HULP, r, rv, r, KEYV, r, ACT, rv, KEYV)
         f = '=IF(OR($B%d="",Woningtypes!$%s$7=""),"",IF(%s$C$417=1,%s,%s))' % (r, cn, HULP, uit_o, uit_v)
         inv.set('%s%d' % (cv, r), f, st['aantal'])
