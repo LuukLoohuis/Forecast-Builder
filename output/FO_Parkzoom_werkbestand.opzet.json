@@ -94,24 +94,24 @@
       11,
       12
      ],
-     "d": 52,
+     "d": 64,
      "tr": 13,
-     "omzet_kop": 56,
+     "omzet_kop": 68,
      "omzet": [
-      57,
-      58,
-      59,
-      60,
-      61,
-      62,
-      63,
-      64,
-      65,
-      66,
-      67
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79
      ],
-     "koop": 57,
-     "verkoop": 49,
+     "koop": 69,
+     "verkoop": 61,
      "won": 53,
      "verkoop_waarden": [
       13,
@@ -165,44 +165,47 @@
       9,
       10,
       11
-     ]
+     ],
+     "rij_verkocht": 14,
+     "rij_transport_pct": 15,
+     "rij_grond": 16
     },
     {
      "k": 2,
-     "hb": 15,
+     "hb": 18,
      "plan": [
-      16,
-      17,
-      18,
       19,
       20,
       21,
       22,
       23,
       24,
-      25
+      25,
+      26,
+      27,
+      28
      ],
-     "d": 57,
-     "tr": 26,
-     "omzet_kop": 71,
+     "d": 66,
+     "tr": 29,
+     "omzet_kop": 83,
      "omzet": [
-      72,
-      73,
-      74,
-      75,
-      76,
-      77,
-      78,
-      79,
-      80,
-      81,
-      82,
-      83,
       84,
-      85
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97
      ],
-     "koop": 72,
-     "verkoop": 50,
+     "koop": 84,
+     "verkoop": 62,
      "won": 24,
      "verkoop_waarden": [
       21,
@@ -259,38 +262,41 @@
       24,
       25,
       26
-     ]
+     ],
+     "rij_verkocht": 30,
+     "rij_transport_pct": 31,
+     "rij_grond": 32
     },
     {
      "k": 3,
-     "hb": 28,
+     "hb": 34,
      "plan": [
-      29,
-      30,
-      31,
-      32,
-      33,
-      34,
-      35
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
      ],
-     "d": 63,
-     "tr": 36,
-     "omzet_kop": 90,
+     "d": 69,
+     "tr": 42,
+     "omzet_kop": 102,
      "omzet": [
-      91,
-      92,
-      93,
-      94,
-      95,
-      96,
-      97,
-      98,
-      99,
-      100,
-      101
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113
      ],
-     "koop": 91,
-     "verkoop": 51,
+     "koop": 103,
+     "verkoop": 63,
      "won": 0,
      "verkoop_waarden": [
       0,
@@ -344,38 +350,41 @@
       36,
       37,
       38
-     ]
+     ],
+     "rij_verkocht": 43,
+     "rij_transport_pct": 44,
+     "rij_grond": 45
     },
     {
      "k": 4,
-     "hb": 38,
+     "hb": 47,
      "plan": [
-      39,
-      40,
-      41,
-      42,
-      43,
-      44,
-      45
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54
      ],
-     "d": 68,
-     "tr": 46,
-     "omzet_kop": 105,
+     "d": 71,
+     "tr": 55,
+     "omzet_kop": 117,
      "omzet": [
-      106,
-      107,
-      108,
-      109,
-      110,
-      111,
-      112,
-      113,
-      114,
-      115,
-      116
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128
      ],
-     "koop": 106,
-     "verkoop": 52,
+     "koop": 118,
+     "verkoop": 64,
      "won": 0,
      "verkoop_waarden": [
       0,
@@ -429,19 +438,22 @@
       48,
       49,
       50
-     ]
+     ],
+     "rij_verkocht": 56,
+     "rij_transport_pct": 57,
+     "rij_grond": 58
     }
    ],
-   "verkoop_kop": 48,
-   "euro_kop": 128,
-   "totaal": 194,
-   "periode": 196,
-   "correctie": 192,
+   "verkoop_kop": 60,
+   "euro_kop": 140,
+   "totaal": 206,
+   "periode": 208,
+   "correctie": 204,
    "daeb": null,
-   "daeb_sjabloon": 200,
-   "max": 196,
-   "daeb_totaal": 224,
-   "daeb_eind": 227,
+   "daeb_sjabloon": 212,
+   "max": 208,
+   "daeb_totaal": 236,
+   "daeb_eind": 239,
    "kop_markering": {
     "startbouw": "P",
     "oplevering": "U"
@@ -456,8 +468,8 @@
      3
     ]
    },
-   "jaarrij": 127,
-   "daeb_kop": 205
+   "jaarrij": 139,
+   "daeb_kop": 217
   },
   "kosten": {
    "eerste": "H",
@@ -857,6 +869,33 @@
      ]
     ]
    }
+  ],
+  "aansluiting_max": 124,
+  "prijslijst": {
+   "type": "C",
+   "status": "I",
+   "sleutels": [
+    "Woningtype A",
+    "APP"
+   ]
+  },
+  "ingevoegd": [
+   [
+    47,
+    3
+   ],
+   [
+    37,
+    3
+   ],
+   [
+    27,
+    3
+   ],
+   [
+    14,
+    3
+   ]
   ]
  },
  "invoer_laatste": 25,

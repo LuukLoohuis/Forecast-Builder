@@ -14,28 +14,28 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
 
 **Voor het FO-gesprek**
 1. **Nieuw kwartaal starten** (Start): FO - huidig wordt FO - vorig, de cashflow wordt de vorige prognose.
-   Bewaar zo nodig ook de planning: knop *Nu bewaren als vorige prognose* op `Woningtypes`.
 2. SAP PEW-export (FR4) van de huidige periode → rij *FO - huidig*: **Plakken** (eerst de export kopiëren vanaf A1)
    of **Inlezen...** (bestand kiezen).
 3. SAP actuals (FR5) → rij *FO - actuals*. Check SAP op correcties in de werkelijke opbrengsten.
 4. Salesforce prijslijst → rij *Prijslijst dump*. Zet de exportdatum op tab `Prijslijst` (cel C1).
-5. `Aansluiting opbrengsten`: SKO ↔ prijslijst ↔ PEW sluit aan (kolom J "OK"). Boek de bedragen van `SAP-correcties`
-   (per SAP-nummer en kostendrager) in SAP. Vraag ontbrekende documentatie op (SKO gunning, termijnschema's,
-   afrekenstaat MMW, specificatie overige opbrengsten).
-6. **Verkoop & transport**: per woningtype verkocht % en getransporteerd % per kwartaal (van alle woningen van het type).
+5. `Aansluiting opbrengsten`: SKO ↔ prijslijst ↔ PEW sluit aan (kolom J "OK"). Boek de bedragen van "te boeken in
+   SAP" (onderaan, per SAP-nummer en kostendrager) in SAP. Vraag ontbrekende documentatie op (SKO gunning,
+   termijnschema's, afrekenstaat MMW, specificatie overige opbrengsten).
+6. Verkocht t/m nu komt uit de prijslijst (status Verkocht of Getransporteerd).
 7. **Opbrengsten** op `CF - opbrengsten`, per woningtype:
    - bouwtermijnen per kwartaal (samen met de ontwikkelaar, op de bouwplanning);
-   - de transportregel en het verkooptempo komen uit `Verkoop & transport`. De grondtermijn volgt het transport, en bouwtermijnen tellen vanaf transport;
-   - wil je een bedrag bijsturen? Gebruik de gele correctieregel boven het totaal (demo: rij 192).
-   - DAEB-woningen? Vul onderaan het blok "Opbrengsten DAEB" in (demo: rij 200-227), of gebruik het DAEB-blok dat het FO al had. Het DAEB-woningtype en de scenario's vullen zich vanzelf.
+   - daaronder **verkocht %** en **getransporteerd %** per kwartaal (van alle woningen van het type). Transport kan niet vóór verkoop. De grondtermijn volgt het transport, en bouwtermijnen tellen vanaf transport;
+   - na goedkeuring SWK eventueel een **grondprijsaanpassing** per woning;
+   - wil je een bedrag bijsturen? Gebruik de gele correctieregel boven het totaal (demo: rij 204).
+   - DAEB-woningen? Vul onderaan het blok "Opbrengsten DAEB" in (demo: rij 212-239), of gebruik het DAEB-blok dat het FO al had. Het DAEB-woningtype en de scenario's vullen zich vanzelf.
 8. **Kosten** op `CF - kosten`:
-   - de bouwtermijnen volgen de geplande bouwtermijnen van de opbrengsten (overschrijven mag);
-   - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd), *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan) of *Transport* (restantbudget naar rato van het transport, bijvoorbeeld de grond).
+   - de bouwtermijnen volgen de geplande bouwtermijnen van de opbrengsten; een eigen planning (HWB) mag je eroverheen zetten;
+   - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd), *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan) of *Transport* (restantbudget naar rato van het transport, bijvoorbeeld de grond). Bij Voorstel en Transport gaat een zelf ingevuld kwartaal voor.
 
    De totaalregel (demo: rij 75) is het definitieve totaal.
 9. Blok 4 op `Start`: alle controles groen. Bekijk `Dashboard` (cashflow en kerncijfers) en `2. Ontw PEW`.
-10. **Scenario's**: vul op `Scenario's` een andere start bouw, verkoop, transport of grondtermijn in. `Invoer`, `Woningtypes`
-   en `Scenario kosten` rekenen automatisch mee met de CF-tabbladen; daar hoef je niets te doen.
+10. **Scenario's**: vul op `Scenario's` een andere start bouw, verkoop, transport of grondtermijn in. de verborgen rekenbladen
+   rekenen automatisch mee met de CF-tabbladen; daar hoef je niets te doen.
 11. **PowerPoint maken**: alle dia's, inclusief de datum op dia 1 en de
    kaarten van dia 10 (blok 6 op `Start`), uit dit bestand.
 

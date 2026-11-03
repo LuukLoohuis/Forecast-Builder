@@ -29,7 +29,7 @@ MAX_TYPES = 4                               # _koppeling: 100 rijen per type, DA
 
 # door configureer() gezet uit de opzet van het FO
 O1 = ON = K1 = KN = None
-KEYO = KEYV = KEYK = MATO = MATK = None
+KEYO = KEYK = MATO = MATK = None
 O_TOT = K_TOT = K_OFF = WK = None
 INV_RN = N_JAAR = N_PRE = None
 DAEB_TYPE = None
@@ -38,13 +38,12 @@ OZ = None
 
 def configureer(oz):
     """kolommen en rijen uit de opzet (opzet.py) van het FO"""
-    global WK, O1, ON, K1, KN, KEYO, KEYV, KEYK, MATO, MATK, O_TOT, K_TOT, K_OFF, INV_RN, N_JAAR, N_PRE, DAEB_TYPE, OZ
+    global WK, O1, ON, K1, KN, KEYO, KEYK, MATO, MATK, O_TOT, K_TOT, K_OFF, INV_RN, N_JAAR, N_PRE, DAEB_TYPE, OZ
     OZ = oz
     ob, k = oz['opbrengsten'], oz['kosten']
     O1, ON = ob['eerste'], ob['laatste']
     K1, KN = k['eerste'], k['laatste']
     KEYO = "_koppeling!$%s$521:$%s$521" % (O1, ON)       # kwartaalindex per kolom van CF - opbrengsten
-    KEYV = "_koppeling!$C$524:$%s$524" % VT_LAATSTE       # Verkooptempo kolom C..: kwartaalindex, -1 = kolom actuals
     KEYK = KK + "$%s$%d:$%s$%d" % (K1, k['sleutelrij'], KN, k['sleutelrij'])
     MATO = OK + "$%s$1:$%s$%d" % (O1, ON, (ob.get('daeb_eind') or ob['max']) + 50)
     MATK = KK + "$%s$1:$%s$%d" % (K1, KN, k['max'] + 20)
@@ -86,15 +85,6 @@ def sleutelrijen(h: Sheet):
         h.set('%s520' % c, '=IF(ISNUMBER(%s%s$%d),%s%s$%d,%s)' % (OK, c, jr, OK, c, jr, '%s520' % prev if i else '""'))
         h.set('%s521' % c, '=IF(AND(ISNUMBER(%s520),LEFT(%s%s$%d&"",1)="Q"),%s520*4+VALUE(MID(%s%s$%d,2,1)),0)'
               % (c, OK, c, kr, c, OK, c, kr))
-    vk = (OZ.get('verkooptempo') or {}).get('kop') or 3
-    h.set('A523', 'Verkooptempo: jaar')
-    h.set('A524', 'Verkooptempo: kwartaalindex')
-    V = 'Verkooptempo!'
-    for i, c in enumerate(num2col(x) for x in range(3, col2num(VT_LAATSTE) + 1)):
-        prev = num2col(2 + i)
-        h.set('%s523' % c, '=IF(ISNUMBER(%s%s$%d),%s%s$%d,%s)' % (V, c, vk - 1, V, c, vk - 1, '%s523' % prev if i else '""'))
-        h.set('%s524' % c, '=IF(LOWER(TRIM(%s%s$%d&""))="actuals",-1,IF(AND(ISNUMBER(%s523),LEFT(%s%s$%d&"",1)="Q"),'
-                           '%s523*4+VALUE(MID(%s%s$%d,2,1)),0))' % (V, c, vk, c, V, c, vk, c, V, c, vk))
 
 
 def rij(mat, r):
@@ -403,19 +393,8 @@ def daeb_hulp(h: Sheet, types, log):
     h.set('B412', "rij 'Aantal DAEB-woningen'")
     h.set('C412', '=IFERROR(MATCH("Aantal DAEB*",%s,0),0)' % B)
     h.set('C413', '=IF(C412>0,N(INDEX(%s$D$1:$D$600,C412)),0)' % OK)
-    # Verkooptempo: de rij met 'DAEB' in de naam, anders de eerste rij na de koopwoningtypes (zoals de macro; bv. de
-    # naam van de corporatie); kolom 'Aantal' op de koprij
-    h.set('D413', "Verkooptempo: koprij (E414), koopwoningtypes (F414), kolom 'Aantal' (G414)")
-    h.set('E414', '=IFERROR(MATCH("verkooptempo",Verkooptempo!$A$1:$A$30,0),0)')
-    h.set('F414', '=%s' % '+'.join('(N(Woningtypes!%s8)>0)' % num2col(3 + 3 * i) for i in range(len(types))))
-    h.set('G414', '=IF(E414=0,3,IFERROR(MATCH("aantal",INDEX(Verkooptempo!$A$1:$AN$30,E414,0),0),3))')
-    h.set('B414', "DAEB-rij op Verkooptempo")
-    pos = 'IF(AND($E$414>0,TRIM(INDEX(Verkooptempo!$A$1:$A$60,$E$414+$F$414+1)&"")<>"",'\
-          'LEFT(LOWER(TRIM(INDEX(Verkooptempo!$A$1:$A$60,$E$414+$F$414+1)&"")),6)<>"totaal"),$E$414+$F$414+1,0)'
-    h.set('C414', '=IF(C401=0,0,IFERROR(_xlfn.AGGREGATE(15,6,ROW(Verkooptempo!$A$1:$A$60)/ISNUMBER(SEARCH("daeb",'
-                  'Verkooptempo!$A$1:$A$60)),1),%s))' % pos)
-    h.set('B415', 'aantal DAEB-woningen')
-    h.set('C415', '=IF(C413>0,C413,IF(C414>0,N(INDEX(Verkooptempo!$A$1:$AN$60,C414,$G$414)),0))')
+    h.set('B415', 'aantal DAEB-woningen (regel "Aantal DAEB-woningen" op CF - opbrengsten)')
+    h.set('C415', '=C413')
     h.set('B416', "rij 'Verkoop en levering DAEB'")
     h.set('C416', '=IFERROR(MATCH("Verkoop en levering DAEB*",%s,0),0)' % B)
     h.set('C417', '=IF(C416=0,0,IF(SUMPRODUCT((INDEX(%s,C416,0)<>0)*1)>0,1,0))' % MATO)
@@ -531,14 +510,11 @@ def daeb_woningtypes(w: Sheet, inv: Sheet, st):
             w.set('%s%d' % (cn, r), '=IF(%s,"",%sD%d)' % (vis, HULP, hr))
             w.set('%s%d' % (cp, r), '=IF(%s,"",%sE%d)' % (vis, HULP, hr))
             w.set('%s%d' % (ck, r), '=IF(%s,"",%sF%d)' % (vis, HULP, hr))
-    # verkocht en transport (= verkoop) op Invoer: de verkoopregel van het DAEB-blok, anders de DAEB-rij op Verkooptempo
+    # verkocht en transport (= verkoop) op Invoer: de regel 'Verkoop en levering DAEB' op CF - opbrengsten
     cv, ct = num2col(12 + 2 * (DAEB_TYPE - 1)), num2col(13 + 2 * (DAEB_TYPE - 1))
     for r in range(INV_R1, INV_RN + 1):
         ro = rij(MATO, HULP + '$C$416')
-        rv = rij('Verkooptempo!$C$1:$%s$60' % VT_LAATSTE, HULP + '$C$414')
         uit_o = 'IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)+IF($A%d=%s,SUMIFS(%s,%s,0),0)' % (r, ro, r, KEYO, r, ACT, ro, KEYO)
-        uit_v = 'IF(%s$C$414=0,0,IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)+IF($A%d=%s,SUMIFS(%s,%s,-1),0))' % (
-            HULP, r, rv, r, KEYV, r, ACT, rv, KEYV)
-        f = '=IF(OR($B%d="",Woningtypes!$%s$7=""),"",IF(%s$C$417=1,%s,%s))' % (r, cn, HULP, uit_o, uit_v)
+        f = '=IF(OR($B%d="",Woningtypes!$%s$7=""),"",IF(%s$C$417=1,%s,0))' % (r, cn, HULP, uit_o)
         inv.set('%s%d' % (cv, r), f, st['aantal'])
         inv.set('%s%d' % (ct, r), '=%s%d' % (cv, r), st['aantal'])

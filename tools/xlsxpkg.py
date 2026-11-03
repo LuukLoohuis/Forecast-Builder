@@ -459,3 +459,100 @@ def unshare(tree) -> int:
             n += 1
     return n
 
+
+
+# ------------------------------------------------------------------------------------------------
+#  rijen invoegen (zoals Excel: alle verwijzingen in het hele bestand schuiven mee)
+# ------------------------------------------------------------------------------------------------
+
+_REF = re.compile(
+    r"(\"(?:[^\"]|\"\")*\")"                                              # 1 tekst tussen aanhalingstekens
+    r"|((?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!\$?[A-Z]{1,3}(?::\$?[A-Z]{1,3})?(?![\w$]))"   # 2 kolombereik met blad: overslaan
+    r"|(?<![\w$.!'\]])((?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!)?"             # 3 bladnaam
+    r"(\$?[A-Z]{1,3}\$?\d+)(?::(\$?[A-Z]{1,3}\$?\d+))?(?![\w(!])")        # 4, 5 cel of bereik
+
+
+def _schuif_cel(ref, at, n):
+    m = re.match(r'(\$?[A-Z]{1,3})(\$?)(\d+)$', ref)
+    r = int(m.group(3))
+    return '%s%s%d' % (m.group(1), m.group(2), r + n if r >= at else r)
+
+
+def schuif_formule(text, blad, eigen, at, n):
+    """verwijzingen naar rij >= at op blad `blad` n rijen omlaag; eigen = de formule staat op dat blad zelf"""
+    if not text:
+        return text
+
+    def rep(m):
+        if m.group(1) or m.group(2):
+            return m.group(0)
+        pre = m.group(3)
+        if pre:
+            naam = pre[:-1]
+            if naam.startswith("'"):
+                naam = naam[1:-1].replace("''", "'")
+            if naam != blad:
+                return m.group(0)
+        elif not eigen:
+            return m.group(0)
+        a = _schuif_cel(m.group(4), at, n)
+        b = ':' + _schuif_cel(m.group(5), at, n) if m.group(5) else ''
+        return (pre or '') + a + b
+    return _REF.sub(rep, text)
+
+
+def _schuif_bereik(sq, at, n):
+    return ' '.join(':'.join(_schuif_cel(x, at, n) if re.match(r'\$?[A-Z]{1,3}\$?\d+$', x) else x for x in part.split(':'))
+                    for part in sq.split())
+
+
+def rijen_invoegen(pkg, blad, at, n):
+    """n lege rijen invoegen vóór rij `at` op blad `blad` (gedeelde formules eerst uitschrijven)"""
+    doel = pkg.sheet_part(blad)
+    for naam, part, _ in pkg.sheets():
+        t = pkg.x(part)
+        unshare(t)
+        eigen = part == doel
+        for el in t.iter():
+            if not isinstance(el.tag, str):
+                continue
+            ln = etree.QName(el).localname
+            if ln in ('f', 'formula', 'formula1', 'formula2') and el.text:
+                el.text = schuif_formule(el.text, blad, eigen, at, n)
+            if not eigen:
+                continue
+            if ln == 'sqref' and el.text:
+                el.text = _schuif_bereik(el.text, at, n)
+            for attr in ('sqref', 'ref'):
+                if attr in el.attrib and ln not in ('c',):
+                    el.set(attr, _schuif_bereik(el.get(attr), at, n))
+            if ln == 'row':
+                r = int(el.get('r'))
+                if r >= at:
+                    el.set('r', str(r + n))
+            elif ln == 'c' and el.get('r'):
+                el.set('r', _schuif_cel(el.get('r'), at, n))
+            elif ln == 'brk' and el.getparent() is not None and etree.QName(el.getparent()).localname == 'rowBreaks':
+                if int(el.get('id')) >= at:
+                    el.set('id', str(int(el.get('id')) + n))
+        pkg.put(part, t)
+        if eigen:
+            for rid, ty, target, _ in pkg.rels(part):
+                if ty == T_DRAWING:
+                    d = resolve(part, target)
+                    dt = pkg.x(d)
+                    for el in dt.iter():
+                        if isinstance(el.tag, str) and etree.QName(el).localname == 'row' and el.text and \
+                                etree.QName(el.getparent()).localname in ('from', 'to') and int(el.text) >= at - 1:
+                            el.text = str(int(el.text) + n)
+                    pkg.put(d, dt)
+    wb = pkg.x('xl/workbook.xml')
+    for d in wb.iter(M + 'definedName'):
+        d.text = schuif_formule(d.text, blad, False, at, n)
+    pkg.put('xl/workbook.xml', wb)
+    for p in [k for k in pkg.parts if k.startswith('xl/charts/chart')]:
+        t = pkg.x(p)
+        for f in t.iter('{http://schemas.openxmlformats.org/drawingml/2006/chart}f'):
+            f.text = schuif_formule(f.text, blad, False, at, n)
+        pkg.put(p, t)
+    pkg.parts.pop('xl/calcChain.xml', None)

@@ -22,13 +22,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import fo_aanpassingen  # noqa: E402
 import opzet as opzet_fo  # noqa: E402
-from opzet import vt_rij  # noqa: E402
 import scenario_koppeling  # noqa: E402
 import nieuwe_bladen  # noqa: E402
 import vba_project  # noqa: E402
 from xlsxpkg import (CT, CT_CHART, CT_CHARTCOLORS, CT_CHARTSTYLE, CT_DRAWING, CT_SHEET, M, PR, R, SST, T_DRAWING,  # noqa: E402
                      T_SHEET, Package, Sheet, Styles, col2num, num2col, parse, rels_name, relative, replace_in_formulas,
-                     resolve, split_ref, tobytes, unshare)
+                     resolve, rijen_invoegen, split_ref, tobytes, unshare)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -44,8 +43,6 @@ LAYOUT = [
     ('Prijslijst dump', 'fo', 'Prijslijst dump', 'shPrijslijstDump'),
     ('Prijslijst', 'fo', 'Prijslijst', 'shPrijslijst'),
     ('Aansluiting opbrengsten', 'fo', 'Aansluiting opbrengsten', 'shAansluiting'),
-    ('SAP-correcties', 'new', 'SAP-correcties', 'shSAPCorrecties'),
-    ('Verkoop & transport', 'new', 'Verkoop & transport', 'shVerkoopTransport'),
     ('CF - opbrengsten', 'fo', 'CF - opbrengsten', 'shCFOpbrengsten'),
     ('CF - kosten', 'fo', 'CF - kosten', 'shCFKostenFO'),
     ('Dashboard', 'sc', 'Dashboard', 'shDashboard'),
@@ -59,7 +56,6 @@ LAYOUT = [
     ('Model', 'sc', 'Model', 'shModel'),
     ('Vorige prognose', 'new', 'Vorige prognose', 'shVorigePrognose'),
     ('Controle oud FO', 'new', 'Controle oud FO', 'shControleOudFO'),
-    ('Verkooptempo', 'fo', 'Verkooptempo', 'shVerkooptempo'),
     ('Behind the scens', 'fo', 'Behind the scens', 'shBehindScens'),
     ('Toelichting onderlegger', 'fo', 'Toelichting onderlegger', 'shToelichting'),
     ('1. Ontw businessc FD', 'fo', '1. Ontw businessc FD', 'shOntwBusinesscase'),
@@ -67,7 +63,8 @@ LAYOUT = [
     ('_sjabloon', 'new', '_sjabloon', 'shSjabloon'),
     ('_koppeling', 'new', '_koppeling', 'shKoppeling'),
 ]
-VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', 'Notities FO gesprek'}    # 2. Ontw PEW komt in een nieuw jasje
+VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', 'Notities FO gesprek', 'Verkooptempo'}    # 2. Ontw PEW komt in een nieuw jasje
+VERBORGEN = {'Invoer', 'Woningtypes', 'Scenario kosten', 'Model'}   # rekenbladen van het scenariomodel: alles is formule
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
 DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3),
         'dia10': [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),
@@ -115,10 +112,85 @@ def config(oz, layout):
         ('voorstel_bereik', 'B%d:%s%d' % (k['voorstel_start'], k['status'], k['voorstel_eind'])),
         ('controles', ';'.join(controles)),
         ('cashflow_rij1', cf['periodes'][0][2]),
-        ('vt_blad', 'Verkoop & transport'),
+
         ('voorstel_offset', k['voorstel_offset']),
-        ('vt_types', '|'.join('%d:%d:%d:%d' % (t['verkoop'], t['koop'], vt_rij(t['k']), t['hb'] - 1) for t in ob['types'])),
+        ('vt_types', '|'.join('%d:%d:%d:%d' % (t['verkoop'], t['koop'], t['tr'] + 1, t['hb'] - 1) for t in ob['types'])),
+        ('vt_invoeg', '|'.join('%d:%d' % (r, n) for r, n in oz['ingevoegd'])),
     ] + [('hulp|' + b, v) for b, v in hulp.items()]
+
+
+def vervallen_als_waarde(pkg, part, blad, wb):
+    """formules die naar een vervallen tabblad verwijzen (Verkooptempo, Notities, 1. Cashflow, 3. Restant bdgt): de waarde"""
+    weg = VERVALLEN - {'2. Ontw PEW'}
+    t = pkg.x(part)
+    n = 0
+    for c in t.iter(M + 'c'):
+        f = c.find(M + 'f')
+        if f is None or not f.text or not any(("'%s'!" % w) in f.text or (w + '!') in f.text for w in weg):
+            continue
+        v = wb[blad][c.get('r')].value
+        c.remove(f)
+        for x in c.findall(M + 'v') + c.findall(M + 'is'):
+            c.remove(x)
+        c.attrib.pop('t', None)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            etree.SubElement(c, M + 'v').text = repr(v) if isinstance(v, float) else str(v)
+        elif v not in (None, ''):
+            c.set('t', 'inlineStr')
+            etree.SubElement(etree.SubElement(c, M + 'is'), M + 't').text = str(v)
+        n += 1
+    if n:
+        pkg.put(part, t)
+    return n
+
+
+def daeb_uit_verkooptempo(sh, oz, wb, st, sjabloon):
+    """FO met een eigen DAEB-blok: aantal en verkoop van de corporatie stonden op Verkooptempo (de rij met 'DAEB' in de
+    naam, anders de eerste rij na de koopwoningtypes). Verkooptempo vervalt: als regels onder de periode-rij zetten"""
+    ob = oz['opbrengsten']
+    if not ob['daeb'] or 'Verkooptempo' not in wb.sheetnames:
+        return
+    o = wb['CF - opbrengsten']
+    if any(str(o.cell(r, 2).value or '').lower().startswith('aantal daeb') for r in range(1, o.max_row + 1)):
+        return
+    v = wb['Verkooptempo']
+    kop = next((r for r in range(1, 30) if str(v.cell(r, 1).value or '').strip().lower() == 'verkooptempo'), None)
+    if not kop:
+        return
+    namen = [(r, str(v.cell(r, 1).value or '').strip()) for r in range(kop + 1, kop + 20)]
+    rij = next((r for r, nm in namen if 'daeb' in nm.lower()), None)
+    if rij is None:
+        r = kop + 1 + len(ob['types'])
+        nm = str(v.cell(r, 1).value or '').strip()
+        rij = r if nm and not nm.lower().startswith('totaal') else None
+    if rij is None:
+        return
+    acol = next((c for c in range(1, 40) if str(v.cell(kop, c).value or '').strip().lower() == 'aantal'), 3)
+    aantal = v.cell(rij, acol).value
+    # kwartaalsleutels op Verkooptempo en op CF - opbrengsten
+    def sleutels(ws, jr, qr, c1, c2):
+        out, jaar = {}, None
+        for c in range(c1, c2 + 1):
+            if isinstance(ws.cell(jr, c).value, (int, float)):
+                jaar = int(ws.cell(jr, c).value)
+            q = str(ws.cell(qr, c).value or '').strip()
+            if jaar and re.match(r'Q[1-4]$', q):
+                out[jaar * 4 + int(q[1])] = c
+        return out
+    kv = sleutels(v, kop - 1, kop, 2, 40)
+    ko = sleutels(o, ob['jaarrij'], ob['euro_kop'], col2num(ob['eerste']), col2num(ob['laatste']))
+    r1 = ob['periode'] + 2
+    for c in ['B', 'D'] + [num2col(x) for x in ko.values()]:
+        assert not sh.get('%s%d' % (c, r1)) and not sh.get('%s%d' % (c, r1 + 1)), 'rij %d/%d niet leeg' % (r1, r1 + 1)
+    z = fo_aanpassingen.Zetter(sh, 'CF - opbrengsten', sjabloon)
+    z('B%d' % r1, 'Aantal DAEB-woningen', st['tekst'])
+    z('D%d' % r1, aantal, st['invoer_getal'])
+    z('B%d' % (r1 + 1), 'Verkoop en levering DAEB (aantal woningen per kwartaal; transport = verkoop)', st['tekst'])
+    for key, c in ko.items():
+        x = v.cell(rij, kv[key]).value if key in kv else None
+        z('%s%d' % (num2col(c), r1 + 1), x if isinstance(x, (int, float)) and x else None, st['invoer_getal'])
+    note('CF - opbrengsten: DAEB-aantal (%s) en -verkoop van Verkooptempo (%s) naar rij %d-%d'
+         % (aantal, v.cell(rij, 1).value, r1, r1 + 1))
 
 
 def project_uit_bestandsnaam(pad):
@@ -361,15 +433,27 @@ def main():
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
 
     print('Opzet van het FO lezen')
-    oz = opzet_fo.lees(a.fo)
+    fo_bron = a.fo
+    oz0 = opzet_fo.lees(fo_bron)
+    # per woningtype 3 rijen onder de transportregel (verkocht %, getransporteerd %, grondprijs); van onder naar boven
+    ingevoegd = sorted(((t['tr'] + 1, 3) for t in oz0['opbrengsten']['types']), reverse=True)
+    fo_pkg = Package(fo_bron)
+    for at, n in ingevoegd:
+        rijen_invoegen(fo_pkg, 'CF - opbrengsten', at, n)
+    fo_tmp = a.out + '.fo.tmp.xlsx'
+    fo_pkg.save(fo_tmp)
+    a.fo = fo_tmp
+    oz = opzet_fo.lees(fo_tmp)
+    oz['ingevoegd'] = ingevoegd
+    note('CF - opbrengsten: per woningtype 3 rijen ingevoegd (rij %s van het FO)' % ', '.join(str(r) for r, _ in ingevoegd[::-1]))
     ob, ko = oz['opbrengsten'], oz['kosten']
     note('CF - opbrengsten: %d woningtypes, kolommen %s..%s, totaal rij %d; CF - kosten: posten rij %d-%d, totaal rij %d'
          % (len(ob['types']), ob['eerste'], ob['laatste'], ob['totaal'], ko['posten'][0], ko['posten'][-1], ko['totaal']))
-    if os.path.abspath(a.fo) == os.path.abspath(ap.get_default('fo')):
+    if os.path.abspath(fo_bron) == os.path.abspath(ap.get_default('fo')):
         project = dict(DEMO)
     else:
         opl = ob['mijlpalen'].get('oplevering')
-        project = {'project': project_uit_bestandsnaam(a.fo), 'oplevering': opl or (None, None)}
+        project = {'project': project_uit_bestandsnaam(fo_bron), 'oplevering': opl or (None, None)}
     if a.project:
         project['project'] = a.project
     if a.oplevering:
@@ -384,7 +468,7 @@ def main():
     fo = Package(a.fo)
     tmp_new = a.out + '.nieuw.tmp'
     inv_tot = scenario_koppeling.INV_RN + 2
-    info = nieuwe_bladen.bouw(tmp_new, project, oud_cashflow(a.fo, oz), os.path.basename(a.fo), pew_inhoud(a.fo), oz,
+    info = nieuwe_bladen.bouw(tmp_new, project, oud_cashflow(a.fo, oz), os.path.basename(fo_bron), pew_inhoud(a.fo), oz,
                               inv_tot, scenario_koppeling.DAEB_TYPE)
     new = Package(tmp_new)
     os.remove(tmp_new)
@@ -399,6 +483,8 @@ def main():
               for k, p in (('fo', fo), ('new', new))}
     copier = Copier(dst, styles, sst)
 
+    import openpyxl
+    fo_waarden = openpyxl.load_workbook(a.fo, data_only=True)
     print('Werkbladen overnemen')
     sc_sheets = {n: (p, st) for n, p, st in sc.sheets()}
     sc_order = [n for n, _, _ in sc.sheets()]
@@ -429,6 +515,12 @@ def main():
                     note('%s: %d gedeelde formules uitgeschreven' % (name, g))
                 if n:
                     note('%s: %d formules verwezen naar een ander bestand; nu naar het tabblad in dit bestand' % (name, n))
+                v = vervallen_als_waarde(dst, part, src_name, fo_waarden)
+                if v:
+                    note('%s: %d formules met een verwijzing naar een vervallen tabblad (%s) zijn waarde geworden'
+                         % (name, v, ', '.join(sorted(VERVALLEN - {'2. Ontw PEW'}))))
+        if name in VERBORGEN:
+            state = 'hidden'
         final.append((name, part, state, code))
     note('%d tabbladen' % len(final))
 
@@ -457,7 +549,12 @@ def main():
                           ('CF - kosten', lambda sh: fo_aanpassingen.kosten(sh, oz, st, sjabloon, styles, note))):
         sh = Sheet(dst.x(part_of[blad]), sst)
         functie(sh)
+        if blad == 'CF - opbrengsten':
+            daeb_uit_verkooptempo(sh, oz, fo_waarden, st, sjabloon)
         dst.put(part_of[blad], sh.t)
+    sh = Sheet(dst.x(part_of['Aansluiting opbrengsten']), sst)
+    fo_aanpassingen.aansluiting(sh, oz, st, sjabloon, note)
+    dst.put(part_of['Aansluiting opbrengsten'], sh.t)
     for ref, tekst in info['pew_extra'].items():
         sjabloon.append(('2. Ontw PEW', ref, tekst))
     # sjabloonlijst op het verborgen blad _sjabloon
@@ -672,9 +769,10 @@ def main():
     note('%d modules' % len(modules))
 
     dst.save(a.out)
+    os.remove(fo_tmp)
     import json
     with open(os.path.splitext(a.out)[0] + '.opzet.json', 'w') as fh:
-        json.dump({'fo': os.path.basename(a.fo), 'opzet': oz, 'invoer_laatste': scenario_koppeling.INV_RN,
+        json.dump({'fo': os.path.basename(fo_bron), 'opzet': oz, 'invoer_laatste': scenario_koppeling.INV_RN,
                    'invoer_totaal': inv_tot, 'daeb_type': scenario_koppeling.DAEB_TYPE}, fh, indent=1, default=str)
     print('Klaar: ' + a.out)
 

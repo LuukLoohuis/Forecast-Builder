@@ -16,22 +16,6 @@ def _t(v):
     return v.strip() if isinstance(v, str) else ('' if v is None else str(v))
 
 
-VT_BLAD = 'Verkoop & transport'
-VT_KEY = 7                  # rij met de kwartaalindex per kolom
-VT_R1, VT_BLOK = 9, 9       # eerste typeblok, rijen per type
-
-
-def vt_rij(k):
-    """eerste rij (titel) van woningtype k op Verkoop & transport; +1 verkocht %, +2 cumulatief, +3 aantal,
-    +4 getransporteerd %, +5 cumulatief, +6 aantal"""
-    return VT_R1 + VT_BLOK * (k - 1)
-
-
-def vt_totaal(n):
-    """rij 'Alle woningen'; +1 verkocht aantal, +2 cumulatief %, +3 getransporteerd aantal, +4 cumulatief %"""
-    return vt_rij(n + 1)
-
-
 def _getal(v):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
 
@@ -51,6 +35,8 @@ def lees(pad):
     o['verkooptempo'] = _verkooptempo(wv['Verkooptempo']) if 'Verkooptempo' in wv.sheetnames else None
     o['hulpkolommen'] = _hulp(wf)
     o['aansluiting'] = _aansluiting(wv['Aansluiting opbrengsten'])
+    o['aansluiting_max'] = wf['Aansluiting opbrengsten'].max_row
+    o['prijslijst'] = _prijslijst(wf)
     return o
 
 
@@ -243,4 +229,24 @@ def _aansluiting(v):
             rr += 1
         blokken.append({'titel': r, 'naam': naam, 'corr': L(corr), 'regels': regels})
     return blokken
+
+
+def _prijslijst(wf):
+    """kolommen Type en Status op Prijslijst en per woningtype de sleutel (uit SUMIF(Prijslijst!C..,"sleutel",...) in de
+    SKO-regels op Aansluiting opbrengsten), voor 'verkocht t/m nu' uit Salesforce"""
+    if 'Prijslijst' not in wf.sheetnames:
+        return None
+    p = wf['Prijslijst']
+    kop = {_t(p.cell(4, c).value).lower(): L(c) for c in range(1, 40) if _t(p.cell(4, c).value)}
+    typ, stat = kop.get('type'), kop.get('sf: status')
+    if not typ or not stat:
+        return None
+    a = wf['Aansluiting opbrengsten']
+    sleutels = []
+    for r in range(1, 40):
+        f = _t(a.cell(r, 3).value)
+        m = re.search(r'SUMIF\(Prijslijst!\$?%s\$?\d+:\$?%s\$?\d+,"([^"]+)"' % (typ, typ), f)
+        if m:
+            sleutels.append(m.group(1))
+    return {'type': typ, 'status': stat, 'sleutels': sleutels}
 

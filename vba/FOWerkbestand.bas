@@ -385,13 +385,23 @@ Public Sub OudFOInlezen()
     For Each wb In Workbooks
         If LCase$(wb.FullName) = LCase$(CStr(pad)) Then Set wbO = wb
     Next wb
-    If wbO Is Nothing Then
-        Application.DisplayAlerts = False
-        Set wbO = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
-        Application.DisplayAlerts = True
-        zelfGeopend = True
+    If Not wbO Is Nothing Then
+        ' het oude FO wordt hieronder tijdelijk aangepast (rijen invoegen): niet in een geopend bestand van de gebruiker
+        Application.Calculation = rekenmodus
+        Application.EnableEvents = True
+        Application.ScreenUpdating = True
+        MsgBox "Sluit eerst " & BestandsNaam(CStr(pad)) & " en klik daarna opnieuw op Oud FO inlezen.", vbExclamation, "Oud FO inlezen"
+        Exit Sub
     End If
+    Application.DisplayAlerts = False
+    Set wbO = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
+    Application.DisplayAlerts = True
+    zelfGeopend = True
     wbO.Application.Calculate
+    ' zelfde opzet als het werkbestand: per woningtype rijen onder de transportregel (verkocht %, getransporteerd %,
+    ' grondprijs). Excel schuift alle verwijzingen in het oude FO mee; het oude bestand wordt niet bewaard.
+    stap = "rijen invoegen in het oude FO (CF - opbrengsten)"
+    RijenInvoegenOudFO wbO
 
     bladen = Split(Cfg("fo_bladen", FO_BLADEN), "|")
     For i = LBound(bladen) To UBound(bladen)
@@ -408,10 +418,10 @@ Public Sub OudFOInlezen()
 
     stap = "opzet controleren"
     OpzetControleren waarschuwing
-    stap = "verkoop en transport in % (tab Verkoop & transport)"
-    VerkoopTransportOvernemen wbO, waarschuwing
     stap = "nieuwe onderdelen terugzetten (_sjabloon)"
     SjabloonTerugzetten waarschuwing
+    stap = "verkocht en getransporteerd in % (CF - opbrengsten)"
+    VerkoopTransportOvernemen wbO, waarschuwing
     stap = "hulpkolommen"
     HulpBijwerken ThisWorkbook.Worksheets("FO - vorig"), HulpKolommen("FO - vorig"), 17, LaatsteRij(ThisWorkbook.Worksheets("FO - vorig"), 21)
     HulpBijwerken ThisWorkbook.Worksheets("FO - huidig"), HulpKolommen("FO - huidig"), 17, LaatsteRij(ThisWorkbook.Worksheets("FO - huidig"), 21)
@@ -698,15 +708,26 @@ Public Function WerkbestandCfg(sleutel As String, standaard As String) As String
     WerkbestandCfg = Cfg(sleutel, standaard)
 End Function
 
+Private Sub RijenInvoegenOudFO(wbO As Workbook)
+    ' _sjabloon 'vt_invoeg': rij:aantal in de opzet van het FO, van onder naar boven
+    Dim ws As Worksheet, t As Variant, d() As String
+    Set ws = ZoekBlad(wbO, "CF - opbrengsten")
+    If ws Is Nothing Then Exit Sub
+    For Each t In Split(Cfg("vt_invoeg", ""), "|")
+        d = Split(t, ":")
+        If UBound(d) = 1 Then ws.Rows(CLng(d(0))).Resize(CLng(d(1))).Insert
+    Next t
+End Sub
+
 Private Sub VerkoopTransportOvernemen(wbO As Workbook, ByRef waarschuwing As String)
     ' het oude FO plant verkoop en transport in aantallen (verkooprij en grondtermijn op CF - opbrengsten); het werkbestand
-    ' in % op tab Verkoop & transport. Per type: verkocht % (vanaf de 2e kolom; de 1e is de realisatie uit Salesforce)
-    ' en getransporteerd % = de grondtermijn van het oude FO, gedeeld door het aantal woningen
+    ' in % in de rijen onder de transportregel. Per type: verkocht % (vanaf de 2e kolom; de 1e is de realisatie uit
+    ' Salesforce) en getransporteerd % = de grondtermijn van het oude FO, gedeeld door het aantal woningen
     Dim wsO As Worksheet, wsV As Worksheet, t As Variant, d() As String, k1 As Long, k2 As Long, c As Long
     Dim won As Double, rV As Long, rK As Long, rT As Long
     Set wsO = ZoekBlad(wbO, "CF - opbrengsten")
-    Set wsV = ZoekBlad(ThisWorkbook, Cfg("vt_blad", "Verkoop & transport"))
-    If wsO Is Nothing Or wsV Is Nothing Then Exit Sub
+    Set wsV = ThisWorkbook.Worksheets("CF - opbrengsten")
+    If wsO Is Nothing Then Exit Sub
     k1 = CLng(Cfg("opbrengsten_kol1", "7"))
     k2 = CLng(Cfg("opbrengsten_kol2", "26"))
     For Each t In Split(Cfg("vt_types", ""), "|")
@@ -716,8 +737,8 @@ Private Sub VerkoopTransportOvernemen(wbO As Workbook, ByRef waarschuwing As Str
             won = 0
             If IsNumeric(wsO.Cells(CLng(d(3)), 7).Value) Then won = CDbl(wsO.Cells(CLng(d(3)), 7).Value)
             For c = k1 To k2
-                If c > k1 Then wsV.Cells(rT + 1, c).Value = Deel(wsO.Cells(rV, c).Value, won)
-                wsV.Cells(rT + 4, c).Value = Deel(wsO.Cells(rK, c).Value, won)
+                If c > k1 Then wsV.Cells(rT, c).Value = Deel(wsO.Cells(rV, c).Value, won)
+                wsV.Cells(rT + 1, c).Value = Deel(wsO.Cells(rK, c).Value, won)
             Next c
         End If
     Next t

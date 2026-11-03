@@ -19,10 +19,7 @@ from __future__ import annotations
 
 import re
 
-from opzet import VT_BLAD, VT_KEY, vt_rij, vt_totaal
 from xlsxpkg import Sheet, col2num, num2col
-
-VT = "'%s'!" % VT_BLAD
 
 P_H, P_O = 'p_huidig', 'p_oplevering'
 MIJLPALEN = ['na akkoord SO', 'na akkoord VO', 'na akkoord DO', 'na omgevingsvergunning', 'na tekenen TKO',
@@ -61,18 +58,54 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
         for c in ['B'] + cols:
             assert not sh.get('%s%d' % (c, tr)), 'transportrij %d is niet leeg' % tr
         won = '$G$%d' % (t['hb'] - 1)
-        rv = vt_rij(t['k'])
-        z('B%d' % tr, 'Transport (aantal woningen, uit Verkoop & transport) · grondtermijn', st['tekst'])
+        ra, rb, rg = tr + 1, tr + 2, tr + 3            # ingevoegde rijen: verkocht %, getransporteerd %, grondprijs
+        for r in (ra, rb, rg):
+            for c in ['B'] + cols:
+                assert not sh.get('%s%d' % (c, r)), 'rij %d is niet leeg' % r
+        c1, cn = cols[0], cols[-1]
+        w = t['won'] or 0
+        z('B%d' % ra, 'Verkocht · % van alle woningen, per kwartaal (1e kolom = t/m nu, Salesforce)', st['invoer_label'])
+        z('B%d' % rb, 'Getransporteerd · % van alle woningen, per kwartaal (niet vóór verkocht)', st['invoer_label'])
+        z('B%d' % rg, 'Grondprijs · aanpassing per woning in € (na goedkeuring SWK), telt op bij de koopsom grond', st['tekst'])
+        z('D%d' % rg, None, st['invoer_getal'])
+        z('B%d' % tr, 'Transport · aantal woningen (uit de % hieronder) = grondtermijn', st['tekst'])
         for j, c in enumerate(cols):
-            # transport en verkocht komen uit het tabblad Verkoop & transport (in % ingevuld); de eerste kolom van de
-            # verkooprij blijft de realisatie uit Salesforce
-            z('%s%d' % (c, tr), '=%s%s%d' % (VT, c, rv + 6), st['aantal'])
+            prev = cols[j - 1] if j else None
+            if j == 0:
+                z('%s%d' % (c, ra), '=IF(N(%s)=0,0,N(%s%d)/%s)' % (won, c, t['verkoop'], won), st['pct_calc'])
+            else:
+                v = t['verkoop_waarden'][j]
+                z('%s%d' % (c, ra), (v / w) if w and v else None, st['pct_invoer'])
+                z('%s%d' % (c, t['verkoop']), '=ROUND(%s%d*%s,6)' % (c, ra, won), st['aantal'])
+            g = t['grond_waarden'][j]
+            z('%s%d' % (c, rb), (g / w) if w and g else None, st['pct_invoer'])
+            eff = lambda k: 'MIN(SUM($%s%d:%s%d),SUM($%s%d:%s%d))' % (c1, rb, k, rb, c1, ra, k, ra)
+            z('%s%d' % (c, tr), '=ROUND((%s%s)*%s,6)' % (eff(c), '-' + eff(prev) if prev else '', won), st['aantal'])
             z('%s%d' % (c, koop), '=%s%d' % (c, tr))
-            if j:
-                z('%s%d' % (c, t['verkoop']), '=%s%s%d' % (VT, c, rv + 3), st['aantal'])
-        z('%s%d' % (chk, tr), '=SUM(%s%d:%s%d)' % (cols[0], tr, cols[-1], tr), sh.style_of('%s%d' % (chk, p1)))
+        # koopsom grond per woning + aanpassing
+        e = sh.get('E%d' % koop)
+        if isinstance(e, str) and e.startswith('=') and 'D%d' % rg not in e:
+            z('E%d' % koop, e + '+N($D$%d)' % rg)
+        z('%s%d' % (chk, tr), '=SUM(%s%d:%s%d)' % (c1, tr, cn, tr), sh.style_of('%s%d' % (chk, p1)))
         z('%s%d' % (verschil, tr), '=ROUND(%s-%s%d,2)' % (won, chk, tr), sh.style_of('%s%d' % (verschil, p1)))
         z('%s%d' % (stat, tr), '=IF(%s%d=0,"OK","FOUT")' % (verschil, tr), sh.style_of('%s%d' % (stat, p1)))
+        for r in (ra, rb):
+            z('%s%d' % (chk, r), '=SUM(%s%d:%s%d)' % (c1, r, cn, r), st['pct_calc'])
+        gew = '(COLUMN($%s$1)-COLUMN($%s$1:$%s$1)+1)' % (cn, c1, cn)
+        z('%s%d' % (stat, ra), '=IF(N(%s)=0,"",IF(%s%d>1.00001,"FOUT: meer dan 100%%",IF(%s%d<0.99999,'
+                               '"LET OP: "&TEXT(1-%s%d,"0%%")&" nog niet ingepland","OK")))' % (won, chk, ra, chk, ra, chk, ra), st['vet'])
+        z('%s%d' % (stat, rb), '=IF(N(%s)=0,"",IF(%s%d>1.00001,"FOUT: meer dan 100%%",IF(SUMPRODUCT(%s%d:%s%d*%s)-'
+                               'SUMPRODUCT(%s%d:%s%d*%s)/%s>0.00001,"LET OP: transport wacht op verkoop (schuift mee)",'
+                               'IF(%s%d<0.99999,"LET OP: "&TEXT(1-%s%d,"0%%")&" nog niet getransporteerd","OK"))))'
+          % (won, chk, rb, c1, rb, cn, rb, gew, c1, tr, cn, tr, gew, won, chk, rb, chk, rb), st['vet'])
+        t.update({'rij_verkocht': ra, 'rij_transport_pct': rb, 'rij_grond': rg})
+        # verkocht t/m nu (kolom D van het verkooptempo) rechtstreeks uit de Salesforce-status in de prijslijst
+        pl = oz.get('prijslijst')
+        if pl and len(pl['sleutels']) >= t['k']:
+            sl = pl['sleutels'][t['k'] - 1].replace('"', '""')
+            tel = lambda s_: 'COUNTIFS(Prijslijst!$%s$5:$%s$2000,"%s",Prijslijst!$%s$5:$%s$2000,"%s")' % (
+                pl['type'], pl['type'], sl, pl['status'], pl['status'], s_)
+            z('D%d' % t['verkoop'], '=%s+%s' % (tel('Verkocht'), tel('Getransporteerd')), st['aantal'])
         # bouwtermijnen van dit omzetblok: begrensd door het transport van dit type (ook als een termijnrij per
         # vergissing naar de verkooprij van een ander type verwees)
         n = 0
@@ -101,8 +134,8 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
         f = sh.get('%s%d' % (c, tot))
         assert isinstance(f, str) and f.startswith('='), (c, tot, f)
         sh.set('%s%d' % (c, tot), f + '+%s%d' % (c, corr) + ('+%s%d' % (c, extra) if extra else ''))
-    z('C2', 'Verkocht en transport vul je in %% in op tab Verkoop & transport (verkooptempo rij %d-%d en de transportregels '
-            'komen daaruit). Hier: bouwtermijnen per woningtype en de correctie (rij %d). Termijnen tellen vanaf transport.'
+    z('C2', 'Geel = invullen. Per woningtype: bouwtermijnen (planning), verkocht %% en getransporteerd %% per kwartaal, eventueel '
+            'een grondprijsaanpassing. Het verkooptempo (rij %d-%d) en de transportregels rekenen daaruit. Correctie: rij %d.'
       % (verkoop[0], verkoop[-1], corr), st['notitie'])
 
 
@@ -167,9 +200,8 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     # werkelijk per post rechtstreeks uit FO - huidig (was '3. Restant bdgt'!F*1000)
     if k['werkelijk']:
         for p in posten:
-            f = sh.get('%s%d' % (k['werkelijk'], p)) or ''
-            if "'3. Restant bdgt'!" in f:
-                z('%s%d' % (k['werkelijk'], p), "=SUMIFS('FO - huidig'!$M:$M,'FO - huidig'!$Y:$Y,$B%d)" % p)
+            # (opzet.py vond de kolom aan de verwijzing naar '3. Restant bdgt'; die is bij het overnemen al waarde geworden)
+            z('%s%d' % (k['werkelijk'], p), "=SUMIFS('FO - huidig'!$M:$M,'FO - huidig'!$Y:$Y,$B%d)" % p)
     z('C%d' % k['onderdelen'], 'Methode', st['kop'])
     for p in posten:
         z('C%d' % p, 'Handmatig', st['invoer'])
@@ -182,7 +214,8 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         z('%s%d' % (c, k['totaal']), '=SUM(%s)-SUMIFS(%s,%s,"Voorstel")-SUMIFS(%s,%s,"Transport")'
                                      '+SUMIFS(%s,%s,"Voorstel")+SUMIFS(%s,%s,"Transport")' % (hand, hand, m, hand, m, vs, m, vs, m))
     z('%s%d' % (toel, k['onderdelen'] - 1), 'Kolom C: Handmatig = deze regels · Voorstel = restant gelijk verdeeld t/m '
-                                            'oplevering · Transport = restant naar rato van het transport (bv. grond). '
+                                            'oplevering · Transport = restant naar rato van het transport (bv. grond). Bij '
+                                            'Voorstel/Transport: wat je in de postregel invult, gaat voor (leeg = voorstel). '
                                             'Blok onderaan rij %d-%d; rij %d = definitief.' % (v1, vn, k['totaal']), st['notitie'])
     z('%s4' % toel, 'Bouwtermijnen volgen de geplande bouwtermijnen van CF - opbrengsten; overschrijven mag.', st['notitie'])
 
@@ -195,9 +228,9 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     z('B%d' % hj, 'hulp: jaar', st['hulp_links'])
     z('B%d' % hk, 'hulp: kwartaalindex (jaar × 4 + kw)', st['hulp_links'])
     z('B%d' % ht, 'hulp: transport (aantal woningen, alle types)', st['hulp_links'])
-    T = vt_totaal(len(oz['opbrengsten']['types']))
     ob = oz['opbrengsten']
-    vt_rng = lambda r: "%s$%s$%d:$%s$%d" % (VT, ob['eerste'], r, ob['laatste'], r)
+    keyo = '_koppeling!$%s$521:$%s$521' % (ob['eerste'], ob['laatste'])
+    tr_rng = lambda t: "'CF - opbrengsten'!$%s$%d:$%s$%d" % (ob['eerste'], t['tr'], ob['laatste'], t['tr'])
     o = k['onderdelen']
     for i, c in enumerate(cols):
         prev = '%s%d' % (cols[i - 1], hj) if i else '""'
@@ -208,7 +241,8 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
           st['kop'])
         z('%s%d' % (c, hst), '=IF(%s$%d<%s,"verwerkt",IF(%s$%d<=MAX(%s,%s),"prognose","na oplevering"))'
           % (c, hk, P_H, c, hk, P_H, P_O), st['hulp'])
-        z('%s%d' % (c, ht), '=IF(%s$%d=0,0,SUMIFS(%s,%s,%s$%d))' % (c, hk, vt_rng(T + 3), vt_rng(VT_KEY), c, hk), st['hulp'])
+        z('%s%d' % (c, ht), '=IF(%s$%d=0,0,%s)' % (c, hk, '+'.join('SUMIFS(%s,%s,%s$%d)' % (tr_rng(t), keyo, c, hk)
+                                                                     for t in ob['types'])), st['hulp'])
     for c, h in zip(['B', 'C', 'D', 'E', 'F', 'G', tk, st_k],
                     ['Post', '', 'PEW (huidig)', 'Verwerkt', 'Restant', 'Kw. / won.', 'Totaal', 'Check']):
         z('%s%d' % (c, hkop), h or None, st['kop_links'] if c == 'B' else st['kop'])
@@ -218,14 +252,16 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         z('B%d' % r, '=IF(B%d="","",B%d)' % (p, p), st['tekst'])
         z('D%d' % r, '=N(D%d)' % p, st['getal'])
         z('E%d' % r, '=SUMIFS($%s%d:$%s%d,%s,"<"&%s)' % (cols[0], p, cols[-1], p, rk, P_H), st['getal'])
-        z('F%d' % r, '=MAX(0,D%d-E%d)' % (r, r), st['getal'])
         rt = '$%s$%d:$%s$%d' % (cols[0], ht, cols[-1], ht)
-        z('G%d' % r, '=IF($C%d="Transport",SUMIFS(%s,%s,">="&%s),COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s)))'
-          % (p, rt, rk, P_H, rk, P_H, rk, P_H, P_O), st['aantal'])
+        rp = '$%s$%d:$%s$%d' % (cols[0], p, cols[-1], p)
+        # restant na de zelf ingevulde (overschreven) prognosekwartalen
+        z('F%d' % r, '=MAX(0,D%d-E%d-SUMIFS(%s,%s,">="&%s))' % (r, r, rp, rk, P_H), st['getal'])
+        z('G%d' % r, '=IF($C%d="Transport",SUMPRODUCT(%s*(%s>=%s)*(%s="")),COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s),%s,""))'
+          % (p, rt, rk, P_H, rp, rk, P_H, rk, P_H, P_O, rp), st['aantal'])
         for c in cols:
-            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF($C%d="Transport",IF($G%d=0,0,$F%d*%s$%d/$G%d),'
-                               'IF(%s$%d<=MAX(%s,%s),IF($G%d=0,0,$F%d/$G%d),0)))'
-              % (c, hk, P_H, c, p, p, r, r, c, ht, r, c, hk, P_H, P_O, r, r, r), st['getal'])
+            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF(%s%d<>"",%s%d,IF($C%d="Transport",IF($G%d=0,0,$F%d*%s$%d/$G%d),'
+                               'IF(%s$%d<=MAX(%s,%s),IF($G%d=0,0,$F%d/$G%d),0))))'
+              % (c, hk, P_H, c, p, c, p, c, p, p, r, r, c, ht, r, c, hk, P_H, P_O, r, r, r), st['getal'])
         z('%s%d' % (tk, r), '=SUM(%s%d:%s%d)' % (cols[0], r, cols[-1], r), st['getal_tot'])
         z('%s%d' % (st_k, r), '=IF(B%d="","",IF(D%d-E%d<-1,"OVERSCHRIJDING",IF(ABS(%s%d-D%d)<1,"OK","FOUT")))'
           % (r, r, r, tk, r, r), st['vet'])
@@ -239,9 +275,94 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     geel = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFDE68A"/></patternFill></fill>')
     groen = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFD1FAE5"/></patternFill></fill>')
     rood = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFECACA"/></patternFill></fill>')
-    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'OR($C%d="Voorstel",$C%d="Transport")' % (p1, p1), grijs)
+    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(OR($C%d="Voorstel",$C%d="Transport"),%s%d="")'
+              % (p1, p1, cols[0], p1), grijs)
+    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(OR($C%d="Voorstel",$C%d="Transport"),%s%d<>"")'
+              % (p1, p1, cols[0], p1), geel)
     sh.add_cf('%s%d:%s%d' % (cols[0], v1, cols[-1], vn), 'OR($C%d="Voorstel",$C%d="Transport")' % (p1, p1), geel)
     sh.add_cf('%s%d:%s%d' % (st_k, v1, st_k, vn), '%s%d="OK"' % (st_k, v1), groen)
     sh.add_cf('%s%d:%s%d' % (st_k, v1, st_k, vn), 'OR(%s%d="FOUT",%s%d="OVERSCHRIJDING")' % (st_k, v1, st_k, v1), rood)
     log('  CF - kosten: methode per post (rij %d-%d), voorstelblok rij %d-%d, rij %d = definitief, werkelijk uit FO - huidig'
         % (p1, pn, s0, r, k['totaal']))
+
+
+# ================================================================================================
+#  Aansluiting opbrengsten: te boeken in SAP, per SAP-nummer en kostendrager (uit de kolom Corr)
+# ================================================================================================
+
+SAP_KOPPELING = {'grond + ontwikkelkosten': (9010, None), 'aanneemsom': (9000, None), 'kao opties': (9000, 5230),
+                 'kopersmeerwerk': (9200, 5250), 'kadastrale kosten': (9030, None), 'aanvullende rente': (9110, None)}
+SAP_BOEKING = [('Grond + ontwikkelkosten', 9010, None), ('Aanneemsom', 9000, None), ('KAO-opties', 9000, 5230),
+               ('Meer-/minderwerk kopers', 9200, 5250), ('Kadastrale kosten', 9030, None), ('Aanvullende rente', 9110, None)]
+
+
+def sap_opzet(oz):
+    """rijen van het blok 'te boeken in SAP' onder de bestaande inhoud van Aansluiting opbrengsten"""
+    blokken = oz.get('aansluiting') or []
+    regels = []
+    for b in blokken:
+        for _, lab in b['regels']:
+            if lab not in regels:
+                regels.append(lab)
+    s0 = oz['aansluiting_max'] + 3
+    b1 = s0 + 2
+    bn = b1 + len(SAP_BOEKING) - 1
+    k0 = bn + 4
+    m1, mn = k0 + 2, k0 + 1 + len(regels)
+    d0 = mn + 2
+    d1 = d0 + 2
+    dn = d1 + sum(len(b['regels']) for b in blokken) - 1
+    return {'s0': s0, 'b1': b1, 'bn': bn, 'open': bn + 1, 'totaal': bn + 2, 'k0': k0, 'm1': m1, 'mn': mn, 'd0': d0,
+            'd1': d1, 'dn': dn, 'regels': regels, 'blokken': blokken}
+
+
+def aansluiting(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
+    L_ = sap_opzet(oz)
+    z = Zetter(sh, 'Aansluiting opbrengsten', sjabloon)
+    d1, dn = L_['d1'], max(L_['d1'], L_['dn'])
+    rng = lambda c: '$%s$%d:$%s$%d' % (c, d1, c, dn)
+
+    def sectie(r, tekst):
+        for c in 'ABCDEFGHI':
+            z('%s%d' % (c, r), tekst if c == 'A' else None, st['sectie'])
+    sectie(L_['s0'], 'TE BOEKEN IN SAP · per SAP-nummer en kostendrager (uit de kolom Corr hierboven)')
+    for c, h in zip('ABCD', ['Omschrijving', 'SAP-nummer', 'Kostendrager', 'Bedrag (€)']):
+        z('%s%d' % (c, L_['s0'] + 1), h, st['kop_links'] if c == 'A' else st['kop'])
+    for i, (oms, nr, kd) in enumerate(SAP_BOEKING):
+        r = L_['b1'] + i
+        z('A%d' % r, oms, st['invoer_label'])
+        z('B%d' % r, nr, st['invoer'])
+        z('C%d' % r, kd, st['invoer'])
+        z('D%d' % r, '=SUMPRODUCT((%s&""=B%d&"")*(%s&""=C%d&"")*%s)' % (rng('B'), r, rng('C'), r, rng('D')), st['getal_tot'])
+    r = L_['open']
+    z('A%d' % r, 'Niet toegewezen (geen of een ander SAP-nummer)', st['tekst'])
+    z('D%d' % r, '=ROUND(D%d-SUM(D%d:D%d),2)' % (r + 1, L_['b1'], L_['bn']), st['getal'])
+    z('E%d' % r, '=IF(ABS(D%d)<1,"OK","LET OP: koppel de regel aan een SAP-nummer (hieronder)")' % r, st['vet'])
+    z('A%d' % (r + 1), 'Totaal correcties', st['label_tot'])
+    z('D%d' % (r + 1), '=SUM(%s)' % rng('D'), st['getal_tot'])
+    sectie(L_['k0'], 'KOPPELING · regel → SAP-nummer en kostendrager (aanpasbaar)')
+    for c, h in zip('ABC', ['Regel', 'SAP-nummer', 'Kostendrager']):
+        z('%s%d' % (c, L_['k0'] + 1), h, st['kop_links'] if c == 'A' else st['kop'])
+    for i, lab in enumerate(L_['regels']):
+        r = L_['m1'] + i
+        nr, kd = SAP_KOPPELING.get(lab.strip().lower(), (None, None))
+        z('A%d' % r, lab, st['tekst'])
+        z('B%d' % r, nr, st['invoer'])
+        z('C%d' % r, kd, st['invoer'])
+    sectie(L_['d0'], 'DETAIL · per woningtype (kolom Corr van de vergelijkingsblokken)')
+    for c, h in zip('ABCDE', ['Regel', 'SAP-nummer', 'Kostendrager', 'Bedrag (€)', 'Woningtype']):
+        z('%s%d' % (c, L_['d0'] + 1), h, st['kop_links'] if c == 'A' else st['kop'])
+    ml = '$A$%d:$A$%d' % (L_['m1'], max(L_['m1'], L_['mn']))
+    r = d1
+    for b in L_['blokken']:
+        for rr, lab in b['regels']:
+            z('A%d' % r, '=A%d&""' % rr, st['tekst'])
+            for c, mc in (('B', 'B'), ('C', 'C')):
+                x = 'INDEX($%s$%d:$%s$%d,MATCH(A%d,%s,0))' % (mc, L_['m1'], mc, max(L_['m1'], L_['mn']), r, ml)
+                z('%s%d' % (c, r), '=IFERROR(IF(%s="","",%s),"")' % (x, x), st['aantal'])
+            z('D%d' % r, '=N(%s%d)' % (b['corr'], rr), st['getal'])
+            z('E%d' % r, b['naam'], st['tekst'])
+            r += 1
+    log('  Aansluiting opbrengsten: te boeken in SAP vanaf rij %d (%d regels per type, %d blokken)'
+        % (L_['s0'], len(L_['regels']), len(L_['blokken'])))
+

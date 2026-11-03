@@ -152,8 +152,14 @@ def vergelijkingen(cfg, fo_wb):
             'E%d:%s%d' % (pw['eerste'], pw['kolommen'][-1], pw['resultaat_pct']))]
     a = fo_wb['Aansluiting opbrengsten']
     out.append(('Aansluiting opbrengsten', 'B1:J%d' % a.max_row, 'Aansluiting opbrengsten', 'B1:J%d' % a.max_row))
-    o = '%s%d:%s%d' % (ob['eerste'], ob['types'][0]['omzet'][0], ob['laatste'], ob['totaal'])
-    out.append(('CF - opbrengsten', o, 'CF - opbrengsten', o))
+    # CF - opbrengsten: in het werkbestand zijn per woningtype rijen ingevoegd; FO-rij x staat op rij nieuw(x)
+    ing = [tuple(x) for x in oz.get('ingevoegd', [])]
+    nieuw = lambda x: x + sum(n for at, n in ing if at <= x)
+    oud = lambda y: next(x for x in range(y, 0, -1) if nieuw(x) == y)
+    r1, r2 = oud(ob['types'][0]['omzet'][0]), oud(ob['totaal'])
+    for x in range(r1, r2 + 1):
+        out.append(('CF - opbrengsten', '%s%d:%s%d' % (ob['eerste'], x, ob['laatste'], x), 'CF - opbrengsten',
+                    '%s%d:%s%d' % (ob['eerste'], nieuw(x), ob['laatste'], nieuw(x))))
     kk = '%s%d:%s%d' % (k['eerste'], k['posten'][0], k['laatste'], k['periode'])
     out.append(('CF - kosten', kk, 'CF - kosten', kk))
     bekend = {'2. Ontw PEW'}
@@ -170,6 +176,7 @@ def vergelijk(nieuw, fo_path, cfg, toon=5):
     a = openpyxl.load_workbook(fo_path, data_only=True)
     b = openpyxl.load_workbook(nieuw, data_only=True)
     fouten = 0
+    samen = {'n': 0, 'rijen': 0}
     for blad_a, ber_a, blad_b, ber_b in vergelijkingen(cfg, a):
         n = 0
         for ra, rb in zip(a[blad_a][ber_a], b[blad_b][ber_b]):
@@ -188,8 +195,14 @@ def vergelijk(nieuw, fo_path, cfg, toon=5):
                     if n < toon:
                         print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, cb.coordinate, va, vb))
                     n += 1
-        print('  %-24s %-9s -> %-24s %-9s %s' % (blad_a, ber_a, blad_b, ber_b, 'gelijk' if n == 0 else '%d verschillen' % n))
+        if blad_a == 'CF - opbrengsten':
+            samen['n'] += n
+            samen['rijen'] += 1
+        else:
+            print('  %-24s %-9s -> %-24s %-9s %s' % (blad_a, ber_a, blad_b, ber_b, 'gelijk' if n == 0 else '%d verschillen' % n))
         fouten += n
+    print('  %-24s %d rijen (omzet t/m totaal, per rij verschoven) %s' % ('CF - opbrengsten', samen['rijen'],
+                                                                         'gelijk' if samen['n'] == 0 else '%d verschillen' % samen['n']))
     return fouten, b
 
 
@@ -255,19 +268,21 @@ def main():
     for r in range(31, 45):
         print('  %-62s %-28s %s' % (ws.cell(r, 2).value, ws.cell(r, 3).value, ws.cell(r, 4).value))
     print('  Start E8/E9/C11: %s / %s / %s' % (ws['E8'].value, ws['E9'].value, ws['C11'].value))
-    vt = wb['Verkoop & transport']
-    for row in vt.iter_rows(min_row=9, max_row=vt.max_row):
-        if row[1].value and any(isinstance(c.value, str) and c.value[:2] in ('OK', 'FO', 'LE') for c in row[20:]):
-            st = [c.value for c in row[20:] if isinstance(c.value, str) and c.value[:2] in ('OK', 'FO', 'LE')]
-            print('  Verkoop & transport rij %d %-50s %s' % (row[0].row, row[1].value, st))
-    sp = wb['SAP-correcties']
-    print('  SAP-correcties: ' + ' | '.join('%s/%s %s' % (sp.cell(r, 2).value, sp.cell(r, 3).value or '', round(sp.cell(r, 6).value or 0))
-                                            for r in range(7, 13)) + ' | niet toegewezen %s · totaal %s' % (sp['F13'].value, sp['F14'].value))
+    ob = cfg['opzet']['opbrengsten']
+    o = wb['CF - opbrengsten']
+    for t in ob['types']:
+        for r in (t['tr'] + 1, t['tr'] + 2):
+            print('  CF - opbrengsten rij %d %-60s %s %s' % (r, str(o.cell(r, 2).value)[:60], o['%s%d' % (ob['check'], r)].value,
+                                                       o['%s%d' % (ob['status'], r)].value))
+    ao = wb['Aansluiting opbrengsten']
+    r0 = cfg['opzet']['aansluiting_max'] + 5
+    print('  Te boeken in SAP: ' + ' | '.join('%s/%s %s' % (ao.cell(r, 2).value, ao.cell(r, 3).value or '', round(ao.cell(r, 4).value or 0))
+                                              for r in range(r0, r0 + 6)) + ' | niet toegewezen %s' % ao.cell(r0 + 6, 4).value)
     fouten_cellen = []
     scenario(wb, cfg)
     for blad in ('Start', 'Invoer', 'Woningtypes', 'Scenario kosten', 'Dashboard', 'Model', '_koppeling', '2. Ontw PEW',
                  'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA', 'PowerPoint',
-                 'Verkoop & transport', 'SAP-correcties'):
+                 'Aansluiting opbrengsten'):
         for row in wb[blad].iter_rows():
             for c in row:
                 if isinstance(c.value, str) and c.value.startswith('#') and c.value[1:4].isupper() and not (
