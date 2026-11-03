@@ -34,8 +34,12 @@ def lees(pad):
     o['cashflow'] = _cashflow(wv['1. Cashflow'])
     o['verkooptempo'] = _verkooptempo(wv['Verkooptempo']) if 'Verkooptempo' in wv.sheetnames else None
     o['hulpkolommen'] = _hulp(wf)
-    o['aansluiting'] = _aansluiting(wv['Aansluiting opbrengsten'])
-    o['aansluiting_max'] = wf['Aansluiting opbrengsten'].max_row
+    ab = 'Aansluiting opbrengsten' if 'Aansluiting opbrengsten' in wf.sheetnames else 'Prijslijst'
+    o['aansluiting_blad'] = ab
+    o['standaard'] = ab == 'Prijslijst'
+    o['aansluiting'] = _aansluiting(wv[ab])
+    o['aansluiting_max'] = (max(r for b in o['aansluiting'] for r, _ in b['regels']) + 1) if o['standaard'] \
+        else wf[ab].max_row
     o['prijslijst'] = _prijslijst(wf)
     return o
 
@@ -78,6 +82,8 @@ def _opbrengsten(f, v):
             orows.append(r)
             r += 1
         won = get(hb - 1, 7)
+        if won is None and '_omzetting' in v.parent.sheetnames:       # standaard-FO na omzetten: aantal als hint
+            won = v.parent['_omzetting'].cell(i + 1, 2).value
         types.append({'k': i + 1, 'hb': hb, 'plan': plan, 'd': d, 'tr': tr, 'omzet_kop': oh, 'omzet': orows,
                       'koop': orows[0], 'verkoop': vk + 1 + i, 'won': won if isinstance(won, (int, float)) else 0,
                       # waarden die Excel in het FO heeft opgeslagen: verkocht en grondtermijn (= transport) per kolom
@@ -108,7 +114,9 @@ def _opbrengsten(f, v):
                 q = _t(get(kop[0], c))
                 if jaren[c] and re.match(r'Q[1-4]$', q):
                     mijlpaal[t] = (jaren[c], int(q[1]))
+    act = next((L(c) for c in range(eerste, laatste + 1) if _t(get(kop[0], c)).lower().startswith('actual')), 'J')
     return {'eerste': L(eerste), 'laatste': L(laatste), 'check': L(check), 'verschil': L(check + 1), 'status': L(check + 2),
+            'actuals': act,
             'types': types, 'verkoop_kop': vk, 'euro_kop': euro, 'totaal': totaal, 'periode': periode,
             'correctie': corr, 'daeb': daeb, 'daeb_sjabloon': None if daeb else periode + 4, 'max': maxr,
             'daeb_totaal': None if daeb else periode + 28, 'daeb_eind': None if daeb else periode + 31,
@@ -134,7 +142,9 @@ def _kosten(f, v, opb):
     som = next(r for r in range(posten[-1] + 1, check) if _t(form(r, 4)).upper().startswith('=SUM('))
     status = next(c for c in range(laatste + 1, laatste + 8) if '"OK"' in _t(form(posten[0], c)))
     toel = next((c for c in range(status, status + 6) if _t(get(ond, c)).lower().startswith('toelichting')), status + 2)
-    werkelijk = next((c for c in range(3, eerste_q) if "'3. Restant bdgt'!" in _t(form(posten[0], c))), None)
+    werkelijk = next((c for c in range(3, eerste_q) if "'3. Restant bdgt'!" in _t(form(posten[0], c))
+                      or "'FO - huidig'!$M" in _t(form(posten[0], c))), None)
+    eerste = 7 if _t(get(ond - 1, 7)).lower().startswith('actual') or _t(get(ond, 7)).lower().startswith('actual') else 8
     # termijnblokken per woningtype (titel = de bloktitel op CF - opbrengsten)
     for t in opb['types']:
         kr = [r for r in range(2, ond) if _t(form(r, 2)) == "='CF - opbrengsten'!B%d" % t['hb']]
@@ -146,7 +156,7 @@ def _kosten(f, v, opb):
                 r += 1
         t['kosten'] = rows
     start = maxr + 1
-    return {'eerste': 'H', 'eerste_q': L(eerste_q), 'laatste': L(laatste), 'onderdelen': ond, 'posten': posten,
+    return {'eerste': L(eerste), 'eerste_q': L(eerste_q), 'laatste': L(laatste), 'onderdelen': ond, 'posten': posten,
             'totaal': totaal, 'pct': totaal + 1, 'periode': periode, 'pew_totaal': pew, 'check': check, 'som': som,
             'status': L(status), 'totaalkol': L(status - 1), 'toelichting': L(toel),
             'werkelijk': L(werkelijk) if werkelijk else None, 'voorstel_start': start,

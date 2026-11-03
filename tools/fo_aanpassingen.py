@@ -169,7 +169,7 @@ def daeb_blok(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
     z('B%d' % r0, 'Opbrengsten DAEB', st['kop_links'])
     z('C%d' % r0, '%', st['kop'])
     z('D%d' % r0, '€', st['kop'])
-    z('J%d' % r0, 'actuals', st['kop'])
+    z('%s%d' % (ob.get('actuals') or 'J', r0), 'actuals', st['kop'])
     for r1 in (r0 + 1, r0 + 10):
         for i, m in enumerate(MIJLPALEN):
             r = r1 + i
@@ -318,7 +318,7 @@ def sap_opzet(oz):
 
 def aansluiting(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
     L_ = sap_opzet(oz)
-    z = Zetter(sh, 'Aansluiting opbrengsten', sjabloon)
+    z = Zetter(sh, oz.get('aansluiting_blad', 'Aansluiting opbrengsten'), sjabloon)
     d1, dn = L_['d1'], max(L_['d1'], L_['dn'])
     rng = lambda c: '$%s$%d:$%s$%d' % (c, d1, c, dn)
 

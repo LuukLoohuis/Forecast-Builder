@@ -1,0 +1,384 @@
+"""Een oud FO omzetten naar het standaard-FO (dezelfde logica als de macro 'Oud FO inlezen').
+
+    python tools/omzetten.py oud_FO.xlsx standaard_gevuld.xlsx
+
+Wat er overgaat (waarden zoals Excel ze in het oude FO heeft opgeslagen):
+  exports            FO - vorig, FO - huidig, FO - actuals, Prijslijst dump, Behind the scens (alles)
+  prijslijst         per bouwnummer: bouwnummer, blok, type en de handmatige kolommen (kadastrale kosten, rente, korting)
+  per woningtype     naam, type in de prijslijst, aantal en bedragen (handmatig als de prijslijst ze niet verklaart),
+                     termijnschema (naam, %), planning bouwtermijnen, verkocht, transport (= grondtermijn), kadastrale
+                     kosten/rente (aantallen), kosten: budget aanneemsom, KAO, % en planning (als die afwijkt)
+  overige            overige opbrengsten en per type 'overige'/'verschillen' in €, DAEB-blok, kostenposten (prognose)
+  PEW                meest recente FD (kolom E) en toelichtingen
+  1. Cashflow        voor de vorige prognose en de controle
+Kolommen gaan op kwartaal (jaar x 4 + Q); wat vóór het eerste kwartaal van het standaard-FO valt, komt in 'actuals'.
+"""
+from __future__ import annotations
+
+import os
+import re
+import sys
+
+import openpyxl
+from openpyxl.utils import column_index_from_string as ci
+from openpyxl.utils import get_column_letter as L
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import opzet as opzet_fo  # noqa: E402
+import standaard_fo as S  # noqa: E402
+
+
+def _t(v):
+    return v.strip() if isinstance(v, str) else ('' if v is None else str(v))
+
+
+def _n(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+
+
+def sleutels(ws, jr, qr, c1, c2):
+    """kolom -> kwartaalindex (jaar*4+q); 0 voor kolommen zonder kwartaal"""
+    out, jaar = {}, None
+    for c in range(c1, c2 + 1):
+        if isinstance(ws.cell(jr, c).value, (int, float)):
+            jaar = int(ws.cell(jr, c).value)
+        q = _t(ws.cell(qr, c).value)
+        out[c] = jaar * 4 + int(q[1]) if jaar and re.match(r'Q[1-4]$', q) else 0
+    return out
+
+
+class Doel:
+    """schrijft in het standaard-FO; kwartaalkolommen op sleutel"""
+
+    def __init__(self, wb, jaar):
+        self.wb, self.k1 = wb, jaar * 4 + 1
+        self.log = []
+
+    def kol(self, key):
+        """standaardkolom voor een kwartaalindex (None = valt erbuiten), 0 = actuals"""
+        if key == 0 or key < self.k1:
+            return S.C_ACT
+        i = key - self.k1
+        return S.C_Q1 + i if i < S.NQ else None
+
+    def rij(self, blad, r_doel, waarden, keys, alleen_q=False, nul_weg=True):
+        """waarden {oude kolom: waarde} -> rij r_doel; niet-kwartalen opgeteld in actuals"""
+        ws = self.wb[blad]
+        som = {}
+        for c, v in waarden.items():
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                continue
+            k = self.kol(keys.get(c, 0))
+            if k is None:
+                if v:
+                    self.log.append('%s rij %d: %s na het laatste kwartaal valt weg' % (blad, r_doel, v))
+                continue
+            if alleen_q and k == S.C_ACT:
+                continue
+            som[k] = som.get(k, 0) + v
+        for k, v in som.items():
+            ws.cell(r_doel, k).value = v if (v or not nul_weg) else None
+
+
+def omzetten(oud, uit, project=None):
+    oz = opzet_fo.lees(oud)
+    wf = openpyxl.load_workbook(oud)
+    wv = openpyxl.load_workbook(oud, data_only=True)
+    ob, ko = oz['opbrengsten'], oz['kosten']
+    # startjaar: eerste kwartaal in 1. Cashflow, anders het eerste kwartaal van CF - opbrengsten
+    qj = [j for j, q, _ in oz['cashflow']['periodes'] if q]
+    o_v = wv['CF - opbrengsten']
+    okeys = sleutels(o_v, ob['jaarrij'], ob['euro_kop'], ci(ob['eerste']), ci(ob['laatste']))
+    jaar = min(qj) if qj else min(k for k in okeys.values() if k) // 4
+    cfw = wv['1. Cashflow']
+    cf = {}
+    for j, q, r in oz['cashflow']['periodes']:
+        cf[(j, q or None)] = {c: cfw['%s%d' % (c, r)].value for c in 'DFHJ'}
+    S.maak(uit, leeg=True, jaar=jaar, cashflow=cf)
+    wb = openpyxl.load_workbook(uit)
+    d = Doel(wb, jaar)
+    log = d.log
+    if len(ob['types']) > S.NT:
+        raise ValueError('%d woningtypes; het standaard-FO heeft er %d' % (len(ob['types']), S.NT))
+
+    # ---- exports en koppeltabel: alles overnemen --------------------------------------------------------
+    breedte = {'FO - vorig': 21, 'FO - huidig': 21, 'FO - actuals': 16, 'Prijslijst dump': 9, 'Behind the scens': 0}
+    for n in breedte:
+        if n not in wf.sheetnames:
+            log.append('%s staat niet in het oude FO' % n)
+            continue
+        a, av, b = wf[n], wv[n], wb[n]
+        for row in b.iter_rows():
+            for c in row:
+                if not type(c).__name__ == 'MergedCell':
+                    c.value = None
+        for row in a.iter_rows():
+            for c in row:
+                if c.value is not None and type(b.cell(c.row, c.column)).__name__ != 'MergedCell':
+                    # de export zelf als waarden (zoals uit SAP/SF), de hulpkolommen rechts ervan als formule
+                    b.cell(c.row, c.column).value = av.cell(c.row, c.column).value if c.column <= breedte[n] else c.value
+
+    # ---- prijslijst per bouwnummer ------------------------------------------------------------------------
+    pf, pv = wf['Prijslijst'], wv['Prijslijst']
+    kop = next((r for r in range(1, 20) if _t(pv.cell(r, 1).value).lower() == 'bouwnummer'), None)
+    hd = {_t(pv.cell(kop, c).value).lower(): c for c in range(1, pv.max_column + 1)} if kop else {}
+    P = wb['Prijslijst']
+    if _t(pv['A1'].value).lower().startswith('datum'):
+        P['C1'] = pv['C1'].value
+    bn = []
+    if kop:
+        r2 = kop + 1
+        for r in range(kop + 1, pv.max_row + 1):
+            if pv.cell(r, 1).value in (None, ''):
+                continue
+            bn.append(r)
+        for i, r in enumerate(bn[:S.P_BNN - S.P_BN1 + 1]):
+            rr = S.P_BN1 + i
+            P['A%d' % rr] = pv.cell(r, 1).value
+            for naam, col in (('termijnen / blok', 'B'), ('type', 'C'), ('kadastrale kosten', 'J'), ('bouwrente', 'Q'),
+                              ('aanvullende rente', 'R'), ('korting', 'S')):
+                if naam in hd:
+                    v = pf.cell(r, hd[naam]).value
+                    if isinstance(v, str) and v.startswith('='):
+                        v = pv.cell(r, hd[naam]).value      # formule (zoals de kadastrale kosten): de waarde
+                    P['%s%d' % (col, rr)] = v
+        log.append('prijslijst: %d bouwnummers' % len(bn))
+
+    def uit_prijslijst(sleutel, kolnaam):
+        if not sleutel or 'type' not in hd or kolnaam not in hd:
+            return None
+        return sum(_n(pv.cell(r, hd[kolnaam]).value) for r in bn if _t(pv.cell(r, hd['type']).value) == sleutel)
+
+    # ---- per woningtype -----------------------------------------------------------------------------------
+    O, K = wb['CF - opbrengsten'], wb['CF - kosten']
+    of = wf['CF - opbrengsten']
+    sl = (oz.get('prijslijst') or {}).get('sleutels') or []
+    ov2 = {}
+    for t in ob['types']:
+        k = t['k']
+        tr_ = S.P_TYPE1 + k - 1
+        if not t['won']:
+            log.append('type %d: geen woningen, niet overgenomen' % k)
+            continue
+        titel = _t(o_v.cell(t['hb'], 2).value)
+        naam = titel.split(' - ', 1)[1].strip() if ' - ' in titel else (_t(o_v.cell(t['hb'], 3).value) or
+                                                                       re.sub(r'(?i)^termijnen\s*', '', titel) or 'Type %d' % k)
+        P['B%d' % tr_] = naam
+        sleutel = sl[k - 1] if len(sl) >= k else None
+        P['C%d' % tr_] = sleutel
+        won = t['won']
+        # omzetrijen indelen: termijnen (horen bij een planningsrij), kopersmeerwerk, kadastrale kosten/rente, overige
+        termijnen, kmw25, kmw75, kad, overig = [], None, None, None, []
+        for r in t['omzet'][1:]:
+            lab = _t(o_v.cell(r, 2).value).lower()
+            if 'meerwerk' in lab and '25' in lab:
+                kmw25 = r
+            elif 'meerwerk' in lab and '75' in lab:
+                kmw75 = r
+            elif (r - t['d']) in t['plan']:
+                termijnen.append(r)
+            elif 'kadast' in lab or 'rente' in lab:
+                kad = r
+            else:
+                overig.append(r)
+        if len(termijnen) > S.NTERM:
+            log.append('type %d: %d termijnen, het standaard-FO heeft er %d' % (k, len(termijnen), S.NTERM))
+            termijnen = termijnen[:S.NTERM]
+        # bedragen (totaal per type) zoals het oude FO rekende
+        oud = {'aantal': won, 'grond': _n(o_v.cell(t['koop'], 4).value),
+               'kmw': _n(o_v.cell(kmw25, 4).value) / 0.25 if kmw25 else (_n(o_v.cell(kmw75, 4).value) / 0.75 if kmw75 else 0),
+               'kadrente': _n(o_v.cell(kad, 4).value) if kad else 0}
+        basis = [(_n(o_v.cell(r, 4).value) / _n(o_v.cell(r, 3).value)) for r in termijnen if _n(o_v.cell(r, 3).value)]
+        oud['aanneemkao'] = basis[0] if basis else 0
+        pl_ = {'aantal': (sum(1 for r in bn if _t(pv.cell(r, hd['type']).value) == sleutel) if sleutel and 'type' in hd else None),
+               'grond': uit_prijslijst(sleutel, 'grondkosten start verkoop (facturatie)'),
+               'aanneemkao': (uit_prijslijst(sleutel, 'aanneemsom start verkoop') or 0) + (uit_prijslijst(sleutel, 'totaal woonwensen in von') or 0) if sleutel else None,
+               'kmw': uit_prijslijst(sleutel, 'totaal woonwensen in ob'),
+               'kadrente': sum(uit_prijslijst(sleutel, x) or 0 for x in ('kadastrale kosten', 'bouwrente', 'aanvullende rente', 'korting')) if sleutel else None}
+        for x, col in S.P_HAND.items():
+            if pl_[x] is None or abs(pl_[x] - oud[x]) > 1:
+                P['%s%d' % (col, tr_)] = oud[x]
+                if pl_[x] is not None:
+                    log.append('type %d (%s): %s uit het oude FO (%.0f) wijkt af van de prijslijst (%.0f): handmatig gezet'
+                               % (k, naam, x, oud[x], pl_[x]))
+        # termijnschema
+        a = S.p_aans(k)
+        for i, r in enumerate(termijnen, 1):
+            P['%s%d' % (S.P_TERM_NAAM, a + 1 + i)] = _t(o_v.cell(r, 2).value)
+            P['%s%d' % (S.P_TERM_PCT, a + 1 + i)] = _n(o_v.cell(r, 3).value)
+        # planning, verkocht, transport, kadastrale kosten
+        oc = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
+        val = lambda ws, r: {c: ws.cell(r, c).value for c in oc}
+        for i, r in enumerate(termijnen, 1):
+            d.rij('CF - opbrengsten', S.plan(k, i), val(o_v, r - t['d']), okeys)
+        d.rij('CF - opbrengsten', S.vk_rij(k), val(o_v, t['verkoop']), okeys, alleen_q=True)
+        if not sleutel:
+            O['D%d' % S.vk_rij(k)] = _n(o_v.cell(t['verkoop'], 4).value)
+        d.rij('CF - opbrengsten', S.oz_rij(k, 0), val(o_v, t['koop']), okeys)
+        if kad:
+            d.rij('CF - opbrengsten', S.oz_rij(k, S.NTERM + 3), val(o_v, kad), okeys)
+        # overige omzetrijen (aantal x € per woning) naar de projectregel 'overige / verschillen'
+        for r in overig:
+            e = _n(o_v.cell(r, 5).value)
+            for c in oc:
+                k2 = d.kol(okeys.get(c, 0))
+                if e and k2 and _n(o_v.cell(r, c).value):
+                    ov2[k2] = ov2.get(k2, 0) + _n(o_v.cell(r, c).value) * e
+        log.append('type %d (%s): %d termijnen, %d won%s' % (k, naam, len(termijnen), won,
+                                                             ', overige: ' + ', '.join(_t(o_v.cell(r, 2).value) for r in overig) if overig else ''))
+        # kosten: budget aanneemsom, KAO, % en planning (als die afwijkt van de opbrengsten)
+        kv = wv['CF - kosten']
+        krows = t.get('kosten') or []
+        if krows:
+            kop_r = krows[0] - 1
+            b = S.kb(k)
+            K['D%d' % b] = _n(kv.cell(kop_r - 1, 4).value)
+            K['F%d' % b] = _n(kv.cell(kop_r - 1, 6).value)
+            kkeys = sleutels(kv, kop_r - 1, kop_r, ci(ko['eerste']), ci(ko['laatste']))
+            kc = range(ci(ko['eerste']), ci(ko['laatste']) + 1)
+            kterm = [r for r in krows if 'meerwerk' not in _t(kv.cell(r, 2).value).lower()][:S.NTERM]
+            for i, r in enumerate(kterm, 1):
+                K['C%d' % S.kterm(k, i)] = _n(kv.cell(r, 3).value)
+                kw = {c: kv.cell(r, c).value for c in kc}
+                pw = {c2: o_v.cell(termijnen[i - 1] - t['d'], c2).value for c2 in oc} if i <= len(termijnen) else {}
+                som_k = sum(_n(v) for v in kw.values())
+                som_p = sum(_n(v) for v in pw.values())
+                # eigen planning (HWB) alleen als die afwijkt van de planning van de opbrengsten
+                if abs(som_k - som_p) > 1e-9 or any(abs(_n(kw.get(c, 0)) - _n(pw.get(c2, 0))) > 1e-9
+                                                    for c, c2 in zip(kc, oc) if kkeys.get(c) == okeys.get(c2)):
+                    for c in range(S.C_ACT, S.C_QN + 1):
+                        K.cell(S.kterm(k, i), c).value = None
+                    d.rij('CF - kosten', S.kterm(k, i), kw, kkeys)
+                    log.append('type %d: kostenplanning termijn %d wijkt af van de opbrengsten: overgenomen' % (k, i))
+    # ---- aansluiting: SKO-bedragen per regel (kolom B van de vergelijkingsblokken) -----------------------------
+    av_ = wv[oz['aansluiting_blad']]
+    for i, blk in enumerate((oz.get('aansluiting') or [])[:S.NT]):
+        a0 = S.p_aans(i + 1)
+        for r, lab in blk['regels']:
+            if lab in S.P_REGELS and isinstance(av_.cell(r, 2).value, (int, float)):
+                P['B%d' % (a0 + 2 + S.P_REGELS.index(lab))] = av_.cell(r, 2).value
+    # ---- overige opbrengsten (project) ------------------------------------------------------------------
+    ov1 = {}
+    ov = next((r for r in range(ob['euro_kop'], ob['totaal']) if _t(o_v.cell(r, 2).value).lower().startswith('overige opbrengsten in')), None)
+    oc = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
+    if ov:
+        for r in range(ov + 1, ov + 4):
+            if not _t(of.cell(r, 2).value):
+                break
+            for c in oc:
+                k2 = d.kol(okeys.get(c, 0))
+                if k2 and _n(o_v.cell(r, c).value):
+                    ov1[k2] = ov1.get(k2, 0) + _n(o_v.cell(r, c).value)
+    for rr, som, lab in ((S.OV1, ov1, 'Overige opbrengsten (uit het oude FO)'), (S.OV2, ov2, 'Overige / verschillen per type (uit het oude FO)')):
+        if som:
+            O['B%d' % rr] = lab
+            for k2, v in som.items():
+                O.cell(rr, k2).value = v
+    # ---- DAEB --------------------------------------------------------------------------------------------
+    if ob['daeb']:
+        daeb_omzetten(o_v, ob, okeys, O, d, wv)
+    # ---- kostenposten (prognose; Aanneemsom en Kopersmeerwerk volgen de termijnen) ----------------------
+    kv = wv['CF - kosten']
+    kkeys = sleutels(kv, ko['onderdelen'] - 1, ko['onderdelen'], ci(ko['eerste']), ci(ko['laatste']))
+    kc = range(ci(ko['eerste']), ci(ko['laatste']) + 1)
+    for i, r in enumerate(ko['posten'][:S.NPOST]):
+        naam = _t(kv.cell(r, 2).value)
+        rr = S.K_POST1 + i
+        toel = kv['%s%d' % (ko['toelichting'], r)].value
+        if toel:
+            K['%s%d' % (S.TOEL, rr)] = toel
+        if naam.lower() in ('aanneemsom', 'kopersmeerwerk'):
+            continue
+        w = {c: kv.cell(r, c).value for c in kc if c != (ci(ko['werkelijk']) if ko['werkelijk'] else -1)}
+        d.rij('CF - kosten', rr, w, kkeys, alleen_q=True)
+    # ---- PEW: meest recente FD en toelichting ----------------------------------------------------------------
+    pw_ = oz['pew']
+    a, b = wf['2. Ontw PEW'], wb['2. Ontw PEW']
+    for r in range(pw_['eerste'], pw_['opbrengsten_totaal']):
+        if r in (pw_['kosten_totaal'],):
+            continue
+        b['E%d' % r] = a['%s%d' % (pw_['fd'], r)].value
+        b['K%d' % r] = a['%s%d' % (pw_['toelichting'], r)].value
+    extra = [c for c in pw_['kolommen'] if c not in (pw_['fd'], pw_['vorig'], pw_['huidig'])]
+    if len(extra) > 2:
+        log.append('2. Ontw PEW: extra kolom(men) %s van het oude FO niet overgenomen' % extra[:-2])
+    # startdatum VENA
+    O['E%d' % S.PER] = o_v['E%d' % ob['periode']].value
+    # aantal woningen per type als waarde voor de bouw (de cel zelf is een formule zonder berekende waarde)
+    h = wb.create_sheet('_omzetting')
+    h.sheet_state = 'hidden'
+    for t in ob['types']:
+        h.cell(t['k'], 1).value = t['k']
+        h.cell(t['k'], 2).value = t['won']
+    wb.save(uit)
+    mp = ob.get('mijlpalen') or {}
+    return {'log': log, 'jaar': jaar, 'oplevering': mp.get('oplevering'), 'types': len(ob['types'])}
+
+
+def daeb_omzetten(o_v, ob, okeys, O, d, wv):
+    """DAEB-blok van het oude FO: componenten, termijnregels (per groep), aantal en verkoop"""
+    r0 = ob['daeb']
+    oc = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
+    comp = [r for r in range(r0 - 3, r0) if _t(o_v.cell(r, 3).value) and _n(o_v.cell(r, 5).value)]
+    for i, r in enumerate(comp[:2]):
+        O['C%d' % (S.DAEB_KOP - 3 + i)] = _t(o_v.cell(r, 3).value)
+        O['E%d' % (S.DAEB_KOP - 3 + i)] = _n(o_v.cell(r, 5).value)
+    groepen, g, r = [], [], r0 + 1
+    act = ci(ob.get('actuals') or 'J')
+    while r < r0 + 40:
+        lab = _t(o_v.cell(r, 2).value)
+        if lab.lower().startswith('totaal'):
+            break
+        if not lab:
+            if g:
+                groepen.append(g)
+                g = []
+            if not _t(o_v.cell(r + 1, 2).value):
+                break
+        else:
+            g.append(r)
+        r += 1
+    if g:
+        groepen.append(g)
+    for gi, grp in enumerate(groepen[:2]):
+        for i, r in enumerate(grp[:8]):
+            rr = S.DAEB_KOP + 1 + gi * 9 + i
+            O['B%d' % rr] = _t(o_v.cell(r, 2).value)
+            O['C%d' % rr] = o_v.cell(r, 3).value if isinstance(o_v.cell(r, 3).value, (int, float)) else None
+            w = {c: o_v.cell(r, c).value for c in oc}
+            if act not in oc:
+                w[act] = o_v.cell(r, act).value
+            d.rij('CF - opbrengsten', rr, w, okeys)
+    # aantal en verkoop: regels in het blok, anders Verkooptempo (de DAEB-rij of de rij na de koopwoningtypes)
+    aantal, vk = None, None
+    for r in range(r0, r0 + 60):
+        lab = _t(o_v.cell(r, 2).value).lower()
+        if lab.startswith('aantal daeb'):
+            aantal = o_v.cell(r, 4).value
+        if lab.startswith('verkoop en levering daeb'):
+            vk = ({c: o_v.cell(r, c).value for c in oc}, okeys)
+    if (aantal is None or vk is None) and 'Verkooptempo' in wv.sheetnames:
+        v = wv['Verkooptempo']
+        kop = next((r for r in range(1, 30) if _t(v.cell(r, 1).value).lower() == 'verkooptempo'), None)
+        if kop:
+            rij = next((r for r in range(kop + 1, kop + 20) if 'daeb' in _t(v.cell(r, 1).value).lower()), None)
+            if rij is None:
+                r = kop + 1 + len(ob['types'])
+                rij = r if _t(v.cell(r, 1).value) and not _t(v.cell(r, 1).value).lower().startswith('totaal') else None
+            if rij:
+                acol = next((c for c in range(1, 40) if _t(v.cell(kop, c).value).lower() == 'aantal'), 3)
+                if aantal is None:
+                    aantal = v.cell(rij, acol).value
+                if vk is None:
+                    vk = ({c: v.cell(rij, c).value for c in range(2, 40) if c != acol}, sleutels(v, kop - 1, kop, 2, 40))
+    O['D%d' % S.DAEB_AANTAL] = aantal
+    if vk:
+        w, keys = vk
+        w = {c: x for c, x in w.items() if keys.get(c)}
+        d.rij('CF - opbrengsten', S.DAEB_VERKOOP, w, keys)
+
+
+if __name__ == '__main__':
+    r = omzetten(sys.argv[1], sys.argv[2])
+    print('\n'.join('  ' + x for x in r['log']))
+    print('startjaar %s, oplevering %s' % (r['jaar'], r['oplevering']))

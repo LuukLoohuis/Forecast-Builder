@@ -1,11 +1,8 @@
 {
- "fo": "FO_Parkzoom_fictieve_demoversie.xlsx",
+ "fo": "demo.xlsx",
+ "oud_fo": "/home/user/Forecast-Builder/input/FO_Parkzoom_fictieve_demoversie.xlsx",
  "opzet": {
   "bladen": [
-   [
-    "Toelichting onderlegger",
-    "hidden"
-   ],
    [
     "Behind the scens",
     "visible"
@@ -16,26 +13,6 @@
    ],
    [
     "Prijslijst",
-    "visible"
-   ],
-   [
-    "Aansluiting opbrengsten",
-    "visible"
-   ],
-   [
-    "Notities FO gesprek",
-    "visible"
-   ],
-   [
-    "CF - opbrengsten",
-    "visible"
-   ],
-   [
-    "CF - kosten",
-    "visible"
-   ],
-   [
-    "Verkooptempo",
     "visible"
    ],
    [
@@ -51,10 +28,6 @@
     "visible"
    ],
    [
-    "1. Ontw businessc FD",
-    "hidden"
-   ],
-   [
     "1. Cashflow",
     "visible"
    ],
@@ -63,65 +36,97 @@
     "visible"
    ],
    [
-    "3. Restant bdgt",
-    "visible"
-   ],
-   [
-    "5. K&R businessc",
-    "hidden"
-   ],
-   [
     "CF - hulp VENA",
     "visible"
+   ],
+   [
+    "CF - opbrengsten",
+    "visible"
+   ],
+   [
+    "CF - kosten",
+    "visible"
+   ],
+   [
+    "_omzetting",
+    "hidden"
    ]
   ],
   "opbrengsten": {
    "eerste": "G",
-   "laatste": "Z",
-   "check": "AB",
-   "verschil": "AC",
-   "status": "AD",
+   "laatste": "AU",
+   "check": "AW",
+   "verschil": "AX",
+   "status": "AY",
+   "actuals": "G",
    "types": [
     {
      "k": 1,
-     "hb": 5,
+     "hb": 6,
      "plan": [
-      6,
       7,
       8,
       9,
       10,
       11,
-      12
+      12,
+      13,
+      14,
+      15,
+      16
      ],
-     "d": 64,
-     "tr": 13,
-     "omzet_kop": 68,
+     "d": 108,
+     "tr": 17,
+     "omzet_kop": 113,
      "omzet": [
-      69,
-      70,
-      71,
-      72,
-      73,
-      74,
-      75,
-      76,
-      77,
-      78,
-      79
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127
      ],
-     "koop": 69,
-     "verkoop": 61,
+     "koop": 114,
+     "verkoop": 104,
      "won": 53,
      "verkoop_waarden": [
-      13,
-      0,
-      0,
       0,
       0,
       0,
       0,
       40,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
       0,
       0,
       0,
@@ -140,12 +145,33 @@
       0,
       0,
       0,
-      0,
-      0,
-      0,
       20,
       20,
       13,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
       0,
       0,
       0,
@@ -164,53 +190,55 @@
       8,
       9,
       10,
-      11
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
      ],
-     "rij_verkocht": 14,
-     "rij_transport_pct": 15,
-     "rij_grond": 16
+     "rij_verkocht": 18,
+     "rij_transport_pct": 19,
+     "rij_grond": 20
     },
     {
      "k": 2,
-     "hb": 18,
+     "hb": 22,
      "plan": [
-      19,
-      20,
-      21,
-      22,
       23,
       24,
       25,
       26,
       27,
-      28
+      28,
+      29,
+      30,
+      31,
+      32
      ],
-     "d": 66,
-     "tr": 29,
-     "omzet_kop": 83,
+     "d": 109,
+     "tr": 33,
+     "omzet_kop": 130,
      "omzet": [
-      84,
-      85,
-      86,
-      87,
-      88,
-      89,
-      90,
-      91,
-      92,
-      93,
-      94,
-      95,
-      96,
-      97
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141,
+      142,
+      143,
+      144
      ],
-     "koop": 84,
-     "verkoop": 62,
+     "koop": 131,
+     "verkoop": 105,
      "won": 24,
      "verkoop_waarden": [
-      21,
-      0,
-      0,
       0,
       0,
       0,
@@ -227,12 +255,33 @@
       0,
       0,
       0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
       0
      ],
      "grond_waarden": [
-      0,
-      0,
-      0,
       0,
       0,
       0,
@@ -249,56 +298,109 @@
       0,
       0,
       0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
       0
      ],
      "kosten": [
-      17,
-      18,
-      19,
-      20,
-      21,
       22,
       23,
       24,
       25,
-      26
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33
      ],
-     "rij_verkocht": 30,
-     "rij_transport_pct": 31,
-     "rij_grond": 32
+     "rij_verkocht": 34,
+     "rij_transport_pct": 35,
+     "rij_grond": 36
     },
     {
      "k": 3,
-     "hb": 34,
+     "hb": 38,
      "plan": [
-      35,
-      36,
-      37,
-      38,
       39,
       40,
-      41
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48
      ],
-     "d": 69,
-     "tr": 42,
-     "omzet_kop": 102,
+     "d": 110,
+     "tr": 49,
+     "omzet_kop": 147,
      "omzet": [
-      103,
-      104,
-      105,
-      106,
-      107,
-      108,
-      109,
-      110,
-      111,
-      112,
-      113
+      148,
+      149,
+      150,
+      151,
+      152,
+      153,
+      154,
+      155,
+      156,
+      157,
+      158,
+      159,
+      160,
+      161
      ],
-     "koop": 103,
-     "verkoop": 63,
+     "koop": 148,
+     "verkoop": 106,
      "won": 0,
      "verkoop_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
       0,
       0,
       0,
@@ -340,75 +442,8 @@
       0,
       0,
       0,
-      0
-     ],
-     "kosten": [
-      32,
-      33,
-      34,
-      35,
-      36,
-      37,
-      38
-     ],
-     "rij_verkocht": 43,
-     "rij_transport_pct": 44,
-     "rij_grond": 45
-    },
-    {
-     "k": 4,
-     "hb": 47,
-     "plan": [
-      48,
-      49,
-      50,
-      51,
-      52,
-      53,
-      54
-     ],
-     "d": 71,
-     "tr": 55,
-     "omzet_kop": 117,
-     "omzet": [
-      118,
-      119,
-      120,
-      121,
-      122,
-      123,
-      124,
-      125,
-      126,
-      127,
-      128
-     ],
-     "koop": 118,
-     "verkoop": 64,
-     "won": 0,
-     "verkoop_waarden": [
       0,
       0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-     ],
-     "grond_waarden": [
       0,
       0,
       0,
@@ -431,6 +466,11 @@
       0
      ],
      "kosten": [
+      39,
+      40,
+      41,
+      42,
+      43,
       44,
       45,
       46,
@@ -439,74 +479,484 @@
       49,
       50
      ],
-     "rij_verkocht": 56,
-     "rij_transport_pct": 57,
-     "rij_grond": 58
+     "rij_verkocht": 50,
+     "rij_transport_pct": 51,
+     "rij_grond": 52
+    },
+    {
+     "k": 4,
+     "hb": 54,
+     "plan": [
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64
+     ],
+     "d": 111,
+     "tr": 65,
+     "omzet_kop": 164,
+     "omzet": [
+      165,
+      166,
+      167,
+      168,
+      169,
+      170,
+      171,
+      172,
+      173,
+      174,
+      175,
+      176,
+      177,
+      178
+     ],
+     "koop": 165,
+     "verkoop": 107,
+     "won": 0,
+     "verkoop_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "grond_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kosten": [
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67
+     ],
+     "rij_verkocht": 66,
+     "rij_transport_pct": 67,
+     "rij_grond": 68
+    },
+    {
+     "k": 5,
+     "hb": 70,
+     "plan": [
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80
+     ],
+     "d": 112,
+     "tr": 81,
+     "omzet_kop": 181,
+     "omzet": [
+      182,
+      183,
+      184,
+      185,
+      186,
+      187,
+      188,
+      189,
+      190,
+      191,
+      192,
+      193,
+      194,
+      195
+     ],
+     "koop": 182,
+     "verkoop": 108,
+     "won": 0,
+     "verkoop_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "grond_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kosten": [
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84
+     ],
+     "rij_verkocht": 82,
+     "rij_transport_pct": 83,
+     "rij_grond": 84
+    },
+    {
+     "k": 6,
+     "hb": 86,
+     "plan": [
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96
+     ],
+     "d": 113,
+     "tr": 97,
+     "omzet_kop": 198,
+     "omzet": [
+      199,
+      200,
+      201,
+      202,
+      203,
+      204,
+      205,
+      206,
+      207,
+      208,
+      209,
+      210,
+      211,
+      212
+     ],
+     "koop": 199,
+     "verkoop": 109,
+     "won": 0,
+     "verkoop_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "grond_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "kosten": [
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101
+     ],
+     "rij_verkocht": 98,
+     "rij_transport_pct": 99,
+     "rij_grond": 100
     }
    ],
-   "verkoop_kop": 60,
-   "euro_kop": 140,
-   "totaal": 206,
-   "periode": 208,
-   "correctie": 204,
-   "daeb": null,
-   "daeb_sjabloon": 212,
-   "max": 208,
-   "daeb_totaal": 236,
-   "daeb_eind": 239,
-   "kop_markering": {
-    "startbouw": "P",
-    "oplevering": "U"
-   },
-   "mijlpalen": {
-    "startbouw": [
-     2027,
-     2
-    ],
-    "oplevering": [
-     2028,
-     3
-    ]
-   },
-   "jaarrij": 139,
-   "daeb_kop": 217
+   "verkoop_kop": 103,
+   "euro_kop": 218,
+   "totaal": 326,
+   "periode": 328,
+   "correctie": 324,
+   "daeb": 337,
+   "daeb_sjabloon": null,
+   "max": 359,
+   "daeb_totaal": null,
+   "daeb_eind": null,
+   "kop_markering": {},
+   "mijlpalen": {},
+   "jaarrij": 217
   },
   "kosten": {
-   "eerste": "H",
-   "eerste_q": "L",
-   "laatste": "AA",
-   "onderdelen": 58,
+   "eerste": "G",
+   "eerste_q": "H",
+   "laatste": "AU",
+   "onderdelen": 110,
    "posten": [
-    59,
-    60,
-    61,
-    62,
-    63,
-    64,
-    65,
-    66,
-    67,
-    68,
-    69,
-    70
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122
    ],
-   "totaal": 75,
-   "pct": 76,
-   "periode": 77,
-   "pew_totaal": 55,
-   "check": 72,
-   "som": 71,
-   "status": "AD",
-   "totaalkol": "AC",
-   "toelichting": "AF",
-   "werkelijk": "K",
-   "voorstel_start": 93,
-   "voorstel_offset": 41,
-   "voorstel_eind": 112,
-   "sleutelrij": 96,
-   "max": 92,
-   "voorstel_eerste": 100,
-   "voorstel_laatste": 111
+   "totaal": 127,
+   "pct": 128,
+   "periode": 129,
+   "pew_totaal": 107,
+   "check": 124,
+   "som": 123,
+   "status": "AX",
+   "totaalkol": "AW",
+   "toelichting": "AZ",
+   "werkelijk": "G",
+   "voorstel_start": 130,
+   "voorstel_offset": 26,
+   "voorstel_eind": 149,
+   "sleutelrij": 133,
+   "max": 129,
+   "voorstel_eerste": 137,
+   "voorstel_laatste": 148
   },
   "pew": {
    "kop": 5,
@@ -536,102 +986,235 @@
    "kop": 3,
    "periodes": [
     [
-     2024,
+     2021,
      "",
      4
     ],
     [
-     2025,
+     2022,
      "",
      5
     ],
     [
-     2026,
-     "Q1",
+     2023,
+     "",
      6
     ],
     [
-     2026,
-     "Q2",
+     2024,
+     "",
      7
     ],
     [
-     2026,
-     "Q3",
+     2025,
+     "",
      8
     ],
     [
      2026,
-     "Q4",
+     "Q1",
      9
     ],
     [
-     2027,
-     "Q1",
+     2026,
+     "Q2",
      10
     ],
     [
-     2027,
-     "Q2",
+     2026,
+     "Q3",
      11
     ],
     [
-     2027,
-     "Q3",
+     2026,
+     "Q4",
      12
     ],
     [
      2027,
-     "Q4",
+     "Q1",
      13
     ],
     [
-     2028,
-     "Q1",
+     2027,
+     "Q2",
      14
     ],
     [
-     2028,
-     "Q2",
+     2027,
+     "Q3",
      15
     ],
     [
-     2028,
-     "Q3",
+     2027,
+     "Q4",
      16
     ],
     [
      2028,
-     "Q4",
+     "Q1",
      17
     ],
     [
-     2029,
-     "Q1",
+     2028,
+     "Q2",
      18
     ],
     [
-     2029,
-     "Q2",
+     2028,
+     "Q3",
      19
     ],
     [
-     2029,
-     "Q3",
+     2028,
+     "Q4",
      20
     ],
     [
      2029,
-     "Q4",
+     "Q1",
      21
+    ],
+    [
+     2029,
+     "Q2",
+     22
+    ],
+    [
+     2029,
+     "Q3",
+     23
+    ],
+    [
+     2029,
+     "Q4",
+     24
+    ],
+    [
+     2030,
+     "Q1",
+     25
+    ],
+    [
+     2030,
+     "Q2",
+     26
+    ],
+    [
+     2030,
+     "Q3",
+     27
+    ],
+    [
+     2030,
+     "Q4",
+     28
+    ],
+    [
+     2031,
+     "Q1",
+     29
+    ],
+    [
+     2031,
+     "Q2",
+     30
+    ],
+    [
+     2031,
+     "Q3",
+     31
+    ],
+    [
+     2031,
+     "Q4",
+     32
+    ],
+    [
+     2032,
+     "Q1",
+     33
+    ],
+    [
+     2032,
+     "Q2",
+     34
+    ],
+    [
+     2032,
+     "Q3",
+     35
+    ],
+    [
+     2032,
+     "Q4",
+     36
+    ],
+    [
+     2033,
+     "Q1",
+     37
+    ],
+    [
+     2033,
+     "Q2",
+     38
+    ],
+    [
+     2033,
+     "Q3",
+     39
+    ],
+    [
+     2033,
+     "Q4",
+     40
+    ],
+    [
+     2034,
+     "Q1",
+     41
+    ],
+    [
+     2034,
+     "Q2",
+     42
+    ],
+    [
+     2034,
+     "Q3",
+     43
+    ],
+    [
+     2034,
+     "Q4",
+     44
+    ],
+    [
+     2035,
+     "Q1",
+     45
+    ],
+    [
+     2035,
+     "Q2",
+     46
+    ],
+    [
+     2035,
+     "Q3",
+     47
+    ],
+    [
+     2035,
+     "Q4",
+     48
     ]
    ],
-   "totaal": 23,
-   "ok": 26
+   "totaal": 50,
+   "ok": 53
   },
-  "verkooptempo": {
-   "kop": 3
-  },
+  "verkooptempo": null,
   "hulpkolommen": {
    "FO - vorig": {
     "X": [
@@ -664,241 +1247,321 @@
     ]
    }
   },
+  "aansluiting_blad": "Prijslijst",
+  "standaard": true,
   "aansluiting": [
    {
-    "titel": 39,
-    "naam": "Woningtype A",
+    "titel": 15,
+    "naam": "type 1",
     "corr": "G",
     "regels": [
      [
-      41,
+      17,
       "Grond + Ontwikkelkosten"
+     ],
+     [
+      18,
+      "Aanneemsom"
+     ],
+     [
+      19,
+      "VON verhogingen"
+     ],
+     [
+      20,
+      "KAO opties"
+     ],
+     [
+      21,
+      "Korting"
+     ],
+     [
+      22,
+      "Kopersmeerwerk"
+     ],
+     [
+      23,
+      "Kadastrale kosten"
+     ],
+     [
+      24,
+      "Bouwrente"
+     ],
+     [
+      25,
+      "Aanvullende rente"
+     ],
+     [
+      26,
+      "Opbrengsten commercieel"
+     ],
+     [
+      27,
+      "Opbrengsten parkeren"
+     ]
+    ]
+   },
+   {
+    "titel": 30,
+    "naam": "type 2",
+    "corr": "G",
+    "regels": [
+     [
+      32,
+      "Grond + Ontwikkelkosten"
+     ],
+     [
+      33,
+      "Aanneemsom"
+     ],
+     [
+      34,
+      "VON verhogingen"
+     ],
+     [
+      35,
+      "KAO opties"
+     ],
+     [
+      36,
+      "Korting"
+     ],
+     [
+      37,
+      "Kopersmeerwerk"
+     ],
+     [
+      38,
+      "Kadastrale kosten"
+     ],
+     [
+      39,
+      "Bouwrente"
+     ],
+     [
+      40,
+      "Aanvullende rente"
+     ],
+     [
+      41,
+      "Opbrengsten commercieel"
      ],
      [
       42,
-      "Aanneemsom"
-     ],
-     [
-      43,
-      "VON verhogingen"
-     ],
-     [
-      44,
-      "KAO opties"
-     ],
-     [
-      45,
-      "Korting"
-     ],
-     [
-      46,
-      "Kopersmeerwerk"
-     ],
+      "Opbrengsten parkeren"
+     ]
+    ]
+   },
+   {
+    "titel": 45,
+    "naam": "type 3",
+    "corr": "G",
+    "regels": [
      [
       47,
-      "Kadastrale kosten"
+      "Grond + Ontwikkelkosten"
      ],
      [
       48,
-      "Bouwrente"
+      "Aanneemsom"
      ],
      [
       49,
-      "Aanvullende rente"
+      "VON verhogingen"
      ],
      [
       50,
-      "Opbrengsten commercieel"
+      "KAO opties"
      ],
      [
       51,
+      "Korting"
+     ],
+     [
+      52,
+      "Kopersmeerwerk"
+     ],
+     [
+      53,
+      "Kadastrale kosten"
+     ],
+     [
+      54,
+      "Bouwrente"
+     ],
+     [
+      55,
+      "Aanvullende rente"
+     ],
+     [
+      56,
+      "Opbrengsten commercieel"
+     ],
+     [
+      57,
       "Opbrengsten parkeren"
      ]
     ]
    },
    {
-    "titel": 57,
-    "naam": "Appartementen",
+    "titel": 60,
+    "naam": "type 4",
     "corr": "G",
     "regels": [
      [
-      59,
-      "Grond + Ontwikkelkosten"
-     ],
-     [
-      60,
-      "Aanneemsom"
-     ],
-     [
-      61,
-      "VON verhogingen"
-     ],
-     [
       62,
-      "KAO opties"
+      "Grond + Ontwikkelkosten"
      ],
      [
       63,
-      "Korting"
+      "Aanneemsom"
      ],
      [
       64,
-      "Kopersmeerwerk"
+      "VON verhogingen"
      ],
      [
       65,
-      "Kadastrale kosten"
+      "KAO opties"
      ],
      [
       66,
-      "Bouwrente"
+      "Korting"
      ],
      [
       67,
-      "Aanvullende rente"
+      "Kopersmeerwerk"
      ],
      [
       68,
-      "Opbrengsten commercieel"
+      "Kadastrale kosten"
      ],
      [
       69,
+      "Bouwrente"
+     ],
+     [
+      70,
+      "Aanvullende rente"
+     ],
+     [
+      71,
+      "Opbrengsten commercieel"
+     ],
+     [
+      72,
       "Opbrengsten parkeren"
      ]
     ]
    },
    {
-    "titel": 78,
-    "naam": "Blok 3",
+    "titel": 75,
+    "naam": "type 5",
     "corr": "G",
     "regels": [
      [
-      80,
+      77,
       "Grond + Ontwikkelkosten"
+     ],
+     [
+      78,
+      "Aanneemsom"
+     ],
+     [
+      79,
+      "VON verhogingen"
+     ],
+     [
+      80,
+      "KAO opties"
      ],
      [
       81,
-      "Aanneemsom"
-     ],
-     [
-      82,
-      "VON verhogingen"
-     ],
-     [
-      83,
-      "KAO opties"
-     ],
-     [
-      84,
       "Korting"
      ],
      [
-      85,
+      82,
       "Kopersmeerwerk"
      ],
      [
-      86,
+      83,
       "Kadastrale kosten"
      ],
      [
-      87,
+      84,
       "Bouwrente"
      ],
      [
-      88,
+      85,
       "Aanvullende rente"
      ],
      [
-      89,
+      86,
       "Opbrengsten commercieel"
      ],
      [
-      90,
+      87,
       "Opbrengsten parkeren"
      ]
     ]
    },
    {
-    "titel": 95,
-    "naam": "Blok 4",
+    "titel": 90,
+    "naam": "type 6",
     "corr": "G",
     "regels": [
      [
-      97,
+      92,
       "Grond + Ontwikkelkosten"
      ],
      [
-      98,
+      93,
       "Aanneemsom"
      ],
      [
-      99,
+      94,
       "VON verhogingen"
      ],
      [
-      100,
+      95,
       "KAO opties"
      ],
      [
-      101,
+      96,
       "Korting"
      ],
      [
-      102,
+      97,
       "Kopersmeerwerk"
      ],
      [
-      103,
+      98,
       "Kadastrale kosten"
      ],
      [
-      104,
+      99,
       "Bouwrente"
      ],
      [
-      105,
+      100,
       "Aanvullende rente"
      ],
      [
-      106,
+      101,
       "Opbrengsten commercieel"
      ],
      [
-      107,
+      102,
       "Opbrengsten parkeren"
      ]
     ]
    }
   ],
-  "aansluiting_max": 124,
-  "prijslijst": {
-   "type": "C",
-   "status": "I",
-   "sleutels": [
-    "Woningtype A",
-    "APP"
-   ]
-  },
-  "ingevoegd": [
-   [
-    47,
-    3
-   ],
-   [
-    37,
-    3
-   ],
-   [
-    27,
-    3
-   ],
-   [
-    14,
-    3
-   ]
-  ]
+  "aansluiting_max": 103,
+  "prijslijst": null,
+  "ingevoegd": []
  },
- "invoer_laatste": 25,
- "invoer_totaal": 27,
- "daeb_type": 5
+ "invoer_laatste": 52,
+ "invoer_totaal": 54,
+ "daeb_type": 7
 }

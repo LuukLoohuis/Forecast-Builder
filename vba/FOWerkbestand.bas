@@ -445,6 +445,7 @@ Public Sub OudFOInlezen()
 
     Application.ScreenUpdating = True
 
+    ThisWorkbook.Worksheets(SH_CONTROLE).Visible = -1
     ThisWorkbook.Worksheets(SH_CONTROLE).Activate
     bericht = "Klaar: " & n & " tabbladen overgenomen uit " & BestandsNaam(CStr(pad)) & "." & vbCrLf & vbCrLf
     If verschil = 0 Then

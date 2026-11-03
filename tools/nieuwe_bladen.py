@@ -89,7 +89,8 @@ def verwijzingen(oz, inv_tot, daeb_type):
         'daeb_fees': 'Woningtypes!$%s$54:$%s$63' % (L(c0 + 1), L(c0 + 1)), 'daeb_type': daeb_type,
         'daeb_rijen': 'rij %d e.v.' % daeb_van,
         'vt_status': ['%s%s%d' % (OO, ob['status'], t['tr'] + i) for t in ob['types'] for i in (1, 2)],
-        'sap_open': "'Aansluiting opbrengsten'!D%d" % sap_opzet(oz)['open'],
+        'sap_open': "'%s'!D%d" % (oz.get('aansluiting_blad', 'Aansluiting opbrengsten'), sap_opzet(oz)['open']),
+        'aansl': "'%s'!" % oz.get('aansluiting_blad', 'Aansluiting opbrengsten'),
     }
 
 
@@ -263,8 +264,8 @@ def maak_start(wb, demo, R):
     checks = [
         ('Invoer compleet', '=COUNTIF(H15:H18,"OK")&" van 4 OK"', '=IF(COUNTIF(H15:H18,"OK")=4,"OK","LET OP")', 'blok 2'),
         ('Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW)',
-         "=COUNTIF('Aansluiting opbrengsten'!J1:J300,\"FOUT\")&\" fout\"",
-         "=IF(COUNTIF('Aansluiting opbrengsten'!J1:J300,\"FOUT\")=0,\"OK\",\"FOUT\")", 'Aansluiting opbrengsten, kolom J'),
+         "=COUNTIF(%sJ1:J300,\"FOUT\")&\" fout\"" % R['aansl'],
+         "=IF(COUNTIF(%sJ1:J300,\"FOUT\")=0,\"OK\",\"FOUT\")" % R['aansl'], '%s kolom J' % R['aansl'][1:-2]),
         ('Opbrengsten volledig ingepland (bouwtermijnen, transport, verkoop)',
          "=COUNTIF(%s,\"FOUT\")&\" fout\"" % R['o_status'],
          "=IF(COUNTIF(%s,\"FOUT\")=0,\"OK\",\"FOUT\")" % R['o_status'], 'CF - opbrengsten, kolom %s' % R['o_status_kol']),

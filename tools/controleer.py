@@ -93,8 +93,8 @@ def testkopie(src, dst):
                         return '<c r="%s"%s><v>%s</v></c>' % (m.group(1), m.group(2), txt.strip())
                     return m.group(0)
                 s = re.sub(r'<c r="(P\d+)"([^>]*?) t="s"><v>(\d+)</v></c>', num, s)
-                s = re.sub(r'<c r="(P\d+)"([^>]*?) t="inlineStr"><is><t>\s*(\d+)\s*</t></is></c>',
-                           lambda m: '<c r="%s"%s><v>%s</v></c>' % (m.group(1), m.group(2), m.group(3)), s)
+                s = re.sub(r'<c r="(P\d+)"([^>]*?)\s+t="inlineStr"([^>]*)><is><t>\s*(\d+)\s*</t></is></c>',
+                           lambda m: '<c r="%s"%s%s><v>%s</v></c>' % (m.group(1), m.group(2), m.group(3), m.group(4)), s)
                 b = s.encode('utf-8')
             zo.writestr(n, b)
 
@@ -169,6 +169,39 @@ def vergelijkingen(cfg, fo_wb):
             rng = 'E1:%s%d' % (L(ws.max_column), ws.max_row)
             out.append((n, rng, n, rng))
     return out
+
+
+def vergelijk_cashflow(wb, oud, toon=5):
+    """standaard-FO: de cashflow op Invoer per jaar/kwartaal tegen '1. Cashflow' van het oude FO (kosten, omzet,
+    vorige prognose); de periodes hoeven niet op dezelfde rij te staan"""
+    import openpyxl
+    ov = openpyxl.load_workbook(oud, data_only=True)['1. Cashflow']
+    inv = wb['Invoer']
+    nieuw = {}
+    for r in range(8, 70):
+        b, c = inv.cell(r, 2).value, inv.cell(r, 3).value
+        if isinstance(b, (int, float)):
+            nieuw[(int(b), c or '')] = r
+    n = m = 0
+    for r in range(4, 80):
+        b = ov.cell(r, 2).value
+        if not isinstance(b, (int, float)):
+            break
+        q = ov.cell(r, 3).value
+        q = q if isinstance(q, str) and q.startswith('Q') else ''
+        rr = nieuw.get((int(b), q))
+        m += 1
+        for c, naam in ((4, 'kosten'), (6, 'omzet'), (10, 'CF vorig kwartaal')):
+            a = ov.cell(r, c).value
+            a = a if isinstance(a, (int, float)) else 0
+            x = inv.cell(rr, c).value if rr else None
+            x = x if isinstance(x, (int, float)) else 0
+            if abs(a - x) > 1:
+                n += 1
+                if n <= toon:
+                    print('    VERSCHIL %s%s %s: oud FO %s, werkbestand %s' % (b, q, naam, round(a), round(x)))
+    print('  1. Cashflow (oud FO) -> Invoer, %d periodes: %s' % (m, 'gelijk' if n == 0 else '%d verschillen' % n))
+    return n
 
 
 def vergelijk(nieuw, fo_path, cfg, toon=5):
@@ -258,7 +291,13 @@ def main():
     print('Doorrekenen met LibreOffice')
     doorrekenen(test, uit)
     print('Vergelijken met het oorspronkelijke FO (waarden van Excel)')
-    fouten, wb = vergelijk(uit, fo, cfg, a.toon)
+    if cfg['opzet'].get('standaard'):
+        import openpyxl
+        wb = openpyxl.load_workbook(uit, data_only=True)
+        oud = a.fo or cfg.get('oud_fo')
+        fouten = vergelijk_cashflow(wb, oud, a.toon) if oud else 0
+    else:
+        fouten, wb = vergelijk(uit, fo, cfg, a.toon)
     ws = wb['Start']
     print('Controles op tab Start')
     for r in range(15, 19):
@@ -274,7 +313,7 @@ def main():
         for r in (t['tr'] + 1, t['tr'] + 2):
             print('  CF - opbrengsten rij %d %-60s %s %s' % (r, str(o.cell(r, 2).value)[:60], o['%s%d' % (ob['check'], r)].value,
                                                        o['%s%d' % (ob['status'], r)].value))
-    ao = wb['Aansluiting opbrengsten']
+    ao = wb[cfg['opzet'].get('aansluiting_blad', 'Aansluiting opbrengsten')]
     r0 = cfg['opzet']['aansluiting_max'] + 5
     print('  Te boeken in SAP: ' + ' | '.join('%s/%s %s' % (ao.cell(r, 2).value, ao.cell(r, 3).value or '', round(ao.cell(r, 4).value or 0))
                                               for r in range(r0, r0 + 6)) + ' | niet toegewezen %s' % ao.cell(r0 + 6, 4).value)
@@ -282,7 +321,7 @@ def main():
     scenario(wb, cfg)
     for blad in ('Start', 'Invoer', 'Woningtypes', 'Scenario kosten', 'Dashboard', 'Model', '_koppeling', '2. Ontw PEW',
                  'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA', 'PowerPoint',
-                 'Aansluiting opbrengsten'):
+                 cfg['opzet'].get('aansluiting_blad', 'Aansluiting opbrengsten')):
         for row in wb[blad].iter_rows():
             for c in row:
                 if isinstance(c.value, str) and c.value.startswith('#') and c.value[1:4].isupper() and not (

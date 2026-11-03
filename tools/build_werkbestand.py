@@ -57,14 +57,13 @@ LAYOUT = [
     ('Vorige prognose', 'new', 'Vorige prognose', 'shVorigePrognose'),
     ('Controle oud FO', 'new', 'Controle oud FO', 'shControleOudFO'),
     ('Behind the scens', 'fo', 'Behind the scens', 'shBehindScens'),
-    ('Toelichting onderlegger', 'fo', 'Toelichting onderlegger', 'shToelichting'),
-    ('1. Ontw businessc FD', 'fo', '1. Ontw businessc FD', 'shOntwBusinesscase'),
-    ('5. K&R businessc', 'fo', '5. K&R businessc', 'shKRBusinesscase'),
     ('_sjabloon', 'new', '_sjabloon', 'shSjabloon'),
     ('_koppeling', 'new', '_koppeling', 'shKoppeling'),
 ]
-VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', 'Notities FO gesprek', 'Verkooptempo'}    # 2. Ontw PEW komt in een nieuw jasje
-VERBORGEN = {'Invoer', 'Woningtypes', 'Scenario kosten', 'Model'}   # rekenbladen van het scenariomodel: alles is formule
+VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', 'Notities FO gesprek', 'Verkooptempo',
+             'Toelichting onderlegger', '1. Ontw businessc FD', '5. K&R businessc'}    # 2. Ontw PEW komt in een nieuw jasje
+VERBORGEN = {'Invoer', 'Woningtypes', 'Scenario kosten', 'Model',   # rekenbladen van het scenariomodel: alles is formule
+             'PowerPoint', 'Vorige prognose', 'Controle oud FO', 'Behind the scens'}
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
 DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3),
         'dia10': [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),
@@ -428,6 +427,8 @@ def main():
     ap.add_argument('--out', default=os.path.join(ROOT, 'output', 'FO_Parkzoom_werkbestand.xlsm'))
     ap.add_argument('--pptx-out', default=os.path.join(ROOT, 'output', 'Kwartaal_Template_cashflow_v21.pptx'))
     ap.add_argument('--project', help='projectnaam (standaard uit de bestandsnaam van het FO)')
+    ap.add_argument('--oud', help='het oude FO waaruit het standaard-FO is omgezet (voor de controle)')
+    ap.add_argument('--demo', action='store_true', help='teksten van het demo-FO (dia 10)')
     ap.add_argument('--oplevering', help='jaar-kwartaal, bv. 2028-3 (standaard de markering Oplevering op CF - opbrengsten)')
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
@@ -436,7 +437,7 @@ def main():
     fo_bron = a.fo
     oz0 = opzet_fo.lees(fo_bron)
     # per woningtype 3 rijen onder de transportregel (verkocht %, getransporteerd %, grondprijs); van onder naar boven
-    ingevoegd = sorted(((t['tr'] + 1, 3) for t in oz0['opbrengsten']['types']), reverse=True)
+    ingevoegd = [] if oz0['standaard'] else sorted(((t['tr'] + 1, 3) for t in oz0['opbrengsten']['types']), reverse=True)
     fo_pkg = Package(fo_bron)
     for at, n in ingevoegd:
         rijen_invoegen(fo_pkg, 'CF - opbrengsten', at, n)
@@ -445,11 +446,12 @@ def main():
     a.fo = fo_tmp
     oz = opzet_fo.lees(fo_tmp)
     oz['ingevoegd'] = ingevoegd
-    note('CF - opbrengsten: per woningtype 3 rijen ingevoegd (rij %s van het FO)' % ', '.join(str(r) for r, _ in ingevoegd[::-1]))
+    if ingevoegd:
+        note('CF - opbrengsten: per woningtype 3 rijen ingevoegd (rij %s van het FO)' % ', '.join(str(r) for r, _ in ingevoegd[::-1]))
     ob, ko = oz['opbrengsten'], oz['kosten']
     note('CF - opbrengsten: %d woningtypes, kolommen %s..%s, totaal rij %d; CF - kosten: posten rij %d-%d, totaal rij %d'
          % (len(ob['types']), ob['eerste'], ob['laatste'], ob['totaal'], ko['posten'][0], ko['posten'][-1], ko['totaal']))
-    if os.path.abspath(fo_bron) == os.path.abspath(ap.get_default('fo')):
+    if a.demo or os.path.abspath(fo_bron) == os.path.abspath(ap.get_default('fo')):
         project = dict(DEMO)
     else:
         opl = ob['mijlpalen'].get('oplevering')
@@ -552,9 +554,10 @@ def main():
         if blad == 'CF - opbrengsten':
             daeb_uit_verkooptempo(sh, oz, fo_waarden, st, sjabloon)
         dst.put(part_of[blad], sh.t)
-    sh = Sheet(dst.x(part_of['Aansluiting opbrengsten']), sst)
+    ab = oz['aansluiting_blad']
+    sh = Sheet(dst.x(part_of[ab]), sst)
     fo_aanpassingen.aansluiting(sh, oz, st, sjabloon, note)
-    dst.put(part_of['Aansluiting opbrengsten'], sh.t)
+    dst.put(part_of[ab], sh.t)
     for ref, tekst in info['pew_extra'].items():
         sjabloon.append(('2. Ontw PEW', ref, tekst))
     # sjabloonlijst op het verborgen blad _sjabloon
@@ -772,7 +775,7 @@ def main():
     os.remove(fo_tmp)
     import json
     with open(os.path.splitext(a.out)[0] + '.opzet.json', 'w') as fh:
-        json.dump({'fo': os.path.basename(fo_bron), 'opzet': oz, 'invoer_laatste': scenario_koppeling.INV_RN,
+        json.dump({'fo': os.path.basename(fo_bron), 'oud_fo': os.path.abspath(a.oud) if a.oud else None, 'opzet': oz, 'invoer_laatste': scenario_koppeling.INV_RN,
                    'invoer_totaal': inv_tot, 'daeb_type': scenario_koppeling.DAEB_TYPE}, fh, indent=1, default=str)
     print('Klaar: ' + a.out)
 

@@ -25,20 +25,25 @@ KOOP_X0 = {'T': 16, 'X': 33, 'B': 82}       # eerste rij op Woningtypes
 HULP = '_koppeling!'
 VT_LAATSTE = 'AN'                           # Verkooptempo: kolommen C..AN doorzoeken
 INV_R1, INV_MAX = 8, 67                     # Invoer: perioderijen 8..67 (het scenariomodel rekent met 60 periodes)
-MAX_TYPES = 4                               # _koppeling: 100 rijen per type, DAEB vanaf rij 401
+MAX_TYPES = 7                               # _koppeling: 100 rijen per type (1-4 vanaf rij 1, 5-7 vanaf rij 601); DAEB rij 401-473
 
 # door configureer() gezet uit de opzet van het FO
 O1 = ON = K1 = KN = None
 KEYO = KEYK = MATO = MATK = None
-O_TOT = K_TOT = K_OFF = WK = None
+O_TOT = K_TOT = K_OFF = WK = ACTC = None
 INV_RN = N_JAAR = N_PRE = None
 DAEB_TYPE = None
 OZ = None
 
 
+def hulp_r0(k):
+    """eerste rij van het hulpblok van woningtype k op _koppeling"""
+    return 1 + (k - 1) * 100 if k <= 4 else 601 + (k - 5) * 100
+
+
 def configureer(oz):
     """kolommen en rijen uit de opzet (opzet.py) van het FO"""
-    global WK, O1, ON, K1, KN, KEYO, KEYK, MATO, MATK, O_TOT, K_TOT, K_OFF, INV_RN, N_JAAR, N_PRE, DAEB_TYPE, OZ
+    global ACTC, WK, O1, ON, K1, KN, KEYO, KEYK, MATO, MATK, O_TOT, K_TOT, K_OFF, INV_RN, N_JAAR, N_PRE, DAEB_TYPE, OZ
     OZ = oz
     ob, k = oz['opbrengsten'], oz['kosten']
     O1, ON = ob['eerste'], ob['laatste']
@@ -49,6 +54,7 @@ def configureer(oz):
     MATK = KK + "$%s$1:$%s$%d" % (K1, KN, k['max'] + 20)
     O_TOT, K_TOT, K_OFF = ob['totaal'], k['totaal'], k['voorstel_offset']
     WK = k['werkelijk'] or 'K'
+    ACTC = ob.get('actuals') or 'J'
     per = oz['cashflow']['periodes']
     N_JAAR = sum(1 for p in per if not p[1])
     n_q = len(per) - N_JAAR
@@ -95,7 +101,7 @@ def vul_hulp(h: Sheet, types, log):
     """blad _koppeling: per type een blok van 100 rijen; geeft per type de slotrijen terug"""
     slots = {}
     for t in types:
-        k, R0 = t['k'], 1 + (t['k'] - 1) * 100
+        k, R0 = t['k'], hulp_r0(t['k'])
         aant = "N(%sG%d)" % (OK, t['hb'] - 1)
         h.set('A%d' % R0, 'Type %d' % k)
         h.set('B%d' % R0, 'start (kwartaalindex)')
@@ -133,7 +139,7 @@ def vul_hulp(h: Sheet, types, log):
                     h.set('B%d' % r, '=%sB%d&""' % (OK, src))
                     h.set('C%d' % r, '=N(%sE%d)' % (OK, src))
                     h.set('D%d' % r, '=IF(AND(N(%sC%d)=0,ABS(C%d)>=0.005),1,0)' % (OK, src, r))
-                    h.set('E%d' % r, '=IF(OR(N(%sJ%d)<>0,J%d=0),1,0)' % (OK, src, r))
+                    h.set('E%d' % r, '=IF(OR(N(%s%s%d)<>0,J%d=0),1,0)' % (OK, ACTC, src, r))
                 else:
                     h.set('A%d' % r, src)
                     h.set('B%d' % r, '=%sB%d&""' % (KK, src))
@@ -215,7 +221,7 @@ def woningtypes(w: Sheet, types, slots, st):
         k = t['k']
         c0 = 3 + 3 * (k - 1)
         cn, cp, ck = num2col(c0), num2col(c0 + 1), num2col(c0 + 2)
-        R0 = 1 + (k - 1) * 100
+        R0 = hulp_r0(k)
         lab = '%sB%d' % (OK, t['hb'])
         aant = '%sG%d' % (OK, t['hb'] - 1)
         # naam zoals de macro (typeNaam): na ' - ' in de titel, anders kolom C naast de titel, anders na 'Termijnen '
@@ -328,8 +334,9 @@ def scenario_kosten(sk: Sheet, st):
                           '"bouwplaats","nutsvoorziening"},B%d))),"start bouw","vast")))' % (r, r, r))
         hv = ('(%sC%d<>"Voorstel")*(%sC%d<>"Transport")' % (KK, p, KK, p),
               '((%sC%d="Voorstel")+(%sC%d="Transport"))' % (KK, p, KK, p))
-        gr = lambda q: 'N(%s%s%d)+SUM(%s%s%d:%s%d)+SUMIFS(%s%s%d:%s%d,%s%s$%d:%s$%d,"<="&%s)' % (
-            KK, WK, q, KK, jaar_kol[0], q, jaar_kol[1], q, KK, q1, q, KN, q, KK, q1, sl, KN, sl, ACT)
+        jaren = lambda q: ('+SUM(%s%s%d:%s%d)' % (KK, jaar_kol[0], q, jaar_kol[1], q)) if col2num(WK) > col2num(K1) else ''
+        gr = lambda q: 'N(%s%s%d)%s+SUMIFS(%s%s%d:%s%d,%s%s$%d:%s$%d,"<="&%s)' % (
+            KK, WK, q, jaren(q), KK, q1, q, KN, q, KK, q1, sl, KN, sl, ACT)
         sk.set('E%d' % r, '=IF(B%d="","",%s*(%s)+%s*(%s))' % (r, hv[0], gr(p), hv[1], gr(p + K_OFF)))
         for pi in range(60):
             c = num2col(9 + pi)
@@ -388,7 +395,7 @@ def daeb_hulp(h: Sheet, types, log):
     h.set('C410', '=IF(%s<4,0,IFERROR(_xlfn.AGGREGATE(15,6,%s/ISNUMBER(SEARCH("startbouw",SUBSTITUTE(%s," ",""))),1),0))'
           % (r0, KEYO, boven))
     h.set('B411', 'start bouw DAEB (anders de vroegste start bouw van de koopwoningen)')
-    mins = ','.join('IF(C%d>0,C%d,99999)' % (1 + 100 * i, 1 + 100 * i) for i in range(len(types)))
+    mins = ','.join('IF(C%d>0,C%d,99999)' % (hulp_r0(i + 1), hulp_r0(i + 1)) for i in range(len(types)))
     h.set('C411', '=IF(C410>0,C410,IF(MIN(%s)>=99999,0,MIN(%s)))' % (mins, mins))
     h.set('B412', "rij 'Aantal DAEB-woningen'")
     h.set('C412', '=IFERROR(MATCH("Aantal DAEB*",%s,0),0)' % B)
@@ -426,7 +433,7 @@ def daeb_hulp(h: Sheet, types, log):
         h.set('N%d' % r, '=IF(AND(M%d<>"",M%d=$E$408),1,0)' % (r, r))
         h.set('O%d' % r, '=IF(AND(M%d<>"",M%d=$E$409),1,0)' % (r, r))
         h.set('P%d' % r, '=IF(I%d=0,0,IF(N%d+O%d=1,IF(N%d=1,1,2),IF(J%d<=$C$407,J%d,0)))' % (r, r, r, r, r, r))
-        h.set('Q%d' % r, '=IF(P%d=0,0,N(INDEX(%s$J$1:$J$600,A%d)))' % (r, OK, r))
+        h.set('Q%d' % r, '=IF(P%d=0,0,N(INDEX(%s$%s$1:$%s$600,A%d)))' % (r, OK, ACTC, ACTC, r))
         h.set('R%d' % r, '=IF(P%d=0,0,SUMPRODUCT((%s<>0)*(%s>0)))' % (r, R, KEYO))
         h.set('S%d' % r, '=IF(P%d=0,0,SUMIFS(%s,%s,">0"))' % (r, R, KEYO))
         h.set('T%d' % r, '=IF(P%d=0,0,SUMPRODUCT(%s*(%s>0)*%s))' % (r, R, KEYO, KEYO))
