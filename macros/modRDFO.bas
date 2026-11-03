@@ -11,7 +11,7 @@ Option Explicit
 Private Const HISTORIE_LAATSTE_RIJ As Long = 5005
 Private Const BRON_CAPACITEIT As Long = 500
 Private Const IMPORTLOG_KOLOM As Long = 24        ' kolom X op Historie
-Private Const VERBORGEN As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Lijsten,PPT,Dias"
+Private Const VERBORGEN As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Lijsten,PPT,Dias"
 
 ' ---------------------------------------------------------------- huisstijl
 Private Function NAVY() As Long
@@ -44,12 +44,13 @@ End Function
 ' ================================================================= 1. BRONNEN INLEZEN
 Public Sub RDFO_BronnenInlezen()
     Dim fZ As Variant, fE As Variant, peilTxt As String, peil As Date, versie As String
-    Dim nZ As Long, nE As Long, impId As String, flt As String, ontbreekt As String, nieuw As Long
+    Dim nZ As Long, nE As Long, nA As Long, impId As String, flt As String, ontbreekt As String, nieuw As Long, fA As Variant
 
     flt = "Excel-bestanden (*.xlsx;*.xlsm;*.xls),*.xlsx;*.xlsm;*.xls"
-    fZ = Application.GetOpenFilename(flt, , "Stap 1 van 2: kies de ZPMW03-export (Annuleren = overslaan)")
-    fE = Application.GetOpenFilename(flt, , "Stap 2 van 2: kies de Woningetalage-export (Annuleren = overslaan)")
-    If VarType(fZ) = vbBoolean And VarType(fE) = vbBoolean Then Exit Sub
+    fZ = Application.GetOpenFilename(flt, , "Stap 1 van 3: kies de ZPMW03-export (Annuleren = overslaan)")
+    fE = Application.GetOpenFilename(flt, , "Stap 2 van 3: kies de Woningetalage-export (Annuleren = overslaan)")
+    fA = Application.GetOpenFilename(flt, , "Stap 3 van 3: kies de AK-percentages uit SAP (Annuleren = overslaan)")
+    If VarType(fZ) = vbBoolean And VarType(fE) = vbBoolean And VarType(fA) = vbBoolean Then Exit Sub
 
     peilTxt = InputBox("Peildatum van deze export (dd-mm-jjjj):", "Peildatum", Format(StandaardPeildatum(), "dd-mm-yyyy"))
     If peilTxt = "" Then Exit Sub
@@ -74,6 +75,8 @@ Public Sub RDFO_BronnenInlezen()
     nZ = -2: nE = -2
     If VarType(fZ) <> vbBoolean Then nZ = LeesBron(CStr(fZ), "Bron_ZPMW03", "WBS-element")
     If VarType(fE) <> vbBoolean Then nE = LeesBron(CStr(fE), "Bron_Woningetalage", "Stufe 3")
+    nA = -2
+    If VarType(fA) <> vbBoolean Then nA = LeesBron(CStr(fA), "Bron_AK", "WBS-element")
 
     Nm("CT_Bekeken").ClearContents   ' nieuwe bronnen = waarschuwingen opnieuw bekijken
     Nm("P_Peildatum").Value = peil
@@ -108,7 +111,8 @@ Public Sub RDFO_BronnenInlezen()
     ThisWorkbook.Worksheets("Controle").Activate
     ThisWorkbook.Worksheets("Controle").Range("A1").Select
     MsgBox "Ingelezen: " & IIf(nZ >= 0, nZ & " regels ZPMW03", "ZPMW03 overgeslagen") & ", " & _
-           IIf(nE >= 0, nE & " regels Woningetalage", "Woningetalage overgeslagen") & "." & vbCr & vbCr & _
+           IIf(nE >= 0, nE & " regels Woningetalage", "Woningetalage overgeslagen") & ", " & _
+           IIf(nA >= 0, nA & " regels AK-percentages", "AK-percentages ongewijzigd") & "." & vbCr & vbCr & _
            "Controle: " & ThisWorkbook.Worksheets("Controle").Range("D4").Value & " fout(en), " & _
            ThisWorkbook.Worksheets("Controle").Range("D5").Value & " waarschuwing(en)." & vbCr & _
            IIf(ontbreekt <> "", vbCr & "Deze kolommen zijn niet gevonden (kolomnaam in de export wijkt af):" & ontbreekt & vbCr, "") & _
@@ -131,7 +135,7 @@ Private Function LeesBron(ByVal pad As String, ByVal doelblad As String, ByVal s
     For Each ws In wbS.Worksheets
         For r = 1 To 30
             For k = 1 To 200
-                If LCase(SchoneKop(ws.Cells(r, k).Value)) = LCase(sleutel) Then
+                If LCase(Left(SchoneKop(ws.Cells(r, k).Value), Len(sleutel))) = LCase(sleutel) Then
                     Set src = ws: kopRij = r: sleutelKol = k
                     Exit For
                 End If
@@ -272,7 +276,7 @@ End Sub
 Public Sub RDFO_LeegMaken()
     Dim antw As String, il As Range
     If MsgBox("Hiermee maak je een leeg format. Dit wordt gewist:" & vbCr & _
-              "   - ingelezen ZPMW03 en Woningetalage" & vbCr & _
+              "   - ingelezen ZPMW03, Woningetalage en AK-percentages" & vbCr & _
               "   - projectlijst (Invoer › 2), aanvullende posten, toelichtingen, koperstype," & vbCr & _
               "     gebieden, funnel en target, DAEB, kansen en risico's, reserves" & vbCr & _
               "   - stoplicht- en scenario-invoer (tabblad Bandbreedte)" & vbCr & _
@@ -293,8 +297,15 @@ Public Sub RDFO_LeegMaken()
     With ThisWorkbook.Worksheets("Bron_Woningetalage")
         .Rows("2:" & .Rows.Count).ClearContents
     End With
+    With ThisWorkbook.Worksheets("Bron_AK")
+        .Rows("2:" & .Rows.Count).ClearContents
+    End With
     ThisWorkbook.Worksheets("Projectdetail").Range("C4").Value = ""
     With Nm("Map_WBS").Resize(, 19)
+        .ClearContents
+        .Interior.Color = Nm("P_Regio").Interior.Color
+    End With
+    With Nm("Map_AKMee")
         .ClearContents
         .Interior.Color = Nm("P_Regio").Interior.Color
     End With
@@ -302,7 +313,7 @@ Public Sub RDFO_LeegMaken()
     Nm("MJ_Funnel").ClearContents
     Nm("MJ_Target").ClearContents
     Nm("DB_Omzet").Resize(, 7).ClearContents
-    Nm("KR_Project").Resize(, 6).ClearContents
+    Nm("KR_Project").Resize(, 7).ClearContents
     Nm("RS_Project").Resize(, 6).ClearContents
     Nm("A_Doel").Resize(, 12).ClearContents
     Nm("T_Key").Offset(0, -8).Resize(, 5).ClearContents
@@ -543,11 +554,14 @@ Public Sub RDFO_OutlookJaren()
     Dim wsO As Worksheet, n As Long, i As Long, co As ChartObject, s As Long, basis As Long, rij As Long
     Dim doel As Variant, delen() As String
     Set wsO = ThisWorkbook.Worksheets("Outlook")
+    ' getoond: jaar 3..6 (= RJ+1 .. RJ+4), en alleen jaren met cijfers
     n = Nm("OUT_N").Value
+    If n > 6 Then n = 6
+    If n < 3 Then n = 3
     For i = 1 To 8
-        wsO.Columns(2 + i).Hidden = (i > n)
+        wsO.Columns(2 + i).Hidden = (i < 3 Or i > n)
     Next i
-    wsO.Columns(11).Hidden = (Nm("OUT_Later").Value <> 1)
+    wsO.Columns(11).Hidden = True
     ' grafiek: blad|index|basisrij (rijen basis..basis+3 = realisatie, prognose, totaal, budget op Outlook vanaf kolom P)
     For Each doel In Split(Nm("OUT_Grafieken").Value, ";")
         delen = Split(doel, "|")
@@ -555,23 +569,20 @@ Public Sub RDFO_OutlookJaren()
         basis = CLng(delen(2))
         For s = 1 To co.Chart.SeriesCollection.Count
             rij = basis + s - 1
-            co.Chart.SeriesCollection(s).Values = wsO.Range(wsO.Cells(rij, 16), wsO.Cells(rij, 15 + n))
-            co.Chart.SeriesCollection(s).XValues = wsO.Range(wsO.Cells(5, 16), wsO.Cells(5, 15 + n))
+            co.Chart.SeriesCollection(s).Values = wsO.Range(wsO.Cells(rij, 18), wsO.Cells(rij, 15 + n))
+            co.Chart.SeriesCollection(s).XValues = wsO.Range(wsO.Cells(5, 18), wsO.Cells(5, 15 + n))
         Next s
     Next doel
-    ' bandbreedte: scenario's in rij 6..10, jaren in rij 5 vanaf kolom B; jaren RJ.. (= Outlook-jaar 2 e.v.)
-    Dim wsB As Worksheet, m As Long
-    Set wsB = ThisWorkbook.Worksheets("Bandbreedte")
-    m = n - 1
-    If m < 1 Then m = 1
-    If m > 5 Then m = 5
+    ' bandbreedte (liggend): jaren op de verticale as = rapportagejaar .. +2
+    Dim rj As Long
+    rj = Nm("P_RJ").Value
     For Each doel In Split(Nm("BB_Grafieken").Value, ";")
         delen = Split(doel, "|")
         Set co = ThisWorkbook.Worksheets(delen(0)).ChartObjects(CLng(delen(1)))
-        For s = 1 To co.Chart.SeriesCollection.Count
-            co.Chart.SeriesCollection(s).Values = wsB.Range(wsB.Cells(5 + s, 2), wsB.Cells(5 + s, 1 + m))
-            co.Chart.SeriesCollection(s).XValues = wsB.Range(wsB.Cells(5, 2), wsB.Cells(5, 1 + m))
-        Next s
+        With co.Chart.Axes(2)
+            .MinimumScale = rj - 0.5
+            .MaximumScale = rj + 2.5
+        End With
     Next doel
 End Sub
 

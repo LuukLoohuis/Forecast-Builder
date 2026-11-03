@@ -69,7 +69,7 @@ SHEETS = [  # (naam, tabkleur, zichtbaar)
     ("Handleiding", MID, True),
     ("Concept", GREY, False), ("VERW_Project", GREY, False), ("CALC_Versies", GREY, False),
     ("SCEN", GREY, False), ("STG_ZPMW03", GREY, False), ("STG_Woningetalage", GREY, False),
-    ("Bron_ZPMW03", "000000", False), ("Bron_Woningetalage", "000000", False), ("Lijsten", GREY, False),
+    ("Bron_ZPMW03", "000000", False), ("Bron_Woningetalage", "000000", False), ("Bron_AK", "000000", False), ("Lijsten", GREY, False),
 ]
 
 
@@ -490,7 +490,10 @@ def build_invoer(wb, ws, hist):
     inv_head(ws, MAP0 - 1, "2. Projecten (mapping)", "Eén regel per WBS-element. Nieuw project? Onderaan toevoegen (niet tussenvoegen of sorteren: "
              "de stoplichtinvoer hoort bij de regel). Koppelsleutel = WBS-element = Stufe 3. Rechts: gebied, strapo, AK % en verdeling van de woningen.",
              ["WBS-element", "Projectdefinitie", "Projectnaam", "Woningen (aandeelbasis)", "Aandeel % (info)", "Type",
-              "Woningen meetellen", "Segment (demo)", "Gebied", "Strapo", "AK %"] + [f"% {p}" for p in PRODSEG] + ["% belegger / corporatie", "Verdeling"], helpers=1)
+              "Woningen meetellen", "Segment (demo)", "Gebied", "Strapo", "AK % eigen\n(leeg = SAP)"] + [f"% {p}" for p in PRODSEG] +
+             ["% belegger / corporatie", "Verdeling", "AK meenemen\n(leeg = Ja)", "AK % uit SAP"], helpers=0)
+    for cc in (20, 22):
+        ws.cell(row=MAP0 - 1, column=cc).fill = fill(GREY)
     rows = list(hist["Projectmapping"].iter_rows(min_row=2, values_only=True))
     for r in range(MAP0, MAP1 + 1):
         row = rows[r - MAP0] if r - MAP0 < len(rows) else [None] * 8
@@ -505,20 +508,32 @@ def build_invoer(wb, ws, hist):
             seg[k], seg[k + 1] = (0.7, 0.3) if (r - MAP0) % 3 == 0 else (1.0, None)
         extra = [naam.split(",")[0] if demo and naam else None,
                  ("Ja" if demo and "Parkeer" in str(naam) else ("Nee" if demo else None)),
-                 (0.04 if row[5] == "Opstal" else 0.02) if demo else None] + seg + \
+                 None] + seg + \
                 [(0.3 if (r - MAP0) % 4 == 0 else 0.0) if demo and row[6] == "Ja" else None]
         for j, v in enumerate(extra):
             input_style(ws.cell(row=r, column=9 + j, value=v), "0%" if j >= 2 else None)
+        input_style(ws.cell(row=r, column=21, value=("Nee" if demo and "Parkeer" in str(naam) else None)))
+        ws[f"V{r}"] = (f'=IF(A{r}="","",IFERROR(INDEX(Bron_AK!$A$2:$Z$3000,MATCH(A{r},INDEX(Bron_AK!$A$2:$Z$3000,0,AK_KolWBS),0),AK_KolPct),""))')
+        helper_style(ws[f"V{r}"])
+        ws[f"V{r}"].number_format = "0.0%"
         segr = f"L{r}:R{r}"
         ws[f"T{r}"] = f'=IF(A{r}="","",IF(COUNT({segr})=0,"leeg",IF(ABS(SUM({segr})-1)<0.001,"OK","Verdeelfout")))'
         helper_style(ws[f"T{r}"])
     dv_list(ws, f"F{MAP0}:F{MAP1}", '"Opstal,Deelneming"')
     dv_list(ws, f"G{MAP0}:G{MAP1}", '"Ja,Nee"')
     dv_list(ws, f"J{MAP0}:J{MAP1}", '"Ja,Nee"')
+    dv_list(ws, f"U{MAP0}:U{MAP1}", '"Ja,Nee"')
+    put(ws, f"V{MAP0-3}", "AK-kolommen in de SAP-dump:", color=GREY, size=8)
+    ws[f"W{MAP0-3}"] = '=IFERROR(MATCH("WBS-element*",Bron_AK!$1:$1,0),0)'
+    ws[f"X{MAP0-3}"] = '=IFERROR(MATCH("AK %*",Bron_AK!$1:$1,0),0)'
+    for c in "WX":
+        helper_style(ws[f"{c}{MAP0-3}"])
+    add_name(wb, "AK_KolWBS", f"Invoer!$W${MAP0-3}")
+    add_name(wb, "AK_KolPct", f"Invoer!$X${MAP0-3}")
     dv_list(ws, f"I{MAP0}:I{MAP1}", "Gebieden")
     ws.conditional_formatting.add(f"T{MAP0}:T{MAP1}", FormulaRule(formula=[f'T{MAP0}="Verdeelfout"'], font=Font(color=RED, bold=True)))
-    for c, n in zip("ABCDEFGHIJKS", ["WBS", "Projdef", "Naam", "Aantal", "Aandeel", "Type", "Meetellen", "Segment", "Gebied", "Strapo",
-                                       "AKPct", "Belegger"]):
+    for c, n in zip("ABCDEFGHIJKSUV", ["WBS", "Projdef", "Naam", "Aantal", "Aandeel", "Type", "Meetellen", "Segment", "Gebied", "Strapo",
+                                         "AKPct", "Belegger", "AKMee", "AKSap"]):
         add_name(wb, f"Map_{n}", f"Invoer!${c}${MAP0}:${c}${MAP1}")
     add_name(wb, "Map_Verdeling", f"Invoer!$T${MAP0}:$T${MAP1}")
 
@@ -665,23 +680,26 @@ def build_invoer_extra(wb, ws):
     add_name(wb, "DB_Pct", f"Invoer!$C${DB0}:${col(2+MJ_YEARS)}${DB1}")
     add_name(wb, "DB_Check", f"Invoer!${col(3+MJ_YEARS)}${DB0}:${col(3+MJ_YEARS)}${DB1}")
     # 10. kansen en risico's
-    inv_head(ws, KR0 - 1, "10. Kansen en risico's", "Eén regel per kans of risico. Bedrag in hele euro's, altijd positief invullen; "
-             "het bestand telt een risico als min. Verschijnt in Outlook en de PowerPoint.",
-             ["Project", "Omschrijving", "Jaar", "Soort", "Bedrag (EUR)", "Toelichting", "", "telt (+/−)"])
-    kdemo = [("Duinwaard, De Lantaarn", "Hogere grondopbrengst", 2026, "Kans", 1700000, ""),
-             ("Rietdam, Havenkwartier", "Eerdere levering grond", 2027, "Kans", 3670000, ""),
-             ("Veldendam, Spoorpark", "Vertraging start bouw", 2026, "Risico", 4630000, "Vergunning in bezwaar"),
-             ("Zilverdam, Kadezicht", "Lagere verkoopprijs", 2027, "Risico", 1200000, "")]
+    inv_head(ws, KR0 - 1, "10. Kansen en risico's", "Eén regel per kans of risico: kies het project, het jaar en kwartaal, en het bedrag in hele euro's "
+             "(altijd positief invullen; een risico telt als min). Voorbeeld: 2026 Q4, hogere koopsom, € 1.500.000. Verschijnt in Outlook en de PowerPoint.",
+             ["Project", "Omschrijving", "Jaar", "Kwartaal", "Soort", "Bedrag (EUR)", "Toelichting", "telt (+/−)"], helpers=1)
+    kdemo = [("Duinwaard, De Lantaarn", "Hogere grondopbrengst", 2026, "Q4", "Kans", 1700000, ""),
+             ("Rietdam, Havenkwartier", "Eerdere levering grond", 2027, "Q2", "Kans", 3670000, ""),
+             ("Veldendam, Spoorpark", "Vertraging start bouw", 2026, "Q4", "Risico", 4630000, "Vergunning in bezwaar"),
+             ("Zilverdam, Kadezicht", "Lagere verkoopprijs", 2027, "Q1", "Risico", 1200000, "")]
     for i, r in enumerate(range(KR0, KR1 + 1)):
-        vals = kdemo[i] if i < len(kdemo) else [None] * 6
+        vals = kdemo[i] if i < len(kdemo) else [None] * 7
         for j, v in enumerate(vals):
-            input_style(ws.cell(row=r, column=1 + j, value=v), FMT_EUR if j == 4 else None)
-        ws[f"H{r}"] = f'=IF(OR(E{r}="",C{r}=""),"",IF(D{r}="Risico",-ABS(E{r}),ABS(E{r})))'
+            input_style(ws.cell(row=r, column=1 + j, value=v), FMT_EUR if j == 5 else None)
+        ws[f"H{r}"] = f'=IF(OR(F{r}="",C{r}=""),"",IF(E{r}="Risico",-ABS(F{r}),ABS(F{r})))'
         helper_style(ws[f"H{r}"])
         ws[f"H{r}"].number_format = FMT_EUR
-    dv_list(ws, f"D{KR0}:D{KR1}", '"Kans,Risico"')
-    for c, n in zip("ABCDEFH", ["Project", "Oms", "Jaar", "Soort", "Bedrag", "Toel", "Telt"]):
+    dv_list(ws, f"A{KR0}:A{KR1}", "Map_Naam")
+    dv_list(ws, f"D{KR0}:D{KR1}", '"Q1,Q2,Q3,Q4"')
+    dv_list(ws, f"E{KR0}:E{KR1}", '"Kans,Risico"')
+    for c, n in zip("ABCDEFGH", ["Project", "Oms", "Jaar", "Kw", "Soort", "Bedrag", "Toel", "Telt"]):
         add_name(wb, f"KR_{n}", f"Invoer!${c}${KR0}:${c}${KR1}")
+
     # 11. reserves
     inv_head(ws, RS0 - 1, "11. Reserves (PCM-effect)", "Per project de reserves en hoe ver het project gereed is. "
              "Het effect per jaar = reserves x % gereed (cumulatief). Grijze kolommen rekenen zelf.",
@@ -831,7 +849,8 @@ def verw_columns():
     c.append(("nE", "# regels Woningetalage", f'=IF($A{{r}}="","",COUNTIF({ekey},$A{{r}}))', "0"))
     m("Gebied", "I", "Gebied")
     m("Strapo", "J", "Strapo")
-    m("AKPct", "K", "AK %")
+    c.append(("AKPct", "AK % (eigen, anders SAP; leeg als niet meenemen)",
+              '=IF(Invoer!$A{mr}="","",IF(Invoer!$U{mr}="Nee","",IF(Invoer!$K{mr}<>"",Invoer!$K{mr},Invoer!$V{mr})))', FMT_PCT))
     m("Belegger", "S", "% belegger")
     for i, p in enumerate(PRODSEG):
         m(f"Seg{i}", "LMNOPQR"[i], f"% {p}")
@@ -883,6 +902,9 @@ def verw_columns():
         c.append((f"WBel_{y}", f"Verkopen belegger RJ+{y}", f'=IF($A{{r}}="","",IF(ISNUMBER([Belegger]),{sales}*[Belegger],0))', "#,##0.0"))
         c.append((f"WPart_{y}", f"Verkopen particulier RJ+{y}", f'=IF($A{{r}}="","",IF(ISNUMBER([Belegger]),{sales}*(1-[Belegger]),0))', "#,##0.0"))
         c.append((f"WOnb_{y}", f"Verkopen koperstype onbekend RJ+{y}", f'=IF($A{{r}}="","",IF(ISNUMBER([Belegger]),0,{sales}))', "#,##0.0"))
+    q8 = "+".join(f"N([W_{q}])" for q in ("HQ1", "HQ2", "HQ3", "HQ4", "VQ1", "VQ2", "VQ3", "VQ4"))
+    c.append(("WQ8", "Woningverkopen RJ en RJ+1 (8 kwartalen)", f'=IF(OR($A{{r}}="",$G{{r}}<>"Ja"),0,{q8})', FMT_INT))
+    c.append(("WQ8Key", "Sorteersleutel woningen per kwartaal", '=IF([WQ8]>0,[WQ8]+ROW()/1000000,"")', "0.000000"))
     c.append(("BorPct", "BOR % FY RJ", '=IF($A{r}="","",IF(AND(ISNUMBER([BorFY]),ISNUMBER([OmzFY])),IF([OmzFY]<>0,[BorFY]/[OmzFY],"n.b."),"n.b."))', FMT_PCT))
     return c
 
@@ -1686,6 +1708,28 @@ def ibcs_columns(ws, anchor, cats, ac, fc, pl=None, total=None, w=17, h=8, numfm
     return ch
 
 
+def woningen_kwartaal_chart(target_ws, anchor, w, h):
+    """Liggende gestapelde balken per project: kwartalen huidig jaar (blauwtinten) en volgend jaar (geeltinten)."""
+    wws = WON["ws"]
+    q0 = WON["wq0"]
+    ch = BarChart()
+    ch.type, ch.grouping, ch.overlap = "bar", "stacked", 100
+    ch.add_data(Reference(wws, min_col=3, max_col=10, min_row=q0 - 1, max_row=q0 + 14), titles_from_data=True)
+    ch.set_categories(Reference(wws, min_col=2, min_row=q0, max_row=q0 + 14))
+    style_chart(ch, [], numfmt="#,##0", w=w, h=h)
+    kleuren = ["0B1A33", NAVY, "2E4A7D", "5A72A0", "C99700", YELLOW, "F8D25C", "FBE6A2"]
+    for k, (sr, kl) in enumerate(zip(ch.series, kleuren)):
+        sr.graphicalProperties = solid(kl)
+        series_labels(sr, '#,##0;;;', "FFFFFF" if k < 4 else "14284B", "ctr", True, 900)
+    ch.x_axis.scaling.orientation = "maxMin"
+    ch.x_axis.txPr = txt(950, "14284B")
+    ch.y_axis.delete = True
+    ch.y_axis.majorGridlines = None
+    ch.gapWidth = 35
+    target_ws.add_chart(ch, anchor)
+    return ch
+
+
 def mutatie_chart(target_ws, anchor, w, h):
     """Mutaties per project als liggende balken (lengte = omvang): groen = hoger, rood = lager, getal met teken naast de balk."""
     ch = BarChart()
@@ -1961,6 +2005,7 @@ def build_dashboard(wb, ws):
 # Woningen
 # ---------------------------------------------------------------------------------------------
 def build_woningen(wb, ws):
+    WON["ws"] = ws
     base_sheet(ws, zoom=90)
     title(ws, None, None, 19)
     ws["B1"] = '="Woningverkopen "&P_Regio&" — "&P_RJ&" en "&(P_RJ+1)&" (aantallen op aandeelbasis)"'
@@ -2121,8 +2166,37 @@ def build_woningen(wb, ws):
     put(ws, f"H{r+6}", '="Verdeelfout in Invoer › 2: "&COUNTIF(Map_Verdeling,"Verdeelfout")&" project(en)"', color=GREY, italic=True, size=8)
     ws[f"H{r+6}"] = '="Verdeelfout in Invoer › 2: "&COUNTIF(Map_Verdeling,"Verdeelfout")&" project(en)"'
     WON.update(seg0=r + 2)
-    # projectmatrix
+    # verkopen per project per kwartaal (huidig en volgend jaar), grootste 15 projecten
     r = r + 12
+    section(ws, r, 2, "Verkopen per project per kwartaal (aantal) — de 15 projecten met de meeste verkopen", 12)
+    qh = [f'=P_RJ&" Q{q}"' for q in range(1, 5)] + [f'=(P_RJ+1)&" Q{q}"' for q in range(1, 5)]
+    header(ws, r + 1, 2, ["Project"] + qh + ["Totaal"], height=20)
+    wq0 = r + 2
+    for k in range(1, 16):
+        rr = wq0 + k - 1
+        ws[f"M{rr}"] = f"=IFERROR(MATCH(LARGE(V_WQ8Key,{k}),V_WQ8Key,0),0)"
+        helper_style(ws[f"M{rr}"])
+        ix = f"$M{rr}"
+        ws[f"B{rr}"] = f'=IF({ix}=0,"",LEFT(INDEX(V_Naam,{ix}),34))'
+        for j, q in enumerate(("HQ1", "HQ2", "HQ3", "HQ4", "VQ1", "VQ2", "VQ3", "VQ4")):
+            c = col(3 + j)
+            ws[f"{c}{rr}"] = f'=IF({ix}=0,"",N(INDEX(V_W_{q},{ix})))'
+            ws[f"{c}{rr}"].number_format = '#,##0;-#,##0;""'
+            ws[f"{c}{rr}"].border = Border(bottom=thin)
+        ws[f"K{rr}"] = f'=IF({ix}=0,"",SUM(C{rr}:J{rr}))'
+        ws[f"K{rr}"].font = font(9, True)
+        ws[f"B{rr}"].border = Border(bottom=thin)
+        ws[f"K{rr}"].number_format = FMT_INT
+    ws.conditional_formatting.add(f"C{wq0}:J{wq0+14}", FormulaRule(
+        formula=[f'AND(C{wq0}<>"",DATE(IF(COLUMN()-COLUMN($C{wq0})<4,P_RJ,P_RJ+1),MOD(COLUMN()-COLUMN($C{wq0}),4)*3+1,1)>P_Peildatum)'],
+        font=Font(color="8A6A00", italic=True)))
+    put(ws, f"B{wq0+15}", "Cursief = prognose (na de peildatum). Alleen projecten met 'Woningen meetellen = Ja'.", color=GREY, italic=True, size=8)
+    WON.update(wq0=wq0)
+    add_name(wb, "PPT_WONQ", f"Woningen!$B${wq0-1}:$K${wq0+14}")
+    put(ws, f"B{wq0+17}", '="Verkopen per project per kwartaal, "&P_RJ&"–"&(P_RJ+1)', bold=True, color=NAVY, size=10)
+    woningen_kwartaal_chart(ws, f"B{wq0+18}", 30, 11)
+    # projectmatrix
+    r = wq0 + 42
     section(ws, r, 2, "Projectmatrix woningen (upload) — % verkocht als voortgangsbalk", 17)
     hdr = ["Project", "Type", "Segment", "Aandeel %", "Totaal (aandeel)", "Bruto (afgeleid)", '="t/m "&(P_RJ-1)',
            '="Actual "&P_RJ', '="Verw. "&P_RJ', '="Verw. "&(P_RJ+1)', '=(P_RJ+2)&""', "Cumulatief", "Etalage", "% verkocht",
@@ -2343,7 +2417,7 @@ def stoplicht_cf(ws, rng_):
         ws.conditional_formatting.add(rng_, FormulaRule(formula=[f'AND(ISNUMBER({tl}),{tl}={code})'], font=Font(color=colr)))
 
 
-SC_YEARS = 5   # bandbreedte voor RJ .. RJ+4
+SC_YEARS = 3   # bandbreedte voor het huidige jaar + 2 jaar (RJ .. RJ+2)
 SC_FMT = '#,##0.0;-#,##0.0;"–"'
 SCEN_NAMES = [("opt", "Optimistisch", "verkoop haalt minimaal het 'optimistisch'-percentage"),
               ("bas", "Basis (prognose)", "de omzet uit de upload"),
@@ -2447,18 +2521,18 @@ def build_stoplicht(wb, ws):
     ws[f"A{r}"].border = Border(top=thick_navy, bottom=thin)
     add_name(wb, "PPT_BB", f"Bandbreedte!$A$5:$F${r+1}")
     SC_CTX.update(r_band=r, r_bud=r + 1)
-    # grafiekdata (verborgen kolommen Y..AC): min, band, basis, budget
-    put(ws, "Y4", "Grafiekdata", color=GREY, size=7)
+    # grafiekdata (verborgen kolommen Y..AC): band per jaar = twee punten (laagste, hoogste) + lege regel; jaren als getal
+    put(ws, "Y4", "Jaar", color=GREY, size=7)
+    put(ws, "Z4", "Band", color=GREY, size=7)
+    put(ws, "AA4", "Jaren (getal)", color=GREY, size=7)
     for k in range(SC_YEARS):
-        rr = 5 + k
         c = col(2 + k)
-        ws[f"Y{rr}"] = f"=(P_RJ+{k})&\"\""
-        ws[f"Z{rr}"] = f"=ROUND(MIN({c}6:{c}10),1)"
-        ws[f"AA{rr}"] = f"=ROUND({c}{r},1)"
-        ws[f"AB{rr}"] = f"=ROUND({c}7,1)"
-        ws[f"AC{rr}"] = f'=IF(ISNUMBER({c}{r+1}),ROUND({c}{r+1},1),NA())'
-    for c, h in zip(("Z", "AA", "AB", "AC"), ("Laagste", "Bandbreedte", "Basis", "Budget")):
-        ws[f"{c}4"] = h
+        rr = 5 + 3 * k
+        for d, fn in ((0, "MIN"), (1, "MAX")):
+            ws[f"Y{rr+d}"] = f"=P_RJ+{k}"
+            ws[f"Z{rr+d}"] = f"=ROUND({fn}({c}6:{c}10),1)"
+            ws[f"Z{rr+d}"].number_format = "#,##0.0"
+        ws[f"{col(27 + k)}5"] = f"=P_RJ+{k}"
     SC_CTX.update(ws=ws)
     put(ws, "J4", "Bandbreedte in beeld (EUR mln)", bold=True, color=NAVY, size=10)
     bandbreedte_chart(ws, "J5", 15.5, 6.6)
@@ -2630,23 +2704,77 @@ SC_CTX = {}
 
 
 def bandbreedte_chart(target_ws, anchor, w, h):
-    """Bandbreedte per jaar: de vijf scenario's als kolommen naast elkaar, elk met een eigen kleur en het getal erboven."""
+    """Bandbreedte liggend: per jaar (verticale as) een gele band van laagste tot hoogste scenario,
+    met elk scenario als punt; laagste en hoogste staan als getal aan de uiteinden, de basis erboven."""
+    from openpyxl.chart import ScatterChart, Series
+    from openpyxl.chart.label import DataLabel
     sws = SC_CTX["ws"]
-    n = max(1, min(SC_YEARS, OUT_CTX.get("demo_n", SC_YEARS + 1) - 1))   # jaren met cijfers (macro past dit na inlezen aan)
-    ch = BarChart()
-    ch.type, ch.grouping, ch.overlap = "col", "clustered", -8
-    ch.add_data(Reference(sws, min_col=1, max_col=1 + n, min_row=6, max_row=10), from_rows=True, titles_from_data=True)
-    ch.set_categories(Reference(sws, min_col=2, max_col=1 + n, min_row=5))
-    style_chart(ch, [], numfmt="#,##0", w=w, h=h, ymin=0)
-    kleuren = [GOOD, NAVY, "E8912D", YELLOW, "B8BEC9"]   # optimistisch, basis, afslag, gewogen, 0-100
-    for sr, kl in zip(ch.series, kleuren):
-        sr.graphicalProperties = solid(kl)
-        series_labels(sr, "#,##0.0;-#,##0.0;;", "14284B", "outEnd", True, 900)
-        sr.dLbls.txPr.bodyPr.rot = -5400000
-        sr.dLbls.txPr.bodyPr.vert = "horz"
-    ch.y_axis.delete = True
+    ch = ScatterChart()
+    ch.scatterStyle = "lineMarker"
+    ch.width, ch.height = w, h
+    ch.style = 2
+    ch.title = None
+    ch.graphical_properties = GraphicalProperties(ln=LineProperties(noFill=True))
+    ch.plot_area.graphicalProperties = GraphicalProperties(noFill=True, ln=LineProperties(noFill=True))
+    ch.display_blanks = "gap"
+    # band: één reeks, per jaar twee punten, lege regel ertussen = onderbreking
+    n_rows = 3 * SC_YEARS - 1
+    band = Series(Reference(sws, min_col=25, min_row=5, max_row=4 + n_rows), Reference(sws, min_col=26, min_row=5, max_row=4 + n_rows),
+                  title="Bandbreedte (laagste – hoogste)")
+    band.graphicalProperties.line.solidFill = "F8D873"
+    band.graphicalProperties.line.width = 266700      # 21 pt dik
+    band.graphicalProperties.line.cap = "flat"
+    band.marker = Marker(symbol="none")
+    band.smooth = False
+    lbls = []
+    for k in range(SC_YEARS):
+        for d, pos, kleur in ((0, "l", "B03A2E"), (1, "r", "3B7A1E")):
+            dl = DataLabel(idx=3 * k + d, dLblPos=pos, showCatName=True, showVal=False, showSerName=False,
+                           showLegendKey=False, showPercent=False)
+            dl.numFmt = "#,##0.0"
+            dl.txPr = txt(1050, kleur, True)
+            lbls.append(dl)
+    band.dLbls = _DLL(dLbl=lbls)
+    band.dLbls.showVal = False
+    for k_ in ("showSerName", "showCatName", "showLegendKey", "showPercent"):
+        setattr(band.dLbls, k_, False)
+    ch.series.append(band)
+    stijl = [("Optimistisch", GOOD, "triangle", 9), ("Basis (prognose)", NAVY, "dash", 22), ("Afslag op verkopen", "E8912D", "diamond", 9),
+             ("Gewogen met kans %", YELLOW, "circle", 9), ("0-100 (alles of niets)", "8A93A6", "square", 8)]
+    jaren = Reference(sws, min_col=27, max_col=26 + SC_YEARS, min_row=5)
+    for j, (naam, kleur, sym, size) in enumerate(stijl):
+        sr = Series(jaren, Reference(sws, min_col=2, max_col=1 + SC_YEARS, min_row=6 + j), title=naam)
+        sr.graphicalProperties.line.noFill = True
+        sr.marker = Marker(symbol=sym, size=size)
+        sr.marker.graphicalProperties = GraphicalProperties(solidFill=kleur, ln=LineProperties(solidFill="FFFFFF" if sym != "dash" else kleur, w=6350))
+        if naam.startswith("Basis"):
+            sr.dLbls = _DLL()
+            sr.dLbls.showCatName = True
+            for k_ in ("showVal", "showSerName", "showLegendKey", "showPercent"):
+                setattr(sr.dLbls, k_, False)
+            sr.dLbls.position = "t"
+            sr.dLbls.numFmt = "#,##0.0"
+            sr.dLbls.txPr = txt(1150, NAVY, True)
+        ch.series.append(sr)
+    for i_, sr_ in enumerate(ch.series):
+        sr_.idx = sr_.order = i_
+    # assen: jaren verticaal (2026 boven), bedragen horizontaal zonder as-getallen
+    ch.y_axis.scaling.min = OUT_CTX.get("rj", 2026) - 0.5
+    ch.y_axis.scaling.max = OUT_CTX.get("rj", 2026) + SC_YEARS - 0.5
+    ch.y_axis.scaling.orientation = "maxMin"
+    ch.y_axis.majorUnit = 1
+    ch.y_axis.numFmt = "0"
+    ch.y_axis.delete = False
+    ch.y_axis.majorTickMark = "none"
+    ch.y_axis.txPr = txt(1200, NAVY, True)
     ch.y_axis.majorGridlines = None
-    ch.gapWidth = 70
+    ch.y_axis.spPr = GraphicalProperties(ln=LineProperties(solidFill="BFC6D4", w=9525))
+    ch.x_axis.delete = True
+    ch.x_axis.scaling.min = 0
+    ch.x_axis.majorGridlines = None
+    ch.legend.position = "t"
+    ch.legend.txPr = txt(900, "333F55")
+    ch.visible_cells_only = False   # grafiekdata staat in verborgen kolommen
     target_ws.add_chart(ch, anchor)
     return ch
 
@@ -2655,7 +2783,8 @@ def bandbreedte_chart(target_ws, anchor, w, h):
 # Outlook: alle beschikbare jaren naast elkaar (omzet, BOR, woningverkopen, orderintake) + budget
 # ---------------------------------------------------------------------------------------------
 OI0, OI1 = 92, 92 + (V1 - V0)
-OUT_YEARS = 8          # RJ-1 .. RJ+6
+OUT_YEARS = 8          # RJ-1 .. RJ+6 (rekenkolommen)
+OUT_FIRST, OUT_LAST = 2, 5   # getoond: RJ+1 .. RJ+4 (de outlook kijkt 4 jaar vooruit)
 OUT_CH = 15            # kolom O: grafiekdata
 
 
@@ -2667,18 +2796,20 @@ def outlook_chart(target_ws, anchor, which, w, h, fmt=None):
     cats, rowref = OUT_CTX["cats"], OUT_CTX["rowref"]
     base = OUT_CTX["g0"] + {"omzet": 0, "won": 5, "oi": 10}[which]
     fmt = fmt or ("#,##0" if which == "won" else "#,##0.0")
+    from openpyxl.chart import Series
+    reeks = lambda rr: Series(rowref(rr), title=OUT_CTX["glab"][rr])  # noqa: E731
     ch = BarChart()
     ch.type, ch.grouping, ch.overlap = "col", "stacked", 100
-    ch.add_data(rowref(base), from_rows=True, titles_from_data=True)
-    ch.add_data(rowref(base + 1), from_rows=True, titles_from_data=True)
+    ch.series.append(reeks(base))
+    ch.series.append(reeks(base + 1))
     ch.set_categories(cats)
     style_chart(ch, [], numfmt=fmt, w=w, h=h, ymin=0)
     ch.series[0].graphicalProperties = solid(NAVY)
     ch.series[1].graphicalProperties = solid(YELLOW)
     ch.gapWidth = 45
     ln = LineChart()
-    ln.add_data(rowref(base + 2), from_rows=True, titles_from_data=True)
-    ln.add_data(rowref(base + 3), from_rows=True, titles_from_data=True)
+    ln.series.append(reeks(base + 2))
+    ln.series.append(reeks(base + 3))
     ln.set_categories(cats)
     tot, pl = ln.series
     tot.graphicalProperties.line.noFill = True
@@ -2704,15 +2835,15 @@ def outlook_chart(target_ws, anchor, which, w, h, fmt=None):
 def build_outlook(wb, ws):
     base_sheet(ws, zoom=90)
     title(ws, None, None, 13)
-    ws["B1"] = '="Outlook "&P_Regio&" — "&(P_RJ-1)&" t/m "&(P_RJ+6)&"  ·  basis voor het budget"'
+    ws["B1"] = '="Outlook "&P_Regio&" — "&(P_RJ+1)&" t/m "&(P_RJ+4)&"  ·  basis voor het budget"'
     ws["B1"].font = font(14, True, WHITE)
     ws["B2"] = ('="Bedragen in "&P_Eenheid&" · bron: upload peildatum "&P_PeilTxt&" · budget = vastgelegd Budget "&P_VJ'
-                '&" · filter: "&Sel_FiltLabel&" · "&(P_RJ-1)&" = realisatie, "&P_RJ&" = realisatie + prognose, daarna prognose"')
+                '&" · filter: "&Sel_FiltLabel&" · "&(P_RJ+1)&" t/m "&(P_RJ+4)&" = prognose uit de upload"')
     ws["B2"].font = font(9, False, GREY, True)
     yc = [col(3 + i) for i in range(OUT_YEARS)]          # C..J
     later, totc = col(3 + OUT_YEARS), col(4 + OUT_YEARS)   # K, L
     hdr = ['=(P_RJ-1)&CHAR(10)&"realisatie"', '=P_RJ&CHAR(10)&"FY"'] + [f'=(P_RJ+{o})&""' for o in range(1, OUT_YEARS - 1)] + \
-          ['=(P_RJ+7)&" e.v."', '="Totaal vanaf "&P_RJ']
+          ['=(P_RJ+7)&" e.v."', '="Totaal "&(P_RJ+1)&"–"&(P_RJ+4)']
     section(ws, 4, 2, "Meerjarenoutlook", 11)
     header(ws, 5, 2, ["Kengetal"] + hdr, height=30)
     crit = "V_WBS,Sel_WBS"
@@ -2814,19 +2945,19 @@ def build_outlook(wb, ws):
             else:
                 t = "Opstal" if key == "omz_ops" else "Deelneming"
                 ws[f"{later}{r}"] = "=" + "+".join(f'{tf(t)}*SUMIFS(V_{fld},V_Type,"{t}",{crit})/P_Factor' for fld in ("OmzRJ7", "OmzRJ8", "OmzONV"))
-            ws[f"{totc}{r}"] = f"=SUM({yc[1]}{r}:{later}{r})"
+            ws[f"{totc}{r}"] = f"=SUM({yc[OUT_FIRST]}{r}:{yc[OUT_LAST]}{r})"
         elif key == "omz":
             ws[f"{later}{r}"] = f"={later}{rows['omz_ops']}+{later}{rows['omz_dln']}"
-            ws[f"{totc}{r}"] = f"=SUM({yc[1]}{r}:{later}{r})"
+            ws[f"{totc}{r}"] = f"=SUM({yc[OUT_FIRST]}{r}:{yc[OUT_LAST]}{r})"
         elif key == "pcm":
             ws[f"{later}{r}"] = "=SUM(RS_EffectLater)/P_Factor"
-            ws[f"{totc}{r}"] = f"=SUM({yc[1]}{r}:{later}{r})"
+            ws[f"{totc}{r}"] = f"=SUM({yc[OUT_FIRST]}{r}:{yc[OUT_LAST]}{r})"
         elif key in ("omz_daeb", "omz_funnel", "omz_incl", "kr"):
-            ws[f"{totc}{r}"] = f"=SUM({yc[1]}{r}:{later}{r})"
+            ws[f"{totc}{r}"] = f"=SUM({yc[OUT_FIRST]}{r}:{yc[OUT_LAST]}{r})"
         elif key == "borp":
             ws[f"{totc}{r}"] = f'=IF({totc}{rows["omz"]}=0,"n.b.",{totc}{rows["bor"]}/{totc}{rows["omz"]})'
         elif key in ("won",):
-            ws[f"{totc}{r}"] = f"=SUM({yc[1]}{r}:{yc[-1]}{r})"
+            ws[f"{totc}{r}"] = f"=SUM({yc[OUT_FIRST]}{r}:{yc[OUT_LAST]}{r})"
         for c in yc + [later, totc]:
             cell = ws[f"{c}{r}"]
             cell.number_format = FMT_PCT if kind == "pct" else (FMT_INT if kind == "cnt" else FMT_EUR)
@@ -2892,19 +3023,20 @@ def build_outlook(wb, ws):
     ws[f"{gc[1]}24"] = f'=IF(OR(N({later}{rows["omz"]})<>0,N({later}{rows["bor"]})<>0),1,0)'
     add_name(wb, "OUT_Later", f"Outlook!${gc[1]}$24")
     nyr = OUT_CTX.get("demo_n", OUT_YEARS)
-    cats = Reference(ws, min_col=OUT_CH + 1, max_col=OUT_CH + nyr, min_row=5)
+    i_last = max(OUT_FIRST, min(OUT_LAST, nyr - 1))
+    cats = Reference(ws, min_col=OUT_CH + 1 + OUT_FIRST, max_col=OUT_CH + 1 + i_last, min_row=5)
 
     def rowref(rr):
-        return Reference(ws, min_col=OUT_CH, max_col=OUT_CH + nyr, min_row=rr)
+        return Reference(ws, min_col=OUT_CH + 1 + OUT_FIRST, max_col=OUT_CH + 1 + i_last, min_row=rr)
 
-    # kolommen zonder gegevens verbergen (startsituatie; de macro herhaalt dit na elke inleesronde)
+    # getoond: RJ+1 .. RJ+4, en alleen jaren met gegevens (de macro herhaalt dit na elke inleesronde)
     for i, c in enumerate(yc):
-        if i >= nyr:
+        if i < OUT_FIRST or i > i_last:
             ws.column_dimensions[c].hidden = True
-    if not OUT_CTX.get("demo_later", True):
-        ws.column_dimensions[later].hidden = True
+    ws.column_dimensions[later].hidden = True
+    glab = {g0 + j: lab for j, (lab, _f) in enumerate(gdata) if lab}
 
-    OUT_CTX.update(ws=ws, cats=cats, rowref=rowref, g0=g0, rows=rows)
+    OUT_CTX.update(ws=ws, cats=cats, rowref=rowref, g0=g0, rows=rows, glab=glab)
     c1 = rows["oi_bud"] + 4
     titles = [(f"B{c1}", '="Omzet per jaar (EUR mln)"', g0),
               (f"H{c1}", '="Woningverkopen per jaar (aantal)"', g0 + 5),
@@ -2998,13 +3130,14 @@ def build_ppt(wb, ws):
         ("PPT_Msg2", '="Bedragen in "&P_Eenheid&"  ·  blauw = vastgelegd/realisatie, balkjes = afwijking t.o.v. budget"'),
         ("PPT_Msg3", f'="Rode stoplichten: "&{rood}&"  ·  "&Projecten!$R$6'),
         ("PPT_Msg4", '="Realisatie t/m peildatum: "&IF(ISNUMBER(Dashboard!$H$8),"€ "&FIXED(Dashboard!$H$8,1)&" mln = ","")&Dashboard!$H$9'),
-        ("PPT_Msg5", '="Omzet "&P_RJ&"–"&(P_RJ+6)&" volgens de upload van "&P_PeilTxt&", naast het vastgelegde budget"'),
+        ("PPT_Msg5", '="Outlook "&(P_RJ+1)&"–"&(P_RJ+4)&" volgens de upload van "&P_PeilTxt&", naast het vastgelegde budget"'),
         ("PPT_Msg6", '="Orderintake "&P_RJ&" t/m peildatum: € "&FIXED(Dashboard!$Q$8,1)&" mln  ·  "&Dashboard!$Q$9'),
         ("PPT_Msg7", '="Verkocht "&P_RJ&" t/m peildatum: "&Woningen!$H$5&" woningen  ·  jaarverwachting "&Woningen!$K$5&"  ·  etalage "&Woningen!$Q$5'),
         ("PPT_Control", '=Dashboard!$P$5'),
         ("PPT_ProjN", '=COUNTIF(Map_WBS,"?*")'),
         ("PPT_Msg9", '="Omzet "&(P_RJ+1)&": € "&FIXED(MIN(Bandbreedte!$C$6:$C$10),1)&" – "&FIXED(MAX(Bandbreedte!$C$6:$C$10),1)&" mln  ·  basis € "&FIXED(Bandbreedte!$C$7,1)&" mln"'),
         ("PPT_Msg10", '="Saldo kansen en risico\'s: € "&FIXED(SUM(KR_Telt)/1000000,1)&" mln  ·  "&COUNTIF(KR_Soort,"Kans")&" kansen, "&COUNTIF(KR_Soort,"Risico")&" risico\'s"'),
+        ("PPT_Msg11", '="Verkopen per kwartaal "&P_RJ&" (blauw) en "&(P_RJ+1)&" (geel) · de 15 projecten met de meeste verkopen"'),
         ("PPT_Msg8", '="Prognoseverloop en brug naar de geselecteerde versie  ·  groen = hoger, rood = lager"'),
     ]
     for i, (n, f) in enumerate(kv):
@@ -3144,7 +3277,7 @@ def build_dias(wb, ws):
     rows = OUT_CTX["rows"]
     yc = [col(3 + i) for i in range(OUT_YEARS)] + [col(3 + OUT_YEARS), col(4 + OUT_YEARS)]
     olabels = ["Kengetal"] + [f'=SUBSTITUTE(Outlook!{c}5,CHAR(10)," ")' for c in yc]
-    oweights = [3] + [f"=IF({i+1}<=OUT_N,1,0)" for i in range(OUT_YEARS)] + ["=IF(OUT_Later=1,1,0)", 1.1]
+    oweights = [3] + [f"=IF(AND({i+1}>={OUT_FIRST+1},{i+1}<=MIN(OUT_N,{OUT_LAST+1})),1,0)" for i in range(OUT_YEARS)] + [0, 1.1]
     keys_o = ["omz_ops", "omz_strapo", "omz_dln", "omz", "omz_daeb", "omz_funnel", "omz_incl", "target", "dtarget", "bor", "borp",
               "ak", "kr", "pcm", "bud", "dbud", "bb_min", "bb_max", "won", "oi"]
     table_head(t, olabels, oweights, "T_OUT", len(keys_o))
@@ -3195,19 +3328,19 @@ def build_dias(wb, ws):
             cell(r, 3 + k, f"=Bandbreedte!{col(2 + k)}{sr}", '#,##0.0;-#,##0.0;"–"', bold, fillc=LIGHT if sr == sb["r_band"] else None)
     # ---- kansen en risico's
     t = 192
-    kr_w = f'=IF(COUNTIF(Invoer!$F${KR0}:$F${KR1},"?*")>0,2.4,0)'
-    table_head(t, ["Project", "Omschrijving", "Jaar", "Soort", '="Bedrag ("&P_Eenheid&")"', "Toelichting"],
-               [2.2, 2.6, 0.6, 0.8, 1.1, kr_w], "T_KR", 15)
+    kr_w = f'=IF(COUNTIF(Invoer!$G${KR0}:$G${KR1},"?*")>0,2.4,0)'
+    table_head(t, ["Project", "Omschrijving", "Wanneer", "Soort", '="Bedrag ("&P_Eenheid&")"', "Toelichting"],
+               [2.2, 2.6, 0.9, 0.8, 1.1, kr_w], "T_KR", 15)
     for i in range(15):
         r = t + 1 + i
         ir = KR0 + i
         ok = f'Invoer!$H${ir}<>""'
         cell(r, 2, f'=IF({ok},Invoer!A{ir}&"","")', align="left", size=9)
         cell(r, 3, f'=IF({ok},Invoer!B{ir}&"","")', align="left", size=9)
-        cell(r, 4, f'=IF({ok},Invoer!C{ir},"")', "0", align="center", size=9)
-        cell(r, 5, f'=IF({ok},Invoer!D{ir}&"","")', align="left", size=9)
+        cell(r, 4, f'=IF({ok},Invoer!C{ir}&" "&Invoer!D{ir},"")', align="center", size=9)
+        cell(r, 5, f'=IF({ok},Invoer!E{ir}&"","")', align="left", size=9)
         cell(r, 6, f'=IF({ok},Invoer!H{ir}/P_Factor,"")', '#,##0;[Red]-#,##0', size=9)
-        cell(r, 7, f'=IF({ok},Invoer!F{ir}&"","")', None, False, GREY, align="left", italic=True, size=9)
+        cell(r, 7, f'=IF({ok},Invoer!G{ir}&"","")', None, False, GREY, align="left", italic=True, size=9)
     # ---- per gebied
     t = 212
     g = RDFO_ROWS["geb0"]
@@ -3264,6 +3397,7 @@ def build_dias(wb, ws):
     chart_block("Outlook orderintake", lambda a, w, h: outlook_chart(ws, a, "oi", w, h), pt(290), pt(376))
     chart_block("Woningen per kwartaal", won_q, pt(436), pt(296))
     chart_block("Bandbreedte", lambda a, w, h: bandbreedte_chart(ws, a, w, h), pt(436), pt(376))
+    chart_block("Woningen per project per kwartaal", lambda a, w, h: woningen_kwartaal_chart(ws, a, w, h), pt(888), pt(390))
     chart_block("Woningen per versie", lambda a, w, h: bar(ws, Reference(wws, min_col=17, min_row=v0 - 1, max_row=v0 + 5),
                 Reference(wws, min_col=3, min_row=v0, max_row=v0 + 5), a, [NAVY], numfmt="#,##0", w=w, h=h, labels=True, legend=False,
                 ymin=0, point_colors={5: NAVY_LT}), pt(436), pt(296))
@@ -3311,7 +3445,8 @@ def build_ppt_spec(wb, ws):
         (14, "Woningverkopen", "=PPT_Msg7", "kpi", "K_WON", 36, 96, 888, 74, "", 1),
         (14, "", "", "grafiek", ci("Woningen per kwartaal"), 36, 200, 436, 296, f"=Woningen!{WON['qtitle']}", 1),
         (14, "", "", "grafiek", ci("Woningen per versie"), 488, 200, 436, 296, f"=Woningen!{WON['vtitle']}", 1),
-        (15, "Aandachtspunten", "", "opsomming", "PPT_Bullets", 36, 100, 888, 390, "", 1),
+        (15, "Woningverkopen per project", "=PPT_Msg11", "grafiek", ci("Woningen per project per kwartaal"), 36, 100, 888, 390, "", 1),
+        (16, "Aandachtspunten", "", "opsomming", "PPT_Bullets", 36, 100, 888, 390, "", 1),
     ]
     for i, row in enumerate(spec):
         for j, v in enumerate(row):
@@ -3417,6 +3552,8 @@ def build_controle(wb, ws):
          "Invoer › 9: percentages per regel samen 100%."),
         ("Invoer", "Kansen/risico's zonder jaar of soort", '=COUNTIFS(KR_Bedrag,"<>",KR_Jaar,"")+COUNTIFS(KR_Bedrag,"<>",KR_Soort,"")', "0",
          'IF({v}=0,"OK","WAARSCHUWING")', "Invoer › 10: zonder jaar telt de regel niet mee."),
+        ("Invoer", "Projecten zonder AK % (niet in de SAP-dump en geen eigen %)", '=COUNTIFS(Map_WBS,"?*",Map_AKMee,"<>Nee",Map_AKPct,"",Map_AKSap,"")',
+         "info", '"INFO"', "Lees de AK-percentages in (knop Bronnen inlezen, stap 3) of vul in Invoer › 2 een eigen AK % in. Zet 'AK meenemen' op Nee als het niet hoort."),
         ("Invoer", "Projecten zonder gebied", '=COUNTIFS(Map_WBS,"?*",Map_Gebied,"")', "info", '"INFO"', "Invoer › 2, kolom I. Telt mee als 'Zonder gebied'."),
         ("Bandbreedte", "Scenario 'Basis' = omzet upload (alle projecten)", f'=SC_basis_0', '=SUM(V_OmzFY)',
          'IF(ABS({v}-{n})<=P_Tol,"OK","FOUT")', "Het basisscenario moet aansluiten op de prognose."),
@@ -3789,26 +3926,45 @@ def demo_years(rj=2026):
     return last, later != 0
 
 
+AK_HDR = ["Bedrijfsnummer (PBUKR)", "Profit center (PRCTR)", "Projectdef. (PSPNR)", "WBS-element (POSID_W)", "Omschrijving (POST1_W)",
+          "Status", "Kans% (ZZPROBABILITY_NUM)", "AK %", "Rente %", "Rente % maand"]
+
+
+def build_bron_ak(ws, hist):
+    """Fictieve AK-percentagesdump (zelfde kolommen als de SAP-export); de knop 'Bronnen inlezen' vervangt dit."""
+    for j, h in enumerate(AK_HDR):
+        c = ws.cell(row=1, column=1 + j, value=h)
+        c.font = Font(name=FONT, size=9, bold=True)
+        c.fill = fill(MID)
+    rows = list(hist["Projectmapping"].iter_rows(min_row=2, values_only=True))
+    for i, row in enumerate(rows):
+        pct = 0.06 if row[5] == "Opstal" else 0.04
+        vals = ["1001", "1000", row[1], row[0], row[2], "VRIJ BLOK", 100, pct, 0.03, 0.0025]
+        for j, v in enumerate(vals):
+            ws.cell(row=2 + i, column=1 + j, value=v).number_format = "0.0%" if j >= 7 else "General"
+    ws.freeze_panes = "A2"
+
+
 def make_template(wb):
     """Lege versie: alle invoer, bronregels en historie leeg; instellingen en formules blijven."""
     def clear(ws, cols, r0, r1):
         for r in range(r0, r1 + 1):
             for c in cols:
                 ws[f"{c}{r}"].value = None
-    for n in ("Bron_ZPMW03", "Bron_Woningetalage"):
+    for n in ("Bron_ZPMW03", "Bron_Woningetalage", "Bron_AK"):
         ws = wb[n]
         for row in ws.iter_rows(min_row=2):
             for c in row:
                 c.value = None
     inv = wb["Invoer"]
-    clear(inv, "ABCDEFGHIJKLMNOPQRS", MAP0, MAP1)
+    clear(inv, "ABCDEFGHIJKLMNOPQRSU", MAP0, MAP1)
     clear(inv, "ABCDEFGHIJKL", A0, A1)
     clear(inv, "ABCDEKLM", T0, T1)
     clear(inv, "ABCDEFK", K0, K1)
     clear(inv, "A", GB0, GB1)
     clear(inv, [col(3 + j) for j in range(MJ_YEARS)], MJ0, MJ0 + 1)
     clear(inv, ["A", "B"] + [col(3 + j) for j in range(MJ_YEARS)], DB0, DB1)
-    clear(inv, "ABCDEF", KR0, KR1)
+    clear(inv, "ABCDEFG", KR0, KR1)
     clear(inv, "ABCDEF", RS0, RS1)
     for name, val in (("P_Regio", "Regio (invullen)"), ("P_ImportID", ""), ("P_BronZ", ""), ("P_BronE", ""), ("P_RegelsZ", 0), ("P_RegelsE", 0)):
         inv[f"D{PROW[name]}"].value = val
@@ -3842,6 +3998,7 @@ def build(out, test_results=None, template=False):
     mapping = build_invoer(wb, sh["Invoer"], hist)
     nz = copy_source(sh["Bron_ZPMW03"], DATA / SRC_Z_FILE, "ZPMW03")
     ne = copy_source(sh["Bron_Woningetalage"], DATA / SRC_E_FILE, "Woningetalage")
+    build_bron_ak(sh["Bron_AK"], hist)
     build_stg(wb, sh["STG_ZPMW03"], "Bron_ZPMW03", z_fields(), z_derived(), ZCOLS)
     build_stg(wb, sh["STG_Woningetalage"], "Bron_Woningetalage", e_fields(), e_derived(), ECOLS)
     put(sh["STG_ZPMW03"], "A5", "Staging ZPMW03 — niet invullen", bold=True, color=NAVY)
