@@ -21,6 +21,7 @@ from lxml import etree
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import fo_aanpassingen  # noqa: E402
+import scenario_koppeling  # noqa: E402
 import nieuwe_bladen  # noqa: E402
 import vba_project  # noqa: E402
 from xlsxpkg import (CT, CT_CHART, CT_CHARTCOLORS, CT_CHARTSTYLE, CT_DRAWING, CT_SHEET, M, PR, R, SST, T_DRAWING,  # noqa: E402
@@ -43,17 +44,16 @@ LAYOUT = [
     ('Aansluiting opbrengsten', 'fo', 'Aansluiting opbrengsten', 'shAansluiting'),
     ('CF - opbrengsten', 'fo', 'CF - opbrengsten', 'shCFOpbrengsten'),
     ('CF - kosten', 'fo', 'CF - kosten', 'shCFKostenFO'),
-    ('Cashflow', 'new', 'Cashflow', 'shCashflow'),
-    ('2. Ontw PEW', 'new', '2. Ontw PEW', 'shOntwPEW'),
-    ('CF - hulp VENA', 'fo', 'CF - hulp VENA', 'shVENA'),
     ('Dashboard', 'sc', 'Dashboard', 'shDashboard'),
     ("Scenario's", 'sc', "Scenario's", 'shScenarios'),
+    ('2. Ontw PEW', 'new', '2. Ontw PEW', 'shOntwPEW'),
+    ('CF - hulp VENA', 'fo', 'CF - hulp VENA', 'shVENA'),
+    ('PowerPoint', 'sc', 'PowerPoint', 'shPowerPoint'),
+    ('Notities FO gesprek', 'fo', 'Notities FO gesprek', 'shNotities'),
     ('Invoer', 'sc', 'Invoer', 'shInvoer'),
     ('Woningtypes', 'sc', 'Woningtypes', 'shWoningtypes'),
     ('Scenario kosten', 'sc', 'CF kosten', 'shCFKosten'),
     ('Model', 'sc', 'Model', 'shModel'),
-    ('PowerPoint', 'sc', 'PowerPoint', 'shPowerPoint'),
-    ('Notities FO gesprek', 'fo', 'Notities FO gesprek', 'shNotities'),
     ('Vorige prognose', 'new', 'Vorige prognose', 'shVorigePrognose'),
     ('Controle oud FO', 'new', 'Controle oud FO', 'shControleOudFO'),
     ('Verkooptempo', 'fo', 'Verkooptempo', 'shVerkooptempo'),
@@ -62,6 +62,7 @@ LAYOUT = [
     ('1. Ontw businessc FD', 'fo', '1. Ontw businessc FD', 'shOntwBusinesscase'),
     ('5. K&R businessc', 'fo', '5. K&R businessc', 'shKRBusinesscase'),
     ('_sjabloon', 'new', '_sjabloon', 'shSjabloon'),
+    ('_koppeling', 'new', '_koppeling', 'shKoppeling'),
 ]
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
 DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3)}
@@ -191,6 +192,23 @@ class Copier:
 # ------------------------------------------------------------------------------------------------
 #  bouwen
 # ------------------------------------------------------------------------------------------------
+
+def verwijder_vormen(pkg: Package, sheet_part: str, namen) -> int:
+    """vormen (knoppen) met deze namen uit de tekening van een werkblad halen"""
+    n = 0
+    for rid, ty, target, _ in pkg.rels(sheet_part):
+        if ty != T_DRAWING:
+            continue
+        d = resolve(sheet_part, target)
+        t = pkg.x(d)
+        for anchor in list(t):
+            cnv = [e for e in anchor.iter() if etree.QName(e).localname == 'cNvPr']
+            if cnv and cnv[0].get('name') in namen:
+                t.remove(anchor)
+                n += 1
+        pkg.put(d, t)
+    return n
+
 
 def oud_cashflow(fo_path):
     """periodes van '1. Cashflow' uit het FO (waarden van Excel): jaar, Q, kosten, omzet, CF, CF vorig kwartaal"""
@@ -348,6 +366,50 @@ def main():
     dst.put(part_of['_sjabloon'], sh.t)
     note('_sjabloon: %d cellen' % len(sjabloon))
 
+    # ---- scenariotabbladen met formules aan het FO koppelen (geen 'Ophalen uit FO' meer nodig) ------------
+    print('Scenario koppelen: Invoer, Woningtypes, Scenario kosten, Dashboard')
+    sh_o = Sheet(dst.x(part_of['CF - opbrengsten']), sst)
+    sh_k = Sheet(dst.x(part_of['CF - kosten']), sst)
+    types = scenario_koppeling.structuur(sh_o, sh_k)
+    sh = Sheet(dst.x(part_of['_koppeling']), sst)
+    slots = scenario_koppeling.vul_hulp(sh, types, note)
+    dst.put(part_of['_koppeling'], sh.t)
+    sh = Sheet(dst.x(part_of['Woningtypes']), sst)
+    scenario_koppeling.woningtypes(sh, types, slots, st)
+    sh.set_value('B1', 'Woningtypes — rekent automatisch mee met CF - opbrengsten, Aansluiting opbrengsten en CF - kosten')
+    sh.set_value('B2', 'Blok 1, 2, 3 en 7 zijn formules (verborgen hulpblad _koppeling): niet overschrijven. Blok 4 en 6 '
+                       '(vorige prognose) vul je met de knoppen hieronder; blok 5 alleen bij DAEB.')
+    sh.set_value('B3', 'Een ander woningtype of een andere termijnverdeling pas je aan op CF - opbrengsten (bouwplanning, '
+                       'transport) en Aansluiting opbrengsten (koopsommen, % per termijn).')
+    dst.put(part_of['Woningtypes'], sh.t)
+    sh = Sheet(dst.x(part_of['Invoer']), sst)
+    scenario_koppeling.invoer(sh, types, st)
+    sh.set_value('B1', 'Invoer — cashflow per periode en verkocht/transport per woningtype, automatisch uit het FO')
+    sh.set_value('B2', 'Formules: verwerkte kwartalen uit FO - actuals, prognose uit CF - kosten (rij 75) en CF - opbrengsten '
+                       '(rij 194); verkocht = verkooptempo, transport = transportregel op CF - opbrengsten. Niet overschrijven.')
+    sh.set_value('B3', 'Kolom J = vorige prognose (tab Vorige prognose). Rij 27-30: totalen en aansluiting op het PEW.')
+    sh.set_value('B4', None)
+    sh.set_value('B5', '1 · CASHFLOW · automatisch uit FO - actuals en de CF-tabbladen')
+    dst.put(part_of['Invoer'], sh.t)
+    # knoppen die de formules zouden overschrijven of verschuiven: uit de tekeningen
+    for blad, namen in (('Invoer', {'btnUitFO'}), ('Woningtypes', {'btnTypeInvoegen', 'btnTypeVerwijderen'})):
+        n = verwijder_vormen(dst, part_of[blad], namen)
+        note('%s: %d knop(pen) weggehaald' % (blad, n))
+    sh = Sheet(dst.x(part_of['Scenario kosten']), sst)
+    scenario_koppeling.scenario_kosten(sh, st)
+    dst.put(part_of['Scenario kosten'], sh.t)
+    sh = Sheet(dst.x(part_of['Dashboard']), sst)
+    sh.set_formula('W5', 'Start!$C$12')
+    sh.set_formula('X5', 'Start!$D$12')
+    sh.set_value('V68', 'FO-KOPPELING (formules, rekent automatisch mee)')
+    sh.set_value('W69', 'dit werkbestand')
+    sh.set_value('Z69', 'tab Invoer, Woningtypes en Scenario kosten zijn formules op de FO-tabbladen')
+    sh.set_formula('W70', 'Start!$E$12')
+    sh.set_formula('W71', 'SUM(Invoer!$F$8:$F$67)')
+    sh.set_formula('W72', 'SUM(Invoer!$D$8:$D$67)')
+    sh.set_formula('W73', 'Start!$C$10')
+    dst.put(part_of['Dashboard'], sh.t)
+
     # ---- cellen aanvullen --------------------------------------------------------------------------------
     print('Cellen aanvullen')
 
@@ -438,7 +500,7 @@ def main():
             new_dn.append(d)
     add_names(wb, sc_order, SC_RENAME)
     add_names(fo.x('xl/workbook.xml'), [n for n, _, _ in fo.sheets()], {})
-    for nm, ref in (('p_huidig', 'Start!$F$8'), ('p_oplevering', 'Start!$F$9')):
+    for nm, ref in (('p_huidig', 'Start!$F$8'), ('p_oplevering', 'Start!$F$9'), ('p_actuals', 'Start!$F$12')):
         d = etree.SubElement(new_dn, M + 'definedName', name=nm)
         d.text = ref
     # Excel wil de namen gesorteerd (hoofdletterongevoelig), _xlnm-namen per blad

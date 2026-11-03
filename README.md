@@ -21,12 +21,12 @@ prognose op basis van een voorstel of met de hand, en een PowerPoint die uit het
 | Invoer (plakken of inlezen) | `FO - vorig`, `FO - huidig` (SAP PEW, FR4), `FO - actuals` (SAP FR5), `Prijslijst dump` (Salesforce) |
 | Opbrengsten | `Prijslijst`, `Aansluiting opbrengsten`, `CF - opbrengsten` (bouwtermijnen, transport, verkooptempo, correctie) |
 | Kosten | `CF - kosten` (bouwtermijnen + per post Handmatig of Voorstel) |
-| Uitvoer | `Cashflow` (tabel + grafiek), `2. Ontw PEW` (nieuw jasje + grafiek), `CF - hulp VENA` |
-| Scenario's en PowerPoint | `Dashboard`, `Scenario's`, `Invoer`, `Woningtypes`, `Scenario kosten` (was `CF kosten`), `Model`, `PowerPoint` |
+| Resultaat | `Dashboard` (cashflow, KPI's, scenario's in grafieken), `Scenario's`, `2. Ontw PEW`, `CF - hulp VENA`, `PowerPoint` |
+| Rekenbladen (automatisch, niet invullen) | `Invoer`, `Woningtypes`, `Scenario kosten`, `Model` |
 | Overig | `Notities FO gesprek`, `Vorige prognose`, `Controle oud FO`, `Verkooptempo` (telling uit Salesforce), `Behind the scens` (+ verborgen hulpbladen) |
 
-Vervallen ten opzichte van het oude FO: `1. Cashflow` (nu `Cashflow`), `3. Restant bdgt` (de werkelijke kosten komen
-rechtstreeks uit `FO - huidig`).
+Vervallen ten opzichte van het oude FO: `1. Cashflow` (de cashflowtabel staat nu op `Invoer`, de grafieken op het
+`Dashboard`) en `3. Restant bdgt` (de werkelijke kosten komen rechtstreeks uit `FO - huidig`).
 
 **CF - opbrengsten**
 - Per woningtype staan de bouwtermijnen (handmatig) met daaronder een **transportregel**. De standaardformule rekent zoals de oude grondtermijn, dus zonder aanpassing verandert er niets. Overschrijf hem met het aantal woningen per kwartaal.
@@ -40,14 +40,17 @@ rechtstreeks uit `FO - huidig`).
 - Bij de posten (blok Onderdelen) kies je in kolom C:
   - **Handmatig**: de regels zoals je ze altijd invult;
   - **Voorstel**: het blok onderaan (rij 100-111), met het restantbudget (PEW min wat al verwerkt is) gelijk verdeeld vanaf het eerste prognosekwartaal t/m het opleveringskwartaal op `Start`.
-- De totaalregel (rij 75) is het **definitieve** resultaat. `Cashflow`, `CF - hulp VENA` en het scenario lezen die regel.
+- De totaalregel (rij 75) is het **definitieve** resultaat.
 
-**Cashflow.** Een tabel per periode met dezelfde opbouw als het oude `1. Cashflow`:
-- verwerkte kwartalen: werkelijk uit `FO - actuals`;
-- vanaf het eerste prognosekwartaal: de definitieve CF-regels;
-- kolom J: de vorige prognose.
+**Scenariomodel zonder knop.** `Invoer`, `Woningtypes` en `Scenario kosten` zijn formules op de FO-tabbladen, net zoals `Aansluiting opbrengsten` op de prijslijst. Het `Dashboard` en `Scenario's` rekenen dus altijd mee.
 
-Erbij staat een grafiek met kosten, opbrengsten, de cumulatieve cashflow en de vorige prognose.
+| Tabblad | Wat erin staat |
+|---|---|
+| `Invoer` | de cashflow per periode, met dezelfde opbouw als het oude `1. Cashflow`: verwerkte kwartalen uit `FO - actuals`, prognose uit rij 75 en rij 194, kolom J = vorige prognose. Daarnaast verkocht en transport per woningtype per kwartaal |
+| `Woningtypes` | per woningtype naam, aantal, koopsom, start bouw, grondtermijn, bouwtermijnen (% en bouwkwartaal), extra's per woning en bouwkosten per termijn |
+| `Scenario kosten` | per kostenpost het gerealiseerde bedrag en de definitieve prognose per periode, volgens de methode op `CF - kosten`. "Schuift mee met" wordt op de naam bepaald; overschrijven mag |
+
+Het verborgen hulpblad `_koppeling` zet de termijnen om naar regels per bouwkwartaal, met dezelfde regels als de oude macro "Ophalen uit FO". Een termijn die over twee kwartalen valt, wordt "(1/2)" en "(2/2)".
 
 ## Knoppen (tab Start)
 
@@ -56,23 +59,24 @@ Erbij staat een grafiek met kosten, opbrengsten, de cumulatieve cashflow en de v
 | Plakken / Inlezen... | per invoertabblad: leegmaken, export erin (klembord of bestand), hulpkolommen doortrekken, status bijwerken |
 | Oud FO inlezen... | neemt alle tabbladen van een FO in de oude opzet over. Zet daarna de nieuwe onderdelen terug (transportregels, methode, voorstel, correctie; lijst op het verborgen blad `_sjabloon`), vult `Vorige prognose` en `Controle oud FO` |
 | Nieuw kwartaal starten | cashflow bewaren als vorige prognose, `FO - huidig` → `FO - vorig`, huidig en actuals leeg |
-| Scenario bijwerken | vult `Invoer`, `Woningtypes` en `Scenario kosten` uit dit bestand. Kosten per post volgens de gekozen methode; transport uit de grondtermijn |
-| PowerPoint maken | eerst Scenario bijwerken, dan Naar PowerPoint met sjabloon v21 (zet het sjabloon in dezelfde map) |
+| PowerPoint maken | doorrekenen en Naar PowerPoint met sjabloon v21 (zet het sjabloon in dezelfde map) |
 
 ## Wat is gecontroleerd, en wat nog niet
 
-- **Getest met LibreOffice (headless, volledig doorgerekend):**
-  - `Cashflow` is per cel gelijk aan het oude `1. Cashflow`, inclusief totalen en controles.
-  - `CF - opbrengsten` (rij 57-194), `CF - kosten` (rij 59-77), `CF - hulp VENA`, `2. Ontw PEW` en `Aansluiting opbrengsten` zijn gelijk aan de waarden die Excel in het demo-FO heeft opgeslagen.
-  - Alle controles op `Start` zijn groen. De enige uitzondering is "Scenario actueel": die vraagt om één klik op Scenario bijwerken.
-  - Getest met woningtype A pas in Q1 2028 getransporteerd: de grondtermijn en alle eerder vervallen termijnen komen in Q1 2028 binnen.
-  - Getest met een correctie van €250.000 en de aanneemsom op Voorstel: de correctie telt mee, het voorstel wordt gelijk verdeeld, de VENA-export volgt en de controles melden de afwijking.
+- **Getest met LibreOffice (headless, volledig doorgerekend, inclusief het scenariomodel):**
+  - De cashflow op `Invoer` is per cel gelijk aan het oude `1. Cashflow`, inclusief totalen en controles.
+  - `CF - opbrengsten`, `CF - kosten`, `CF - hulp VENA`, `2. Ontw PEW` en `Aansluiting opbrengsten` zijn gelijk aan de waarden die Excel in het demo-FO heeft opgeslagen.
+  - Alle controles op `Start` zijn groen.
+  - "Model dekt de opbrengsten" komt uit op 100,0%: aantal × koopsom op `Woningtypes` sluit precies aan op de opbrengsten. `Scenario kosten` sluit aan op `Invoer`.
+  - Scenario met de start bouw drie kwartalen later (Q1 '28): de maximale financieringsbehoefte gaat van €1,6 mln naar €6,8 mln.
+  - Scenario met de verkoop pas vanaf Q2 '27: €4,9 mln. Een kostenpost op Voorstel komt direct terug in `Scenario kosten`.
+  - Getest met woningtype A pas in Q1 2028 getransporteerd en met een correctie van €250.000; de controles melden de afwijking van het PEW.
 - **Macro's:**
   - Het VBA-project is opnieuw opgebouwd uit `vba/`, zonder gecompileerde code. Excel compileert het bij het openen.
   - LibreOffice leest alle 31 modules correct uit het bestand.
   - De macro's zijn **niet in Excel uitgevoerd**: daar is in deze omgeving geen Excel voor. Test bij het eerste gebruik de knoppen op een kopie.
   - Geeft Excel een melding over het VBA-project? Importeer dan `vba/FOWerkbestand.bas` en `vba/CashflowNaarPowerPoint.bas` via Alt+F11 → Bestand → Importeren, en zet de code van `vba/ThisWorkbook.cls` in ThisWorkbook.
-- Het scenariodeel (`Invoer`, `Woningtypes`, `Scenario kosten`) wordt pas gevuld met de eerste klik op Scenario bijwerken.
+- Het scenariodeel rekent met de vier woningtypeblokken van de standaardopzet. DAEB-fees (blok 5 op `Woningtypes`) vult het niet automatisch.
 - "Oud FO inlezen" gaat uit van de standaardopzet van het FO: transportregels in de lege rijen 13, 26, 36 en 46 van `CF - opbrengsten`, posten in rij 59-70 van `CF - kosten`. Wijkt een oud FO daarvan af, dan meldt de knop dat. `Controle oud FO` laat het effect zien.
 
 ## Opnieuw bouwen

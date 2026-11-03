@@ -10,13 +10,12 @@ Option Explicit
 '                           onderdelen terug (tab _sjabloon: transportregels, methode, voorstel, ...), vult tab Vorige
 '                           prognose (kolom CF vorig kwartaal) en tab Controle oud FO
 '    Nieuw kwartaal starten cashflow bewaren als vorige prognose, FO - huidig -> FO - vorig, huidig en actuals leeg
-'    Scenario bijwerken     (module CashflowNaarPowerPoint) scenariomodel uit de FO-tabbladen van dit bestand
-'    PowerPoint maken       eerst Scenario bijwerken, dan Naar PowerPoint
+'    PowerPoint maken       doorrekenen en Naar PowerPoint (Invoer, Woningtypes en Scenario kosten zijn formules op het FO)
 '  Vaste plekken: zie tools/nieuwe_bladen.py.
 ' =====================================================================================
 
 Private Const SH_START As String = "Start"
-Private Const SH_CF As String = "Cashflow"            ' vervangt 1. Cashflow (zelfde opbouw)
+Private Const SH_CF As String = "Invoer"              ' cashflow per periode (vervangt 1. Cashflow; kop 'Jaar' in B7)
 Private Const SH_CF_OUD As String = "1. Cashflow"     ' in een oud FO
 Private Const SH_VORIGE As String = "Vorige prognose"
 Private Const SH_CONTROLE As String = "Controle oud FO"
@@ -53,8 +52,7 @@ Public Sub StartKnoppen()
     geel = RGB(254, 185, 0)
     Knop ws, "J6:J8", "btnOudFO", "Oud FO inlezen...", "OudFOInlezen", grijs
     Knop ws, "K6:K8", "btnNieuwKwartaal", "Nieuw kwartaal starten", "NieuwKwartaalStarten", grijs
-    Knop ws, "J9:J11", "btnScenario", "Scenario bijwerken", "ScenarioBijwerken", donker
-    Knop ws, "K9:K11", "btnPowerPoint", "PowerPoint maken", "PowerPointMaken", donker
+    Knop ws, "J9:K11", "btnPowerPoint", "PowerPoint maken", "PowerPointMaken", donker
     Knop ws, "J" & RIJ_VORIG, "btnPlakVorig", "Plakken", "PlakkenVorig", donker
     Knop ws, "K" & RIJ_VORIG, "btnLeesVorig", "Inlezen...", "InlezenVorig", grijs
     Knop ws, "J" & RIJ_HUIDIG, "btnPlakHuidig", "Plakken", "PlakkenHuidig", donker
@@ -269,7 +267,7 @@ End Sub
 Public Sub NieuwKwartaalStarten()
     Dim wsH As Worksheet, wsV As Worksheet, wsA As Worksheet, h As Long, n As Long
     If MsgBox("Nieuw kwartaal starten:" & vbCrLf & vbCrLf & _
-              "1. de cashflow (tab Cashflow) wordt bewaard als vorige prognose (tab Vorige prognose); " & _
+              "1. de cashflow (tab Invoer) wordt bewaard als vorige prognose (tab Vorige prognose); " & _
               "die verschijnt in kolom J 'CF vorig kwartaal';" & vbCrLf & _
               "2. FO - huidig wordt FO - vorig;" & vbCrLf & _
               "3. FO - huidig en FO - actuals worden leeggemaakt voor de nieuwe exports." & vbCrLf & vbCrLf & _
@@ -303,7 +301,7 @@ Public Sub NieuwKwartaalStarten()
 End Sub
 
 Private Function BewaarVorigePrognose() As Long
-    ' tab Cashflow -> tab Vorige prognose (waarden); kolom J (CF vorig kwartaal) op tab Cashflow leest daaruit
+    ' tab Invoer -> tab Vorige prognose (waarden); kolom J (CF vorig kwartaal) op tab Invoer leest daaruit
     Dim wsC As Worksheet, wsV As Worksheet, kop As Long, kolJ As Long, r As Long, c As Long, i As Long
     Set wsC = ThisWorkbook.Worksheets(SH_CF)
     Set wsV = ThisWorkbook.Worksheets(SH_VORIGE)
@@ -353,7 +351,7 @@ Public Sub OudFOInlezen()
         Exit Sub
     End If
     If MsgBox("Alle FO-tabbladen van dit werkbestand (FO - vorig/huidig/actuals, prijslijst, Aansluiting opbrengsten, " & _
-              "CF - opbrengsten, CF - kosten, 1. Cashflow, enz.) worden overschreven met de inhoud van:" & vbCrLf & CStr(pad) & _
+              "CF - opbrengsten, CF - kosten, 2. Ontw PEW, enz.) worden overschreven met de inhoud van:" & vbCrLf & CStr(pad) & _
               vbCrLf & vbCrLf & "De nieuwe onderdelen (transportregels, methode per kostenpost, voorstel, correctieregel) worden daarna " & _
               "teruggezet; zonder aanpassingen is de uitkomst gelijk aan het oude FO (zie tab Controle oud FO). Doorgaan?", _
               vbQuestion + vbYesNo, "Oud FO inlezen") <> vbYes Then Exit Sub
@@ -412,9 +410,7 @@ Public Sub OudFOInlezen()
     End With
     verschil = Application.WorksheetFunction.CountIf(ThisWorkbook.Worksheets(SH_CONTROLE).Range("M9:M60"), "VERSCHIL")
 
-    stap = "scenario bijwerken"
     Application.ScreenUpdating = True
-    CashflowNaarPowerPoint.OphalenUitFO "", True, True
 
     ThisWorkbook.Worksheets(SH_CONTROLE).Activate
     bericht = "Klaar: " & n & " tabbladen overgenomen uit " & BestandsNaam(CStr(pad)) & "." & vbCrLf & vbCrLf
@@ -423,7 +419,6 @@ Public Sub OudFOInlezen()
     Else
         bericht = bericht & verschil & " periode(s) wijken af van het oude FO: zie tab Controle oud FO."
     End If
-    If Not CashflowNaarPowerPoint.OphalenGelukt Then bericht = bericht & vbCrLf & "Het scenario is niet bijgewerkt (zie de melding)."
     If Len(waarschuwing) > 0 Then bericht = bericht & vbCrLf & vbCrLf & "Let op:" & vbCrLf & waarschuwing
     MsgBox bericht, IIf(Len(waarschuwing) > 0 Or verschil > 0, vbExclamation, vbInformation), "Oud FO inlezen"
     Exit Sub
@@ -596,7 +591,7 @@ End Function
 
 Private Sub ControleVullen(wbO As Workbook, pad As String)
     ' cashflow van het oude FO (1. Cashflow, waarden) naar tab Controle oud FO (per jaar en kwartaal) en kolom
-    ' 'CF vorig kwartaal' naar tab Vorige prognose, zodat tab Cashflow kolom J doorloopt
+    ' 'CF vorig kwartaal' naar tab Vorige prognose, zodat tab Invoer kolom J doorloopt
     Dim wsO As Worksheet, wsK As Worksheet, wsV As Worksheet, i As Long, r As Long
     Set wsK = ThisWorkbook.Worksheets(SH_CONTROLE)
     Set wsV = ThisWorkbook.Worksheets(SH_VORIGE)
@@ -604,7 +599,7 @@ Private Sub ControleVullen(wbO As Workbook, pad As String)
     wsK.Range("D5").Value = BestandsNaam(pad)
     wsK.Range("D6").Value = Now
     Set wsO = ZoekBlad(wbO, SH_CF_OUD)
-    If wsO Is Nothing Then Set wsO = ZoekBlad(wbO, SH_CF)
+    If wsO Is Nothing Then Set wsO = ZoekBlad(wbO, "Cashflow")
     If wsO Is Nothing Then Exit Sub
     wsV.Range("B8:G67").ClearContents
     wsV.Range("D5").Value = "oud FO: " & BestandsNaam(pad)
@@ -629,9 +624,8 @@ End Sub
 ' =====================================================================================
 
 Public Sub PowerPointMaken()
-    ' eerst het scenario bijwerken uit dit werkbestand, dan de presentatie maken
-    CashflowNaarPowerPoint.OphalenUitFO "", True, True
-    If Not CashflowNaarPowerPoint.OphalenGelukt Then Exit Sub
+    ' het scenariomodel rekent met formules mee met het FO: doorrekenen en de presentatie maken
+    Application.CalculateFull
     CashflowNaarPowerPoint.NaarPowerPoint
 End Sub
 

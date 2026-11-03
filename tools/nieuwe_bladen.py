@@ -5,7 +5,7 @@ op XML-niveau in het werkbestand.
 Vaste plekken (de macro's in vba/FOWerkbestand.bas gebruiken ze):
   Start            C6 projectnaam, C8/D8 eerste prognosekwartaal, C9/D9 oplevering, F8/F9 kwartaalindex,
                    rijen 15-18 invoertabbladen (F = laatst ingelezen, G = bestand)
-  Cashflow         zelfde opbouw als het oude 1. Cashflow: kop 'Jaar' in B3, periodes in rij 4-21, totalen rij 23-26
+  Start            C12/D12 actuals t/m, F12 kwartaalindex (naam p_actuals)
   Vorige prognose  rij 8-67: jaar, Q, kosten, omzet, CF, CF x 1000
   _sjabloon        blad / cel / inhoud: wordt na Oud FO inlezen teruggezet (transportregels, methode, voorstel, ...)
 """
@@ -141,7 +141,13 @@ def maak_start(wb, demo):
     cell(ws, 'B11', 'Tekst in PowerPoint (dia 1 en 10)')
     cell(ws, 'C11', '=IF(C10="","","Cijfers per "&DAY(C10)&" "&CHOOSE(MONTH(C10),%s)&" "&YEAR(C10))' % MAANDEN,
          F_BASE, FILL_CALC)
-    for r in (8, 9):
+    cell(ws, 'B12', 'Actuals t/m · jaar en kwartaal')
+    cell(ws, 'C12', '=IFERROR(INT(D17/100),"")', F_BASE, FILL_CALC)
+    cell(ws, 'D12', '=IFERROR(ROUNDUP(MOD(D17,100)/3,0),"")', F_BASE, FILL_CALC)
+    cell(ws, 'E12', '=IF(C12="","","Q"&D12&" "&C12)', F_BOLD)
+    cell(ws, 'F12', '=IF(C12="",0,C12*4+D12)', F_HELP, None, ';;;')
+    cell(ws, 'G12', 'laatste boekingsperiode in FO - actuals; t/m dit kwartaal veranderen de scenario\'s niets', F_NOTE)
+    for r in (8, 9, 12):
         for col in 'CD':
             ws['%s%d' % (col, r)].alignment = Alignment(horizontal='center')
 
@@ -198,8 +204,8 @@ def maak_start(wb, demo):
     cell(ws, 'B26', 'Handmatige correctie opbrengsten')
     cell(ws, 'C26', "=SUM('CF - opbrengsten'!G192:Z192)", F_BASE, FILL_CALC, NUM)
     cell(ws, 'G26', 'gele regel 192 op CF - opbrengsten', F_NOTE)
-    cell(ws, 'B27', 'Eindsaldo cashflow (tab Cashflow)')
-    cell(ws, 'C27', "=Cashflow!D29", F_BOLD, FILL_CALC, NUM)
+    cell(ws, 'B27', 'Eindsaldo cashflow (tab Invoer)')
+    cell(ws, 'C27', "=LOOKUP(2,1/ISNUMBER(Invoer!H8:H25),Invoer!H8:H25)", F_BOLD, FILL_CALC, NUM)
 
     # 4 controles -----------------------------------------------------------------------------------
     section(ws, 29, '4 · CONTROLES')
@@ -230,8 +236,8 @@ def maak_start(wb, demo):
          "=IF(COUNTIF('CF - kosten'!AD100:AD111,\"OVERSCHRIJDING\")=0,\"OK\",\"LET OP\")", 'CF - kosten, voorstel'),
         ('Handmatige correctie opbrengsten', "=FIXED(SUM('CF - opbrengsten'!G192:Z192),0)",
          "=IF(SUM('CF - opbrengsten'!G192:Z192)=0,\"OK\",\"INFO\")", 'CF - opbrengsten, rij 192'),
-        ('Cashflow sluit aan op PEW', "=Cashflow!D26&\" / \"&Cashflow!F26",
-         "=IF(AND(Cashflow!D26=\"OK\",Cashflow!F26=\"OK\"),\"OK\",\"FOUT\")", 'Cashflow, rij 26'),
+        ('Cashflow sluit aan op PEW', "=Invoer!D30&\" / \"&Invoer!F30",
+         "=IF(AND(Invoer!D30=\"OK\",Invoer!F30=\"OK\"),\"OK\",\"FOUT\")", 'Invoer, rij 30'),
         ('CF - hulp VENA = definitieve cashflow',
          "=FIXED(ABS(N('CF - hulp VENA'!C3)-%s)+ABS(N('CF - hulp VENA'!C4)-%s),0)&\" verschil\"" % (ven_o, ven_k),
          "=IF(ABS(N('CF - hulp VENA'!C3)-%s)+ABS(N('CF - hulp VENA'!C4)-%s)<1,\"OK\",\"FOUT\")" % (ven_o, ven_k),
@@ -240,10 +246,9 @@ def maak_start(wb, demo):
          "=SUMPRODUCT(ISNUMBER(--'FO - huidig'!X17:X1500)*('FO - huidig'!Y17:Y1500=\"\")*ISNUMBER('FO - huidig'!R17:R1500)*('FO - huidig'!R17:R1500<>0))&\" regel(s)\"",
          "=IF(SUMPRODUCT(ISNUMBER(--'FO - huidig'!X17:X1500)*('FO - huidig'!Y17:Y1500=\"\")*ISNUMBER('FO - huidig'!R17:R1500)*('FO - huidig'!R17:R1500<>0))=0,\"OK\",\"FOUT\")",
          'Behind the scens, kolom A-C'),
-        ('Scenario actueel (tab Invoer = tab Cashflow)',
-         "=FIXED(ABS(SUM(Invoer!D8:D500)-N(Cashflow!D23))+ABS(SUM(Invoer!F8:F500)-N(Cashflow!F23)),0)&\" verschil\"",
-         "=IF(ABS(SUM(Invoer!D8:D500)-N(Cashflow!D23))+ABS(SUM(Invoer!F8:F500)-N(Cashflow!F23))<1,\"OK\",\"LET OP: klik Scenario bijwerken\")",
-         'knop Scenario bijwerken'),
+        ('Woningtypes dekken de opbrengsten (aantal × koopsom ÷ eigen opbrengsten)',
+         "=FIXED(N(Dashboard!W13)*100,1)&\"%\"",
+         "=IF(N(Dashboard!W13)=0,\"LET OP\",\"INFO\")", 'Dashboard W13 · Woningtypes'),
         ('Verschil met oud FO (alleen zinvol direct na Oud FO inlezen)',
          "=COUNTIF('Controle oud FO'!M9:M60,\"VERSCHIL\")&\" periode(s)\"",
          "=IF(COUNTIF('Controle oud FO'!M9:M60,\"VERSCHIL\")=0,\"OK\",\"INFO\")", 'tab Controle oud FO'),
@@ -274,9 +279,9 @@ def maak_start(wb, demo):
         'Controleer Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW) en vraag ontbrekende documentatie op.',
         'CF - opbrengsten: per woningtype de bouwtermijnen en de transportregel, onderaan het verkooptempo; correctie in rij 192.',
         'CF - kosten: de bouwtermijnen volgen de planning van de opbrengsten (overschrijven mag); per post Handmatig of Voorstel (kolom C).',
-        'Alle controles in blok 4 groen; bekijk tab Cashflow en 2. Ontw PEW.',
-        'Klik Scenario bijwerken; bekijk Dashboard en Scenario\'s.',
-        'Klik PowerPoint maken (werkt de scenario\'s eerst zelf bij).',
+        'Alle controles in blok 4 groen; bekijk Dashboard (cashflow) en 2. Ontw PEW.',
+        'Bekijk Dashboard en Scenario\'s: Invoer, Woningtypes en Scenario kosten rekenen automatisch mee met de CF-tabbladen.',
+        'Klik PowerPoint maken.',
         'Na het FO: correcties bijwerken en CF - hulp VENA inlezen in SAP/VENA.',
     ]
     for i, s in enumerate(stappen, 1):
@@ -306,145 +311,6 @@ def maak_start(wb, demo):
     cell(ws, 'J5', 'Knoppen', F_BOLD)
     ws.freeze_panes = 'A5'
     return {'dia10_row': dia10_row, 'checks_total': total_row}
-
-
-# ================================================================================================
-#  Cashflow (vervangt 1. Cashflow): tabel per periode + grafiek
-# ================================================================================================
-
-ACT = "'FO - actuals'!"
-KKEY = "'CF - kosten'!$H$96:$AA$96"          # kwartaalindex per kolom van CF - kosten (hulprij)
-OKEY = "'CF - opbrengsten'!$G$199:$Z$199"    # idem CF - opbrengsten
-N_KW = 16                                     # kwartaalrijen (zoveel kwartaalkolommen hebben de CF-bladen)
-CF_R1, CF_RN = 4, 5 + N_KW                     # rijen 4..21, zelfde plek als op het oude 1. Cashflow
-
-
-def maak_cashflow(wb):
-    from openpyxl.chart import BarChart, LineChart, Reference
-    ws = wb.create_sheet('Cashflow')
-    ws.sheet_view.showGridLines = False
-    ws.sheet_properties.tabColor = 'FEB900'
-    for k, v in {'A': 5, 'B': 8, 'C': 7, 'D': 15, 'E': 9, 'F': 15, 'G': 9, 'H': 15, 'I': 12, 'J': 14, 'K': 3}.items():
-        ws.column_dimensions[k].width = v
-    cell(ws, 'B1', 'Cashflow', F_TITLE)
-    cell(ws, 'B2', 'Verwerkte kwartalen: werkelijk uit FO - actuals. Vanaf het eerste prognosekwartaal: de definitieve '
-                   'prognose van CF - kosten (rij 75) en CF - opbrengsten (rij 194).', F_NOTE)
-    heads = ['Jaar', 'Q', 'Kosten', '% Kosten', 'Omzet', '% Omzet', 'CF (cumulatief)', 'CF (x 1000)', 'CF vorig kwartaal']
-    for i, h in enumerate(heads):
-        cell(ws, '%s3' % L(2 + i), h, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', wrap_text=True))
-    ws.row_dimensions[3].height = 28
-
-    def act(soort, jaar, q=None):
-        f = "SUMIFS(%s$K:$K,%s$Q:$Q,\"%s\",%s$P:$P,%s" % (ACT, ACT, soort, ACT, jaar)
-        if q:
-            f += ",%s$R:$R,%s" % (ACT, q)
-        return f + ')'
-
-    # rij 4: t/m twee jaar voor het eerste prognosejaar, rij 5: het jaar ervoor
-    cell(ws, 'A4', 't/m', F_HELP)
-    cell(ws, 'B4', '=IFERROR(INT(($A$6-1)/4)-2,"")', F_BOLD)
-    cell(ws, 'B5', '=IFERROR(INT(($A$6-1)/4)-1,"")', F_BOLD)
-    cell(ws, 'D4', "=SUMPRODUCT(SUMIFS(%s$K:$K,%s$Q:$Q,\"Kosten\",%s$P:$P,$B4-{0,1,2,3,4}))" % (ACT, ACT, ACT), F_BASE, None, NUM)
-    cell(ws, 'F4', "=-SUMPRODUCT(SUMIFS(%s$K:$K,%s$Q:$Q,\"Omzet\",%s$P:$P,$B4-{0,1,2,3,4}))" % (ACT, ACT, ACT), F_BASE, None, NUM)
-    cell(ws, 'D5', '=' + act('Kosten', '$B5'), F_BASE, None, NUM)
-    cell(ws, 'F5', '=-' + act('Omzet', '$B5'), F_BASE, None, NUM)
-    for r in range(6, CF_RN + 1):
-        cell(ws, 'A%d' % r, '=IFERROR(_xlfn.AGGREGATE(15,6,%s/(%s>0),ROW()-5),"")' % (KKEY, KKEY), F_HELP, None, ';;;')
-        cell(ws, 'B%d' % r, '=IF($A%d="","",INT(($A%d-1)/4))' % (r, r), F_BOLD)
-        cell(ws, 'C%d' % r, '=IF($A%d="","","Q"&($A%d-4*$B%d))' % (r, r, r), F_BOLD)
-        cell(ws, 'D%d' % r, '=IF($A%d="","",%s+IF($A%d>=%s,IFERROR(INDEX(\'CF - kosten\'!$H$75:$AA$75,MATCH($A%d,%s,0)),0),0))'
-             % (r, act('Kosten', '$B%d' % r, '$C%d' % r), r, P_HUIDIG, r, KKEY), F_BASE, None, NUM)
-        cell(ws, 'F%d' % r, '=IF($A%d="","",-%s+IF($A%d>=%s,IFERROR(INDEX(\'CF - opbrengsten\'!$G$194:$Z$194,MATCH($A%d,%s,0)),0),0))'
-             % (r, act('Omzet', '$B%d' % r, '$C%d' % r), r, P_HUIDIG, r, OKEY), F_BASE, None, NUM)
-    for r in range(CF_R1, CF_RN + 1):
-        cell(ws, 'E%d' % r, '=IF(D%d="","",IFERROR(D%d/$D$23,0))' % (r, r), F_HELP, None, '0%')
-        cell(ws, 'G%d' % r, '=IF(F%d="","",IFERROR(F%d/$F$23,0))' % (r, r), F_HELP, None, '0%')
-        cell(ws, 'H%d' % r, ('=-D4+F4' if r == CF_R1 else '=IF(D%d="","",N(H%d)-D%d+F%d)' % (r, r - 1, r, r)), F_BOLD, None, NUM)
-        cell(ws, 'I%d' % r, '=IF(H%d="","",H%d/1000)' % (r, r), F_BASE, FILL_CALC, NUMK)
-        cell(ws, 'J%d' % r, "=IF(OR($B%d=\"\",COUNTIFS('Vorige prognose'!$B:$B,$B%d,'Vorige prognose'!$C:$C,$C%d&\"\")=0),\"\","
-                            "SUMIFS('Vorige prognose'!$G:$G,'Vorige prognose'!$B:$B,$B%d,'Vorige prognose'!$C:$C,$C%d&\"\"))"
-             % (r, r, r, r, r), F_BASE, None, NUMK)
-        ws['B%d' % r].alignment = Alignment(horizontal='center')
-        ws['C%d' % r].alignment = Alignment(horizontal='center')
-        for c in 'BCDEFGHIJ':
-            ws['%s%d' % (c, r)].border = B_BOTTOM
-    ws.conditional_formatting.add('B6:J%d' % CF_RN, FormulaRule(formula=['AND(ISNUMBER($A6),$A6<%s)' % P_HUIDIG],
-                                                                font=Font(name=FONT, color='FF6B7280')))
-    # totalen en controle: zelfde rijen als op het oude 1. Cashflow
-    cell(ws, 'C23', 'Totaal:', F_BOLD, FILL_TOTAL)
-    cell(ws, 'D23', '=SUM(D4:D%d)' % CF_RN, F_BOLD, FILL_TOTAL, NUM)
-    cell(ws, 'E23', None, F_BOLD, FILL_TOTAL)
-    cell(ws, 'F23', '=SUM(F4:F%d)' % CF_RN, F_BOLD, FILL_TOTAL, NUM)
-    cell(ws, 'C24', 'PEW')
-    cell(ws, 'D24', "=N('2. Ontw PEW'!G20)*1000", F_BASE, FILL_CALC, NUM)
-    cell(ws, 'F24', "=N('2. Ontw PEW'!G27)*1000", F_BASE, FILL_CALC, NUM)
-    cell(ws, 'C25', 'Check')
-    cell(ws, 'D25', '=ROUND(D23-D24,2)', F_BASE, None, NUM)
-    cell(ws, 'F25', '=ROUND(F23-F24,2)', F_BASE, None, NUM)
-    cell(ws, 'D26', '=IF(AND(D25<1000,D25>-1000),"OK","FOUT")', F_BOLD)
-    cell(ws, 'F26', '=IF(AND(F25<1000,F25>-1000),"OK","FOUT")', F_BOLD)
-    status_rules(ws, 'D26:F26')
-    # kerncijfers
-    cell(ws, 'B28', 'Dieptepunt', F_BOLD)
-    ws.merge_cells('B28:C28')
-    ws.merge_cells('B29:C29')
-    ws.merge_cells('B30:C30')
-    cell(ws, 'D28', '=MIN(H4:H%d)' % CF_RN, F_BOLD, FILL_CALC, NUM)
-    cell(ws, 'F28', '=IFERROR(INDEX($AB$4:$AB$%d,MATCH(D28,$H$4:$H$%d,0)),"")' % (CF_RN, CF_RN), F_BASE)
-    cell(ws, 'B29', 'Eindsaldo', F_BOLD)
-    cell(ws, 'D29', '=LOOKUP(2,1/ISNUMBER(H4:H%d),H4:H%d)' % (CF_RN, CF_RN), F_BOLD, FILL_CALC, NUM)
-    cell(ws, 'B30', 'Prognose vanaf', F_BOLD)
-    cell(ws, 'D30', '=Start!E8', F_BASE)
-
-    # grafiekreeksen (x 1000) rechts naast de grafiek
-    for c, h in zip(['AB', 'AC', 'AD', 'AE', 'AF'], ['Periode', 'Kosten', 'Opbrengsten', 'Cumulatief', 'Vorige prognose']):
-        cell(ws, '%s3' % c, h, F_HELP)
-    for r in range(CF_R1, CF_RN + 1):
-        lab = ('="t/m "&B4' if r == CF_R1 else '=B5&""' if r == CF_R1 + 1 else
-               '=IF(B%d="","",C%d&" \'"&RIGHT(B%d,2))' % (r, r, r))
-        cell(ws, 'AB%d' % r, lab, F_HELP)
-        cell(ws, 'AC%d' % r, '=IF(D%d="",0,-D%d/1000)' % (r, r), F_HELP, None, NUMK)
-        cell(ws, 'AD%d' % r, '=IF(F%d="",0,F%d/1000)' % (r, r), F_HELP, None, NUMK)
-        cell(ws, 'AE%d' % r, '=IF(I%d="",NA(),I%d)' % (r, r), F_HELP, None, NUMK)
-        cell(ws, 'AF%d' % r, '=IF(J%d="",NA(),J%d)' % (r, r), F_HELP, None, NUMK)
-    bar = BarChart()
-    bar.type = 'col'
-    bar.grouping = 'clustered'
-    bar.overlap = 100
-    bar.gapWidth = 60
-    cats = Reference(ws, min_col=28, min_row=CF_R1, max_row=CF_RN)
-    bar.add_data(Reference(ws, min_col=29, max_col=30, min_row=3, max_row=CF_RN), titles_from_data=True)
-    bar.set_categories(cats)
-    bar.series[0].graphicalProperties.solidFill = 'ED0500'
-    bar.series[0].graphicalProperties.line.noFill = True
-    bar.series[1].graphicalProperties.solidFill = '7FB77E'
-    bar.series[1].graphicalProperties.line.noFill = True
-    line = LineChart()
-    line.add_data(Reference(ws, min_col=31, max_col=32, min_row=3, max_row=CF_RN), titles_from_data=True)
-    line.set_categories(cats)
-    line.series[0].graphicalProperties.line.solidFill = '003366'
-    line.series[0].graphicalProperties.line.width = 32000
-    line.series[0].smooth = False
-    line.series[1].graphicalProperties.line.solidFill = '9CA3AF'
-    line.series[1].graphicalProperties.line.dashStyle = 'dash'
-    line.series[1].graphicalProperties.line.width = 19000
-    line.series[1].smooth = False
-    bar.y_axis.title = 'x € 1.000'
-    bar.y_axis.number_format = '#,##0'
-    bar.y_axis.majorGridlines = None
-    bar.x_axis.delete = False
-    bar.x_axis.tickLblPos = 'low'
-    bar.y_axis.delete = False
-    line.y_axis.axId = 100
-    line.y_axis.delete = True
-    bar += line
-    bar.title = 'Cashflow per kwartaal · kosten, opbrengsten en cumulatief'
-    bar.legend.position = 'b'
-    bar.height = 11
-    bar.width = 26
-    ws.add_chart(bar, 'L3')
-    ws.freeze_panes = 'D4'
-    return ws
 
 
 # ================================================================================================
@@ -548,7 +414,7 @@ def maak_vorige_prognose(wb, vooraf=None, bron=''):
         ws.column_dimensions[k].width = v
     cell(ws, 'B2', 'Vorige prognose', F_TITLE)
     cell(ws, 'B3', 'Wordt gevuld door Nieuw kwartaal starten (de cashflow van het afgesloten kwartaal, als waarden) of door '
-                   'Oud FO inlezen (kolom CF vorig kwartaal van het oude FO). Tab Cashflow kolom J komt hieruit.', F_NOTE)
+                   'Oud FO inlezen (kolom CF vorig kwartaal van het oude FO). Tab Invoer kolom J komt hieruit.', F_NOTE)
     cell(ws, 'B5', 'Bewaard op', F_BOLD)
     cell(ws, 'D5', bron or None, F_BASE, None, 'dd-mm-yyyy hh:mm', Alignment(horizontal='left'))
     for i, h in enumerate(['Jaar', 'Q', 'Kosten', 'Omzet', 'CF', 'CF (x 1000)']):
@@ -570,7 +436,7 @@ def maak_controle(wb, oud=None, bestand=''):
     for k, v in widths.items():
         ws.column_dimensions[k].width = v
     cell(ws, 'B2', 'Controle oud FO', F_TITLE)
-    cell(ws, 'B3', 'Na Oud FO inlezen: de cashflow uit het oude bestand (waarden) naast tab Cashflow, per jaar en kwartaal. '
+    cell(ws, 'B3', 'Na Oud FO inlezen: de cashflow uit het oude bestand (waarden) naast tab Invoer, per jaar en kwartaal. '
                    'Verschil 0 = de werkwijze loopt 1-op-1 door.', F_NOTE)
     cell(ws, 'B5', 'Bestand', F_BOLD)
     cell(ws, 'D5', bestand, F_BASE)
@@ -580,7 +446,7 @@ def maak_controle(wb, oud=None, bestand=''):
              'Verschil', 'Status']
     for i, h in enumerate(heads):
         cell(ws, '%s8' % L(2 + i), h, F_HEAD, FILL_HEAD)
-    cf = "Cashflow!$%s$4:$%s$21"
+    cf = "Invoer!$%s$8:$%s$25"
     for i in range(52):
         r = 9 + i
         rij = oud[i] if oud and i < len(oud) else {}
@@ -619,6 +485,9 @@ STIJLEN = {
     'vet': (F_BOLD, None, None, None),
     'tekst': (F_BASE, None, None, None),
     'aantal': (F_BASE, FILL_CALC, '0', Alignment(horizontal='center')),
+    'pct': (F_HELP, FILL_CALC, '0%', None),
+    'getal1': (F_BASE, FILL_CALC, NUMK, None),
+    'verborgen': (F_HELP, None, ';;;', None),
 }
 
 
@@ -646,11 +515,12 @@ def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud):
     wb = Workbook()
     wb.remove(wb.active)
     info = maak_start(wb, demo)
-    maak_cashflow(wb)
     info['pew_extra'] = maak_pew(wb, pew_inhoud)
     maak_vorige_prognose(wb, oud_cashflow, 'uit ' + oud_bestand)
     maak_controle(wb, oud_cashflow, oud_bestand)
     info['stijlen'] = maak_stijlen(wb)
     maak_sjabloon(wb)
+    h = wb.create_sheet('_koppeling')
+    h.sheet_state = 'hidden'
     wb.save(path)
     return info

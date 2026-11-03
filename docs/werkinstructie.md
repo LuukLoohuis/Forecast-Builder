@@ -31,9 +31,10 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
    - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd) of *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan).
 
    Rij 75 is het definitieve totaal.
-8. Blok 4 op `Start`: alle controles groen. Bekijk tab `Cashflow` (tabel en grafiek) en `2. Ontw PEW`.
-9. **Scenario bijwerken**: bekijk `Dashboard` en `Scenario's` (start bouw, verkoop, transport, grondtermijn).
-10. **PowerPoint maken**: het scenario wordt eerst bijgewerkt. Daarna komen alle dia's, inclusief de datum op dia 1 en de
+8. Blok 4 op `Start`: alle controles groen. Bekijk `Dashboard` (cashflow en kerncijfers) en `2. Ontw PEW`.
+9. **Scenario's**: vul op `Scenario's` een andere start bouw, verkoop, transport of grondtermijn in. `Invoer`, `Woningtypes`
+   en `Scenario kosten` rekenen automatisch mee met de CF-tabbladen; daar hoef je niets te doen.
+10. **PowerPoint maken**: alle dia's, inclusief de datum op dia 1 en de
    kaarten van dia 10 (blok 6 op `Start`), uit dit bestand.
 
 **Tijdens het gesprek:** aantekeningen op `Notities FO gesprek`.
@@ -44,5 +45,5 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
 3. Datumvelden Projectbuilder en de verdeling van woningaantallen in de tijd bijwerken.
 
 ## Als er tussentijds iets verandert
-Plak of lees de nieuwe export opnieuw in; alles rekent mee. Klik daarna op **Scenario bijwerken** (of meteen
-**PowerPoint maken**). Controle "Scenario actueel" op `Start` laat zien of dat nog nodig is.
+Plak of lees de nieuwe export opnieuw in; alles rekent mee, ook het Dashboard en de scenario's. Klik daarna op
+**PowerPoint maken** als de presentatie bijgewerkt moet worden.

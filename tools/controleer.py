@@ -134,10 +134,12 @@ def doorrekenen(src, dst):
         lo.kill()
 
 
-VERGELIJK = [('1. Cashflow', 'Cashflow', 'B4:J21'), ('1. Cashflow', 'Cashflow', 'D23:F23'),
-             ('1. Cashflow', 'Cashflow', 'D26:F26'), ('CF - hulp VENA', 'CF - hulp VENA', 'C3:BK4'),
-             ('2. Ontw PEW', '2. Ontw PEW', 'E7:I30'), ('Aansluiting opbrengsten', 'Aansluiting opbrengsten', 'B15:J29'),
-             ('CF - opbrengsten', 'CF - opbrengsten', 'G57:Z194'), ('CF - kosten', 'CF - kosten', 'H59:AA77')]
+VERGELIJK = [('1. Cashflow', 'B4:J21', 'Invoer', 'B8:J25'), ('1. Cashflow', 'D23:F23', 'Invoer', 'D27:F27'),
+             ('1. Cashflow', 'D26:F26', 'Invoer', 'D30:F30'), ('CF - hulp VENA', 'C3:BK4', 'CF - hulp VENA', 'C3:BK4'),
+             ('2. Ontw PEW', 'E7:I30', '2. Ontw PEW', 'E7:I30'),
+             ('Aansluiting opbrengsten', 'B15:J29', 'Aansluiting opbrengsten', 'B15:J29'),
+             ('CF - opbrengsten', 'G57:Z194', 'CF - opbrengsten', 'G57:Z194'),
+             ('CF - kosten', 'H59:AA77', 'CF - kosten', 'H59:AA77')]
 
 
 def vergelijk(nieuw, fo_path):
@@ -145,9 +147,9 @@ def vergelijk(nieuw, fo_path):
     a = openpyxl.load_workbook(fo_path, data_only=True)
     b = openpyxl.load_workbook(nieuw, data_only=True)
     fouten = 0
-    for blad_a, blad_b, bereik in VERGELIJK:
+    for blad_a, ber_a, blad_b, ber_b in VERGELIJK:
         n = 0
-        for ra, rb in zip(a[blad_a][bereik], b[blad_b][bereik]):
+        for ra, rb in zip(a[blad_a][ber_a], b[blad_b][ber_b]):
             for ca, cb in zip(ra, rb):
                 va, vb = ca.value, cb.value
                 if isinstance(va, (int, float)) or isinstance(vb, (int, float)):
@@ -155,15 +157,48 @@ def vergelijk(nieuw, fo_path):
                     y = vb if isinstance(vb, (int, float)) else 0
                     if abs(x - y) > 0.01 and not (va in (None, '') and vb in (None, '', 0)):
                         if n < 5:
-                            print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, ca.coordinate, va, vb))
+                            print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, cb.coordinate, va, vb))
                         n += 1
                 elif (va or '') != (vb or ''):
                     if n < 5:
-                        print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, ca.coordinate, va, vb))
+                        print('    VERSCHIL %s!%s: FO %r, werkbestand %r' % (blad_b, cb.coordinate, va, vb))
                     n += 1
-        print('  %-18s -> %-24s %-9s %s' % (blad_a, blad_b, bereik, 'gelijk' if n == 0 else '%d verschillen' % n))
+        print('  %-24s %-9s -> %-24s %-9s %s' % (blad_a, ber_a, blad_b, ber_b, 'gelijk' if n == 0 else '%d verschillen' % n))
         fouten += n
     return fouten, b
+
+
+def scenario(wb):
+    """wat het scenariomodel nu (met formules) ziet"""
+    w = wb['Woningtypes']
+    for k in range(4):
+        c = 3 + 3 * k
+        naam = w.cell(7, c).value
+        if not naam:
+            continue
+        print('  Woningtype %d: %s · %s woningen · koopsom %s · start bouw Q%s %s · grond %.1f%%' % (
+            k + 1, naam, w.cell(8, c).value, w.cell(9, c).value, w.cell(11, c).value, w.cell(10, c).value,
+            100 * (w.cell(15, c + 1).value or 0)))
+        for titel, r1, n in (('termijnen', 16, 10), ("extra's", 33, 6), ('bouwkosten', 82, 10)):
+            regels = ['%s %s kw%s' % (w.cell(r, c).value, round(w.cell(r, c + 1).value, 4) if isinstance(w.cell(r, c + 1).value, float)
+                                      else w.cell(r, c + 1).value, w.cell(r, c + 2).value)
+                      for r in range(r1, r1 + n) if w.cell(r, c).value]
+            print('     %-10s %s' % (titel, ' | '.join(regels)))
+    i = wb['Invoer']
+    print('  Invoer verkocht/transport (type 1, 2) per periode:')
+    print('     ' + ' '.join('%s%s:%s/%s,%s/%s' % (i.cell(r, 2).value, i.cell(r, 3).value or '', i.cell(r, 12).value,
+                                                    i.cell(r, 13).value, i.cell(r, 14).value, i.cell(r, 15).value)
+                             for r in range(8, 26)))
+    k = wb['Scenario kosten']
+    print('  Scenario kosten: ' + ' | '.join('%s (%s) gerealiseerd %s totaal %s' % (k.cell(r, 2).value, k.cell(r, 3).value,
+                                                                                   round(k.cell(r, 5).value or 0), round(k.cell(r, 4).value or 0))
+                                             for r in range(8, 11)))
+    print('  Scenario kosten totaal %s · Invoer kosten %s' % (k['D28'].value, k['D29'].value))
+    m = wb['Model']
+    d = wb['Dashboard']
+    print('  Model: periodes %s · actuals t/m %s · stand %s · max. financiering %s (%s) · eindsaldo %s · break-even %s'
+          % (m['BY8'].value, m['BY11'].value, m['BY12'].value, m['BY18'].value, m['BY19'].value, m['BY20'].value, m['BY21'].value))
+    print('  Dashboard: model dekt opbrengsten %s · start bouw project %s' % (d['W13'].value, d['W9'].value))
 
 
 def main():
@@ -188,12 +223,15 @@ def main():
         print('  %-62s %-28s %s' % (ws.cell(r, 2).value, ws.cell(r, 3).value, ws.cell(r, 4).value))
     print('  Start E8/E9/C11: %s / %s / %s' % (ws['E8'].value, ws['E9'].value, ws['C11'].value))
     fouten_cellen = []
-    for blad in ('Start', 'Cashflow', '2. Ontw PEW', 'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA'):
+    scenario(wb)
+    for blad in ('Start', 'Invoer', 'Woningtypes', 'Scenario kosten', 'Dashboard', 'Model', '_koppeling', '2. Ontw PEW',
+                 'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA', 'PowerPoint'):
         for row in wb[blad].iter_rows():
             for c in row:
-                if isinstance(c.value, str) and c.value.startswith('#') and c.value[1:4].isupper():
+                if isinstance(c.value, str) and c.value.startswith('#') and c.value[1:4].isupper() and not (
+                        c.value == '#N/A' and blad in ('Model', 'PowerPoint')):   # NA() = bewust gat in grafiekreeksen
                     fouten_cellen.append('%s!%s=%s' % (blad, c.coordinate, c.value))
-    print('Foutwaarden (#...) in de nieuwe tabbladen: %d %s' % (len(fouten_cellen), fouten_cellen[:10]))
+    print('Foutwaarden (#...): %d %s' % (len(fouten_cellen), fouten_cellen[:12]))
     out = os.path.join(ROOT, 'output', 'doorgerekend_libreoffice.tmp.xlsx')
     os.replace(uit, out)
     print('Doorgerekende kopie: ' + out)

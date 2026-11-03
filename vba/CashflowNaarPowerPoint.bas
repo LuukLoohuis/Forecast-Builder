@@ -88,6 +88,8 @@ Option Explicit
 '       CF - kosten (Voorstel = voorstelblok, VOORSTEL_RIJEN lager); het transport per type komt uit de regel
 '       'koopsom' (die volgt de transportregel); 1. Cashflow heet nu 'Cashflow'; tab CF kosten heet 'Scenario kosten';
 '       sjabloon v21 (v20 met vormnamen voor de datum op dia 1 en de kaarten van dia 10).
+'       Daarna: Invoer, Woningtypes, Scenario kosten en de FO-cellen op het Dashboard zijn formules op de FO-tabbladen
+'       (tools/scenario_koppeling.py); OphalenUitFO blijft bestaan voor een los FO, maar heeft geen knop meer.
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
 '  SchikGrafiekVS       VS_GRAFIEK (dia 4): as en grijs vlak t/m 'nu'
 '  UitFOOphalen         vult Invoer, Woningtypes en CF kosten vanuit een FO-werkboek (zie v14 en v19 hierboven)
@@ -245,24 +247,12 @@ Public Sub KnoppenControleren()
     If Not BestaatVorm(ws, "btnControle") Then
         MaakKnop ws, ws.Range("D4:D5"), "btnControle", "Sjabloon controleren", "ControleerSjabloon", RGB(91, 97, 105), 150, 0, 2
     End If
-    Set ws = Nothing
-    Set ws = ThisWorkbook.Worksheets(SH_INVOER)
-    If Not ws Is Nothing Then
-        If Not BestaatVorm(ws, "btnUitFO") Then
-            ' los van de cellen (plaatsing 3): type-kolommen invoegen of verwijderen schuift de knop niet weg
-            MaakKnop ws, ws.Range("L2:N3"), "btnUitFO", "Ophalen uit FO", "UitFOOphalen", RGB(23, 54, 93), 150, 0, 3
-        End If
-    End If
+    ' werkbestand: tab Invoer en Woningtypes zijn formules op de FO-tabbladen; geen knop 'Ophalen uit FO' en geen
+    ' Type invoegen/verwijderen meer (die zouden de formules overschrijven of verschuiven)
     Set ws = Nothing
     Set ws = ThisWorkbook.Worksheets(SH_TYPES)
     If Not ws Is Nothing Then
         ' los van de cellen (plaatsing 3): kolommen invoegen of verwijderen schuift de knoppen niet weg
-        If Not BestaatVorm(ws, "btnTypeInvoegen") Then
-            MaakKnop ws, ws.Range("B4"), "btnTypeInvoegen", "Type invoegen", "TypeInvoegen", RGB(23, 54, 93), 92, 0, 3
-        End If
-        If Not BestaatVorm(ws, "btnTypeVerwijderen") Then
-            MaakKnop ws, ws.Range("B4"), "btnTypeVerwijderen", "Type verwijderen", "TypeVerwijderen", RGB(91, 97, 105), 96, 96, 3
-        End If
         If Not BestaatVorm(ws, "btnVorigFO") Then
             MaakKnop ws, ws.Range("B4"), "btnVorigFO", "Vorige prognose uit FO", "VorigePrognoseUitFO", RGB(23, 54, 93), 150, 196, 3
         End If
