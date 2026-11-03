@@ -38,6 +38,8 @@ def main():
         extra = ['--oud', a.oud, '--project', a.project or 'Project']
         if r['oplevering']:
             extra += ['--oplevering', '%d-%d' % tuple(r['oplevering'])]
+        if r.get('startbouw'):
+            extra += ['--startbouw', '%d-%d' % tuple(r['startbouw'])]
         bouwen(std, a.out, extra)
         return
     print('== Leeg sjabloon')

@@ -35,6 +35,30 @@ Vervallen ten opzichte van het oude FO: `Aansluiting opbrengsten` (nu op `Prijsl
 invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting onderlegger`, `1. Ontw businessc FD` en
 `5. K&R businessc`.
 
+## Weergave
+
+- **Jaarvakken:** in CF - opbrengsten en CF - kosten staat aan het begin van elk jaar een lijn, en boven elk kwartaal het jaartal (Q1 vet).
+- **Start bouw en oplevering:** vul je in op `Start` (rij 7 en 9). Bovenaan CF - opbrengsten (rij 4) en CF - kosten (rij 2) staat "Start bouw" of "Oplevering" boven het kwartaal, en die kolom is gekleurd (groen en blauw). Oud FO inlezen neemt ze over van de markeringen in het oude FO.
+- **Inklappen:**
+  - per woningtype is het invoerblok een groep; woningtypes zonder woningen zijn ingeklapt;
+  - de rekenblokken (aantallen per termijn en €) zijn standaard ingeklapt;
+  - de kwartalen t/m de laatste actuals zijn een ingeklapte kolomgroep; met + klap je ze open.
+
+  De macro werkt dit bij na Oud FO inlezen, Nieuw kwartaal en het inlezen van actuals.
+- **Alle woningen:** onder het verkooptempo per kwartaal het % verkocht en getransporteerd van alle woningen, en cumulatief.
+- **Aantallen** staan zonder punt of komma erachter.
+
+## PowerPoint
+
+- Op de dia "Update PEW" komt in het lege vak (`PEW_TABEL` in sjabloon v21) het overzicht van `2. Ontw PEW` als afbeelding: kosten, opbrengsten en resultaat, met de toelichting.
+- Daaronder staat de **top 3 kosten** van het reviewkwartaal.
+
+## Top 3 kosten
+
+`Start`, blok 7: de drie kostensoortomschrijvingen (FO - actuals, kolom E) met de hoogste actuals in het kwartaal van de
+laatste actuals, met het bedrag en het aandeel in de kosten van dat kwartaal. Hulpkolom S op FO - actuals telt per
+omschrijving op.
+
 ## Vaste opzet
 
 - 6 woningtypes met elk 10 termijnen, en 40 kwartalen vanaf Q1 van het startjaar (cel D3 op `CF - opbrengsten`).

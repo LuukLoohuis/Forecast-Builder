@@ -171,6 +171,7 @@ Private Sub Plakken(rij As Long)
     h = LaatsteRij(ws, nKol)
     If w > nKol Then ws.Range(ws.Cells(1, nKol + 1), ws.Cells(h, w)).ClearContents
     HulpBijwerken ws, hulp, hulpRij, h
+    If rij = RIJ_ACTUALS Then WeergaveBijwerken
     Application.EnableEvents = True
     Application.Calculate
     Application.ScreenUpdating = True
@@ -211,6 +212,7 @@ Private Sub Inlezen(rij As Long)
     LeegMaken ws, nKol
     ws.Range(ws.Cells(1, 1), ws.Cells(nR, nC)).Value = data
     HulpBijwerken ws, hulp, hulpRij, LaatsteRij(ws, nKol)
+    If rij = RIJ_ACTUALS Then WeergaveBijwerken
     Application.EnableEvents = True
     Application.Calculate
     Application.ScreenUpdating = True
@@ -317,6 +319,7 @@ Public Sub NieuwKwartaalStarten()
     Application.Calculate
     Application.ScreenUpdating = True
     ThisWorkbook.Worksheets(SH_START).Activate
+    WeergaveBijwerken
     MsgBox "Klaar: " & n & " periodes bewaard als vorige prognose en FO - huidig staat nu in FO - vorig." & vbCrLf & vbCrLf & _
            "Volgende stap: plak of lees de nieuwe exports in (FO - huidig, FO - actuals en de prijslijst)." & vbCrLf & _
            "Wil je ook de planning (start bouw per type) als vorige prognose bewaren? Gebruik dan op tab Woningtypes " & _
@@ -414,6 +417,7 @@ Public Sub OudFOInlezen()
         Next i
     End With
     verschil = Application.WorksheetFunction.CountIf(ThisWorkbook.Worksheets(SH_CONTROLE).Range("M9:M60"), "VERSCHIL")
+    WeergaveBijwerken
 
     Application.ScreenUpdating = True
 
@@ -780,6 +784,7 @@ Public Sub OudFOOmzettenTest(pad As String)
     logTekst = OmzettenOudFO(wbO)
     ControleVullen wbO, pad
     wbO.Close SaveChanges:=False
+    WeergaveBijwerken
     ThisWorkbook.Worksheets(SH_START).Range("B4").Value = logTekst
 End Sub
 
@@ -951,6 +956,18 @@ Private Function OmzettenOudFO(wbO As Workbook) As String
     End If
     k1 = jaar * 4 + 1
     wD.Range("D3").Value = jaar
+    ' start bouw en oplevering: de markeringen boven de kwartalen in het oude FO -> tab Start (rij 7 en 9)
+    For r = IIf(kops(1) > 3, kops(1) - 3, 1) To kops(1) - 1
+        For c = 7 To laatste
+            lab = LCase$(Replace(Tk(wO.Cells(r, c).Value), " ", ""))
+            If (lab = "startbouw" Or lab = "oplevering") And sl(c) > 0 Then
+                With ThisWorkbook.Worksheets(SH_START)
+                    .Cells(IIf(lab = "startbouw", 7, 9), 3).Value = (sl(c) - 1) \ 4
+                    .Cells(IIf(lab = "startbouw", 7, 9), 4).Value = sl(c) - 4 * ((sl(c) - 1) \ 4)
+                End With
+            End If
+        Next c
+    Next r
     If per > 0 Then wD.Cells(PER_RIJ, 5).Value = wO.Cells(per, 5).Value
 
     ' ---- prijslijst per bouwnummer -------------------------------------------------------------------------
@@ -1346,4 +1363,38 @@ Private Sub PewOmzetten(wbO As Workbook, ByRef lg As String)
             If toel > 0 Then wN.Cells(r, 11).Value = wO.Cells(r, toel).Value
         End If
     Next r
+End Sub
+
+Public Sub WeergaveBijwerken()
+    ' CF - opbrengsten en CF - kosten: woningtypes zonder woningen ingeklapt; de kwartalen t/m de laatste actuals
+    ' (tab Start) als ingeklapte kolomgroep (met + weer open te klappen)
+    Dim wsO As Worksheet, wsK As Worksheet, ws As Variant, k As Long, leeg As Boolean, r1 As Long, n As Long, i As Long
+    Dim k1 As Long, ka As Long
+    Set wsO = ThisWorkbook.Worksheets("CF - opbrengsten")
+    Set wsK = ThisWorkbook.Worksheets("CF - kosten")
+    For k = 1 To NT
+        leeg = (Nk(wsO.Cells(5 + BLOK * (k - 1), 7).Value) = 0)
+        r1 = 6 + BLOK * (k - 1)
+        wsO.Range(wsO.Rows(r1 + 1), wsO.Rows(r1 + NTERM + 4)).EntireRow.Hidden = leeg
+        r1 = 3 + KBLOK * (k - 1)
+        wsK.Range(wsK.Rows(r1 + 2), wsK.Rows(r1 + NTERM + 5)).EntireRow.Hidden = leeg
+    Next k
+    If Not IsGetalW(wsO.Range("D3").Value) Then Exit Sub
+    k1 = CLng(wsO.Range("D3").Value) * 4 + 1
+    ka = CLng(Nk(ThisWorkbook.Worksheets(SH_START).Range("F12").Value))
+    n = ka - k1 + 1
+    If n > NQ Then n = NQ
+    For Each ws In Array(wsO, wsK)
+        On Error Resume Next
+        For i = 1 To 3
+            ws.Range(ws.Columns(C_Q1), ws.Columns(C_Q1 + NQ - 1)).EntireColumn.Ungroup
+        Next i
+        Err.Clear
+        On Error GoTo 0
+        ws.Range(ws.Columns(C_Q1), ws.Columns(C_Q1 + NQ - 1)).EntireColumn.Hidden = False
+        If n > 0 Then
+            ws.Range(ws.Columns(C_Q1), ws.Columns(C_Q1 + n - 1)).EntireColumn.Group
+            ws.Range(ws.Columns(C_Q1), ws.Columns(C_Q1 + n - 1)).EntireColumn.Hidden = True
+        End If
+    Next ws
 End Sub

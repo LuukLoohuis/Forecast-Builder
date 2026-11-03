@@ -64,11 +64,11 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
                 assert not sh.get('%s%d' % (c, r)), 'rij %d is niet leeg' % r
         c1, cn = cols[0], cols[-1]
         w = t['won'] or 0
-        z('B%d' % ra, 'Verkocht · % van alle woningen, per kwartaal (1e kolom = t/m nu, Salesforce)', st['invoer_label'])
-        z('B%d' % rb, 'Getransporteerd · % van alle woningen, per kwartaal (niet vóór verkocht)', st['invoer_label'])
-        z('B%d' % rg, 'Grondprijs · aanpassing per woning in € (na goedkeuring SWK), telt op bij de koopsom grond', st['tekst'])
+        z('B%d' % ra, 'Verkocht % · van alle woningen (1e kolom: t/m nu, SF)', st['invoer_label'])
+        z('B%d' % rb, 'Getransporteerd % · van alle woningen', st['invoer_label'])
+        z('B%d' % rg, 'Grondprijs +/- per woning (€, na SWK)', st['tekst'])
         z('D%d' % rg, None, st['invoer_getal'])
-        z('B%d' % tr, 'Transport · aantal woningen (uit de % hieronder) = grondtermijn', st['tekst'])
+        z('B%d' % tr, 'Transport · aantal woningen (= grondtermijn)', st['tekst'])
         for j, c in enumerate(cols):
             prev = cols[j - 1] if j else None
             if j == 0:

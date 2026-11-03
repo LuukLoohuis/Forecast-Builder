@@ -94,7 +94,20 @@ def omzetten(oud, uit, project=None):
     cf = {}
     for j, q, r in oz['cashflow']['periodes']:
         cf[(j, q or None)] = {c: cfw['%s%d' % (c, r)].value for c in 'DFHJ'}
-    S.maak(uit, leeg=True, jaar=jaar, cashflow=cf)
+    # laatste actuals (kwartaalindex) en woningtypes zonder woningen: ingeklapt
+    av = wv['FO - actuals'] if 'FO - actuals' in wv.sheetnames else None
+    act_max = 0
+    if av is not None:
+        for r in range(2, av.max_row + 1):
+            p_, o_ = av.cell(r, 16).value, av.cell(r, 15).value
+            try:
+                k_ = int(float(p_)) * 4 + (int(float(o_)) - 1) // 3 + 1
+            except (TypeError, ValueError):
+                continue
+            if 1 <= int(float(o_)) <= 12:
+                act_max = max(act_max, k_)
+    leeg_t = [t['k'] for t in ob['types'] if not t['won']] + list(range(len(ob['types']) + 1, S.NT + 1))
+    S.maak(uit, leeg=True, jaar=jaar, cashflow=cf, verborgen_types=leeg_t, verleden_tot=act_max or None)
     wb = openpyxl.load_workbook(uit)
     d = Doel(wb, jaar)
     log = d.log
@@ -108,15 +121,17 @@ def omzetten(oud, uit, project=None):
             log.append('%s staat niet in het oude FO' % n)
             continue
         a, av, b = wf[n], wv[n], wb[n]
+        # de export zelf als waarden (zoals uit SAP/SF); de hulpkolommen rechts ervan blijven die van het sjabloon
+        # (Behind the scens: alles van het oude FO)
+        w = breedte[n] or 10 ** 6
         for row in b.iter_rows():
             for c in row:
-                if not type(c).__name__ == 'MergedCell':
+                if c.column <= w and not type(c).__name__ == 'MergedCell':
                     c.value = None
         for row in a.iter_rows():
             for c in row:
-                if c.value is not None and type(b.cell(c.row, c.column)).__name__ != 'MergedCell':
-                    # de export zelf als waarden (zoals uit SAP/SF), de hulpkolommen rechts ervan als formule
-                    b.cell(c.row, c.column).value = av.cell(c.row, c.column).value if c.column <= breedte[n] else c.value
+                if c.column <= w and c.value is not None and type(b.cell(c.row, c.column)).__name__ != 'MergedCell':
+                    b.cell(c.row, c.column).value = av.cell(c.row, c.column).value if breedte[n] else c.value
 
     # ---- prijslijst per bouwnummer ------------------------------------------------------------------------
     pf, pv = wf['Prijslijst'], wv['Prijslijst']
@@ -312,7 +327,8 @@ def omzetten(oud, uit, project=None):
         h.cell(t['k'], 2).value = t['won']
     wb.save(uit)
     mp = ob.get('mijlpalen') or {}
-    return {'log': log, 'jaar': jaar, 'oplevering': mp.get('oplevering'), 'types': len(ob['types'])}
+    return {'log': log, 'jaar': jaar, 'oplevering': mp.get('oplevering'), 'startbouw': mp.get('startbouw'),
+            'types': len(ob['types'])}
 
 
 def daeb_omzetten(o_v, ob, okeys, O, d, wv):

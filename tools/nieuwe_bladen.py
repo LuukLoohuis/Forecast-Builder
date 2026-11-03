@@ -157,18 +157,21 @@ def maak_start(wb, demo, R):
 
     # 1 project en periode -----------------------------------------------------------------------
     section(ws, 5, '1 · PROJECT EN PERIODE')
-    rows = [
-        (6, 'Projectnaam', demo['project'], None, 'op de titeldia en in de voettekst'),
-        (7, 'SAP-boekingsperiode van FO - huidig', "=IFERROR(--('FO - huidig'!E4&\"\"),\"\")", None,
-         'uit de export (cel E4)'),
-    ]
-    for r, lab, val, _, note in rows:
-        cell(ws, 'B%d' % r, lab)
-        c = cell(ws, 'C%d' % r, val, F_BASE, FILL_INPUT if r == 6 else FILL_CALC)
-        cell(ws, 'G%d' % r, note, F_NOTE)
+    cell(ws, 'B6', 'Projectnaam')
+    cell(ws, 'C6', demo['project'], F_BASE, FILL_INPUT)
+    cell(ws, 'G6', 'op de titeldia en in de voettekst', F_NOTE)
+    # SAP-boekingsperiode van FO - huidig (uit de export, cel E4): hulpcel
+    cell(ws, 'F6', "=IFERROR(--('FO - huidig'!E4&\"\"),\"\")", F_HELP, None, ';;;')
+    sb = demo.get('startbouw') or (None, None)
+    cell(ws, 'B7', 'Start bouw · jaar en kwartaal')
+    cell(ws, 'C7', sb[0], F_BASE, FILL_INPUT)
+    cell(ws, 'D7', sb[1], F_BASE, FILL_INPUT)
+    cell(ws, 'E7', '=IF(C7="","","Q"&D7&" "&C7)', F_BOLD)
+    cell(ws, 'F7', '=IF(C7="",0,C7*4+D7)', F_HELP, None, ';;;')
+    cell(ws, 'G7', 'zichtbaar als kolom op CF - opbrengsten en CF - kosten', F_NOTE)
     cell(ws, 'B8', 'Eerste prognosekwartaal · jaar en kwartaal')
-    cell(ws, 'C8', '=IF(F12>0,INT(F12/4),IF(C7="","",INT(C7/100)))', F_BASE, FILL_CALC)
-    cell(ws, 'D8', '=IF(F12>0,F12+1-4*INT(F12/4),IF(C7="","",ROUNDUP(MOD(C7,100)/3,0)))', F_BASE, FILL_CALC)
+    cell(ws, 'C8', '=IF(F12>0,INT(F12/4),IF(F6="","",INT(F6/100)))', F_BASE, FILL_CALC)
+    cell(ws, 'D8', '=IF(F12>0,F12+1-4*INT(F12/4),IF(F6="","",ROUNDUP(MOD(F6,100)/3,0)))', F_BASE, FILL_CALC)
     cell(ws, 'E8', '=IF(C8="","","Q"&D8&" "&C8)', F_BOLD)
     cell(ws, 'F8', '=IF(C8="",0,C8*4+D8)', F_HELP, None, ';;;')
     cell(ws, 'G8', 'het kwartaal na de laatste actuals (blok 2: FO - actuals); overschrijven mag', F_NOTE)
@@ -177,9 +180,9 @@ def maak_start(wb, demo, R):
     cell(ws, 'D9', demo['oplevering'][1], F_BASE, FILL_INPUT)
     cell(ws, 'E9', '=IF(C9="","","Q"&D9&" "&C9)', F_BOLD)
     cell(ws, 'F9', '=IF(C9="",0,C9*4+D9)', F_HELP, None, ';;;')
-    cell(ws, 'G9', 'voorstel kosten: restant budget gelijk verdeeld t/m dit kwartaal', F_NOTE)
+    cell(ws, 'G9', 'zichtbaar op CF - opbrengsten en CF - kosten; voorstel kosten verdeelt t/m dit kwartaal', F_NOTE)
     cell(ws, 'B10', 'Cijfers per')
-    cell(ws, 'C10', '=IF(C7="","",EOMONTH(DATE(INT(C7/100),MOD(C7,100),1),0))', F_BASE, FILL_INPUT, 'dd-mm-yyyy')
+    cell(ws, 'C10', '=IF(F6="","",EOMONTH(DATE(INT(F6/100),MOD(F6,100),1),0))', F_BASE, FILL_INPUT, 'dd-mm-yyyy')
     cell(ws, 'G10', 'standaard: einde boekingsperiode; overschrijven mag', F_NOTE)
     cell(ws, 'B11', 'Tekst in PowerPoint (dia 1 en 10)')
     cell(ws, 'C11', '=IF(C10="","","Cijfers per "&DAY(C10)&" "&CHOOSE(MONTH(C10),%s)&" "&YEAR(C10))' % MAANDEN,
@@ -190,7 +193,7 @@ def maak_start(wb, demo, R):
     cell(ws, 'E12', '=IF(C12="","","Q"&D12&" "&C12)', F_BOLD)
     cell(ws, 'F12', '=IF(C12="",0,C12*4+D12)', F_HELP, None, ';;;')
     cell(ws, 'G12', 'laatste boekingsperiode in FO - actuals; t/m dit kwartaal veranderen de scenario\'s niets', F_NOTE)
-    for r in (8, 9, 12):
+    for r in (7, 8, 9, 12):
         for col in 'CD':
             ws['%s%d' % (col, r)].alignment = Alignment(horizontal='center')
 
@@ -362,10 +365,29 @@ def maak_start(wb, demo, R):
          F_NOTE)
     dia10_row = r + 2
 
+    # 7 top 3 kosten ----------------------------------------------------------------------------------
+    r = r + 7
+    section(ws, r, '7 · TOP 3 KOSTEN IN HET REVIEWKWARTAAL · actuals per kostensoortomschrijving (FO - actuals, kolom E)')
+    cell(ws, 'B%d' % (r + 1), '="Kwartaal: "&IF(C12="","-",E12)', F_BOLD)
+    for i, h in enumerate(['#', 'Kostensoortomschrijving', 'Bedrag', '% van de kosten in het kwartaal']):
+        cell(ws, '%s%d' % (L(2 + i), r + 2), h, F_HEAD, FILL_HEAD)
+    S_ = "'FO - actuals'!$S$2:$S$6000"
+    E_ = "'FO - actuals'!$E$2:$E$6000"
+    tot = "SUMIFS('FO - actuals'!$K:$K,'FO - actuals'!$Q:$Q,\"Kosten\",'FO - actuals'!$P:$P,$C$12&\"\",'FO - actuals'!$R:$R,\"Q\"&$D$12)"
+    for k in (1, 2, 3):
+        rr = r + 2 + k
+        cell(ws, 'B%d' % rr, k, F_BOLD)
+        cell(ws, 'C%d' % rr, '=IFERROR(INDEX(%s,MATCH(LARGE(%s,%d),%s,0)),"")' % (E_, S_, k, S_), F_BASE, FILL_CALC)
+        cell(ws, 'D%d' % rr, '=IFERROR(LARGE(%s,%d),"")' % (S_, k), F_BASE, FILL_CALC, NUM)
+        cell(ws, 'E%d' % rr, '=IFERROR(D%d/%s,"")' % (rr, tot), F_BASE, FILL_CALC, '0.0%')
+    cell(ws, 'B%d' % (r + 6), 'Totaal kosten in het kwartaal', F_BOLD, FILL_TOTAL)
+    cell(ws, 'D%d' % (r + 6), '=%s' % tot, F_BOLD, FILL_TOTAL, NUM)
+    top3_row = r + 3
+
     # knoppen (de macro zet ze neer): kolommen J-K
     cell(ws, 'J5', 'Knoppen', F_BOLD)
     ws.freeze_panes = 'A5'
-    return {'dia10_row': dia10_row, 'checks_total': total_row}
+    return {'dia10_row': dia10_row, 'checks_total': total_row, 'top3_row': top3_row}
 
 
 # ================================================================================================

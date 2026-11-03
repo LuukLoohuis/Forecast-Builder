@@ -210,7 +210,7 @@ def _verkooptempo(v):
 def _hulp(wf):
     """hulpkolommen rechts van de exports: per blad de kolommen en de eerste rij met een formule"""
     out = {}
-    for blad, kols in (('FO - vorig', 'XY'), ('FO - huidig', 'XY'), ('FO - actuals', 'QR')):
+    for blad, kols in (('FO - vorig', 'XY'), ('FO - huidig', 'XY'), ('FO - actuals', 'QRS')):
         ws = wf[blad]
         out[blad] = {}
         for k in kols:

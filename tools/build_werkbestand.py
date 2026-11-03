@@ -65,7 +65,7 @@ VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', 'Notities FO gespr
 VERBORGEN = {'Invoer', 'Woningtypes', 'Scenario kosten', 'Model',   # rekenbladen van het scenariomodel: alles is formule
              'PowerPoint', 'Vorige prognose', 'Controle oud FO', 'Behind the scens'}
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
-DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3),
+DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3), 'startbouw': (2027, 2),
         'dia10': [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),
                   ('Huidige PEW-basis', 'FD DO (Aanbieding)', '10 april 2026'),
                   ('Mogelijk resultaat', '4,8%', 'Bij rentelasten richting nul')]}
@@ -444,6 +444,7 @@ def main():
     ap.add_argument('--project', help='projectnaam (standaard uit de bestandsnaam van het FO)')
     ap.add_argument('--oud', help='het oude FO waaruit het standaard-FO is omgezet (voor de controle)')
     ap.add_argument('--demo', action='store_true', help='teksten van het demo-FO (dia 10)')
+    ap.add_argument('--startbouw', help='jaar-kwartaal, bv. 2027-2 (standaard de markering Start bouw op CF - opbrengsten)')
     ap.add_argument('--oplevering', help='jaar-kwartaal, bv. 2028-3 (standaard de markering Oplevering op CF - opbrengsten)')
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
@@ -476,6 +477,11 @@ def main():
     if a.oplevering:
         j, q = a.oplevering.split('-')
         project['oplevering'] = (int(j), int(q))
+    if a.startbouw:
+        j, q = a.startbouw.split('-')
+        project['startbouw'] = (int(j), int(q))
+    elif 'startbouw' not in project:
+        project['startbouw'] = ob['mijlpalen'].get('startbouw') or (None, None)
     note('project %s, oplevering %s' % (project['project'], project['oplevering']))
     layout = indeling(oz)
     scenario_koppeling.configureer(oz)
@@ -581,7 +587,7 @@ def main():
         sh.set_value('A%d' % i, blad)
         sh.set_value('B%d' % i, ref)
         sh.set_value('C%d' % i, inhoud if inhoud else None)
-    for i, (sleutel, waarde) in enumerate(config(oz, layout), 1):
+    for i, (sleutel, waarde) in enumerate(config(oz, layout) + [('top3_rij', info.get('top3_row', 0))], 1):
         sh.set_value('E%d' % i, sleutel)
         sh.set_value('F%d' % i, waarde)
     dst.put(part_of['_sjabloon'], sh.t)
@@ -727,7 +733,8 @@ def main():
             new_dn.append(d)
     add_names(wb, sc_order, SC_RENAME)
     add_names(fo.x('xl/workbook.xml'), [n for n, _, _ in fo.sheets()], {})
-    for nm, ref in (('p_huidig', 'Start!$F$8'), ('p_oplevering', 'Start!$F$9'), ('p_actuals', 'Start!$F$12')):
+    for nm, ref in (('p_huidig', 'Start!$F$8'), ('p_oplevering', 'Start!$F$9'), ('p_actuals', 'Start!$F$12'),
+                    ('p_startbouw', 'Start!$F$7')):
         d = etree.SubElement(new_dn, M + 'definedName', name=nm)
         d.text = ref
     # Excel wil de namen gesorteerd (hoofdletterongevoelig), _xlnm-namen per blad
@@ -812,10 +819,10 @@ def maak_sjabloon(src, out):
             namen.append((shp, 'COVER_DATUM'))
     tekst = {shp.name: shp for shp in p.slides[9].shapes}
     plan = {'Text 8': 'PEW_FD_WAARDE', 'Text 9': 'PEW_FD_SUB', 'Text 13': 'PEW_BASIS_WAARDE', 'Text 14': 'PEW_BASIS_SUB',
-            'Text 18': 'PEW_RES_WAARDE', 'Text 19': 'PEW_RES_SUB', 'Text 20': 'PEW_DATUM'}
+            'Text 18': 'PEW_RES_WAARDE', 'Text 19': 'PEW_RES_SUB', 'Text 20': 'PEW_DATUM', 'Shape 3': 'PEW_TABEL'}
     for old, new in plan.items():
         namen.append((tekst[old], new))
-    assert len(namen) == 8, [n for _, n in namen]
+    assert len(namen) == 9, [n for _, n in namen]
     for shp, nm in namen:
         shp.name = nm
     p.save(out)

@@ -484,6 +484,9 @@ Public Sub NaarPowerPoint()
     stap = "dia per woningtype"
     VulDiasPerType pres, wsP, n, mist, fouten
 
+    stap = "2. Ontw PEW op de dia Update PEW"
+    PlaatsPEW pres, fouten
+
     stap = "presentatie bewaren"
     pad = Bewaar(pres, wsP)
 
@@ -507,6 +510,51 @@ Public Sub NaarPowerPoint()
 Fout:
     Application.ScreenUpdating = True
     MsgBox "Het ging mis bij: " & stap & vbCrLf & vbCrLf & "Fout " & Err.Number & ": " & Err.Description, vbExclamation, titel
+End Sub
+
+Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
+    ' het hele overzicht van 2. Ontw PEW (met toelichting) als afbeelding in het lege vak PEW_TABEL op de dia Update PEW,
+    ' met daaronder de top 3 kosten van het reviewkwartaal (tab Start, blok 7)
+    Dim vak As Object, dia As Object, sr As Object, pic As Object, tb As Object, wsS As Worksheet
+    Dim marge As Single, hT3 As Single, ruimte As Single, tekst As String, r As Long, k As Long, v As Variant
+    Set vak = ZoekVorm(pres, "PEW_TABEL")
+    If vak Is Nothing Then Exit Sub
+    Set dia = vak.Parent
+    On Error GoTo Mis
+    marge = 6
+    hT3 = 58
+    ThisWorkbook.Worksheets("2. Ontw PEW").Range("C4:K30").CopyPicture Appearance:=1, Format:=-4147
+    DoEvents
+    Set sr = dia.Shapes.PasteSpecial(DataType:=2)                  ' als afbeelding (verbeterde metafile)
+    Set pic = sr(1)
+    pic.LockAspectRatio = True
+    pic.Width = vak.Width - 2 * marge
+    ruimte = vak.Height - hT3 - 2 * marge
+    If pic.Height > ruimte Then pic.Height = ruimte
+    pic.Left = vak.Left + (vak.Width - pic.Width) / 2
+    pic.Top = vak.Top + marge
+    ' top 3 kosten
+    Set wsS = ThisWorkbook.Worksheets("Start")
+    r = CLng(Val(FOWerkbestand.WerkbestandCfg("top3_rij", "0")))
+    If r > 0 Then
+        tekst = "Top 3 kosten " & CStr(wsS.Range("E12").Value) & " (actuals)"
+        For k = 0 To 2
+            v = wsS.Cells(r + k, 4).Value
+            If Len(CStr(wsS.Cells(r + k, 3).Value)) > 0 And IsNumeric(v) Then
+                tekst = tekst & vbCr & (k + 1) & ". " & CStr(wsS.Cells(r + k, 3).Value) & ":  " & ChrW(8364) & " " & Format(v, "#,##0")
+            End If
+        Next k
+        Set tb = dia.Shapes.AddTextbox(1, vak.Left + 2 * marge, vak.Top + vak.Height - hT3 - marge, vak.Width - 4 * marge, hT3)
+        With tb.TextFrame.TextRange
+            .Text = tekst
+            .Font.Size = 8
+            .Font.Color.RGB = RGB(17, 31, 57)
+            .Paragraphs(1).Font.Bold = True
+        End With
+    End If
+    Exit Sub
+Mis:
+    fouten = fouten & "- 2. Ontw PEW op de dia Update PEW: " & Err.Description & vbCrLf
 End Sub
 
 Private Function AantalPeriodes() As Long
