@@ -3559,7 +3559,9 @@ Private Function FOKosten(wbF As Workbook, rijVan() As Long, idxAct As Long, nPe
         foStap = "post '" & naam & "' (rij " & r & ")"
         ' werkbestand: methode in kolom C; 'Voorstel' = de bedragen uit het voorstelblok (VOORSTEL_RIJEN rijen lager)
         rs = r
-        If LCase$(Trim$(TekstVan(wsK.Cells(r, 3).Value))) = "voorstel" Then rs = r + VOORSTEL_RIJEN
+        Select Case LCase$(Trim$(TekstVan(wsK.Cells(r, 3).Value)))
+            Case "voorstel", "transport": rs = r + CLng(FOWerkbestand.WerkbestandCfg("voorstel_offset", CStr(VOORSTEL_RIJEN)))
+        End Select
         ruw = 0
         For c = 3 To c1 - 1                                             ' alleen echte getallen (zoals fo.py; tekst telt niet)
             If act(c) Then

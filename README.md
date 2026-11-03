@@ -20,20 +20,36 @@ prognose op basis van een voorstel of met de hand, en een PowerPoint die uit het
 |---|---|
 | Start | `Start`: project en periode, status van de invoer, controles, stappen, teksten voor dia 10 en de knoppen |
 | Invoer (plakken of inlezen) | `FO - vorig`, `FO - huidig` (SAP PEW, FR4), `FO - actuals` (SAP FR5), `Prijslijst dump` (Salesforce) |
-| Opbrengsten | `Prijslijst`, `Aansluiting opbrengsten`, `CF - opbrengsten` (bouwtermijnen, transport, verkooptempo, correctie) |
-| Kosten | `CF - kosten` (bouwtermijnen + per post Handmatig of Voorstel) |
+| Opbrengsten | `Prijslijst`, `Aansluiting opbrengsten`, `SAP-correcties` (wat er in SAP aangepast moet worden, per SAP-nummer), `Verkoop & transport` (verkocht en getransporteerd in % per kwartaal), `CF - opbrengsten` (bouwtermijnen, correctie) |
+| Kosten | `CF - kosten` (bouwtermijnen + per post Handmatig, Voorstel of Transport) |
 | Resultaat | `Dashboard` (cashflow, KPI's, scenario's in grafieken), `Scenario's`, `2. Ontw PEW`, `CF - hulp VENA`, `PowerPoint` |
 | Rekenbladen (automatisch, niet invullen) | `Invoer`, `Woningtypes`, `Scenario kosten`, `Model` |
-| Overig | `Notities FO gesprek`, `Vorige prognose`, `Controle oud FO`, `Verkooptempo` (telling uit Salesforce), `Behind the scens` (+ verborgen hulpbladen) |
+| Overig | `Vorige prognose`, `Controle oud FO`, `Verkooptempo` (telling uit Salesforce), `Behind the scens` (+ verborgen hulpbladen) |
 
 Vervallen ten opzichte van het oude FO: `1. Cashflow` (de cashflowtabel staat nu op `Invoer`, de grafieken op het
-`Dashboard`) en `3. Restant bdgt` (de werkelijke kosten komen rechtstreeks uit `FO - huidig`).
+`Dashboard`), `3. Restant bdgt` (de werkelijke kosten komen rechtstreeks uit `FO - huidig`) en `Notities FO gesprek`.
+
+**Verkoop & transport**
+- Per woningtype twee gele regels per kwartaal: **verkocht %** en **getransporteerd %** (notarieel geleverd), allebei in % van alle woningen van het type. Ze tellen op tot maximaal 100%.
+- De eerste kolom bij verkocht is de realisatie t/m nu (Salesforce, zoals in het FO).
+- Getransporteerd kan niet vóór verkocht: schuift de verkoop op, dan wacht het transport en schuift het mee (de status meldt dat).
+- Het aantal woningen per kwartaal gaat naar het verkooptempo en de transportregels op `CF - opbrengsten`. Het transport bepaalt de grondtermijn en de bouwtermijnen die bij transport al vervallen zijn.
+- Op `CF - kosten` kan een post (bijvoorbeeld de grond) de methode **Transport** krijgen: het restant budget gaat dan naar rato van het transport.
+- `Invoer` en de verkoop- en transportgrafieken op het `Dashboard` lopen automatisch mee. Onderaan het tabblad staat een grafiek van verkocht en getransporteerd (cumulatief, alle woningen).
+- "Oud FO inlezen" zet de aantallen van het oude FO (verkooprij en grondtermijn) om naar %.
+
+**SAP-correcties**
+- Uit de kolom "Corr" van de vergelijkingsblokken op `Aansluiting opbrengsten` (prijslijst t.o.v. het actuele budget).
+- Blok 1: te boeken in SAP per SAP-nummer en kostendrager, met het bedrag. Standaard: 9010 grond + ontwikkelkosten, 9000 aanneemsom, 9000/5230 KAO-opties, 9200/5250 meer-/minderwerk kopers, 9030 kadastrale kosten, 9110 aanvullende rente.
+- Blok 2: welke regel bij welk SAP-nummer en welke kostendrager hoort (geel, aanpasbaar).
+- Blok 3: het detail per woningtype.
+- Staat er een bedrag op een regel zonder SAP-nummer, dan meldt `Start` dat.
 
 **CF - opbrengsten**
-- Per woningtype staan de bouwtermijnen (handmatig) met daaronder een **transportregel**. De standaardformule rekent zoals de oude grondtermijn, dus zonder aanpassing verandert er niets. Overschrijf hem met het aantal woningen per kwartaal.
+- Per woningtype staan de bouwtermijnen (handmatig) met daaronder een **transportregel** (aantal woningen, uit `Verkoop & transport`).
 - De **grondtermijn** volgt het transport.
 - De **bouwtermijnen tellen vanaf transport**: termijnen die bij transport al vervallen zijn, komen in het transportkwartaal in één keer binnen.
-- Het verkooptempo staat in rij 49-52.
+- Het verkooptempo (rij 49-52) en de transportregels komen uit `Verkoop & transport`.
 - Rij 192 is een gele **correctieregel** per kwartaal (in €). Die telt mee in het totaal (rij 194).
 
 **CF - kosten**

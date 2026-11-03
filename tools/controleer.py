@@ -255,10 +255,19 @@ def main():
     for r in range(31, 45):
         print('  %-62s %-28s %s' % (ws.cell(r, 2).value, ws.cell(r, 3).value, ws.cell(r, 4).value))
     print('  Start E8/E9/C11: %s / %s / %s' % (ws['E8'].value, ws['E9'].value, ws['C11'].value))
+    vt = wb['Verkoop & transport']
+    for row in vt.iter_rows(min_row=9, max_row=vt.max_row):
+        if row[1].value and any(isinstance(c.value, str) and c.value[:2] in ('OK', 'FO', 'LE') for c in row[20:]):
+            st = [c.value for c in row[20:] if isinstance(c.value, str) and c.value[:2] in ('OK', 'FO', 'LE')]
+            print('  Verkoop & transport rij %d %-50s %s' % (row[0].row, row[1].value, st))
+    sp = wb['SAP-correcties']
+    print('  SAP-correcties: ' + ' | '.join('%s/%s %s' % (sp.cell(r, 2).value, sp.cell(r, 3).value or '', round(sp.cell(r, 6).value or 0))
+                                            for r in range(7, 13)) + ' | niet toegewezen %s · totaal %s' % (sp['F13'].value, sp['F14'].value))
     fouten_cellen = []
     scenario(wb, cfg)
     for blad in ('Start', 'Invoer', 'Woningtypes', 'Scenario kosten', 'Dashboard', 'Model', '_koppeling', '2. Ontw PEW',
-                 'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA', 'PowerPoint'):
+                 'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA', 'PowerPoint',
+                 'Verkoop & transport', 'SAP-correcties'):
         for row in wb[blad].iter_rows():
             for c in row:
                 if isinstance(c.value, str) and c.value.startswith('#') and c.value[1:4].isupper() and not (

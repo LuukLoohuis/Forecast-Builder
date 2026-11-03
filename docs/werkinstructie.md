@@ -19,26 +19,25 @@ Gele cellen vul je zelf in, lichtblauwe cellen komen uit SAP of SF, grijze celle
    of **Inlezen...** (bestand kiezen).
 3. SAP actuals (FR5) → rij *FO - actuals*. Check SAP op correcties in de werkelijke opbrengsten.
 4. Salesforce prijslijst → rij *Prijslijst dump*. Zet de exportdatum op tab `Prijslijst` (cel C1).
-5. `Aansluiting opbrengsten`: SKO ↔ prijslijst ↔ PEW sluit aan (kolom J "OK"). Vraag ontbrekende documentatie op
-   (SKO gunning, termijnschema's, afrekenstaat MMW, specificatie overige opbrengsten).
-6. **Opbrengsten** op `CF - opbrengsten`, per woningtype:
-   - bouwtermijnen per kwartaal;
-   - daaronder de **transportregel** (aantal woningen notarieel geleverd per kwartaal). De grondtermijn volgt het transport, en bouwtermijnen tellen vanaf transport;
-   - verkooptempo onder de bouwplanning (in het demo-FO rij 49-52);
+5. `Aansluiting opbrengsten`: SKO ↔ prijslijst ↔ PEW sluit aan (kolom J "OK"). Boek de bedragen van `SAP-correcties`
+   (per SAP-nummer en kostendrager) in SAP. Vraag ontbrekende documentatie op (SKO gunning, termijnschema's,
+   afrekenstaat MMW, specificatie overige opbrengsten).
+6. **Verkoop & transport**: per woningtype verkocht % en getransporteerd % per kwartaal (van alle woningen van het type).
+7. **Opbrengsten** op `CF - opbrengsten`, per woningtype:
+   - bouwtermijnen per kwartaal (samen met de ontwikkelaar, op de bouwplanning);
+   - de transportregel en het verkooptempo komen uit `Verkoop & transport`. De grondtermijn volgt het transport, en bouwtermijnen tellen vanaf transport;
    - wil je een bedrag bijsturen? Gebruik de gele correctieregel boven het totaal (demo: rij 192).
    - DAEB-woningen? Vul onderaan het blok "Opbrengsten DAEB" in (demo: rij 200-227), of gebruik het DAEB-blok dat het FO al had. Het DAEB-woningtype en de scenario's vullen zich vanzelf.
-7. **Kosten** op `CF - kosten`:
+8. **Kosten** op `CF - kosten`:
    - de bouwtermijnen volgen de geplande bouwtermijnen van de opbrengsten (overschrijven mag);
-   - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd) of *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan).
+   - bij de posten kies je in kolom C *Handmatig* (je eigen verdeling, zoals altijd), *Voorstel* (restantbudget gelijk verdeeld t/m oplevering, blok onderaan) of *Transport* (restantbudget naar rato van het transport, bijvoorbeeld de grond).
 
    De totaalregel (demo: rij 75) is het definitieve totaal.
-8. Blok 4 op `Start`: alle controles groen. Bekijk `Dashboard` (cashflow en kerncijfers) en `2. Ontw PEW`.
-9. **Scenario's**: vul op `Scenario's` een andere start bouw, verkoop, transport of grondtermijn in. `Invoer`, `Woningtypes`
+9. Blok 4 op `Start`: alle controles groen. Bekijk `Dashboard` (cashflow en kerncijfers) en `2. Ontw PEW`.
+10. **Scenario's**: vul op `Scenario's` een andere start bouw, verkoop, transport of grondtermijn in. `Invoer`, `Woningtypes`
    en `Scenario kosten` rekenen automatisch mee met de CF-tabbladen; daar hoef je niets te doen.
-10. **PowerPoint maken**: alle dia's, inclusief de datum op dia 1 en de
+11. **PowerPoint maken**: alle dia's, inclusief de datum op dia 1 en de
    kaarten van dia 10 (blok 6 op `Start`), uit dit bestand.
-
-**Tijdens het gesprek:** aantekeningen op `Notities FO gesprek`.
 
 **Na het FO-gesprek**
 1. Correcties verwerken (prognose, toelichtingen) en opnieuw **PowerPoint maken**.

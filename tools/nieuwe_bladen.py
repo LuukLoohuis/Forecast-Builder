@@ -86,6 +86,8 @@ def verwijzingen(oz, inv_tot, daeb_type):
         'daeb_naam': 'Woningtypes!$%s$7' % L(c0), 'daeb_aantal': 'Woningtypes!$%s$8' % L(c0),
         'daeb_fees': 'Woningtypes!$%s$54:$%s$63' % (L(c0 + 1), L(c0 + 1)), 'daeb_type': daeb_type,
         'daeb_rijen': 'rij %d e.v.' % daeb_van,
+        'vt_status': "'Verkoop & transport'!%s1:%s%d" % (ob['verschil'], ob['verschil'], 9 + 9 * len(ob['types'])),
+        'sap_open': "'SAP-correcties'!F%d" % (7 + len(SAP_BOEKING)),
     }
 
 
@@ -231,8 +233,9 @@ def maak_start(wb, demo, R):
         cell(ws, 'C%d' % r, a, F_BASE, FILL_CALC, NUM)
         cell(ws, 'D%d' % r, b, F_BASE, FILL_CALC, NUM)
         cell(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F_BASE, FILL_CALC, NUM)
-    cell(ws, 'B25', 'Kostenposten op Voorstel')
-    cell(ws, 'C25', "=COUNTIF(%s,\"Voorstel\")&\" van \"&COUNTIF(%s,\"?*\")" % (R['k_methode'], R['k_namen']),
+    cell(ws, 'B25', 'Kostenposten op Voorstel of Transport')
+    cell(ws, 'C25', "=(COUNTIF(%s,\"Voorstel\")+COUNTIF(%s,\"Transport\"))&\" van \"&COUNTIF(%s,\"?*\")"
+         % (R['k_methode'], R['k_methode'], R['k_namen']),
          F_BASE, FILL_CALC, None, Alignment(horizontal='right'))
     cell(ws, 'G25', 'kies per post op CF - kosten, kolom C (blok Onderdelen)', F_NOTE)
     cell(ws, 'B26', 'Handmatige correctie opbrengsten')
@@ -271,6 +274,13 @@ def maak_start(wb, demo, R):
         ('Cashflow sluit aan op PEW', "=Invoer!D%d&\" / \"&Invoer!F%d" % (R['inv_ok'], R['inv_ok']),
          "=IF(AND(Invoer!D%d=\"OK\",Invoer!F%d=\"OK\"),\"OK\",\"FOUT\")" % (R['inv_ok'], R['inv_ok']),
          'Invoer, rij %d' % R['inv_ok']),
+        ('Verkoop en transport ingepland (% per woningtype)',
+         "=COUNTIF(%s,\"FOUT*\")&\" fout, \"&COUNTIF(%s,\"LET OP*\")&\" let op\"" % (R['vt_status'], R['vt_status']),
+         "=IF(COUNTIF(%s,\"FOUT*\")>0,\"FOUT\",IF(COUNTIF(%s,\"LET OP*\")>0,\"LET OP\",\"OK\"))" % (R['vt_status'], R['vt_status']),
+         'tab Verkoop & transport'),
+        ('SAP-correcties toegewezen aan een SAP-nummer',
+         "=FIXED(%s,0)&\" niet toegewezen\"" % R['sap_open'],
+         "=IF(ABS(N(%s))<1,\"OK\",\"LET OP\")" % R['sap_open'], 'tab SAP-correcties'),
         ('CF - hulp VENA = definitieve cashflow',
          "=FIXED(ABS(N('CF - hulp VENA'!C3)-%s)+ABS(N('CF - hulp VENA'!C4)-%s),0)&\" verschil\"" % (ven_o, ven_k),
          "=IF(ABS(N('CF - hulp VENA'!C3)-%s)+ABS(N('CF - hulp VENA'!C4)-%s)<1,\"OK\",\"FOUT\")" % (ven_o, ven_k),
@@ -314,10 +324,11 @@ def maak_start(wb, demo, R):
         'SAP PEW-export (FR4) van de huidige periode → FO - huidig (Plakken of Inlezen).',
         'SAP actuals (FR5) → FO - actuals. Check SAP op correcties in de werkelijke opbrengsten.',
         'Salesforce prijslijst → Prijslijst dump; zet de exportdatum op tab Prijslijst (cel C1).',
-        'Controleer Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW) en vraag ontbrekende documentatie op.',
-        'CF - opbrengsten: per woningtype de bouwtermijnen en de transportregel, onderaan het verkooptempo; correctie in rij %d.'
+        'Controleer Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW); boek de SAP-correcties (tab SAP-correcties) en vraag ontbrekende documentatie op.',
+        'Verkoop & transport: per woningtype verkocht en getransporteerd in % per kwartaal.',
+        'CF - opbrengsten: per woningtype de bouwtermijnen (planning met de ontwikkelaar); correctie in rij %d.'
         % R['o_corr_rij'],
-        'CF - kosten: de bouwtermijnen volgen de planning van de opbrengsten (overschrijven mag); per post Handmatig of Voorstel (kolom C).',
+        'CF - kosten: de bouwtermijnen volgen de planning van de opbrengsten (overschrijven mag); per post Handmatig, Voorstel of Transport (kolom C).',
         'Alle controles in blok 4 groen; bekijk Dashboard (cashflow) en 2. Ontw PEW.',
         'Bekijk Dashboard en Scenario\'s: Invoer, Woningtypes en Scenario kosten rekenen automatisch mee met de CF-tabbladen.',
         'Klik PowerPoint maken.',
@@ -466,6 +477,215 @@ def maak_pew(wb, inhoud, pw):
 
 
 # ================================================================================================
+#  Verkoop & transport: per woningtype verkocht en getransporteerd in % per kwartaal
+# ================================================================================================
+
+PCT = '0.0%;-0.0%;"-"'
+ST_LETOP = 'LET OP'
+
+
+def maak_verkoop_transport(wb, oz):
+    from openpyxl.chart import LineChart, Reference
+    from openpyxl.utils import column_index_from_string as ci
+    from opzet import VT_BLAD, VT_KEY, vt_rij, vt_totaal
+    ob = oz['opbrengsten']
+    cols = [L(c) for c in range(ci(ob['eerste']), ci(ob['laatste']) + 1)]
+    c1, cn = cols[0], cols[-1]
+    chk, stat = ob['check'], ob['verschil']
+    vk = ob['verkoop_kop']
+    ws = wb.create_sheet(VT_BLAD)
+    ws.sheet_view.showGridLines = False
+    ws.sheet_properties.tabColor = 'FEB900'
+    for k, v in {'A': 2, 'B': 42, 'C': 10, 'D': 3, 'E': 3, 'F': 3, chk: 11, stat: 44}.items():
+        ws.column_dimensions[k].width = v
+    for c in cols:
+        ws.column_dimensions[c].width = 8.5
+    cell(ws, 'B2', 'Verkoop & transport', F_TITLE)
+    cell(ws, 'B3', 'Per woningtype: verkocht en getransporteerd (notarieel geleverd) in % van alle woningen van het type, '
+                   'per kwartaal. Geel = invullen. De eerste kolom bij verkocht is de realisatie t/m nu (Salesforce).', F_NOTE)
+    cell(ws, 'B4', 'Getransporteerd kan niet vóór verkocht: transport dat op verkoop wacht, schuift mee. Het transport bepaalt '
+                   'de grondtermijn en de bouwtermijnen die dan al vervallen zijn (CF - opbrengsten), en de kostenposten met '
+                   'methode Transport (CF - kosten).', F_NOTE)
+    OO = "'CF - opbrengsten'!"
+    cell(ws, 'B6', 'Kwartaal', F_HEAD, FILL_HEAD)
+    cell(ws, 'C6', 'Woningen', F_HEAD, FILL_HEAD)
+    cell(ws, '%s6' % chk, 'Totaal', F_HEAD, FILL_HEAD)
+    cell(ws, '%s6' % stat, 'Status', F_HEAD, FILL_HEAD)
+    for c in cols:
+        cell(ws, '%s5' % c, '=IF(ISNUMBER(%s%s$%d),%s%s$%d,"")' % (OO, c, vk - 1, OO, c, vk - 1), F_HELP, None, None,
+             Alignment(horizontal='center'))
+        cell(ws, '%s6' % c, '=%s%s$%d&""' % (OO, c, vk), F_HEAD, FILL_HEAD, None, Alignment(horizontal='center'))
+        cell(ws, '%s%d' % (c, VT_KEY), '=_koppeling!%s$521' % c, F_HELP, None, ';;;')
+    cell(ws, 'B%d' % VT_KEY, 'hulp: kwartaalindex', F_HELP)
+    n = len(ob['types'])
+    for t in ob['types']:
+        r = vt_rij(t['k'])
+        won = '$C$%d' % r
+        cell(ws, 'B%d' % r, '=%sB%d&""' % (OO, t['verkoop']), F_BOLD, FILL_TOTAL)
+        cell(ws, 'C%d' % r, '=N(%s$G$%d)' % (OO, t['hb'] - 1), F_BOLD, FILL_TOTAL, '0')
+        for c in ['D', 'E', 'F'] + cols + [chk, stat]:
+            cell(ws, '%s%d' % (c, r), None, F_BOLD, FILL_TOTAL)
+        labels = ['Verkocht · % per kwartaal', 'Verkocht · cumulatief', 'Verkocht · aantal woningen',
+                  'Getransporteerd · % per kwartaal', 'Getransporteerd · cumulatief (niet vóór verkocht)',
+                  'Getransporteerd · aantal woningen']
+        for i, lab in enumerate(labels, 1):
+            cell(ws, 'B%d' % (r + i), lab, F_BOLD if i in (1, 4) else F_BASE)
+        vw, gw = t['verkoop_waarden'], t['grond_waarden']
+        w = t['won'] or 0
+        for j, c in enumerate(cols):
+            prev = cols[j - 1] if j else None
+            if j == 0:      # realisatie t/m nu: uit CF - opbrengsten (Salesforce)
+                cell(ws, '%s%d' % (c, r + 1), '=IF(%s=0,0,N(%s%s%d)/%s)' % (won, OO, c, t['verkoop'], won), F_BASE, FILL_SAP, PCT)
+                cell(ws, '%s%d' % (c, r + 3), '=N(%s%s%d)' % (OO, c, t['verkoop']), F_BASE, FILL_CALC, '0.#')
+            else:
+                cell(ws, '%s%d' % (c, r + 1), (vw[j] / w) if w and vw[j] else None, F_BASE, FILL_INPUT, PCT)
+                cell(ws, '%s%d' % (c, r + 3), '=ROUND(%s%d*%s,6)' % (c, r + 1, won), F_BASE, FILL_CALC, '0.#')
+            cell(ws, '%s%d' % (c, r + 2), '=SUM($%s%d:%s%d)' % (c1, r + 1, c, r + 1), F_HELP, None, PCT)
+            cell(ws, '%s%d' % (c, r + 4), (gw[j] / w) if w and gw[j] else None, F_BASE, FILL_INPUT, PCT)
+            cell(ws, '%s%d' % (c, r + 7), '=SUM($%s%d:%s%d)' % (c1, r + 4, c, r + 4), F_HELP, None, ';;;')
+            cell(ws, '%s%d' % (c, r + 5), '=MIN(%s%d,%s%d)' % (c, r + 7, c, r + 2), F_HELP, None, PCT)
+            cell(ws, '%s%d' % (c, r + 6), '=ROUND((%s%d%s)*%s,6)' % (c, r + 5, '-%s%d' % (prev, r + 5) if prev else '', won),
+                 F_BASE, FILL_CALC, '0.#')
+        cell(ws, '%s%d' % (chk, r + 2), '=%s%d' % (cn, r + 2), F_BOLD, None, PCT)
+        cell(ws, '%s%d' % (chk, r + 5), '=%s%d' % (cn, r + 5), F_BOLD, None, PCT)
+        cell(ws, '%s%d' % (chk, r + 3), '=SUM(%s%d:%s%d)' % (c1, r + 3, cn, r + 3), F_BASE, None, '0.#')
+        cell(ws, '%s%d' % (chk, r + 6), '=SUM(%s%d:%s%d)' % (c1, r + 6, cn, r + 6), F_BASE, None, '0.#')
+        tv, tt = '%s%d' % (chk, r + 2), '%s%d' % (chk, r + 5)
+        cell(ws, '%s%d' % (stat, r + 2), '=IF(%s=0,"",IF(%s>1.00001,"FOUT: meer dan 100%% verkocht",IF(%s<0.99999,'
+                                         '"%s: "&TEXT(1-%s,"0%%")&" nog niet ingepland","OK")))' % (won, tv, tv, ST_LETOP, tv), F_BOLD)
+        cell(ws, '%s%d' % (stat, r + 5), '=IF(%s=0,"",IF(SUM(%s%d:%s%d)>1.00001,"FOUT: meer dan 100%% getransporteerd",'
+                                         'IF(SUMPRODUCT((%s%d:%s%d-%s%d:%s%d>0.00001)*1)>0,"%s: transport wacht op verkoop (schuift mee)",'
+                                         'IF(%s<0.99999,"%s: "&TEXT(1-%s,"0%%")&" nog niet getransporteerd","OK"))))'
+             % (won, c1, r + 4, cn, r + 4, c1, r + 7, cn, r + 7, c1, r + 5, cn, r + 5, ST_LETOP, tt, ST_LETOP, tt), F_BOLD)
+        cell(ws, 'B%d' % (r + 7), 'hulp: getransporteerd ingevuld, cumulatief', F_HELP, None, ';;;')
+    # alle woningen
+    T = vt_totaal(n)
+    cell(ws, 'B%d' % T, 'Alle woningen (koop)', F_BOLD, FILL_HEAD)
+    cell(ws, 'C%d' % T, '=' + '+'.join('C%d' % vt_rij(t['k']) for t in ob['types']), F_BOLD, FILL_HEAD, '0')
+    for c in ['D', 'E', 'F'] + cols + [chk, stat]:
+        cell(ws, '%s%d' % (c, T), None, F_BOLD, FILL_HEAD)
+    for i, lab in enumerate(['Verkocht · aantal woningen', 'Verkocht · cumulatief % van alle woningen',
+                             'Getransporteerd · aantal woningen', 'Getransporteerd · cumulatief % van alle woningen'], 1):
+        cell(ws, 'B%d' % (T + i), lab, F_BOLD if i in (2, 4) else F_BASE)
+    for c in cols:
+        cell(ws, '%s%d' % (c, T + 1), '=' + '+'.join('%s%d' % (c, vt_rij(t['k']) + 3) for t in ob['types']), F_BASE, FILL_CALC, '0.#')
+        cell(ws, '%s%d' % (c, T + 3), '=' + '+'.join('%s%d' % (c, vt_rij(t['k']) + 6) for t in ob['types']), F_BASE, FILL_CALC, '0.#')
+        cell(ws, '%s%d' % (c, T + 2), '=IF($C$%d=0,0,SUM($%s%d:%s%d)/$C$%d)' % (T, c1, T + 1, c, T + 1, T), F_BOLD, None, PCT)
+        cell(ws, '%s%d' % (c, T + 4), '=IF($C$%d=0,0,SUM($%s%d:%s%d)/$C$%d)' % (T, c1, T + 3, c, T + 3, T), F_BOLD, None, PCT)
+    for i in (1, 3):
+        cell(ws, '%s%d' % (chk, T + i), '=SUM(%s%d:%s%d)' % (c1, T + i, cn, T + i), F_BOLD, None, '0.#')
+    status_rules(ws, '%s%d:%s%d' % (stat, vt_rij(1), stat, T))
+    # grafiek: cumulatief verkocht en getransporteerd (alle woningen)
+    ch = LineChart()
+    ch.title = 'Verkocht en getransporteerd · cumulatief % van alle woningen'
+    ch.height, ch.width = 7.5, 24
+    for rr, kleur in ((T + 2, 'FEB900'), (T + 4, '003366')):
+        ch.add_data(Reference(ws, min_col=ci(c1) - 1, max_col=ci(cn), min_row=rr), titles_from_data=True, from_rows=True)
+        s_ = ch.series[-1]
+        s_.graphicalProperties.line.solidFill = kleur
+        s_.graphicalProperties.line.width = 28000
+        s_.smooth = False
+    ch.set_categories(Reference(ws, min_col=ci(c1), max_col=ci(cn), min_row=6))
+    ch.y_axis.number_format = '0%'
+    ch.y_axis.scaling.min = 0
+    ch.y_axis.scaling.max = 1
+    ch.y_axis.delete = False
+    ch.x_axis.delete = False
+    ch.legend.position = 'b'
+    ws.add_chart(ch, 'B%d' % (T + 7))
+    ws.freeze_panes = '%s8' % c1
+    # kolom F (vóór de eerste kwartaalkolom) als reekstitel van de grafiek
+    cell(ws, '%s%d' % (L(ci(c1) - 1), T + 2), 'Verkocht', F_HELP, None, ';;;')
+    cell(ws, '%s%d' % (L(ci(c1) - 1), T + 4), 'Getransporteerd', F_HELP, None, ';;;')
+    return T
+
+
+# ================================================================================================
+#  SAP-correcties: wat er na de aansluiting in SAP aangepast moet worden, per SAP-nummer
+# ================================================================================================
+
+SAP_KOPPELING = {'grond + ontwikkelkosten': (9010, None), 'aanneemsom': (9000, None), 'kao opties': (9000, 5230),
+                 'kopersmeerwerk': (9200, 5250), 'kadastrale kosten': (9030, None), 'aanvullende rente': (9110, None)}
+SAP_BOEKING = [(9010, None, 'Grond + ontwikkelkosten'), (9000, None, 'Aanneemsom'), (9000, 5230, 'KAO-opties'),
+               (9200, 5250, 'Meer-/minderwerk kopers'), (9030, None, 'Kadastrale kosten'), (9110, None, 'Aanvullende rente')]
+
+
+def maak_sap(wb, oz):
+    ws = wb.create_sheet('SAP-correcties')
+    ws.sheet_view.showGridLines = False
+    ws.sheet_properties.tabColor = '003366'
+    for k, v in {'A': 2, 'B': 26, 'C': 14, 'D': 14, 'E': 34, 'F': 16, 'G': 3, 'H': 40}.items():
+        ws.column_dimensions[k].width = v
+    cell(ws, 'B2', 'SAP-correcties', F_TITLE)
+    cell(ws, 'B3', "Uit de kolom 'Corr' op Aansluiting opbrengsten (prijslijst/Salesforce t.o.v. het actuele budget): wat er "
+                   'in SAP aangepast moet worden, per SAP-nummer en kostendrager. Geel = aanpasbaar.', F_NOTE)
+    blokken = oz.get('aansluiting') or []
+    regels = []
+    for b in blokken:
+        for r, lab in b['regels']:
+            if lab not in regels:
+                regels.append(lab)
+    # 2 koppeling regel -> SAP-nummer (onder de boekingen, maar eerst bepalen waar)
+    n_b = len(SAP_BOEKING)
+    b1 = 7
+    rn = b1 + n_b - 1
+    k0 = rn + 5                                  # sectie koppeling
+    m1 = k0 + 2
+    mn = m1 + len(regels) - 1
+    d0 = mn + 3                                  # sectie detail
+    d1 = d0 + 2
+    n_d = sum(len(b['regels']) for b in blokken)
+    dn = d1 + n_d - 1
+    rng = lambda c: '$%s$%d:$%s$%d' % (c, d1, c, max(d1, dn))
+    # 1 te boeken
+    section(ws, 5, '1 · TE BOEKEN IN SAP · per SAP-nummer en kostendrager', 2, 8)
+    for c, h in zip('BCDEF', ['SAP-nummer', 'Kostendrager', '', 'Omschrijving', 'Bedrag (€)']):
+        cell(ws, '%s6' % c, h or None, F_HEAD, FILL_HEAD)
+    for i, (nr, kd, oms) in enumerate(SAP_BOEKING):
+        r = b1 + i
+        cell(ws, 'B%d' % r, nr, F_BOLD, FILL_INPUT, '0', Alignment(horizontal='left'))
+        cell(ws, 'C%d' % r, kd, F_BASE, FILL_INPUT, '0', Alignment(horizontal='left'))
+        cell(ws, 'E%d' % r, oms, F_BASE, FILL_INPUT)
+        cell(ws, 'F%d' % r, '=SUMPRODUCT((%s&""=B%d&"")*(%s&""=C%d&"")*%s)' % (rng('D'), r, rng('E'), r, rng('F')),
+             F_BOLD, FILL_CALC, NUM)
+    cell(ws, 'E%d' % (rn + 1), 'Niet toegewezen (geen of ander SAP-nummer)', F_BASE)
+    cell(ws, 'F%d' % (rn + 1), '=ROUND(F%d-SUM(F%d:F%d),2)' % (rn + 2, b1, rn), F_BOLD, FILL_CALC, NUM)
+    cell(ws, 'H%d' % (rn + 1), '=IF(ABS(F%d)<1,"OK","LET OP: koppel de regel(s) aan een SAP-nummer (blok 2)")' % (rn + 1), F_BOLD)
+    status_rules(ws, 'H%d:H%d' % (rn + 1, rn + 1))
+    cell(ws, 'E%d' % (rn + 2), 'Totaal correcties', F_BOLD, FILL_TOTAL)
+    cell(ws, 'F%d' % (rn + 2), '=SUM(%s)' % rng('F'), F_BOLD, FILL_TOTAL, NUM)
+    # 2 koppeling
+    section(ws, k0, '2 · KOPPELING · regel op Aansluiting opbrengsten → SAP-nummer en kostendrager', 2, 8)
+    for c, h in zip('BCD', ['Regel', 'SAP-nummer', 'Kostendrager']):
+        cell(ws, '%s%d' % (c, k0 + 1), h, F_HEAD, FILL_HEAD)
+    for i, lab in enumerate(regels):
+        r = m1 + i
+        nr, kd = SAP_KOPPELING.get(lab.strip().lower(), (None, None))
+        cell(ws, 'B%d' % r, lab, F_BASE)
+        cell(ws, 'C%d' % r, nr, F_BASE, FILL_INPUT, '0', Alignment(horizontal='left'))
+        cell(ws, 'D%d' % r, kd, F_BASE, FILL_INPUT, '0', Alignment(horizontal='left'))
+    # 3 detail
+    section(ws, d0, '3 · DETAIL · per woningtype (Aansluiting opbrengsten, kolom Corr)', 2, 8)
+    for c, h in zip('BCDEF', ['Woningtype', 'Regel', 'SAP-nummer', 'Kostendrager', 'Bedrag (€)']):
+        cell(ws, '%s%d' % (c, d0 + 1), h, F_HEAD, FILL_HEAD)
+    AO = "'Aansluiting opbrengsten'!"
+    r = d1
+    ml = '$B$%d:$B$%d' % (m1, max(m1, mn))
+    for b in blokken:
+        for rr, lab in b['regels']:
+            cell(ws, 'B%d' % r, b['naam'], F_BASE)
+            cell(ws, 'C%d' % r, '=%sA%d&""' % (AO, rr), F_BASE)
+            for c, mc in (('D', 'C'), ('E', 'D')):
+                x = 'INDEX($%s$%d:$%s$%d,MATCH(C%d,%s,0))' % (mc, m1, mc, max(m1, mn), r, ml)
+                cell(ws, '%s%d' % (c, r), '=IFERROR(IF(%s="","",%s),"")' % (x, x), F_BASE, FILL_CALC, '0',
+                     Alignment(horizontal='left'))
+            cell(ws, 'F%d' % r, '=N(%s%s%d)' % (AO, b['corr'], rr), F_BASE, FILL_CALC, NUM)
+            r += 1
+    ws.freeze_panes = 'A5'
+    return {'niet_toegewezen': 'F%d' % (rn + 1), 'totaal': 'F%d' % (rn + 2)}
+
+
+# ================================================================================================
 #  Vorige prognose en Controle oud FO
 # ================================================================================================
 
@@ -581,6 +801,8 @@ def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud, oz, inv_tot, daeb_ty
     R = verwijzingen(oz, inv_tot, daeb_type)
     info = maak_start(wb, demo, R)
     info['pew_extra'] = maak_pew(wb, pew_inhoud, oz['pew'])
+    info['vt_totaal'] = maak_verkoop_transport(wb, oz)
+    info['sap'] = maak_sap(wb, oz)
     maak_vorige_prognose(wb, oud_cashflow, 'uit ' + oud_bestand)
     maak_controle(wb, oud_cashflow, oud_bestand, R['inv_laatste'])
     info['stijlen'] = maak_stijlen(wb)

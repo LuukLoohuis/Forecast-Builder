@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import fo_aanpassingen  # noqa: E402
 import opzet as opzet_fo  # noqa: E402
+from opzet import vt_rij  # noqa: E402
 import scenario_koppeling  # noqa: E402
 import nieuwe_bladen  # noqa: E402
 import vba_project  # noqa: E402
@@ -43,6 +44,8 @@ LAYOUT = [
     ('Prijslijst dump', 'fo', 'Prijslijst dump', 'shPrijslijstDump'),
     ('Prijslijst', 'fo', 'Prijslijst', 'shPrijslijst'),
     ('Aansluiting opbrengsten', 'fo', 'Aansluiting opbrengsten', 'shAansluiting'),
+    ('SAP-correcties', 'new', 'SAP-correcties', 'shSAPCorrecties'),
+    ('Verkoop & transport', 'new', 'Verkoop & transport', 'shVerkoopTransport'),
     ('CF - opbrengsten', 'fo', 'CF - opbrengsten', 'shCFOpbrengsten'),
     ('CF - kosten', 'fo', 'CF - kosten', 'shCFKostenFO'),
     ('Dashboard', 'sc', 'Dashboard', 'shDashboard'),
@@ -50,7 +53,6 @@ LAYOUT = [
     ('2. Ontw PEW', 'new', '2. Ontw PEW', 'shOntwPEW'),
     ('CF - hulp VENA', 'fo', 'CF - hulp VENA', 'shVENA'),
     ('PowerPoint', 'sc', 'PowerPoint', 'shPowerPoint'),
-    ('Notities FO gesprek', 'fo', 'Notities FO gesprek', 'shNotities'),
     ('Invoer', 'sc', 'Invoer', 'shInvoer'),
     ('Woningtypes', 'sc', 'Woningtypes', 'shWoningtypes'),
     ('Scenario kosten', 'sc', 'CF kosten', 'shCFKosten'),
@@ -65,7 +67,7 @@ LAYOUT = [
     ('_sjabloon', 'new', '_sjabloon', 'shSjabloon'),
     ('_koppeling', 'new', '_koppeling', 'shKoppeling'),
 ]
-VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW'}    # 2. Ontw PEW komt in een nieuw jasje
+VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', 'Notities FO gesprek'}    # 2. Ontw PEW komt in een nieuw jasje
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
 DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3),
         'dia10': [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),
@@ -113,6 +115,9 @@ def config(oz, layout):
         ('voorstel_bereik', 'B%d:%s%d' % (k['voorstel_start'], k['status'], k['voorstel_eind'])),
         ('controles', ';'.join(controles)),
         ('cashflow_rij1', cf['periodes'][0][2]),
+        ('vt_blad', 'Verkoop & transport'),
+        ('voorstel_offset', k['voorstel_offset']),
+        ('vt_types', '|'.join('%d:%d:%d:%d' % (t['verkoop'], t['koop'], vt_rij(t['k']), t['hb'] - 1) for t in ob['types'])),
     ] + [('hulp|' + b, v) for b, v in hulp.items()]
 
 

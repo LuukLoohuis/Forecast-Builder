@@ -35,7 +35,7 @@ Private Const TRANSPORTRIJEN As String = "13|26|36|46"   ' CF - opbrengsten: tra
 
 ' tabbladen die 'Oud FO inlezen' overneemt (zelfde naam in het oude FO)
 Private Const FO_BLADEN As String = "Toelichting onderlegger|Behind the scens|Prijslijst dump|Prijslijst|Aansluiting opbrengsten|" & _
-    "Notities FO gesprek|CF - opbrengsten|CF - kosten|Verkooptempo|FO - vorig|FO - huidig|FO - actuals|1. Ontw businessc FD|" & _
+    "CF - opbrengsten|CF - kosten|Verkooptempo|FO - vorig|FO - huidig|FO - actuals|1. Ontw businessc FD|" & _
     "2. Ontw PEW|5. K&R businessc|CF - hulp VENA"
 
 ' =====================================================================================
@@ -408,6 +408,8 @@ Public Sub OudFOInlezen()
 
     stap = "opzet controleren"
     OpzetControleren waarschuwing
+    stap = "verkoop en transport in % (tab Verkoop & transport)"
+    VerkoopTransportOvernemen wbO, waarschuwing
     stap = "nieuwe onderdelen terugzetten (_sjabloon)"
     SjabloonTerugzetten waarschuwing
     stap = "hulpkolommen"
@@ -691,6 +693,43 @@ End Sub
 ' =====================================================================================
 '  hulpjes
 ' =====================================================================================
+
+Public Function WerkbestandCfg(sleutel As String, standaard As String) As String
+    WerkbestandCfg = Cfg(sleutel, standaard)
+End Function
+
+Private Sub VerkoopTransportOvernemen(wbO As Workbook, ByRef waarschuwing As String)
+    ' het oude FO plant verkoop en transport in aantallen (verkooprij en grondtermijn op CF - opbrengsten); het werkbestand
+    ' in % op tab Verkoop & transport. Per type: verkocht % (vanaf de 2e kolom; de 1e is de realisatie uit Salesforce)
+    ' en getransporteerd % = de grondtermijn van het oude FO, gedeeld door het aantal woningen
+    Dim wsO As Worksheet, wsV As Worksheet, t As Variant, d() As String, k1 As Long, k2 As Long, c As Long
+    Dim won As Double, rV As Long, rK As Long, rT As Long
+    Set wsO = ZoekBlad(wbO, "CF - opbrengsten")
+    Set wsV = ZoekBlad(ThisWorkbook, Cfg("vt_blad", "Verkoop & transport"))
+    If wsO Is Nothing Or wsV Is Nothing Then Exit Sub
+    k1 = CLng(Cfg("opbrengsten_kol1", "7"))
+    k2 = CLng(Cfg("opbrengsten_kol2", "26"))
+    For Each t In Split(Cfg("vt_types", ""), "|")
+        d = Split(t, ":")
+        If UBound(d) = 3 Then
+            rV = CLng(d(0)): rK = CLng(d(1)): rT = CLng(d(2))
+            won = 0
+            If IsNumeric(wsO.Cells(CLng(d(3)), 7).Value) Then won = CDbl(wsO.Cells(CLng(d(3)), 7).Value)
+            For c = k1 To k2
+                If c > k1 Then wsV.Cells(rT + 1, c).Value = Deel(wsO.Cells(rV, c).Value, won)
+                wsV.Cells(rT + 4, c).Value = Deel(wsO.Cells(rK, c).Value, won)
+            Next c
+        End If
+    Next t
+End Sub
+
+Private Function Deel(v As Variant, won As Double) As Variant
+    Deel = Empty
+    If won = 0 Or IsError(v) Then Exit Function
+    If IsNumeric(v) And Not IsEmpty(v) Then
+        If CDbl(v) <> 0 Then Deel = CDbl(v) / won
+    End If
+End Function
 
 Private Function Cfg(sleutel As String, standaard As String) As String
     ' opzet van het FO (_sjabloon kolom E: sleutel, F: waarde), anders de standaardwaarde

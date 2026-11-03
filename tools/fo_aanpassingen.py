@@ -19,7 +19,10 @@ from __future__ import annotations
 
 import re
 
+from opzet import VT_BLAD, VT_KEY, vt_rij, vt_totaal
 from xlsxpkg import Sheet, col2num, num2col
+
+VT = "'%s'!" % VT_BLAD
 
 P_H, P_O = 'p_huidig', 'p_oplevering'
 MIJLPALEN = ['na akkoord SO', 'na akkoord VO', 'na akkoord DO', 'na omgevingsvergunning', 'na tekenen TKO',
@@ -58,19 +61,15 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
         for c in ['B'] + cols:
             assert not sh.get('%s%d' % (c, tr)), 'transportrij %d is niet leeg' % tr
         won = '$G$%d' % (t['hb'] - 1)
-        z('B%d' % tr, 'Transport (notarieel) · grondtermijn', st['invoer_label'])
-        zelf = 0
-        for c in cols:
-            oud = sh.get('%s%d' % (c, koop))
-            if isinstance(oud, str) and oud.startswith('='):
-                nieuw = ref_rij(oud, tr, p1)      # verwees de oude grondtermijn naar de lege rij: eerste planningsrij
-                zelf += nieuw != oud
-                oud = nieuw
-            z('%s%d' % (c, tr), oud, sh.style_of('%s%d' % (c, p1)))
+        rv = vt_rij(t['k'])
+        z('B%d' % tr, 'Transport (aantal woningen, uit Verkoop & transport) · grondtermijn', st['tekst'])
+        for j, c in enumerate(cols):
+            # transport en verkocht komen uit het tabblad Verkoop & transport (in % ingevuld); de eerste kolom van de
+            # verkooprij blijft de realisatie uit Salesforce
+            z('%s%d' % (c, tr), '=%s%s%d' % (VT, c, rv + 6), st['aantal'])
             z('%s%d' % (c, koop), '=%s%d' % (c, tr))
-        if zelf:
-            log('    let op type %d: de grondtermijn (rij %d) verwees in %d kolommen naar de lege rij %d; in de '
-                'transportregel is dat rij %d (eerste planningsrij) geworden' % (t['k'], koop, zelf, tr, p1))
+            if j:
+                z('%s%d' % (c, t['verkoop']), '=%s%s%d' % (VT, c, rv + 3), st['aantal'])
         z('%s%d' % (chk, tr), '=SUM(%s%d:%s%d)' % (cols[0], tr, cols[-1], tr), sh.style_of('%s%d' % (chk, p1)))
         z('%s%d' % (verschil, tr), '=ROUND(%s-%s%d,2)' % (won, chk, tr), sh.style_of('%s%d' % (verschil, p1)))
         z('%s%d' % (stat, tr), '=IF(%s%d=0,"OK","FOUT")' % (verschil, tr), sh.style_of('%s%d' % (stat, p1)))
@@ -102,8 +101,9 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
         f = sh.get('%s%d' % (c, tot))
         assert isinstance(f, str) and f.startswith('='), (c, tot, f)
         sh.set('%s%d' % (c, tot), f + '+%s%d' % (c, corr) + ('+%s%d' % (c, extra) if extra else ''))
-    z('C2', 'geel = handmatig: bouwtermijnen en transport per woningtype, verkooptempo (rij %d-%d), correctie (rij %d). '
-            'Termijnen tellen vanaf transport.' % (verkoop[0], verkoop[-1], corr), st['notitie'])
+    z('C2', 'Verkocht en transport vul je in %% in op tab Verkoop & transport (verkooptempo rij %d-%d en de transportregels '
+            'komen daaruit). Hier: bouwtermijnen per woningtype en de correctie (rij %d). Termijnen tellen vanaf transport.'
+      % (verkoop[0], verkoop[-1], corr), st['notitie'])
 
 
 def daeb_blok(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
@@ -173,24 +173,31 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     z('C%d' % k['onderdelen'], 'Methode', st['kop'])
     for p in posten:
         z('C%d' % p, 'Handmatig', st['invoer'])
-        z('%s%d' % (st_k, p), '=IF($C%d="Voorstel",IF(ABS(%s%d-D%d)<1,"OK","FOUT"),IF(AND(%s%d-D%d<1,%s%d-D%d>-1),"OK","FOUT"))'
-          % (p, tk, p + off, p, tk, p, p, tk, p, p))
-    sh.add_list_validation('C%d:C%d' % (p1, pn), ['Handmatig', 'Voorstel'])
+        z('%s%d' % (st_k, p), '=IF(OR($C%d="Voorstel",$C%d="Transport"),IF(ABS(%s%d-D%d)<1,"OK","FOUT"),'
+                              'IF(AND(%s%d-D%d<1,%s%d-D%d>-1),"OK","FOUT"))' % (p, p, tk, p + off, p, tk, p, p, tk, p, p))
+    sh.add_list_validation('C%d:C%d' % (p1, pn), ['Handmatig', 'Voorstel', 'Transport'])
+    m = '$C$%d:$C$%d' % (p1, pn)
     for c in cols:
-        z('%s%d' % (c, k['totaal']), '=SUMIFS(%s%d:%s%d,$C$%d:$C$%d,"<>Voorstel")+SUMIFS(%s%d:%s%d,$C$%d:$C$%d,"Voorstel")'
-          % (c, p1, c, pn, p1, pn, c, v1, c, vn, p1, pn))
-    z('%s%d' % (toel, k['onderdelen'] - 1), 'Kolom C: Handmatig = deze regels · Voorstel = blok onderaan (rij %d-%d). '
-                                            'Rij %d = definitief.' % (v1, vn, k['totaal']), st['notitie'])
+        hand, vs = '%s%d:%s%d' % (c, p1, c, pn), '%s%d:%s%d' % (c, v1, c, vn)
+        z('%s%d' % (c, k['totaal']), '=SUM(%s)-SUMIFS(%s,%s,"Voorstel")-SUMIFS(%s,%s,"Transport")'
+                                     '+SUMIFS(%s,%s,"Voorstel")+SUMIFS(%s,%s,"Transport")' % (hand, hand, m, hand, m, vs, m, vs, m))
+    z('%s%d' % (toel, k['onderdelen'] - 1), 'Kolom C: Handmatig = deze regels · Voorstel = restant gelijk verdeeld t/m '
+                                            'oplevering · Transport = restant naar rato van het transport (bv. grond). '
+                                            'Blok onderaan rij %d-%d; rij %d = definitief.' % (v1, vn, k['totaal']), st['notitie'])
     z('%s4' % toel, 'Bouwtermijnen volgen de geplande bouwtermijnen van CF - opbrengsten; overschrijven mag.', st['notitie'])
 
     # voorstelblok
     s0 = k['voorstel_start']
-    hj, hk, hkop, hst = s0 + 2, s0 + 3, s0 + 5, s0 + 6
+    hj, hk, ht, hkop, hst = s0 + 2, s0 + 3, s0 + 4, s0 + 5, s0 + 6
     for c in ['B'] + kolommen('C', st_k):
-        z('%s%d' % (c, s0), 'VOORSTEL · restant budget (PEW − verwerkt) gelijk verdeeld vanaf het eerste prognosekwartaal t/m '
-                            'oplevering (tab Start) · kies per post "Voorstel" in kolom C' if c == 'B' else None, st['sectie'])
+        z('%s%d' % (c, s0), 'VOORSTEL · restant budget (PEW − verwerkt) vanaf het eerste prognosekwartaal: gelijk verdeeld t/m '
+                            'oplevering (tab Start), of bij "Transport" naar rato van het transport · kies per post in kolom C' if c == 'B' else None, st['sectie'])
     z('B%d' % hj, 'hulp: jaar', st['hulp_links'])
     z('B%d' % hk, 'hulp: kwartaalindex (jaar × 4 + kw)', st['hulp_links'])
+    z('B%d' % ht, 'hulp: transport (aantal woningen, alle types)', st['hulp_links'])
+    T = vt_totaal(len(oz['opbrengsten']['types']))
+    ob = oz['opbrengsten']
+    vt_rng = lambda r: "%s$%s$%d:$%s$%d" % (VT, ob['eerste'], r, ob['laatste'], r)
     o = k['onderdelen']
     for i, c in enumerate(cols):
         prev = '%s%d' % (cols[i - 1], hj) if i else '""'
@@ -201,8 +208,9 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
           st['kop'])
         z('%s%d' % (c, hst), '=IF(%s$%d<%s,"verwerkt",IF(%s$%d<=MAX(%s,%s),"prognose","na oplevering"))'
           % (c, hk, P_H, c, hk, P_H, P_O), st['hulp'])
+        z('%s%d' % (c, ht), '=IF(%s$%d=0,0,SUMIFS(%s,%s,%s$%d))' % (c, hk, vt_rng(T + 3), vt_rng(VT_KEY), c, hk), st['hulp'])
     for c, h in zip(['B', 'C', 'D', 'E', 'F', 'G', tk, st_k],
-                    ['Post', '', 'PEW (huidig)', 'Verwerkt', 'Restant', 'Kw.', 'Totaal', 'Check']):
+                    ['Post', '', 'PEW (huidig)', 'Verwerkt', 'Restant', 'Kw. / won.', 'Totaal', 'Check']):
         z('%s%d' % (c, hkop), h or None, st['kop_links'] if c == 'B' else st['kop'])
     rk = '$%s$%d:$%s$%d' % (cols[0], hk, cols[-1], hk)
     for p in posten:
@@ -211,10 +219,13 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         z('D%d' % r, '=N(D%d)' % p, st['getal'])
         z('E%d' % r, '=SUMIFS($%s%d:$%s%d,%s,"<"&%s)' % (cols[0], p, cols[-1], p, rk, P_H), st['getal'])
         z('F%d' % r, '=MAX(0,D%d-E%d)' % (r, r), st['getal'])
-        z('G%d' % r, '=COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s))' % (rk, P_H, rk, P_H, P_O), st['aantal'])
+        rt = '$%s$%d:$%s$%d' % (cols[0], ht, cols[-1], ht)
+        z('G%d' % r, '=IF($C%d="Transport",SUMIFS(%s,%s,">="&%s),COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s)))'
+          % (p, rt, rk, P_H, rk, P_H, rk, P_H, P_O), st['aantal'])
         for c in cols:
-            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF(%s$%d<=MAX(%s,%s),IF($G%d=0,0,$F%d/$G%d),0))'
-              % (c, hk, P_H, c, p, c, hk, P_H, P_O, r, r, r), st['getal'])
+            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF($C%d="Transport",IF($G%d=0,0,$F%d*%s$%d/$G%d),'
+                               'IF(%s$%d<=MAX(%s,%s),IF($G%d=0,0,$F%d/$G%d),0)))'
+              % (c, hk, P_H, c, p, p, r, r, c, ht, r, c, hk, P_H, P_O, r, r, r), st['getal'])
         z('%s%d' % (tk, r), '=SUM(%s%d:%s%d)' % (cols[0], r, cols[-1], r), st['getal_tot'])
         z('%s%d' % (st_k, r), '=IF(B%d="","",IF(D%d-E%d<-1,"OVERSCHRIJDING",IF(ABS(%s%d-D%d)<1,"OK","FOUT")))'
           % (r, r, r, tk, r, r), st['vet'])
@@ -228,8 +239,8 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     geel = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFDE68A"/></patternFill></fill>')
     groen = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFD1FAE5"/></patternFill></fill>')
     rood = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFECACA"/></patternFill></fill>')
-    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), '$C%d="Voorstel"' % p1, grijs)
-    sh.add_cf('%s%d:%s%d' % (cols[0], v1, cols[-1], vn), '$C%d="Voorstel"' % p1, geel)
+    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'OR($C%d="Voorstel",$C%d="Transport")' % (p1, p1), grijs)
+    sh.add_cf('%s%d:%s%d' % (cols[0], v1, cols[-1], vn), 'OR($C%d="Voorstel",$C%d="Transport")' % (p1, p1), geel)
     sh.add_cf('%s%d:%s%d' % (st_k, v1, st_k, vn), '%s%d="OK"' % (st_k, v1), groen)
     sh.add_cf('%s%d:%s%d' % (st_k, v1, st_k, vn), 'OR(%s%d="FOUT",%s%d="OVERSCHRIJDING")' % (st_k, v1, st_k, v1), rood)
     log('  CF - kosten: methode per post (rij %d-%d), voorstelblok rij %d-%d, rij %d = definitief, werkelijk uit FO - huidig'

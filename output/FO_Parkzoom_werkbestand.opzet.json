@@ -112,6 +112,51 @@
      ],
      "koop": 57,
      "verkoop": 49,
+     "won": 53,
+     "verkoop_waarden": [
+      13,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      40,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "grond_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      20,
+      20,
+      13,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
      "kosten": [
       5,
       6,
@@ -158,6 +203,51 @@
      ],
      "koop": 72,
      "verkoop": 50,
+     "won": 24,
+     "verkoop_waarden": [
+      21,
+      0,
+      0,
+      0,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "grond_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      24,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
      "kosten": [
       17,
       18,
@@ -201,6 +291,51 @@
      ],
      "koop": 91,
      "verkoop": 51,
+     "won": 0,
+     "verkoop_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "grond_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
      "kosten": [
       32,
       33,
@@ -241,6 +376,51 @@
      ],
      "koop": 106,
      "verkoop": 52,
+     "won": 0,
+     "verkoop_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "grond_waarden": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
      "kosten": [
       44,
       45,
@@ -471,7 +651,213 @@
      4250
     ]
    }
-  }
+  },
+  "aansluiting": [
+   {
+    "titel": 39,
+    "naam": "Woningtype A",
+    "corr": "G",
+    "regels": [
+     [
+      41,
+      "Grond + Ontwikkelkosten"
+     ],
+     [
+      42,
+      "Aanneemsom"
+     ],
+     [
+      43,
+      "VON verhogingen"
+     ],
+     [
+      44,
+      "KAO opties"
+     ],
+     [
+      45,
+      "Korting"
+     ],
+     [
+      46,
+      "Kopersmeerwerk"
+     ],
+     [
+      47,
+      "Kadastrale kosten"
+     ],
+     [
+      48,
+      "Bouwrente"
+     ],
+     [
+      49,
+      "Aanvullende rente"
+     ],
+     [
+      50,
+      "Opbrengsten commercieel"
+     ],
+     [
+      51,
+      "Opbrengsten parkeren"
+     ]
+    ]
+   },
+   {
+    "titel": 57,
+    "naam": "Appartementen",
+    "corr": "G",
+    "regels": [
+     [
+      59,
+      "Grond + Ontwikkelkosten"
+     ],
+     [
+      60,
+      "Aanneemsom"
+     ],
+     [
+      61,
+      "VON verhogingen"
+     ],
+     [
+      62,
+      "KAO opties"
+     ],
+     [
+      63,
+      "Korting"
+     ],
+     [
+      64,
+      "Kopersmeerwerk"
+     ],
+     [
+      65,
+      "Kadastrale kosten"
+     ],
+     [
+      66,
+      "Bouwrente"
+     ],
+     [
+      67,
+      "Aanvullende rente"
+     ],
+     [
+      68,
+      "Opbrengsten commercieel"
+     ],
+     [
+      69,
+      "Opbrengsten parkeren"
+     ]
+    ]
+   },
+   {
+    "titel": 78,
+    "naam": "Blok 3",
+    "corr": "G",
+    "regels": [
+     [
+      80,
+      "Grond + Ontwikkelkosten"
+     ],
+     [
+      81,
+      "Aanneemsom"
+     ],
+     [
+      82,
+      "VON verhogingen"
+     ],
+     [
+      83,
+      "KAO opties"
+     ],
+     [
+      84,
+      "Korting"
+     ],
+     [
+      85,
+      "Kopersmeerwerk"
+     ],
+     [
+      86,
+      "Kadastrale kosten"
+     ],
+     [
+      87,
+      "Bouwrente"
+     ],
+     [
+      88,
+      "Aanvullende rente"
+     ],
+     [
+      89,
+      "Opbrengsten commercieel"
+     ],
+     [
+      90,
+      "Opbrengsten parkeren"
+     ]
+    ]
+   },
+   {
+    "titel": 95,
+    "naam": "Blok 4",
+    "corr": "G",
+    "regels": [
+     [
+      97,
+      "Grond + Ontwikkelkosten"
+     ],
+     [
+      98,
+      "Aanneemsom"
+     ],
+     [
+      99,
+      "VON verhogingen"
+     ],
+     [
+      100,
+      "KAO opties"
+     ],
+     [
+      101,
+      "Korting"
+     ],
+     [
+      102,
+      "Kopersmeerwerk"
+     ],
+     [
+      103,
+      "Kadastrale kosten"
+     ],
+     [
+      104,
+      "Bouwrente"
+     ],
+     [
+      105,
+      "Aanvullende rente"
+     ],
+     [
+      106,
+      "Opbrengsten commercieel"
+     ],
+     [
+      107,
+      "Opbrengsten parkeren"
+     ]
+    ]
+   }
+  ]
  },
  "invoer_laatste": 25,
  "invoer_totaal": 27,

@@ -16,6 +16,26 @@ def _t(v):
     return v.strip() if isinstance(v, str) else ('' if v is None else str(v))
 
 
+VT_BLAD = 'Verkoop & transport'
+VT_KEY = 7                  # rij met de kwartaalindex per kolom
+VT_R1, VT_BLOK = 9, 9       # eerste typeblok, rijen per type
+
+
+def vt_rij(k):
+    """eerste rij (titel) van woningtype k op Verkoop & transport; +1 verkocht %, +2 cumulatief, +3 aantal,
+    +4 getransporteerd %, +5 cumulatief, +6 aantal"""
+    return VT_R1 + VT_BLOK * (k - 1)
+
+
+def vt_totaal(n):
+    """rij 'Alle woningen'; +1 verkocht aantal, +2 cumulatief %, +3 getransporteerd aantal, +4 cumulatief %"""
+    return vt_rij(n + 1)
+
+
+def _getal(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+
+
 class Fout(Exception):
     pass
 
@@ -30,6 +50,7 @@ def lees(pad):
     o['cashflow'] = _cashflow(wv['1. Cashflow'])
     o['verkooptempo'] = _verkooptempo(wv['Verkooptempo']) if 'Verkooptempo' in wv.sheetnames else None
     o['hulpkolommen'] = _hulp(wf)
+    o['aansluiting'] = _aansluiting(wv['Aansluiting opbrengsten'])
     return o
 
 
@@ -70,8 +91,12 @@ def _opbrengsten(f, v):
         while _t(form(r, 2)):
             orows.append(r)
             r += 1
+        won = get(hb - 1, 7)
         types.append({'k': i + 1, 'hb': hb, 'plan': plan, 'd': d, 'tr': tr, 'omzet_kop': oh, 'omzet': orows,
-                      'koop': orows[0], 'verkoop': vk + 1 + i})
+                      'koop': orows[0], 'verkoop': vk + 1 + i, 'won': won if isinstance(won, (int, float)) else 0,
+                      # waarden die Excel in het FO heeft opgeslagen: verkocht en grondtermijn (= transport) per kolom
+                      'verkoop_waarden': [_getal(get(vk + 1 + i, c)) for c in range(7, max(qk) + 1)],
+                      'grond_waarden': [_getal(get(orows[0], c)) for c in range(7, max(qk) + 1)]})
     euro = next(r for r in range(omz[-1], maxr) if _t(get(r, 2)).lower().startswith('termijnen') and '€' in _t(get(r, 2)))
     periode = next(r for r in range(euro, maxr + 1) if _t(get(r, 2)).lower().startswith('periode in cashflow'))
     totaal = max(r for r in range(euro, periode) if _t(get(r, 2)).lower().startswith('totaal opbrengsten'))
@@ -197,3 +222,25 @@ def _hulp(wf):
             if rijen:
                 out[blad][k] = (min(rijen), max(rijen))
     return out
+
+
+def _aansluiting(v):
+    """blokken 'Vergelijking excl. BTW' op Aansluiting opbrengsten: per blok de regels met de kolom 'Corr'"""
+    blokken = []
+    for r in range(1, v.max_row + 1):
+        t = _t(v.cell(r, 1).value)
+        if not t.lower().startswith('vergelijking'):
+            continue
+        kop = r + 1
+        corr = next((c for c in range(2, 15) if _t(v.cell(kop, c).value).lower() == 'corr'), None)
+        if corr is None:
+            continue
+        naam = t.split(' - ', 1)[1].strip() if ' - ' in t else 'Blok %d' % (len(blokken) + 1)
+        regels = []
+        rr = kop + 1
+        while _t(v.cell(rr, 1).value):
+            regels.append((rr, _t(v.cell(rr, 1).value)))
+            rr += 1
+        blokken.append({'titel': r, 'naam': naam, 'corr': L(corr), 'regels': regels})
+    return blokken
+
