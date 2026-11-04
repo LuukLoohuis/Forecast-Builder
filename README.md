@@ -51,6 +51,14 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   - `*` voor alle bouwnummers.
 
   Oud FO inlezen neemt de waarde over uit de SUMIF-formules van het oude tabblad Aansluiting opbrengsten.
+  Elk bouwnummer hoort bij precies één woningtype (kolom U van de prijslijst per bouwnummer), zodat niets dubbel telt. Passen er meer, dan geldt deze volgorde:
+  1. exact op Type;
+  2. Type in een lijst met `;`;
+  3. exact op Termijnen / blok;
+  4. blok in een lijst;
+  5. `*`.
+
+  Bij gelijkspel wint het eerste type.
 - **Regels zonder koppeling met de prijslijst** (VON verhogingen, opbrengsten commercieel en parkeren): de kolom Prijslijst is daar geel; vul het bedrag in. Oud FO inlezen neemt het bedrag uit het oude FO over.
 - **Grafieken:** prijslijst en SKO per type, en het grond % huidig en met kans.
 - **Te boeken in SAP:** naast de grafieken staan de correcties per SAP-nummer en kostendrager (uit de kolom Corr). In de aansluitblokken toont kolom K per regel op welk SAP-nummer (en kostendrager) de correctie geboekt wordt.

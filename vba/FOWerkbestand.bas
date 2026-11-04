@@ -249,17 +249,28 @@ Private Function LaatsteRij(ByVal ws As Worksheet, ByVal nKol As Long) As Long
     LaatsteRij = m
 End Function
 
-Private Function HoortBij(ByVal ws As Worksheet, ByVal r As Long, ByVal kType As Long, ByVal kBlok As Long, ByVal sleutel As String) As Boolean
-    ' bouwnummer hoort bij het woningtype: sleutel = waarde in de kolom Type of Termijnen / blok, meerdere met ; of * voor alle
-    Dim w As Variant, t As String, b As String
-    If sleutel = "*" Then HoortBij = True: Exit Function
-    If kType > 0 Then t = LCase$(Tk(ws.Cells(r, kType).Value))
-    If kBlok > 0 Then b = LCase$(Tk(ws.Cells(r, kBlok).Value))
-    For Each w In Split(sleutel, ";")
-        If Len(Trim$(w)) > 0 Then
-            If LCase$(Trim$(w)) = t Or LCase$(Trim$(w)) = b Then HoortBij = True: Exit Function
+Private Function TypeVan(ByVal ws As Worksheet, ByVal r As Long, ByVal kType As Long, ByVal kBlok As Long, ByRef sl() As String, ByVal nS As Long) As Long
+    ' zoals kolom U op Prijslijst: elk bouwnummer bij precies een type; exact op Type, dan Type in een lijst (met ;),
+    ' dan exact op Termijnen / blok, dan blok in een lijst, dan '*'; bij gelijkspel het eerste type
+    Dim k As Long, kol As Variant, w As String, x As Variant
+    For Each kol In Array(kType, kBlok)
+        If CLng(kol) > 0 Then
+            w = LCase$(Tk(ws.Cells(r, CLng(kol)).Value))
+            If Len(w) > 0 Then
+                For k = 1 To nS
+                    If LCase$(Trim$(sl(k))) = w Then TypeVan = k: Exit Function
+                Next k
+                For k = 1 To nS
+                    For Each x In Split(sl(k), ";")
+                        If LCase$(Trim$(CStr(x))) = w Then TypeVan = k: Exit Function
+                    Next x
+                Next k
+            End If
         End If
-    Next w
+    Next kol
+    For k = 1 To nS
+        If Trim$(sl(k)) = "*" Then TypeVan = k: Exit Function
+    Next k
 End Function
 
 Private Function HulpKolommen(ByVal blad As String) As String
@@ -863,7 +874,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             If sleutel <> "" And kType > 0 Then
                 plW(1) = 0: plW(2) = 0: plW(3) = 0: plW(4) = 0: plW(5) = 0
                 For n = 1 To nBn
-                    If HoortBij(ws, bn(n), kType, KolNaam(ws, kopP, "termijnen / blok"), sleutel) Then
+                    If TypeVan(ws, bn(n), kType, KolNaam(ws, kopP, "termijnen / blok"), sleutels, nS) = i Then
                         plW(1) = plW(1) + 1
                         plW(2) = plW(2) + PrijsW(ws, bn(n), kopP, "grondkosten start verkoop (facturatie)")
                         plW(3) = plW(3) + PrijsW(ws, bn(n), kopP, "aanneemsom start verkoop") + PrijsW(ws, bn(n), kopP, "totaal woonwensen in von")

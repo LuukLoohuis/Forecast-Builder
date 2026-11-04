@@ -157,17 +157,8 @@ P_UIT = {'aantal': 'D', 'grond': 'E', 'aanneemsom': 'F', 'kao': 'G', 'kmw': 'H',
 P_HAND = {'aantal': 'N', 'grond': 'O', 'aanneemkao': 'P', 'kmw': 'Q', 'kadrente': 'R'}
 P_GEBR = {'aantal': 'S', 'grond': 'T', 'aanneemkao': 'U', 'kmw': 'V', 'kadrente': 'W'}
 P_TERM_NAAM, P_TERM_PCT = 'L', 'M'      # termijnschema naast het aansluitblok
-P_BN = {'type': 'C', 'status': 'I', 'kad': 'J', 'grond': 'K', 'aanneemsom': 'L', 'von': 'M', 'kao': 'N', 'kmw': 'P',
+P_BN = {'wt': 'U', 'type': 'C', 'status': 'I', 'kad': 'J', 'grond': 'K', 'aanneemsom': 'L', 'von': 'M', 'kao': 'N', 'kmw': 'P',
         'bouwrente': 'Q', 'rente': 'R', 'korting': 'S'}
-
-def p_match(sleutel, blad=''):
-    """0/1 per bouwnummer: hoort bij het woningtype met deze sleutel ('Type in prijslijst'). De sleutel mag
-    staan voor de kolom Type of de kolom Termijnen / blok, meerdere waarden met ; ertussen (4A;4B), of * voor alle."""
-    rg = lambda c: '%s$%s$%d:$%s$%d' % (blad, c, P_BN1, c, P_BNN)
-    sl = '";"&SUBSTITUTE(%s,"; ",";")&";"' % sleutel
-    return ('--((ISNUMBER(SEARCH(";"&%s&";",%s))+ISNUMBER(SEARCH(";"&%s&";",%s))+(%s="*")*(%s<>""))>0)'
-            % (rg('C'), sl, rg('B'), sl, sleutel, rg('A')))
-
 
 GEEL = PatternFill('solid', fgColor='FFFFF2CC')
 GRIJS = PatternFill('solid', fgColor='FFF3F4F6')
@@ -322,8 +313,9 @@ def maak_opbrengsten(ws):
         sl = pl('$C$%d' % (P_TYPE1 + k - 1))
         zet(ws, 'B%d' % r, '=%s&""' % pl('$B$%d' % (P_TYPE1 + k - 1)))
         zet(ws, 'C%d' % r, '=G%d' % won_rij(k), F, None, '0')
-        zet(ws, 'D%d' % r, '=IF(%s="",0,SUMPRODUCT(%s,((Prijslijst!%s="Verkocht")+(Prijslijst!%s="Getransporteerd"))))'
-            % (sl, p_match(sl, 'Prijslijst!'), s_bn, s_bn), F, GRIJS, '0')
+        w_bn = 'Prijslijst!$%s$%d:$%s$%d' % (P_BN['wt'], P_BN1, P_BN['wt'], P_BNN)
+        zet(ws, 'D%d' % r, '=COUNTIFS(%s,%d,Prijslijst!%s,"Verkocht")+COUNTIFS(%s,%d,Prijslijst!%s,"Getransporteerd")'
+            % (w_bn, k, s_bn, w_bn, k, s_bn), F, GRIJS, '0')
         zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, '0')
         zet(ws, 'G%d' % r, '=D%d' % r, F, GRIJS, '0')
         for c in QCOLS:
@@ -767,9 +759,9 @@ def maak_prijslijst(ws):
         zet(ws, 'A%d' % r, k, FB)
         zet(ws, 'B%d' % r, None, FB, GEEL)
         zet(ws, 'C%d' % r, None, F, GEEL)
-        zet(ws, 'D%d' % r, '=IF($C%d="",0,SUMPRODUCT(%s))' % (r, p_match('$C%d' % r)), F, GRIJS, '0')
+        zet(ws, 'D%d' % r, '=COUNTIF(%s,$A%d)' % (rng(P_BN['wt']), r), F, GRIJS, '0')
         for x in ('grond', 'aanneemsom', 'kao', 'kmw', 'kad', 'bouwrente', 'rente', 'korting', 'von'):
-            zet(ws, '%s%d' % (P_UIT[x], r), '=IF($C%d="",0,SUMPRODUCT(%s,%s))' % (r, p_match('$C%d' % r), rng(P_BN[x])),
+            zet(ws, '%s%d' % (P_UIT[x], r), '=SUMIF(%s,$A%d,%s)' % (rng(P_BN['wt']), r, rng(P_BN[x])),
                 F, GRIJS, NUM)
         for x in P_HAND.values():
             zet(ws, '%s%d' % (x, r), None, F, GEEL, NUM)
@@ -898,7 +890,7 @@ def maak_prijslijst(ws):
            'SF: VON start verkoop', 'SF: Totaal woonwensen in VON', 'SF: Totaal woonwensen in OB', 'SF: Status',
            'Kadastrale kosten', 'Grondkosten start verkoop (facturatie)', 'Aanneemsom start verkoop', 'VON start verkoop',
            'Totaal woonwensen in VON', 'Aanneemsom incl. woonwensen VON', 'Totaal woonwensen in OB', 'Bouwrente',
-           'Aanvullende rente', 'Korting', 'Totaal opbrengsten']
+           'Aanvullende rente', 'Korting', 'Totaal opbrengsten', 'Woningtype (nr) · automatisch']
     zet(ws, 'A%d' % (P_BN_KOP - 1), 'PER BOUWNUMMER · bouwnummer en type invullen, de rest komt uit de Salesforce-dump',
         FW, DONKER)
     for i, t in enumerate(kb_):
@@ -918,6 +910,13 @@ def maak_prijslijst(ws):
         for c in 'JQRS':
             zet(ws, '%s%d' % (c, r), None, F, GEEL, NUM)
         zet(ws, 'T%d' % r, '=IF($A%d="","",N(J%d)+N(K%d)+N(O%d)+N(P%d)+N(Q%d)+N(R%d))' % (r, r, r, r, r, r, r), F, None, NUM)
+        # bij welk woningtype dit bouwnummer hoort (precies één): eerst op de kolom Type, dan op Termijnen / blok, dan '*';
+        # bij meerdere passende types het eerste
+        sl_ = 'SUBSTITUTE($C$%d:$C$%d,"; ",";")' % (P_TYPE1, P_TYPE1 + NT - 1)
+        m_ = lambda c: 'MATCH(1,INDEX(($%s%d<>"")*ISNUMBER(SEARCH(";"&$%s%d&";",";"&%s&";")),0),0)' % (c, r, c, r, sl_)
+        ex_ = lambda c: 'IF($%s%d="",NA(),MATCH($%s%d&"",INDEX($C$%d:$C$%d&"",0),0))' % (c, r, c, r, P_TYPE1, P_TYPE1 + NT - 1)
+        zet(ws, 'U%d' % r, '=IF($A%d="","",IFERROR(%s,IFERROR(%s,IFERROR(%s,IFERROR(%s,IFERROR(MATCH("~*",$C$%d:$C$%d,0),""))))))'
+            % (r, ex_('C'), m_('C'), ex_('B'), m_('B'), P_TYPE1, P_TYPE1 + NT - 1), FB, None, '0')
     ws.column_dimensions['A'].width = 26
     ws.column_dimensions['B'].width = 24
     ws.freeze_panes = 'A3'

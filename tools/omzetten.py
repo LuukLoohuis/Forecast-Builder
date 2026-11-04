@@ -159,13 +159,26 @@ def omzetten(oud, uit, project=None):
                     P['%s%d' % (col, rr)] = v
         log.append('prijslijst: %d bouwnummers' % len(bn))
 
+    def type_van(r):
+        """zoals kolom U in het sjabloon: elk bouwnummer bij precies één type; exact op Type, dan Type in een lijst
+        (met ;), dan exact op Termijnen / blok, dan blok in een lijst, dan '*'; bij gelijkspel het eerste type"""
+        sls = [str(x or '').strip().lower() for x in (oz.get('prijslijst') or {}).get('sleutels') or []]
+        for kol in ('type', 'termijnen / blok'):
+            w = _t(pv.cell(r, hd[kol]).value).lower() if kol in hd else ''
+            if not w:
+                continue
+            for i, x in enumerate(sls):
+                if x == w:
+                    return i + 1
+            for i, x in enumerate(sls):
+                if w in [y.strip() for y in x.split(';')]:
+                    return i + 1
+        return sls.index('*') + 1 if '*' in sls else None
+
     def hoort_bij(r, sleutel):
-        # zoals p_match in het sjabloon: kolom Type of Termijnen / blok, meerdere waarden met ; of * voor alle
-        if sleutel == '*':
-            return True
-        waarden = [x.strip().lower() for x in str(sleutel).split(';')]
-        return any(c in hd and _t(pv.cell(r, hd[c]).value).lower() in waarden and _t(pv.cell(r, hd[c]).value)
-                   for c in ('type', 'termijnen / blok'))
+        sls = [str(x or '').strip().lower() for x in (oz.get('prijslijst') or {}).get('sleutels') or []]
+        k_ = sls.index(str(sleutel).strip().lower()) + 1 if str(sleutel).strip().lower() in sls else None
+        return k_ is not None and type_van(r) == k_
 
     def uit_prijslijst(sleutel, kolnaam):
         if not sleutel or 'type' not in hd or kolnaam not in hd:
