@@ -20,7 +20,7 @@ en de PowerPoint komt uit hetzelfde bestand.
 |---|---|
 | `Start` | project, oplevering, knoppen, status van de invoer, alle controles, teksten voor dia 10 |
 | `FO - vorig`, `FO - huidig`, `FO - actuals`, `Prijslijst dump` | exports plakken of inlezen (SAP FO-overzicht van vorige en huidige periode, SAP actuals, Salesforce) |
-| `Prijslijst` | per woningtype: naam, type in de prijslijst, aantal en bedragen (uit Salesforce, btw eraf; handmatig overschrijven mag). Aansluiting met SKO en PEW per type, met daarnaast het termijnschema (termijn + %). Onderaan "te boeken in SAP" per SAP-nummer en kostendrager, en de prijslijst per bouwnummer |
+| `Prijslijst` | dashboard (zie hieronder): kaarten, woningtypes, grafieken, te boeken in SAP, aansluiting per type met het termijnschema, en onderaan de prijslijst per bouwnummer |
 | `CF - opbrengsten` | per woningtype: planning bouwtermijnen, verkocht %, getransporteerd %, grondprijsaanpassing; kadastrale kosten en rente (handmatig); overige opbrengsten, correctie, DAEB |
 | `CF - kosten` | bouwtermijnen kosten per type (eigen planning HWB, standaard gelijk aan de opbrengsten) en per kostenpost Handmatig, Voorstel of Transport |
 | `Dashboard`, `Scenario's` | cashflow, kerncijfers, grafieken en scenario's: rekenen automatisch mee |
@@ -35,6 +35,20 @@ Vervallen ten opzichte van het oude FO: `Aansluiting opbrengsten` (nu op `Prijsl
 invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting onderlegger`, `1. Ontw businessc FD` en
 `5. K&R businessc`.
 
+## Prijslijst als dashboard
+
+- **Kaarten bovenaan:**
+  - aantal woningen;
+  - opbrengsten volgens de prijslijst;
+  - SKO en het verschil met de prijslijst;
+  - te boeken in SAP;
+  - aansluiting (OK of het aantal types met FOUT);
+  - kans grondtermijn: eerder ontvangen, en de max. financiering huidig en met kans.
+- **1 · Woningtypes:** één regel per type, in vier kleurgroepen: uit de prijslijst (grijs), handmatig (oranje, overschrijft), gebruikt in de cashflow (blauw) en kans (groen). Met een totaalregel en het grond % als balkje.
+- **Grafieken:** prijslijst en SKO per type, en het grond % huidig en met kans.
+- **Te boeken in SAP:** naast de grafieken staan de correcties per SAP-nummer en kostendrager (uit de kolom Corr). In de aansluitblokken toont kolom K per regel op welk SAP-nummer (en kostendrager) de correctie geboekt wordt.
+- **2 · Aansluiting per woningtype:** SKO, prijslijst, actueel budget, Corr, PEW, verschil en status. De status per type staat in de kopregel, het termijnschema ernaast.
+
 ## Weergave
 
 - **Jaarvakken:** in CF - opbrengsten en CF - kosten staat aan het begin van elk jaar een lijn, en boven elk kwartaal het jaartal (Q1 vet).
@@ -42,7 +56,7 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
 - **Inklappen:**
   - per woningtype is het invoerblok een groep; woningtypes zonder woningen zijn ingeklapt;
   - de rekenblokken (aantallen per termijn en €) zijn standaard ingeklapt;
-  - de kwartalen t/m de laatste actuals zijn een ingeklapte kolomgroep; met + klap je ze open.
+  - de kwartalen vóór het kwartaal van de laatste actuals zijn een ingeklapte kolomgroep; met + klap je ze open. Het kwartaal van de laatste actuals (vaak het lopende kwartaal) blijft zichtbaar.
 
   De macro werkt dit bij na Oud FO inlezen, Nieuw kwartaal en het inlezen van actuals.
 - **Transport:** onder het verkooptempo staat de tabel Transport. Daar vul je per woningtype het aantal woningen in dat per kwartaal getransporteerd wordt; "getransporteerd %" in het woningtypeblok rekent daaruit.
@@ -92,7 +106,7 @@ omschrijving op.
 ## Oud FO inlezen
 
 De macro (en `tools/omzetten.py`, dezelfde regels in Python) neemt over:
-- de exports als waarden, en `Behind the scens`;
+- de exports als waarden, en `Behind the scens` (CODA-posten als tekst blijven tekst, zodat de groepering in kolom Y van FO - vorig/huidig werkt);
 - de prijslijst per bouwnummer (bouwnummer, blok, type, handmatige kolommen);
 - per woningtype:
   - naam en type;

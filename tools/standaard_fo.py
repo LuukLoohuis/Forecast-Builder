@@ -133,11 +133,11 @@ POSTEN = ['Grondkosten', 'Aanneemsom', 'Kopersmeerwerk', 'Overige bouwkosten / m
           'Commerciele / Operationele reserve', 'Direct doorbelaste projectkosten']
 
 # ---- Prijslijst --------------------------------------------------------------------------------------
-P_TYPE1 = 5                              # rij type k = P_TYPE1 + k - 1
+P_TYPE1 = 13                             # rij type k = P_TYPE1 + k - 1 (rij 3-9: kaarten bovenaan)
 P_REGELS = ['Grond + Ontwikkelkosten', 'Aanneemsom', 'VON verhogingen', 'KAO opties', 'Korting', 'Kopersmeerwerk',
             'Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Opbrengsten commercieel', 'Opbrengsten parkeren']
 P_BLOK = len(P_REGELS) + 4
-P_AANS1 = P_TYPE1 + NT + 4
+P_AANS1 = P_TYPE1 + NT + 24              # na de totaalregel en de grafieken
 
 
 def p_aans(k):                           # titel 'Vergelijking excl. BTW - type k'; kop +1; regels +2..
@@ -169,6 +169,11 @@ FN = Font(name='Heijmans-Light', size=9, italic=True, color='FF6B7280')
 NUM = '#,##0;-#,##0;"-"'
 AANT = 'General;-General;"-"'          # aantallen: geen punt of komma achter een heel getal
 NUM2 = '#,##0.00;-#,##0.00;"-"'
+
+
+def ci_(c):
+    from openpyxl.utils import column_index_from_string
+    return column_index_from_string(c)
 
 
 def zet(ws, ref, v, font=F, fill=None, fmt=None):
@@ -572,26 +577,79 @@ def p_uit_kao(k):
 
 # ===================================================================================================
 def maak_prijslijst(ws):
-    """per bouwnummer (btw eraf), per woningtype, aansluiting met SKO/PEW en het termijnschema"""
+    """dashboard: kaarten, woningtypes (prijslijst / handmatig / gebruikt / kans), grafieken, aansluiting per type met het
+    termijnschema; daaronder (door de bouw) 'te boeken in SAP' en de prijslijst per bouwnummer"""
+    from openpyxl.chart import BarChart, Reference
+    from openpyxl.formatting.rule import CellIsRule, DataBarRule
     ws.delete_rows(1, ws.max_row + 1)
     ws.title = 'Prijslijst'
-    zet(ws, 'A1', 'Datum export:', FB)
+    ws.column_dimensions.clear()             # oude (overlappende) kolomdefinities en groepen van het sjabloon weg
+    ws.sheet_view.showGridLines = False
+    WIT = PatternFill('solid', fgColor='FFFFFFFF')
+    KAART = PatternFill('solid', fgColor='FFF5F7FA')
+    LICHT = PatternFill('solid', fgColor='FFE9ECEF')
+    BAND = {'uit': PatternFill('solid', fgColor='FF6B7280'), 'hand': PatternFill('solid', fgColor='FFD97706'),
+            'gebr': PatternFill('solid', fgColor='FF003366'), 'kans': PatternFill('solid', fgColor='FF15803D')}
+    FK = Font(name='Heijmans-Light', size=9, color='FF6B7280')
+    FV = Font(name='Heijmans-BoldCon', size=18, color='FF003366')
+    dun = Side(style='thin', color='FFD1D5DB')
+    zet(ws, 'A1', 'Datum export:', FK)
     zet(ws, 'C1', None, FB, GEEL, 'dd-mm-yyyy')
-    zet(ws, 'E1', 'Prijslijst en aansluiting · per woningtype uit Salesforce (of handmatig), aansluiting met SKO en PEW, '
-                  'termijnschema en per bouwnummer', FN)
+    zet(ws, 'B2', 'Prijslijst en aansluiting', FT)
+    zet(ws, 'F2', 'per woningtype uit Salesforce (of handmatig) · aansluiting met SKO en PEW · termijnschema · kans '
+                  'grondtermijn', FN)
+    t1, tn = P_TYPE1, P_TYPE1 + NT - 1
+    rij_tot = tn + 1
+    regels = lambda col: '+'.join('SUM(%s%d:%s%d)' % (col, p_aans(k) + 2, col, p_aans(k) + 1 + len(P_REGELS))
+                                  for k in range(1, NT + 1))
+    rk = KANS + NT + 1
+    OO = "'CF - opbrengsten'!"
+    kaarten = [
+        ('B', 'WONINGEN', '=SUM(S%d:S%d)' % (t1, tn), '0', '=COUNTIF(B%d:B%d,"?*")&" woningtypes"' % (t1, tn), None),
+        ('F', 'OPBRENGSTEN PRIJSLIJST (excl. btw)', '=SUM(T%d:W%d)' % (t1, tn), NUM, 'grond + aanneemsom + KAO + meerwerk + kad.', None),
+        ('J', 'SKO (actueel budget)', '=' + regels('B'), NUM, 'verschil met prijslijst:', '=SUM(T%d:W%d)-(%s)' % (t1, tn, regels('B'))),
+        ('N', 'TE BOEKEN IN SAP (Corr)', '=' + regels('G'), NUM, 'per SAP-nummer: zie blok 3', None),
+        ('R', 'AANSLUITING', '=IF((%s)=0,"OK",(%s)&" type(s) met FOUT")' % (('+'.join('N(J%d="FOUT")' % p_aans(k) for k in range(1, NT + 1)),) * 2), None, 'SKO ↔ prijslijst ↔ PEW, per regel', None),
+        ('V', 'KANS GRONDTERMIJN · eerder ontvangen', '=MAX(0,MAX(%sH%d:AU%d))' % (OO, rk + 1, rk + 1), NUM,
+         '="max. financiering huidig "&TEXT(%sD%d,"#,##0")&" · met kans:"' % (OO, rk + 2), '=%sD%d' % (OO, rk + 3)),
+    ]
+    for c, kop_, waarde, fmt, sub, subw in kaarten:
+        c2 = L(ci_(c) + 2)
+        for r in range(4, 9):
+            for cc in range(ci_(c), ci_(c) + 3):
+                cel = ws.cell(r, cc)
+                cel.fill = KAART
+                cel.border = Border(top=Side(style='medium', color='FFFEB900') if r == 4 else None,
+                                    left=dun if cc == ci_(c) else None, right=dun if cc == ci_(c) + 2 else None,
+                                    bottom=dun if r == 8 else None)
+        zet(ws, '%s4' % c, kop_, FK, KAART)
+        zet(ws, '%s5' % c, waarde, FV, KAART, fmt)
+        ws.merge_cells('%s5:%s6' % (c, c2))
+        ws['%s5' % c].alignment = Alignment(horizontal='left', vertical='center')
+        zet(ws, '%s7' % c, sub, FK, KAART)
+        if subw:
+            zet(ws, '%s8' % c, subw, FB, KAART, NUM)
+    ws.conditional_formatting.add('R5', CellIsRule(operator='equal', formula=['"OK"'], font=Font(color='FF15803D', bold=True, size=18)))
+    ws.conditional_formatting.add('R5', CellIsRule(operator='notEqual', formula=['"OK"'], font=Font(color='FFB91C1C', bold=True, size=18)))
+    # 1 woningtypes
+    zet(ws, 'A%d' % (t1 - 3), '1 · WONINGTYPES', FW, DONKER)
+    for cc in range(2, 27):
+        ws.cell(t1 - 3, cc).fill = DONKER
+    for (c1_, c2_), tekst, band in ((('D', 'M'), 'UIT DE PRIJSLIJST (excl. btw)', 'uit'),
+                                    (('N', 'R'), 'HANDMATIG · overschrijft, leeg = prijslijst', 'hand'),
+                                    (('S', 'X'), 'GEBRUIKT IN DE CASHFLOW', 'gebr'), (('Y', 'Z'), 'KANS', 'kans')):
+        for cc in range(ci_(c1_), ci_(c2_) + 1):
+            ws.cell(t1 - 2, cc).fill = BAND[band]
+        zet(ws, '%s%d' % (c1_, t1 - 2), tekst, FW, BAND[band])
     kop = ['Nr', 'Woningtype (naam)', 'Type in prijslijst', 'Aantal', 'Grond (facturatie)', 'Aanneemsom', 'KAO-opties',
            'Kopersmeerwerk', 'Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Korting', 'VON excl. btw',
-           'Handm. aantal', 'Handm. grond', 'Handm. aanneemsom + KAO', 'Handm. kopersmeerwerk', 'Handm. kad. + rente',
+           'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente',
            'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente', 'Grond % van de koopsom',
-           'KANS: grond % (leeg = geen)', 'Kans: grond +/- per woning']
-    zet(ws, 'D3', 'UIT DE PRIJSLIJST (excl. btw)', FW, DONKER)
-    zet(ws, 'N3', 'HANDMATIG (overschrijft, leeg = prijslijst)', FW, DONKER)
-    zet(ws, 'S3', 'GEBRUIKT IN DE CASHFLOW', FW, DONKER)
-    zet(ws, 'Y3', 'KANS (zie CF - opbrengsten en Dashboard)', FW, DONKER)
-    ws.sheet_view.showGridLines = False
+           'Kans: grond % (leeg = geen kans)', 'Kans: grond +/- per woning']
     for i, t in enumerate(kop):
-        zet(ws, '%s4' % L(1 + i), t, FB, KOP)
-        ws['%s4' % L(1 + i)].alignment = Alignment(wrap_text=True, vertical='center')
+        zet(ws, '%s%d' % (L(1 + i), t1 - 1), t, FB, LICHT)
+        ws['%s%d' % (L(1 + i), t1 - 1)].alignment = Alignment(wrap_text=True, vertical='center')
+    ws.row_dimensions[t1 - 1].height = 32
     rng = lambda c: '$%s$%d:$%s$%d' % (c, P_BN1, c, P_BNN)
     for k in range(1, NT + 1):
         r = P_TYPE1 + k - 1
@@ -605,26 +663,88 @@ def maak_prijslijst(ws):
         for x in P_HAND.values():
             zet(ws, '%s%d' % (x, r), None, F, GEEL, NUM)
         g = lambda h, u: '=IF(%s%d<>"",%s%d,%s)' % (h, r, h, r, u)
-        zet(ws, '%s%d' % (P_GEBR['aantal'], r), g('N', 'D%d' % r), FB, None, '0')
-        zet(ws, '%s%d' % (P_GEBR['grond'], r), g('O', 'E%d' % r), FB, None, NUM)
-        zet(ws, '%s%d' % (P_GEBR['aanneemkao'], r), g('P', 'F%d+G%d' % (r, r)), FB, None, NUM)
-        zet(ws, '%s%d' % (P_GEBR['kmw'], r), g('Q', 'H%d' % r), FB, None, NUM)
-        zet(ws, '%s%d' % (P_GEBR['kadrente'], r), g('R', 'I%d+J%d+K%d+L%d' % (r, r, r, r)), FB, None, NUM)
-        zet(ws, 'X%d' % r, '=IFERROR(T%d/(T%d+U%d),0)' % (r, r, r), FB, None, '0.0%')
+        zet(ws, '%s%d' % (P_GEBR['aantal'], r), g('N', 'D%d' % r), FB, WIT, '0')
+        zet(ws, '%s%d' % (P_GEBR['grond'], r), g('O', 'E%d' % r), FB, WIT, NUM)
+        zet(ws, '%s%d' % (P_GEBR['aanneemkao'], r), g('P', 'F%d+G%d' % (r, r)), FB, WIT, NUM)
+        zet(ws, '%s%d' % (P_GEBR['kmw'], r), g('Q', 'H%d' % r), FB, WIT, NUM)
+        zet(ws, '%s%d' % (P_GEBR['kadrente'], r), g('R', 'I%d+J%d+K%d+L%d' % (r, r, r, r)), FB, WIT, NUM)
+        zet(ws, 'X%d' % r, '=IFERROR(T%d/(T%d+U%d),0)' % (r, r, r), FB, WIT, '0.0%')
         zet(ws, 'Y%d' % r, None, FB, GEEL, '0%')
-        zet(ws, 'Z%d' % r, '=IF(Y%d="",0,IFERROR((Y%d-X%d)*(T%d+U%d)/S%d,0))' % (r, r, r, r, r, r), F, None, NUM)
-    # aansluiting per type + termijnschema
+        zet(ws, 'Z%d' % r, '=IF(Y%d="",0,IFERROR((Y%d-X%d)*(T%d+U%d)/S%d,0))' % (r, r, r, r, r, r), F, WIT, NUM)
+        # hulp voor de grafiek: SKO en prijslijst per type (uit het aansluitblok)
+        a = p_aans(k)
+        zet(ws, 'AB%d' % r, '=SUM(B%d:B%d)' % (a + 2, a + 1 + len(P_REGELS)), FK, None, NUM)
+        zet(ws, 'AC%d' % r, '=SUM(D%d:D%d)' % (a + 2, a + 1 + len(P_REGELS)), FK, None, NUM)
+        for cc in range(1, 27):
+            ws.cell(r, cc).border = Border(bottom=dun)
+    zet(ws, 'AB%d' % (t1 - 1), 'SKO', FK)
+    zet(ws, 'AC%d' % (t1 - 1), 'Prijslijst', FK)
+    zet(ws, 'AB%d' % (t1 - 2), 'hulp voor de grafiek', FK)
+    zet(ws, 'B%d' % rij_tot, 'Totaal', FB, LICHT)
+    for c in [L(x) for x in range(4, 24)] + ['Z']:
+        zet(ws, '%s%d' % (c, rij_tot), '=SUM(%s%d:%s%d)' % (c, t1, c, tn) if c not in ('X', 'Z') else None, FB, LICHT,
+            '0' if c in ('D', 'N', 'S') else NUM)
+    zet(ws, 'X%d' % rij_tot, '=IFERROR(T%d/(T%d+U%d),0)' % (rij_tot, rij_tot, rij_tot), FB, LICHT, '0.0%')
+    for c in ('A', 'C', 'Y', 'Z'):
+        ws['%s%d' % (c, rij_tot)].fill = LICHT
+    ws.conditional_formatting.add('X%d:X%d' % (t1, tn), DataBarRule(start_type='num', start_value=0, end_type='num',
+                                                                     end_value=1, color='FFFEB900', showValue=True))
+    ws.conditional_formatting.add('Y%d:Y%d' % (t1, tn), CellIsRule(operator='greaterThan', formula=['0'],
+                                                                   fill=PatternFill('solid', fgColor='FFD1FAE5', bgColor='FFD1FAE5')))
+    # grafieken
+    g1 = BarChart()
+    g1.type, g1.grouping, g1.gapWidth = 'col', 'clustered', 60
+    g1.title = 'Prijslijst en SKO per type'
+    g1.add_data(Reference(ws, min_col=ci_('AC'), min_row=t1 - 1, max_row=tn), titles_from_data=True)
+    g1.add_data(Reference(ws, min_col=ci_('AB'), min_row=t1 - 1, max_row=tn), titles_from_data=True)
+    g1.set_categories(Reference(ws, min_col=2, min_row=t1, max_row=tn))
+    for s_, kl in zip(g1.series, ('003366', 'FEB900')):
+        s_.graphicalProperties.solidFill = kl
+        s_.graphicalProperties.line.noFill = True
+    g1.y_axis.number_format = '#,##0'
+    g1.y_axis.majorGridlines = None
+    g1.x_axis.delete = g1.y_axis.delete = False
+    g1.legend.position = 'b'
+    g1.height, g1.width = 7, 16
+    ws.add_chart(g1, 'B%d' % (rij_tot + 2))
+    g2 = BarChart()
+    g2.type, g2.grouping, g2.gapWidth = 'col', 'clustered', 60
+    g2.title = 'Grond % · huidig en kans'
+    g2.add_data(Reference(ws, min_col=ci_('X'), min_row=t1 - 1, max_row=tn), titles_from_data=True)
+    g2.add_data(Reference(ws, min_col=ci_('Y'), min_row=t1 - 1, max_row=tn), titles_from_data=True)
+    g2.set_categories(Reference(ws, min_col=2, min_row=t1, max_row=tn))
+    for s_, kl in zip(g2.series, ('9CA3AF', '15803D')):
+        s_.graphicalProperties.solidFill = kl
+        s_.graphicalProperties.line.noFill = True
+    g2.y_axis.number_format = '0%'
+    g2.y_axis.scaling.min = 0
+    g2.y_axis.majorGridlines = None
+    g2.x_axis.delete = g2.y_axis.delete = False
+    g2.legend.position = 'b'
+    g2.height, g2.width = 7, 13
+    ws.add_chart(g2, 'H%d' % (rij_tot + 2))
+    # 2 aansluiting per type + termijnschema
+    zet(ws, 'A%d' % (P_AANS1 - 2), '2 · AANSLUITING PER WONINGTYPE · SKO ↔ prijslijst ↔ PEW, met het termijnschema', FW, DONKER)
+    for cc in range(2, 27):
+        ws.cell(P_AANS1 - 2, cc).fill = DONKER
     uit = {'Grond + Ontwikkelkosten': 'E', 'Aanneemsom': 'F', 'KAO opties': 'G', 'Korting': 'L', 'Kopersmeerwerk': 'H',
            'Kadastrale kosten': 'I', 'Bouwrente': 'J', 'Aanvullende rente': 'K'}
     for k in range(1, NT + 1):
         a = p_aans(k)
         t = P_TYPE1 + k - 1
-        zet(ws, 'A%d' % a, 'Vergelijking excl. BTW - type %d' % k, FB)
-        zet(ws, 'C%d' % a, '=B%d&""' % t, FB)
+        ra, rz = a + 2, a + 1 + len(P_REGELS)
+        for cc in range(1, 15):
+            ws.cell(a, cc).fill = BAND['gebr']
+        zet(ws, 'A%d' % a, 'Vergelijking excl. BTW - type %d' % k, FW, BAND['gebr'])
+        zet(ws, 'C%d' % a, '=B%d&""' % t, Font(name='Heijmans-BoldCon', size=11, color='FFFFFFFF'), BAND['gebr'])
+        zet(ws, 'J%d' % a, '=IF(COUNTIF(J%d:J%d,"FOUT")=0,"OK","FOUT")' % (ra, rz), FW, BAND['gebr'])
+        zet(ws, 'N%d' % a, '=IF(ABS(%s%d-1)<0.0001,"OK",IF(%s%d=0,"","LET OP: niet 100%%"))'
+            % (P_TERM_PCT, rz + 1, P_TERM_PCT, rz + 1), FW, BAND['gebr'])
         for c, h in zip('BDFGHIJ', ['SKO', 'Prijslijst', 'Actueel budget', 'Corr', 'PEW', 'Verschil', 'Status']):
-            zet(ws, '%s%d' % (c, a + 1), h, FB, KOP)
-        zet(ws, '%s%d' % (P_TERM_NAAM, a + 1), 'Termijnschema · termijn', FB, KOP)
-        zet(ws, '%s%d' % (P_TERM_PCT, a + 1), '% van aanneemsom + KAO', FB, KOP)
+            zet(ws, '%s%d' % (c, a + 1), h, FB, LICHT)
+        ws['A%d' % (a + 1)].fill = LICHT
+        zet(ws, '%s%d' % (P_TERM_NAAM, a + 1), 'Termijnschema · termijn', FB, LICHT)
+        zet(ws, '%s%d' % (P_TERM_PCT, a + 1), '% (aanneemsom + KAO)', FB, LICHT)
         for i, lab in enumerate(P_REGELS):
             r = a + 2 + i
             zet(ws, 'A%d' % r, lab)
@@ -635,13 +755,33 @@ def maak_prijslijst(ws):
             zet(ws, 'H%d' % r, '=F%d+G%d' % (r, r), F, None, NUM)
             zet(ws, 'I%d' % r, '=N(D%d)-H%d' % (r, r), F, None, NUM)
             zet(ws, 'J%d' % r, '=IF(ABS(I%d)<1,"OK","FOUT")' % r, FB)
+            for cc in range(1, 11):
+                ws.cell(r, cc).border = Border(bottom=dun)
+        zet(ws, 'C%d' % (rz + 1), 'Totaal', FB, LICHT)
+        ws['A%d' % (rz + 1)].fill = LICHT
+        for c in 'BDFGHI':
+            zet(ws, '%s%d' % (c, rz + 1), '=SUM(%s%d:%s%d)' % (c, ra, c, rz), FB, LICHT, NUM)
+        for c in 'EJ':
+            ws['%s%d' % (c, rz + 1)].fill = LICHT
+        ws.conditional_formatting.add('G%d:G%d' % (ra, rz), CellIsRule(operator='notBetween', formula=['-0.5', '0.5'],
+                                      font=Font(color='FF92400E', bold=True), fill=PatternFill('solid', fgColor='FFFEF3C7', bgColor='FFFEF3C7')))
         for i in range(1, NTERM + 1):
             r = a + 1 + i
             zet(ws, '%s%d' % (P_TERM_NAAM, r), None, F, GEEL)
             zet(ws, '%s%d' % (P_TERM_PCT, r), None, F, GEEL, '0.0%')
-        r = a + 2 + len(P_REGELS)
-        zet(ws, '%s%d' % (P_TERM_NAAM, r), 'Totaal', FB)
-        zet(ws, '%s%d' % (P_TERM_PCT, r), '=SUM(%s%d:%s%d)' % (P_TERM_PCT, a + 2, P_TERM_PCT, a + 1 + NTERM), FB, None, '0.0%')
+        zet(ws, '%s%d' % (P_TERM_NAAM, rz + 1), 'Totaal', FB, LICHT)
+        zet(ws, '%s%d' % (P_TERM_PCT, rz + 1), '=SUM(%s%d:%s%d)' % (P_TERM_PCT, a + 2, P_TERM_PCT, a + 1 + NTERM), FB, LICHT, '0.0%')
+    rood = Font(color='FFB91C1C', bold=True)
+    groen = Font(color='FF15803D', bold=True)
+    for k in range(1, NT + 1):
+        a = p_aans(k)
+        ws.conditional_formatting.add('J%d:J%d' % (a + 2, a + 1 + len(P_REGELS)), CellIsRule(operator='equal', formula=['"FOUT"'], font=rood))
+        ws.conditional_formatting.add('J%d:J%d' % (a + 2, a + 1 + len(P_REGELS)), CellIsRule(operator='equal', formula=['"OK"'], font=groen))
+    for c, w in {'A': 26, 'B': 24, 'C': 16}.items():
+        ws.column_dimensions[c].width = w
+    for c in range(4, 27):
+        ws.column_dimensions[L(c)].width = 13
+    ws.column_dimensions[P_TERM_NAAM].width = 30
     # per bouwnummer (zoals de oude Prijslijst)
     kb_ = ['Bouwnummer', 'Termijnen / Blok', 'Type', 'SF: Grondkosten start verkoop (incl. Kad)', 'SF: Aanneemsom start verkoop',
            'SF: VON start verkoop', 'SF: Totaal woonwensen in VON', 'SF: Totaal woonwensen in OB', 'SF: Status',
@@ -669,7 +809,7 @@ def maak_prijslijst(ws):
         zet(ws, 'T%d' % r, '=IF($A%d="","",N(J%d)+N(K%d)+N(O%d)+N(P%d)+N(Q%d)+N(R%d))' % (r, r, r, r, r, r, r), F, None, NUM)
     ws.column_dimensions['A'].width = 26
     ws.column_dimensions['B'].width = 24
-    ws.freeze_panes = 'A5'
+    ws.freeze_panes = 'A3'
 
 
 # ===================================================================================================
@@ -744,6 +884,15 @@ def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=No
                     pew['%s%d' % (c, r)].value = None
         leegmaken(wb)
     wb['CF - opbrengsten']['D3'] = jaar
+    # FO - vorig/huidig kolom Y (groepering): zoekt de CODA-post als tekst én als getal op in Behind the scens
+    # (na kopiëren in Excel wordt '5100' vaak het getal 5100)
+    for n in ('FO - vorig', 'FO - huidig'):
+        ws_ = wb[n]
+        for r in range(17, ws_.max_row + 1):
+            v = ws_['Y%d' % r].value
+            if isinstance(v, str) and 'VLOOKUP' in v.upper() and 'Behind the scens' in v:
+                ws_['Y%d' % r] = ('=IF(X{r}="","",IFERROR(VLOOKUP(X{r}&"",\'Behind the scens\'!$A:$C,3,0),'
+                                  'IFERROR(VLOOKUP(--X{r},\'Behind the scens\'!$A:$C,3,0),"")))').format(r=r)
     # FO - actuals: hulpkolom S voor de top 3 kosten in het reviewkwartaal (per kostensoortomschrijving, kolom E)
     act = wb['FO - actuals']
     act['S1'] = 'Top 3 (hulp)'
@@ -758,7 +907,7 @@ def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=No
 
 
 def inklappen(wb, types, jaar, verleden_tot):
-    """woningtypes zonder woningen ingeklapt; kwartalen t/m de laatste actuals (kwartaalindex) als ingeklapte groep"""
+    """woningtypes zonder woningen ingeklapt; kwartalen vóór de laatste actuals (kwartaalindex) als ingeklapte groep"""
     o, k = wb['CF - opbrengsten'], wb['CF - kosten']
     for t in types:
         for r in range(plan(t, 1), hb(t) + BLOK - 1):
@@ -769,7 +918,7 @@ def inklappen(wb, types, jaar, verleden_tot):
         for r in range(kterm(t, 1), k_aanneem(t) + 2):
             k.row_dimensions[r].hidden = True
     if verleden_tot:
-        n = verleden_tot - (jaar * 4 + 1) + 1
+        n = verleden_tot - (jaar * 4 + 1)          # het kwartaal van de laatste actuals blijft zichtbaar
         if n > 0:
             for ws in (o, k):
                 ws.column_dimensions.group(QCOLS[0], QCOLS[min(n, NQ) - 1], outline_level=1, hidden=True)

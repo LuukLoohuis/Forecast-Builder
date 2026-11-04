@@ -368,6 +368,35 @@ def aansluiting(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
             z('D%d' % r, '=N(%s%d)' % (b['corr'], rr), st['getal'])
             z('E%d' % r, b['naam'], st['tekst'])
             r += 1
+    if oz.get('standaard'):
+        import standaard_fo as S_
+        km = lambda c: '$%s$%d:$%s$%d' % (c, L_['m1'], c, max(L_['m1'], L_['mn']))
+        # per regel naast Corr: waar de correctie geboekt wordt (zoals de kolom a/b/c in het oude tabblad)
+        for b in L_['blokken']:
+            z('K%d' % (b['titel'] + 1), 'Boeken op SAP', st['kop'])
+            for rr, lab in b['regels']:
+                x = lambda c: 'INDEX(%s,MATCH($A%d,%s,0))' % (km(c), rr, km('A'))
+                z('K%d' % rr, '=IF(ABS(N($G%d))<0.5,"",IFERROR(%s&IF(%s&""="",""," · "&%s),"koppel aan SAP-nr"))'
+                  % (rr, x('B'), x('C'), x('C')), st['vet'])
+        # op het dashboard: te boeken in SAP, naast de grafieken
+        r0 = S_.P_TYPE1 + S_.NT + 2
+        for c in 'OPQRST':
+            z('%s%d' % (c, r0), 'TE BOEKEN IN SAP · n.a.v. de prijslijst (kolom Corr)' if c == 'O' else None, st['sectie'])
+        for c, h in zip('OQRS', ['Omschrijving', 'SAP-nummer', 'Kostendrager', 'Bedrag (€)']):
+            z('%s%d' % (c, r0 + 1), h, st['kop_links'] if c == 'O' else st['kop'])
+        for i in range(len(SAP_BOEKING)):
+            r, rb = r0 + 2 + i, L_['b1'] + i
+            z('O%d' % r, '=A%d' % rb, st['tekst'])
+            z('Q%d' % r, '=IF(B%d="","",B%d)' % (rb, rb), st['aantal'])
+            z('R%d' % r, '=IF(C%d="","",C%d)' % (rb, rb), st['aantal'])
+            z('S%d' % r, '=D%d' % rb, st['getal'])
+        r = r0 + 2 + len(SAP_BOEKING)
+        z('O%d' % r, 'Niet toegewezen', st['tekst'])
+        z('S%d' % r, '=D%d' % L_['open'], st['getal'])
+        z('T%d' % r, '=E%d' % L_['open'], st['vet'])
+        z('O%d' % (r + 1), 'Totaal correcties', st['label_tot'])
+        z('S%d' % (r + 1), '=D%d' % L_['totaal'], st['getal_tot'])
+        z('O%d' % (r + 3), 'Per regel: kolom K in de blokken hieronder. Koppeling aanpassen: rij %d.' % L_['k0'], st['tekst'])
     log('  Aansluiting opbrengsten: te boeken in SAP vanaf rij %d (%d regels per type, %d blokken)'
         % (L_['s0'], len(L_['regels']), len(L_['blokken'])))
 

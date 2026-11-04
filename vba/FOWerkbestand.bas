@@ -676,6 +676,13 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         With ThisWorkbook.Worksheets("Behind the scens")
             .UsedRange.ClearContents
             .Range(ws.UsedRange.Address).Formula = ws.UsedRange.Formula
+            ' CODA-posten die als tekst staan ("5100") als tekst houden: kolom Y van FO - vorig/huidig zoekt op tekst
+            Dim bc As Range
+            For Each bc In ws.UsedRange.Cells
+                If Not bc.HasFormula And VarType(bc.Value) = vbString Then
+                    If Len(bc.Value) > 0 And IsNumeric(bc.Value) Then .Range(bc.Address).Value = "'" & bc.Value
+                End If
+            Next bc
         End With
     End If
 
@@ -1129,7 +1136,7 @@ Private Sub PewOmzetten(ByVal wbO As Workbook, ByRef lg As String)
 End Sub
 
 Public Sub WeergaveBijwerken()
-    ' CF - opbrengsten en CF - kosten: woningtypes zonder woningen ingeklapt; de kwartalen t/m de laatste actuals
+    ' CF - opbrengsten en CF - kosten: woningtypes zonder woningen ingeklapt; de kwartalen vóór de laatste actuals
     ' (tab Start) als ingeklapte kolomgroep (met + weer open te klappen)
     Dim wsO As Worksheet, wsK As Worksheet, ws As Variant, k As Long, leeg As Boolean, r1 As Long, n As Long, i As Long
     Dim k1 As Long, ka As Long
@@ -1150,7 +1157,7 @@ Public Sub WeergaveBijwerken()
     If Not IsGetalW(wsO.Range("D3").Value) Then Exit Sub
     k1 = CLng(wsO.Range("D3").Value) * 4 + 1
     ka = CLng(Nk(ThisWorkbook.Worksheets(SH_START).Range("F12").Value))
-    n = ka - k1 + 1
+    n = ka - k1          ' het kwartaal van de laatste actuals (vaak het lopende) blijft zichtbaar
     If n > NQ Then n = NQ
     For Each ws In Array(wsO, wsK)
         On Error Resume Next
