@@ -213,6 +213,13 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         z('%s%d' % (st_k, p), '=IF(OR($C%d="Voorstel",$C%d="Transport"),IF(ABS(%s%d-D%d)<1,"OK","FOUT"),'
                               'IF(AND(%s%d-D%d<1,%s%d-D%d>-1),"OK","FOUT"))' % (p, p, tk, p + off, p, tk, p, p, tk, p, p))
     sh.add_list_validation('C%d:C%d' % (p1, pn), ['Handmatig', 'Voorstel', 'Transport'])
+    if oz.get('standaard'):
+        z('E%d' % k['onderdelen'], 'Verdeeld', st['kop'])
+        z('F%d' % k['onderdelen'], 'Nog te verdelen', st['kop'])
+        for p in posten:
+            z('E%d' % p, '=IF(OR($C%d="Voorstel",$C%d="Transport"),%s%d,SUM(%s%d:%s%d))' % (p, p, tk, p + off, cols[0], p, cols[-1], p),
+              st['getal'])
+            z('F%d' % p, '=IF(B%d="","",ROUND(N(D%d)-E%d,0))' % (p, p, p), st['vet'])
     m = '$C$%d:$C$%d' % (p1, pn)
     for c in cols:
         hand, vs = '%s%d:%s%d' % (c, p1, c, pn), '%s%d:%s%d' % (c, v1, c, vn)
@@ -220,7 +227,7 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
                                      '+SUMIFS(%s,%s,"Voorstel")+SUMIFS(%s,%s,"Transport")' % (hand, hand, m, hand, m, vs, m, vs, m))
     z('%s%d' % (toel, k['onderdelen'] - 1), 'Kolom C: Handmatig = deze regels · Voorstel = restant gelijk verdeeld t/m '
                                             'oplevering · Transport = restant naar rato van het transport (bv. grond). Bij '
-                                            'Voorstel/Transport: wat je in de postregel invult, gaat voor (leeg = voorstel). '
+                                            'Voorstel/Transport: wat je in de postregel invult, gaat voor (leeg of 0 = voorstel). '
                                             'Blok onderaan rij %d-%d; rij %d = definitief.' % (v1, vn, k['totaal']), st['notitie'])
     z('%s4' % toel, 'Bouwtermijnen volgen de geplande bouwtermijnen van CF - opbrengsten; overschrijven mag.', st['notitie'])
 
@@ -261,10 +268,12 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         rp = '$%s$%d:$%s$%d' % (cols[0], p, cols[-1], p)
         # restant na de zelf ingevulde (overschreven) prognosekwartalen
         z('F%d' % r, '=MAX(0,D%d-E%d-SUMIFS(%s,%s,">="&%s))' % (r, r, rp, rk, P_H), st['getal'])
-        z('G%d' % r, '=IF($C%d="Transport",SUMPRODUCT(%s*(%s>=%s)*(%s="")),COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s),%s,""))'
-          % (p, rt, rk, P_H, rp, rk, P_H, rk, P_H, P_O, rp), st['aantal'])
+        # een kwartaal telt als leeg (wordt verdeeld) als er niets of 0 staat
+        z('G%d' % r, '=IF($C%d="Transport",SUMPRODUCT(%s*(%s>=%s)*(((%s&"")="")+((%s&"")="0"))),'
+                     'COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s),%s,"")+COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s),%s,0))'
+          % (p, rt, rk, P_H, rp, rp, rk, P_H, rk, P_H, P_O, rp, rk, P_H, rk, P_H, P_O, rp), st['aantal'])
         for c in cols:
-            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF(%s%d<>"",%s%d,IF($C%d="Transport",IF($G%d=0,0,$F%d*%s$%d/$G%d),'
+            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF(N(%s%d)<>0,%s%d,IF($C%d="Transport",IF($G%d=0,0,$F%d*%s$%d/$G%d),'
                                'IF(%s$%d<=MAX(%s,%s),IF($G%d=0,0,$F%d/$G%d),0))))'
               % (c, hk, P_H, c, p, c, p, c, p, p, r, r, c, ht, r, c, hk, P_H, P_O, r, r, r), st['getal'])
         z('%s%d' % (tk, r), '=SUM(%s%d:%s%d)' % (cols[0], r, cols[-1], r), st['getal_tot'])
@@ -280,9 +289,9 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     geel = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFDE68A"/></patternFill></fill>')
     groen = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFD1FAE5"/></patternFill></fill>')
     rood = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFECACA"/></patternFill></fill>')
-    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(OR($C%d="Voorstel",$C%d="Transport"),%s%d="")'
+    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(OR($C%d="Voorstel",$C%d="Transport"),N(%s%d)=0)'
               % (p1, p1, cols[0], p1), grijs)
-    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(OR($C%d="Voorstel",$C%d="Transport"),%s%d<>"")'
+    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(OR($C%d="Voorstel",$C%d="Transport"),N(%s%d)<>0)'
               % (p1, p1, cols[0], p1), geel)
     sh.add_cf('%s%d:%s%d' % (cols[0], v1, cols[-1], vn), 'OR($C%d="Voorstel",$C%d="Transport")' % (p1, p1), geel)
     sh.add_cf('%s%d:%s%d' % (st_k, v1, st_k, vn), '%s%d="OK"' % (st_k, v1), groen)

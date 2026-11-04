@@ -129,7 +129,8 @@ omschrijving op.
 **Kosten**
 - Per type budget aanneemsom (excl. KAO), KAO, % per termijn en de planning (standaard die van de opbrengsten).
 - Aanneemsom en Kopersmeerwerk volgen de termijnen.
-- Bij Voorstel of Transport gaat wat je in de postregel invult voor; de rest van het budget wordt verdeeld.
+- Bij Voorstel of Transport gaat wat je in de postregel invult voor; de rest van het budget wordt verdeeld over de kwartalen die leeg zijn of op 0 staan.
+- Naast elke post: "Verdeeld" (het totaal in de cashflow volgens de gekozen methode) en "Nog te verdelen" (PEW − verdeeld).
 
 ## Oud FO inlezen
 
