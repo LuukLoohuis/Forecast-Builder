@@ -51,7 +51,7 @@ python tools/release.py <pad-naar-recalc.py> [werkmap]
 
 ## 3. Architectuur van de werkmap
 
-**Zichtbare bladen (13):** Start, Dashboard, RDFO, Projecten, Woningen, Outlook, Bandbreedte, Kansen en risico's, Projectlijst, AK-dekking, Controle, Invoer, Handleiding. Historie en Projectdetail zijn verborgen (knop *Toon / verberg rekenbladen*). Controle toont na inlezen alleen FOUT/WAARSCHUWING (macro `RDFO_ControleWissel`).
+**Zichtbare bladen (14):** Start, Dashboard, RDFO, Projecten, Woningen, Outlook, Bandbreedte, Kansen en risico's, Reserves (overzicht; invoer op Projectlijst L–Q; totaal ook onderaan RDFO, dia T_RESS/T_RES), Projectlijst, AK-dekking, Controle, Invoer, Handleiding. Historie en Projectdetail zijn verborgen (knop *Toon / verberg rekenbladen*). Controle toont na inlezen alleen FOUT/WAARSCHUWING (macro `RDFO_ControleWissel`).
 
 **Verborgen bladen:** `Bron_ZPMW03`, `Bron_Woningetalage` (ruwe export, kop in rij 1) → `STG_ZPMW03`, `STG_Woningetalage` (kolommen op naam gezocht, afgeleide velden, controlekolommen `C_*`) → `VERW_Project` (1 rij per project in de projectlijst) → `CALC_Versies` (totalen per versie) → rapportbladen. Verder `Concept` (wat vastgelegd wordt), `Lijsten`, `PPT` (teksten + dia-specificatie `PPT_Spec`), `Dias` (tabellen/grafieken voor de PowerPoint).
 

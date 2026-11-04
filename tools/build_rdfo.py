@@ -68,7 +68,8 @@ RUBRIEKEN = ["Taakstelling omzet", "Interne eliminaties", "IFRS-eliminaties", "A
 SHEETS = [  # (naam, tabkleur, zichtbaar)
     ("Start", NAVY, True), ("Dashboard", YELLOW, True), ("RDFO", YELLOW, True), ("Projecten", YELLOW, True),
     ("Projectdetail", YELLOW, False), ("Woningen", YELLOW, True), ("Outlook", YELLOW, True),
-    ("Bandbreedte", YELLOW, True), ("Kansen en risico's", YELLOW, True), ("Projectlijst", "1F4E9A", True),
+    ("Bandbreedte", YELLOW, True), ("Kansen en risico's", YELLOW, True), ("Reserves", YELLOW, True),
+    ("Projectlijst", "1F4E9A", True),
     ("AK-dekking", "1F4E9A", True), ("Controle", RED, True), ("Invoer", "1F4E9A", True), ("Historie", GREEN, False),
     ("Handleiding", MID, True),
     ("Concept", GREY, False), ("VERW_Project", GREY, False), ("CALC_Versies", GREY, False),
@@ -1339,7 +1340,30 @@ def build_rdfo(wb, ws):
     ws.conditional_formatting.add(f"C7:G{last}", FormulaRule(formula=["C$5=Sel_Versie"], fill=fill(YELLOW_LT)))
     ws.conditional_formatting.add("C6:G6", FormulaRule(formula=["C$5=Sel_Versie"], fill=fill(YELLOW), font=Font(color=NAVY, bold=True)))
     ws.conditional_formatting.add(f"J7:J{last}", FormulaRule(formula=["TRUE"], fill=fill(YELLOW_LT)))
-    r = last + 2
+    # ---- reserves (actueel, uit Projectlijst): één totaalregel, details in- en uitklapbaar (+ links)
+    rr0 = last + 2
+    header(ws, rr0, 2, ['="Reserves (actueel, "&P_Eenheid&")"', "Reserve", '="Vrijval "&P_RJ', '="Vrijval "&(P_RJ+1)', "Later"], height=22)
+    for k, lab in enumerate(["Commerciële reserve", "Operationele reserve", "Nazorg", "Reserves totaal"]):
+        r = rr0 + 1 + k
+        tot = k == 3
+        put(ws, f"B{r}", lab, bold=tot)
+        if not tot:
+            ws[f"B{r}"].alignment = Alignment(indent=1)
+        for c in "CDEF":
+            ws[f"{c}{r}"] = f"=Reserves!{c}{6 + k}/P_Factor"
+            ws[f"{c}{r}"].number_format = FMT_EUR
+            ws[f"{c}{r}"].alignment = Alignment(horizontal="right")
+        for c in "BCDEF":
+            ws[f"{c}{r}"].font = font(9, tot, "000000" if tot else "333F55")
+            ws[f"{c}{r}"].border = Border(bottom=thin, top=thick_navy if tot else None)
+        if not tot:
+            ws.row_dimensions[r].outlineLevel = 1
+            ws.row_dimensions[r].hidden = True
+    put(ws, f"G{rr0 + 4}", "← klik op + links om per soort te zien · per project: tabblad Reserves", color=GREY, italic=True, size=8)
+    ws[f"G{rr0 + 4}"].hyperlink = "#'Reserves'!A1"
+    ws.row_dimensions[rr0 + 4].collapsed = True
+    RDFO_ROWS["res"] = rr0 + 4
+    r = rr0 + 6
     notes = [
         "Leeswijzer",
         "• Budget/Q1–Q4 = vastgelegde (onveranderlijke) FY-jaarprognoses uit Vastlegging. Een nieuwe upload wijzigt deze kolommen niet. ● = versie bevat een correctie (revisie > 0).",
@@ -3166,6 +3190,8 @@ def build_ppt(wb, ws):
         ("PPT_ProjN", '=COUNTIF(Map_WBS,"?*")'),
         ("PPT_Msg9", '="Omzet "&(P_RJ+1)&": € "&FIXED(MIN(Bandbreedte!$C$6:$C$10),1)&" – "&FIXED(MAX(Bandbreedte!$C$6:$C$10),1)&" mln  ·  basis € "&FIXED(Bandbreedte!$C$7,1)&" mln"&IF(ISNUMBER(Bandbreedte!$C$12),"  ·  budget € "&FIXED(Bandbreedte!$C$12,1)&" mln","")'),
         ("PPT_Msg10", '="Saldo kansen en risico\'s: € "&FIXED(SUM(KR_Telt)/1000000,1)&" mln  ·  "&COUNTIF(KR_Soort,"Kans")&" kansen, "&COUNTIF(KR_Soort,"Risico")&" risico\'s"'),
+        ("PPT_Msg12", '="Reserves totaal: € "&FIXED(Reserves!$C$9/1000000,1)&" mln  ·  vrijval "&P_RJ&": € "&FIXED(Reserves!$D$9/1000000,1)'
+                      '&" mln  ·  "&(P_RJ+1)&": € "&FIXED(Reserves!$E$9/1000000,1)&" mln  ·  later: € "&FIXED(Reserves!$F$9/1000000,1)&" mln  ·  tabellen in "&P_Eenheid'),
         ("PPT_Msg11", '="Verkochte woningen per kwartaal, "&P_RJ&" en "&(P_RJ+1)&" · de 15 projecten met de meeste verkopen · donkerder = meer verkopen"'),
         ("PPT_Msg8", '="Prognoseverloop en brug naar de geselecteerde versie  ·  groen = hoger, rood = lager"'),
     ]
@@ -3407,6 +3433,36 @@ def build_dias(wb, ws):
         cell(r, 12, f'=IF(Woningen!K{sr}="","",Woningen!K{sr})', FMT_INT, True, align="center", size=9, fillc=LIGHT if tot else None)
     heat_cf(ws, f"D{t+1}:K{t+15}")
 
+    # ---- reserves: per soort en per project (12 grootste niet nodig: volgorde van de Projectlijst)
+    t = 256
+    eh = '="("&P_Eenheid&")"'
+    table_head(t, ["Soort", "Reserve", '="Vrijval "&P_RJ', '="Vrijval "&(P_RJ+1)', "Later"], [2.6, 1, 1, 1, 1], "T_RESS", 4)
+    for k in range(4):
+        r = t + 1 + k
+        tot = k == 3
+        cell(r, 2, f"=Reserves!B{6 + k}", bold=tot, align="left", size=9, fillc=LIGHT if tot else None)
+        for j, c in enumerate("CDEF"):
+            cell(r, 3 + j, f"=Reserves!{c}{6 + k}/P_Factor", '#,##0;[Red]-#,##0;"–"', tot, size=9, fillc=LIGHT if tot else None)
+    t = 264
+    npp = 12
+    table_head(t, ["Project", "Commercieel", "Operationeel", "Nazorg", "Totaal", '="Vrijval "&P_RJ', '="Vrijval "&(P_RJ+1)', "Later"],
+               [2.8, 1, 1, 1, 1, 1, 1, 1], "T_RES", npp + 1)
+    for k in range(npp + 1):
+        r = t + 1 + k
+        tot = k == npp
+        sr = 14 + k
+        if tot:
+            cell(r, 2, '=IF(Reserves!$B$14="","","Totaal alle projecten")', bold=True, align="left", size=9, fillc=LIGHT)
+            for j, c in enumerate("DEFGJKL"):
+                src = {"D": 6, "E": 7, "F": 8}.get(c)
+                f = (f"=Reserves!C{src}/P_Factor" if src else {"G": "=Reserves!C9/P_Factor", "J": "=Reserves!D9/P_Factor",
+                                                                 "K": "=Reserves!E9/P_Factor", "L": "=Reserves!F9/P_Factor"}[c])
+                cell(r, 3 + j, f'=IF(Reserves!$B$14="","",{f[1:]})', '#,##0;[Red]-#,##0;"–"', True, size=9, fillc=LIGHT)
+        else:
+            cell(r, 2, f'=Reserves!B{sr}&""', align="left", size=9)
+            for j, c in enumerate("DEFGJKL"):
+                cell(r, 3 + j, f'=IF(Reserves!$B{sr}="","",N(Reserves!{c}{sr})/P_Factor)', '#,##0;[Red]-#,##0;"–"', c == "G", size=9)
+
     # ---- grafiekblokken (elk op een eigen pagina; volgorde = index voor de macro)
     def chart_block(name, builder, w, h):
         k = len(DIA_CHARTS)
@@ -3489,14 +3545,16 @@ def build_ppt_spec(wb, ws):
         (11, "Kansen en risico's per project", "=PPT_Msg10", "grafiek", ci("Kansen en risico's per project"), 36, 110, 888, 370,
          "Kansen (groen) en risico's (rood) per project, EUR mln", f'=IF(COUNT(KR_Telt)>0,1,0)'),
         (12, "Kansen en risico's: overzicht", "=PPT_Msg10", "tabel", "T_KR", 36, 96, 888, 0, "", f'=IF(COUNT(KR_Telt)>0,1,0)'),
-        (13, "Per gebied", "=PPT_Msg2", "tabel", "T_GEB", 36, 96, 888, 0, "", 1),
-        (14, "Orderintake", "=PPT_Msg6", "tabel", "T_OIQ", 36, 120, 380, 0, "Per jaar en kwartaal (PEW-omzet)", 1),
-        (14, "", "", "tabel", "T_OI", 440, 120, 484, 0, "Recentste orderintake", 1),
-        (15, "Woningverkopen", "=PPT_Msg7", "kpi", "K_WON", 36, 96, 888, 74, "", 1),
-        (15, "", "", "grafiek", ci("Woningen per kwartaal"), 36, 200, 436, 296, f"=Woningen!{WON['qtitle']}", 1),
-        (15, "", "", "grafiek", ci("Woningen per versie"), 488, 200, 436, 296, f"=Woningen!{WON['vtitle']}", 1),
-        (16, "Woningverkopen per project", "=PPT_Msg11", "tabel", "T_WONQ", 36, 100, 888, 0, "", 1),
-        (17, "Aandachtspunten", "", "opsomming", "PPT_Bullets", 36, 100, 888, 390, "", 1),
+        (13, "Reserves", "=PPT_Msg12", "tabel", "T_RESS", 36, 110, 520, 0, "Per soort", "=IF(N(Reserves!$C$9)<>0,1,0)"),
+        (13, "", "", "tabel", "T_RES", 36, 238, 888, 0, "Per project", "=IF(N(Reserves!$C$9)<>0,1,0)"),
+        (14, "Per gebied", "=PPT_Msg2", "tabel", "T_GEB", 36, 96, 888, 0, "", 1),
+        (15, "Orderintake", "=PPT_Msg6", "tabel", "T_OIQ", 36, 120, 380, 0, "Per jaar en kwartaal (PEW-omzet)", 1),
+        (15, "", "", "tabel", "T_OI", 440, 120, 484, 0, "Recentste orderintake", 1),
+        (16, "Woningverkopen", "=PPT_Msg7", "kpi", "K_WON", 36, 96, 888, 74, "", 1),
+        (16, "", "", "grafiek", ci("Woningen per kwartaal"), 36, 200, 436, 296, f"=Woningen!{WON['qtitle']}", 1),
+        (16, "", "", "grafiek", ci("Woningen per versie"), 488, 200, 436, 296, f"=Woningen!{WON['vtitle']}", 1),
+        (17, "Woningverkopen per project", "=PPT_Msg11", "tabel", "T_WONQ", 36, 100, 888, 0, "", 1),
+        (18, "Aandachtspunten", "", "opsomming", "PPT_Bullets", 36, 100, 888, 390, "", 1),
     ]
     for i, row in enumerate(spec):
         for j, v in enumerate(row):
@@ -4219,6 +4277,75 @@ def build_ak(wb, ws):
     ws.freeze_panes = f"C{AK0R}"
     landscape(ws, f"A1:L{t+1}")
 
+RES = {}
+
+
+def build_reserves(wb, ws):
+    """Overzicht reserves: totaal per soort met vrijval per jaar, en per project. Invoer staat op Projectlijst (L-Q)."""
+    base_sheet(ws, zoom=90)
+    title(ws, "Reserves", "Invullen op het tabblad Projectlijst (kolommen L–Q). Hier het overzicht per soort en per project, met de vrijval per jaar.", 12)
+    pl = lambda c: f"Projectlijst!${c}${PK0}:${c}${PK1}"  # noqa: E731
+    put(ws, "B4", "Totaal per soort (EUR)", bold=True, color=NAVY, size=11)
+    header(ws, 5, 2, ["Soort", "Reserve", '="Vrijval "&P_RJ', '="Vrijval "&(P_RJ+1)', "Later"], height=24)
+    soorten = [("Commerciële reserve", "L"), ("Operationele reserve", "M"), ("Nazorg", "N")]
+    # vrijval: dit jaar = reserve x % gereed eind RJ; volgend jaar = reserve x (max(% RJ, % RJ+1) − % RJ); later = rest
+    for k, (lab, c) in enumerate(soorten):
+        r = 6 + k
+        put(ws, f"B{r}", lab)
+        ws[f"C{r}"] = f"=SUM({pl(c)})"
+        ws[f"D{r}"] = f"=SUMPRODUCT({pl(c)},{pl('P')})"
+        ws[f"E{r}"] = (f"=SUMPRODUCT({pl(c)},({pl('Q')}>{pl('P')})*{pl('Q')}+({pl('Q')}<={pl('P')})*{pl('P')})-D{r}")
+        ws[f"F{r}"] = f"=C{r}-D{r}-E{r}"
+    put(ws, "B9", "Totaal reserves", bold=True)
+    for c in "CDEF":
+        ws[f"{c}9"] = f"=SUM({c}6:{c}8)"
+    for r in range(6, 10):
+        for c in "BCDEF":
+            cell = ws[f"{c}{r}"]
+            if c != "B":
+                cell.number_format = FMT_EUR
+            cell.font = font(9 if r < 9 else 10, r == 9)
+            cell.border = Border(top=thick_navy if r == 9 else None, bottom=thin)
+    RES["soort0"] = 6
+    # per project (alleen projecten met een reserve)
+    n = PK1 - PK0 + 1
+    h0 = 200
+    for i in range(n):
+        ws[f"Z{h0 + i}"] = f'=IF(AND(Projectlijst!$A{PK0 + i}<>"",N(Projectlijst!$O{PK0 + i})<>0),{i + 1},"")'
+        helper_style(ws[f"Z{h0 + i}"])
+    key = f"$Z${h0}:$Z${h0 + n - 1}"
+    put(ws, "B12", "Per project (EUR)", bold=True, color=NAVY, size=11)
+    header(ws, 13, 2, ["Project", "WBS-element", "Commerciële\nreserve", "Operationele\nreserve", "Nazorg", "Totaal",
+                       '="% gereed"&CHAR(10)&"eind "&P_RJ', '="% gereed"&CHAR(10)&"eind "&(P_RJ+1)',
+                       '="Vrijval"&CHAR(10)&P_RJ', '="Vrijval"&CHAR(10)&(P_RJ+1)', "Later"], height=34)
+    np_ = 40
+    srcmap = {"B": "B", "C": "A", "D": "L", "E": "M", "F": "N", "G": "O", "H": "P", "I": "Q", "J": "R", "K": "S", "L": "T"}
+    for k in range(1, np_ + 1):
+        r = 13 + k
+        m = f"SMALL({key},{k})"
+        for c, s in srcmap.items():
+            ws[f"{c}{r}"] = f'=IFERROR(INDEX({pl(s)},{m})&"","")' if c in "BC" else f'=IFERROR(N(INDEX({pl(s)},{m})),"")'
+            cell = ws[f"{c}{r}"]
+            cell.number_format = "0%" if c in "HI" else FMT_EUR
+            cell.font = font(9, c in "BG", GREY if c == "C" else "000000")
+            cell.border = Border(bottom=thin)
+    rt = 14 + np_
+    put(ws, f"B{rt}", "Totaal", bold=True)
+    for c in "DEFGJKL":
+        ws[f"{c}{rt}"] = f"=SUM({c}14:{c}{rt - 1})"
+        ws[f"{c}{rt}"].number_format = FMT_EUR
+    for c in "BCDEFGHIJKL":
+        ws[f"{c}{rt}"].font = font(9, True)
+        ws[f"{c}{rt}"].border = Border(top=thick_navy, bottom=thin)
+    ws[f"B{rt + 1}"] = f'=IF(COUNT({key})>{np_},"Let op: er zijn meer dan {np_} projecten met een reserve; het totaal bovenaan telt ze allemaal.",IF(COUNT({key})=0,"Nog geen reserves ingevuld op de Projectlijst.",""))'
+    ws[f"B{rt + 1}"].font = font(8, False, GREY, True)
+    RES["p0"], RES["np"] = 14, np_
+    widths(ws, {"A": 2, "B": 32, "C": 16, "D": 13, "E": 13, "F": 12, "G": 13, "H": 10, "I": 10, "J": 12, "K": 12, "L": 12})
+    ws.column_dimensions["Z"].hidden = True
+    ws.freeze_panes = "C14"
+    landscape(ws, f"A1:L{rt + 1}")
+
+
 KR_CTX = {}
 FIRST_NAME = []
 
@@ -4469,6 +4596,7 @@ def build(out, test_results=None, template=False):
     FIRST_NAME[:] = [list(mapping.values())[0][2]]
     build_ak(wb, sh["AK-dekking"])
     build_kansen(wb, sh["Kansen en risico's"])
+    build_reserves(wb, sh["Reserves"])
     build_stg_akr(wb, sh["STG_AKR"])
     build_vastleggen(wb, sh["Concept"])
     build_rdfo(wb, sh["RDFO"])

@@ -43,6 +43,7 @@ TABBLADEN = [
     ("Woningen", "Verkopen per maand en kwartaal, per project per kwartaal (dit en volgend jaar), per versie, per productsegment en koperstype.", "Alleen lezen."),
     ("Bandbreedte", "Bovenaan de vijf scenario's per jaar met grafiek. Daaronder per project het stoplicht en de scenario's.", "Gele cellen invullen."),
     ("Kansen en risico's", "Invoer per kans of risico (project, jaar, kwartaal, bedrag) en een grafiek per project; staat ook in de PowerPoint.", "Gele cellen invullen."),
+    ("Reserves", "Commerciële reserve, operationele reserve en nazorg: totaal per soort en per project, met de vrijval per jaar. Onderaan het RDFO staat het totaal (in- en uitklapbaar); in de PowerPoint een eigen dia.", "Alleen lezen; invullen op de Projectlijst (kolommen L–Q)."),
     ("Projectlijst", "Alle projecten op één plek: WBS, naam, type, gebied en 4 keuzes (prognose, woningen, AK-dekking, PowerPoint). Plus eigen AK % en reserves.", "Nieuwe projecten komen er bij inlezen vanzelf bij; zelf toevoegen kan onderaan. Ja/Nee kiezen."),
     ("AK-dekking", "Bovenaan het totaal per kwartaal (projecten + geboekt zonder project = regio), daarna een rekenvoorbeeld voor één project en de tabel per project per kwartaal.", "Project kiezen voor het rekenvoorbeeld; verder alleen lezen."),
     ("Controle", "Bovenaan: x oplossen · y nakijken · z in orde. Alleen FOUT en WAARSCHUWING worden getoond, met in kolom H wat je moet doen.", "Na elke keer inlezen bekijken; x bij akkoord."),
@@ -85,6 +86,9 @@ FAQ = [
      "Kijk op het tabblad AK-dekking. Per kwartaal: t/m de peildatum de geboekte AK uit de grootboekdump (blauw), daarna kosten van dat kwartaal / 1,05 x AK % (geel). "
      "Jaar = Q1 + Q2 + Q3 + Q4. Bovenaan staat het totaal per kwartaal, inclusief AK die zonder project is geboekt. "
      "Kies bij 'Rekenvoorbeeld' een project: dan staat er per kwartaal uitgeschreven hoe het bedrag tot stand komt."),
+    ("Waar zie ik de reserves?",
+     "Invullen op de Projectlijst (kolommen L–Q: drie soorten reserve en % gereed eind dit en volgend jaar). Overzicht op het tabblad Reserves; "
+     "onderaan het RDFO staat de regel 'Reserves totaal' (klik + links voor de soorten). In de PowerPoint komt een dia Reserves zodra er een reserve is ingevuld."),
     ("Hoe voeg ik een project toe?",
      "Meestal hoeft dat niet: bij 'Bronnen inlezen' komt elk nieuw WBS-element uit ZPMW03 vanzelf onderaan de Projectlijst (oranje, alle keuzes op Ja). "
      "Zelf toevoegen: typ onderaan de Projectlijst het WBS-element, de naam, het type en het gebied. Niet tussenvoegen of sorteren."),
