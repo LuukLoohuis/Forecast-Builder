@@ -45,6 +45,13 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   - aansluiting (OK of het aantal types met FOUT);
   - kans grondtermijn: eerder ontvangen, en de max. financiering huidig en met kans.
 - **1 · Woningtypes:** één regel per type, in vier kleurgroepen: uit de prijslijst (grijs), handmatig (oranje, overschrijft), gebruikt in de cashflow (blauw) en kans (groen). Met een totaalregel en het grond % als balkje.
+- **Type of blok in prijslijst** (kolom C): hiermee horen bouwnummers uit de prijslijst per bouwnummer bij een woningtype. Je kunt invullen:
+  - een waarde uit de kolom Type (bv. `A`) of uit de kolom Termijnen / blok (bv. `4A`);
+  - meerdere waarden met `;` ertussen (`4A;4B`);
+  - `*` voor alle bouwnummers.
+
+  Oud FO inlezen neemt de waarde over uit de SUMIF-formules van het oude tabblad Aansluiting opbrengsten.
+- **Regels zonder koppeling met de prijslijst** (VON verhogingen, opbrengsten commercieel en parkeren): de kolom Prijslijst is daar geel; vul het bedrag in. Oud FO inlezen neemt het bedrag uit het oude FO over.
 - **Grafieken:** prijslijst en SKO per type, en het grond % huidig en met kans.
 - **Te boeken in SAP:** naast de grafieken staan de correcties per SAP-nummer en kostendrager (uit de kolom Corr). In de aansluitblokken toont kolom K per regel op welk SAP-nummer (en kostendrager) de correctie geboekt wordt.
 - **2 · Aansluiting per woningtype:** SKO, prijslijst, actueel budget, Corr, PEW, verschil en status. De status per type staat in de kopregel, het termijnschema ernaast.

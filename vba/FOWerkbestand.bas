@@ -249,6 +249,19 @@ Private Function LaatsteRij(ByVal ws As Worksheet, ByVal nKol As Long) As Long
     LaatsteRij = m
 End Function
 
+Private Function HoortBij(ByVal ws As Worksheet, ByVal r As Long, ByVal kType As Long, ByVal kBlok As Long, ByVal sleutel As String) As Boolean
+    ' bouwnummer hoort bij het woningtype: sleutel = waarde in de kolom Type of Termijnen / blok, meerdere met ; of * voor alle
+    Dim w As Variant, t As String, b As String
+    If sleutel = "*" Then HoortBij = True: Exit Function
+    If kType > 0 Then t = LCase$(Tk(ws.Cells(r, kType).Value))
+    If kBlok > 0 Then b = LCase$(Tk(ws.Cells(r, kBlok).Value))
+    For Each w In Split(sleutel, ";")
+        If Len(Trim$(w)) > 0 Then
+            If LCase$(Trim$(w)) = t Or LCase$(Trim$(w)) = b Then HoortBij = True: Exit Function
+        End If
+    Next w
+End Function
+
 Private Function HulpKolommen(ByVal blad As String) As String
     ' hulpkolommen rechts van de export met de eerste rij met een formule, bv. "X:17|Y:30"
     Select Case blad
@@ -845,7 +858,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             If sleutel <> "" And kType > 0 Then
                 plW(1) = 0: plW(2) = 0: plW(3) = 0: plW(4) = 0: plW(5) = 0
                 For n = 1 To nBn
-                    If Tk(ws.Cells(bn(n), kType).Value) = sleutel Then
+                    If HoortBij(ws, bn(n), kType, KolNaam(ws, kopP, "termijnen / blok"), sleutel) Then
                         plW(1) = plW(1) + 1
                         plW(2) = plW(2) + PrijsW(ws, bn(n), kopP, "grondkosten start verkoop (facturatie)")
                         plW(3) = plW(3) + PrijsW(ws, bn(n), kopP, "aanneemsom start verkoop") + PrijsW(ws, bn(n), kopP, "totaal woonwensen in von")
@@ -925,6 +938,12 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                         For c = 0 To UBound(regels)
                             If Tk(wA.Cells(j, 1).Value) = regels(c) And IsGetalW(wA.Cells(j, 2).Value) Then
                                 wP.Cells(P_AANS1 + P_BLOK * (n - 1) + 2 + c, 2).Value = wA.Cells(j, 2).Value
+                            End If
+                            ' regels zonder koppeling met de prijslijst: het bedrag uit de kolom Prijslijst van het oude FO
+                            If Tk(wA.Cells(j, 1).Value) = regels(c) And InStr(1, "|VON verhogingen|Opbrengsten commercieel|Opbrengsten parkeren|", "|" & regels(c) & "|") > 0 Then
+                                If IsGetalW(wA.Cells(j, 4).Value) Then
+                                    If Nk(wA.Cells(j, 4).Value) <> 0 Then wP.Cells(P_AANS1 + P_BLOK * (n - 1) + 2 + c, 4).Value = wA.Cells(j, 4).Value
+                                End If
                             End If
                         Next c
                         j = j + 1

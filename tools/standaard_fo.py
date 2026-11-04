@@ -136,6 +136,7 @@ POSTEN = ['Grondkosten', 'Aanneemsom', 'Kopersmeerwerk', 'Overige bouwkosten / m
 P_TYPE1 = 13                             # rij type k = P_TYPE1 + k - 1 (rij 3-9: kaarten bovenaan)
 P_REGELS = ['Grond + Ontwikkelkosten', 'Aanneemsom', 'VON verhogingen', 'KAO opties', 'Korting', 'Kopersmeerwerk',
             'Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Opbrengsten commercieel', 'Opbrengsten parkeren']
+P_REGELS_HAND = ['VON verhogingen', 'Opbrengsten commercieel', 'Opbrengsten parkeren']   # prijslijst: invullen
 P_BLOK = len(P_REGELS) + 4
 P_AANS1 = P_TYPE1 + NT + 24              # na de totaalregel en de grafieken
 
@@ -155,6 +156,15 @@ P_GEBR = {'aantal': 'S', 'grond': 'T', 'aanneemkao': 'U', 'kmw': 'V', 'kadrente'
 P_TERM_NAAM, P_TERM_PCT = 'L', 'M'      # termijnschema naast het aansluitblok
 P_BN = {'type': 'C', 'status': 'I', 'kad': 'J', 'grond': 'K', 'aanneemsom': 'L', 'von': 'M', 'kao': 'N', 'kmw': 'P',
         'bouwrente': 'Q', 'rente': 'R', 'korting': 'S'}
+
+def p_match(sleutel, blad=''):
+    """0/1 per bouwnummer: hoort bij het woningtype met deze sleutel ('Type in prijslijst'). De sleutel mag
+    staan voor de kolom Type of de kolom Termijnen / blok, meerdere waarden met ; ertussen (4A;4B), of * voor alle."""
+    rg = lambda c: '%s$%s$%d:$%s$%d' % (blad, c, P_BN1, c, P_BNN)
+    sl = '";"&SUBSTITUTE(%s,"; ",";")&";"' % sleutel
+    return ('--((ISNUMBER(SEARCH(";"&%s&";",%s))+ISNUMBER(SEARCH(";"&%s&";",%s))+(%s="*")*(%s<>""))>0)'
+            % (rg('C'), sl, rg('B'), sl, sleutel, rg('A')))
+
 
 GEEL = PatternFill('solid', fgColor='FFFFF2CC')
 GRIJS = PatternFill('solid', fgColor='FFF3F4F6')
@@ -283,8 +293,8 @@ def maak_opbrengsten(ws):
         sl = pl('$C$%d' % (P_TYPE1 + k - 1))
         zet(ws, 'B%d' % r, '=%s&""' % pl('$B$%d' % (P_TYPE1 + k - 1)))
         zet(ws, 'C%d' % r, '=G%d' % won_rij(k), F, None, '0')
-        zet(ws, 'D%d' % r, '=IF(%s="",0,COUNTIFS(Prijslijst!%s,%s,Prijslijst!%s,"Verkocht")+COUNTIFS(Prijslijst!%s,%s,'
-                           'Prijslijst!%s,"Getransporteerd"))' % (sl, n_bn, sl, s_bn, n_bn, sl, s_bn), F, GRIJS, '0')
+        zet(ws, 'D%d' % r, '=IF(%s="",0,SUMPRODUCT(%s,((Prijslijst!%s="Verkocht")+(Prijslijst!%s="Getransporteerd"))))'
+            % (sl, p_match(sl, 'Prijslijst!'), s_bn, s_bn), F, GRIJS, '0')
         zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, '0')
         zet(ws, 'G%d' % r, '=D%d' % r, F, GRIJS, '0')
         for c in QCOLS:
@@ -641,7 +651,7 @@ def maak_prijslijst(ws):
         for cc in range(ci_(c1_), ci_(c2_) + 1):
             ws.cell(t1 - 2, cc).fill = BAND[band]
         zet(ws, '%s%d' % (c1_, t1 - 2), tekst, FW, BAND[band])
-    kop = ['Nr', 'Woningtype (naam)', 'Type in prijslijst', 'Aantal', 'Grond (facturatie)', 'Aanneemsom', 'KAO-opties',
+    kop = ['Nr', 'Woningtype (naam)', 'Type of blok in prijslijst (bv. A, of 4A;4B, * = alle)', 'Aantal', 'Grond (facturatie)', 'Aanneemsom', 'KAO-opties',
            'Kopersmeerwerk', 'Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Korting', 'VON excl. btw',
            'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente',
            'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente', 'Grond % van de koopsom',
@@ -656,9 +666,9 @@ def maak_prijslijst(ws):
         zet(ws, 'A%d' % r, k, FB)
         zet(ws, 'B%d' % r, None, FB, GEEL)
         zet(ws, 'C%d' % r, None, F, GEEL)
-        zet(ws, 'D%d' % r, '=IF($C%d="",0,COUNTIF(%s,$C%d))' % (r, rng(P_BN['type']), r), F, GRIJS, '0')
+        zet(ws, 'D%d' % r, '=IF($C%d="",0,SUMPRODUCT(%s))' % (r, p_match('$C%d' % r)), F, GRIJS, '0')
         for x in ('grond', 'aanneemsom', 'kao', 'kmw', 'kad', 'bouwrente', 'rente', 'korting', 'von'):
-            zet(ws, '%s%d' % (P_UIT[x], r), '=IF($C%d="",0,SUMIF(%s,$C%d,%s))' % (r, rng(P_BN['type']), r, rng(P_BN[x])),
+            zet(ws, '%s%d' % (P_UIT[x], r), '=IF($C%d="",0,SUMPRODUCT(%s,%s))' % (r, p_match('$C%d' % r), rng(P_BN[x])),
                 F, GRIJS, NUM)
         for x in P_HAND.values():
             zet(ws, '%s%d' % (x, r), None, F, GEEL, NUM)
@@ -749,7 +759,7 @@ def maak_prijslijst(ws):
             r = a + 2 + i
             zet(ws, 'A%d' % r, lab)
             zet(ws, 'B%d' % r, None, F, GEEL, NUM)
-            zet(ws, 'D%d' % r, '=%s%d' % (uit[lab], t) if lab in uit else None, F, GRIJS, NUM)
+            zet(ws, 'D%d' % r, '=%s%d' % (uit[lab], t) if lab in uit else None, F, GRIJS if lab in uit else GEEL, NUM)
             zet(ws, 'F%d' % r, '=B%d' % r, F, None, NUM)
             zet(ws, 'G%d' % r, '=N(D%d)-N(F%d)' % (r, r), FB, None, NUM)
             zet(ws, 'H%d' % r, '=F%d+G%d' % (r, r), F, None, NUM)

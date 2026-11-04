@@ -159,10 +159,18 @@ def omzetten(oud, uit, project=None):
                     P['%s%d' % (col, rr)] = v
         log.append('prijslijst: %d bouwnummers' % len(bn))
 
+    def hoort_bij(r, sleutel):
+        # zoals p_match in het sjabloon: kolom Type of Termijnen / blok, meerdere waarden met ; of * voor alle
+        if sleutel == '*':
+            return True
+        waarden = [x.strip().lower() for x in str(sleutel).split(';')]
+        return any(c in hd and _t(pv.cell(r, hd[c]).value).lower() in waarden and _t(pv.cell(r, hd[c]).value)
+                   for c in ('type', 'termijnen / blok'))
+
     def uit_prijslijst(sleutel, kolnaam):
         if not sleutel or 'type' not in hd or kolnaam not in hd:
             return None
-        return sum(_n(pv.cell(r, hd[kolnaam]).value) for r in bn if _t(pv.cell(r, hd['type']).value) == sleutel)
+        return sum(_n(pv.cell(r, hd[kolnaam]).value) for r in bn if hoort_bij(r, sleutel))
 
     # ---- per woningtype -----------------------------------------------------------------------------------
     O, K = wb['CF - opbrengsten'], wb['CF - kosten']
@@ -205,7 +213,7 @@ def omzetten(oud, uit, project=None):
                'kadrente': _n(o_v.cell(kad, 4).value) if kad else 0}
         basis = [(_n(o_v.cell(r, 4).value) / _n(o_v.cell(r, 3).value)) for r in termijnen if _n(o_v.cell(r, 3).value)]
         oud['aanneemkao'] = basis[0] if basis else 0
-        pl_ = {'aantal': (sum(1 for r in bn if _t(pv.cell(r, hd['type']).value) == sleutel) if sleutel and 'type' in hd else None),
+        pl_ = {'aantal': (sum(1 for r in bn if hoort_bij(r, sleutel)) if sleutel and 'type' in hd else None),
                'grond': uit_prijslijst(sleutel, 'grondkosten start verkoop (facturatie)'),
                'aanneemkao': (uit_prijslijst(sleutel, 'aanneemsom start verkoop') or 0) + (uit_prijslijst(sleutel, 'totaal woonwensen in von') or 0) if sleutel else None,
                'kmw': uit_prijslijst(sleutel, 'totaal woonwensen in ob'),
@@ -272,6 +280,10 @@ def omzetten(oud, uit, project=None):
         for r, lab in blk['regels']:
             if lab in S.P_REGELS and isinstance(av_.cell(r, 2).value, (int, float)):
                 P['B%d' % (a0 + 2 + S.P_REGELS.index(lab))] = av_.cell(r, 2).value
+            # regels zonder koppeling met de prijslijst (VON verhogingen, commercieel, parkeren): het bedrag dat in
+            # het oude FO in de kolom Prijslijst stond
+            if lab in S.P_REGELS_HAND and isinstance(av_.cell(r, 4).value, (int, float)) and av_.cell(r, 4).value:
+                P['D%d' % (a0 + 2 + S.P_REGELS.index(lab))] = av_.cell(r, 4).value
     # ---- overige opbrengsten (project) ------------------------------------------------------------------
     ov1 = {}
     ov = next((r for r in range(ob['euro_kop'], ob['totaal']) if _t(o_v.cell(r, 2).value).lower().startswith('overige opbrengsten in')), None)

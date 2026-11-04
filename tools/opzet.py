@@ -259,7 +259,7 @@ def _prijslijst(wf):
     sleutels = []
     for r in range(1, 40):
         f = _t(a.cell(r, 3).value)
-        m = re.search(r'SUMIF\(Prijslijst!\$?%s\$?\d+:\$?%s\$?\d+,"([^"]+)"' % (typ, typ), f)
+        m = re.search(r'SUMIF\(Prijslijst!\$?[A-Z]{1,2}\$?\d+:\$?[A-Z]{1,2}\$?\d+,"([^"]+)"', f)   # kolom Type of Termijnen / blok
         if m:
             sleutels.append(m.group(1))
     return {'type': typ, 'status': stat, 'sleutels': sleutels}
