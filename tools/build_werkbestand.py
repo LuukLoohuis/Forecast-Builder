@@ -673,10 +673,10 @@ def main():
                        ('W85', 'Extra grondtermijn eerder ontvangen (hoogste stand)'),
                        ('W86', 'Extra opbrengst grondtermijn (totaal prognose)')):
             sh.set_value(ref, v)
-        sh.set_formula('Z83', "'CF - opbrengsten'!$D$%d" % (rk + 6))
-        sh.set_formula('Z84', "'CF - opbrengsten'!$D$%d" % (rk + 7))
-        sh.set_formula('Z85', "'CF - opbrengsten'!$D$%d" % (rk + 5))
-        sh.set_formula('Z86', "'CF - opbrengsten'!$D$%d" % (rk + 2), sh.style_of('Z85'))
+        sh.set_formula('Z83', "'CF - opbrengsten'!$D$%d" % (rk + 6), sh.style_of('W71'))
+        sh.set_formula('Z84', "'CF - opbrengsten'!$D$%d" % (rk + 7), sh.style_of('W71'))
+        sh.set_formula('Z85', "'CF - opbrengsten'!$D$%d" % (rk + 5), sh.style_of('W71'))
+        sh.set_formula('Z86', "'CF - opbrengsten'!$D$%d" % (rk + 2), sh.style_of('W71'))
     # periode van de cashflowgrafiek: vanaf / t/m (leeg = automatisch: eerste t/m laatste kwartaal met opbrengsten of
     # kosten, plus één kwartaal); de grafiekreeksen (namen g_...) lopen via Model!BY336:BY338 mee
     st_k, st_l, st_i, st_n, st_w = (sh.style_of(x) for x in ('V82', 'V77', 'W18', 'Z18', 'W9'))
@@ -697,7 +697,10 @@ def main():
     st_lab = sh.style_of('BX132')
     st_val = sh.style_of('BY132')
     rng = lambda c: '$%s$8:$%s$67' % (c, c)
-    nz = '(ISNUMBER({a})*({a}<>0)+ISNUMBER({u})*({u}<>0)>0)'.format(a=rng('AT'), u=rng('AU'))
+    # een periode telt mee als er opbrengsten of kosten van minstens €500 zijn (Model rekent in mln), vanaf Q1 van het
+    # eerste jaar op CF - opbrengsten (D3): de grafiek loopt mee met de CF-tabbladen
+    nz = ('((ISNUMBER({a})*(({a}>=0.0005)+({a}<=-0.0005))+ISNUMBER({u})*(({u}>=0.0005)+({u}<=-0.0005))>0)'
+          '*(ISNUMBER({f})*({f}>=\'CF - opbrengsten\'!$D$3*4+1)))').format(a=rng('AT'), u=rng('AU'), f=rng('F'))
     fq = rng('F')
     for r, lab, formule in (
             (336, 'Grafiek: positie van de eerste getoonde periode (Dashboard W89:X89, leeg = eerste met opbrengsten of kosten)',
@@ -711,6 +714,28 @@ def main():
         sh.set_value('BX%d' % r, lab, st_lab)
         sh.set_formula('BY%d' % r, formule, st_val)
     dst.put(part_of['Model'], sh.t)
+    # Dashboard: cashflow vorige en huidige prognose per periode (de periode van de grafiek)
+    sh = Sheet(dst.x(part_of['Dashboard']), sst)
+    st_k, st_l, st_v, st_h = sh.style_of('V82'), sh.style_of('W83'), sh.style_of('W71'), sh.style_of('W56')
+    # controle 'rij met cijfers maar zonder jaar': alleen de periodes (niet de totaalregels eronder)
+    sh.set_formula('W43', 'IF(SUMPRODUCT((Invoer!$B$7:$B$%d="")*(Invoer!$C$7:$ZZ$%d<>""))=0,"OK",'
+                          '"LET OP: rij met cijfers maar zonder jaar telt niet mee")' % (scenario_koppeling.INV_RN, scenario_koppeling.INV_RN))
+    sh.set_value('V93', 'CASHFLOW · VORIGE EN HUIDIGE PROGNOSE (€, de periode van de grafiek)', st_k)
+    for c, h in zip(['V', 'W', 'X', 'Y', 'Z', 'AA'], ['Periode', 'Vorige/kw', 'Huidig/kw', 'Vorige cum.', 'Huidig cum.', 'Verschil cum.']):
+        sh.set_value('%s94' % c, h, st_h)
+    for n in range(60):
+        r = 95 + n
+        pos = 'Model!$BY$336+%d' % n
+        leeg = '%s>Model!$BY$337' % pos
+        cum = lambda col, p_: 'INDEX(Model!$%s$8:$%s$67,%s)' % (col, col, p_)
+        sh.set_formula('V%d' % r, 'IF(%s,"",INDEX(Model!$E$8:$E$67,%s))' % (leeg, pos), st_l)
+        sh.set_formula('W%d' % r, 'IF(OR(%s,Model!$BY$14=0),"",(%s-IF(%s=1,0,%s))*1000000)'
+                       % (leeg, cum('AW', pos), pos, cum('AW', pos + '-1')), st_v)
+        sh.set_formula('X%d' % r, 'IF(%s,"",(%s-IF(%s=1,0,%s))*1000000)' % (leeg, cum('AV', pos), pos, cum('AV', pos + '-1')), st_v)
+        sh.set_formula('Y%d' % r, 'IF(OR(%s,Model!$BY$14=0),"",%s*1000000)' % (leeg, cum('AW', pos)), st_v)
+        sh.set_formula('Z%d' % r, 'IF(%s,"",%s*1000000)' % (leeg, cum('AV', pos)), st_v)
+        sh.set_formula('AA%d' % r, 'IF(OR(%s,Model!$BY$14=0),"",Z%d-Y%d)' % (leeg, r, r), st_v)
+    dst.put(part_of['Dashboard'], sh.t)
 
     # ---- cellen aanvullen --------------------------------------------------------------------------------
     print('Cellen aanvullen')
@@ -834,6 +859,24 @@ def main():
     dst.put(part_of['Start'], t)
 
     # rekenketen weg (Excel bouwt hem opnieuw op), inhoudstypen bijwerken
+    # tabbladkleuren per soort: start (donkerblauw), exports (grijs), invoer en rekenwerk (geel), uitkomsten (groen)
+    TABKLEUR = {'Start': 'FF003366',
+                'FO - vorig': 'FF9CA3AF', 'FO - huidig': 'FF9CA3AF', 'FO - actuals': 'FF9CA3AF', 'Prijslijst dump': 'FF9CA3AF',
+                'Prijslijst': 'FFFEB900', 'CF - opbrengsten': 'FFFEB900', 'CF - kosten': 'FFFEB900', '2. Ontw PEW': 'FFFEB900',
+                'Dashboard': 'FF15803D', "Scenario's": 'FF15803D', 'CF - hulp VENA': 'FF15803D'}
+    for naam, kleur in TABKLEUR.items():
+        if naam not in part_of:
+            continue
+        t = dst.x(part_of[naam])
+        sp = t.find(M + 'sheetPr')
+        if sp is None:
+            sp = etree.Element(M + 'sheetPr')
+            t.insert(0, sp)
+        for oud in sp.findall(M + 'tabColor'):
+            sp.remove(oud)
+        tc = etree.Element(M + 'tabColor', rgb=kleur)
+        sp.insert(0, tc)
+        dst.put(part_of[naam], t)
     dst.parts.pop('xl/calcChain.xml', None)
     copier.remove_override('xl/calcChain.xml')
     dst.put('[Content_Types].xml', copier.ct)

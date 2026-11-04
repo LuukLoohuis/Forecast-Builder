@@ -73,7 +73,12 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
 - **Alle woningen:** onder de transporttabel per kwartaal het % verkocht en getransporteerd van alle woningen, en cumulatief.
 - **Bedragen per woningtype:** onder de transportregel staan in € per kwartaal: de grondtermijn (koopsom grond), de bouwtermijnen, kopersmeerwerk 25% (met de eerste termijn, start bouw), kopersmeerwerk 75% (met de laatste termijn, oplevering) en het totaal. Ze schuiven mee met het transport; de kopersmeerwerkregels zijn vooraf ingevuld. Bij elke termijn staan het %, het bedrag (alle woningen) en het bedrag per woning.
 - **Kleuren:** kopregels donkerblauw, geel = invoer (alleen bij termijnen die er zijn), totaalregels lichtblauw en vet.
-- **Grafiekperiode:** op het Dashboard (V87–Z91) vul je "Grafiek vanaf" en "Grafiek t/m" in (jaar · kwartaal). Leeg = automatisch: van het eerste kwartaal met opbrengsten of kosten tot één kwartaal na het laatste. De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
+- **Grafiekperiode:** op het Dashboard (V87–Z91) vul je "Grafiek vanaf" en "Grafiek t/m" in (jaar · kwartaal).
+  - Leeg = automatisch: de grafiek loopt mee met CF - opbrengsten en CF - kosten, vanaf het eerste kwartaal met opbrengsten of kosten (minstens €500), maar niet vóór Q1 van het eerste jaar (cel D3), tot één kwartaal na het laatste.
+  - Haal je in de CF-tabbladen een kwartaal leeg, dan schuift de grafiek mee.
+  - De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
+- **Vorige en huidige prognose:** op het Dashboard (V93 en verder) per periode van de grafiek: de cashflow vorige en huidig per periode, cumulatief, en het verschil.
+- **Tabbladkleuren:** Start donkerblauw, exports grijs, invoer en rekenwerk geel (Prijslijst, CF - opbrengsten, CF - kosten, 2. Ontw PEW), uitkomsten groen (Dashboard, Scenario's, CF - hulp VENA).
 - **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont FOUT of LET OP voor de rij; cel C1 telt ze.
 - **Kans grondtermijn:** vul op `Prijslijst` in kolom Y een ander grond-% van de koopsom in (bijvoorbeeld 50%).
   - De kans geldt alleen voor woningen die nog getransporteerd worden. Bij al getransporteerde woningen ligt de verdeling grond/bouwtermijnen vast (CF - opbrengsten, kolom C van de kansregels).
