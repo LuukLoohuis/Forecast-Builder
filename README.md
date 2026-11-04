@@ -50,6 +50,13 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   - De omzet schuift mee: de grondtermijn en de bouwtermijnen die bij transport al vervallen zijn, komen in het transportkwartaal binnen.
   - De kosten van de bouwtermijnen volgen de bouwplanning (HWB), niet het transport. Een kostenpost met methode Transport (bijvoorbeeld de grond) schuift wel mee.
 - **Alle woningen:** onder de transporttabel per kwartaal het % verkocht en getransporteerd van alle woningen, en cumulatief.
+- **Bedragen per woningtype:** onder de transportregel staan de grondtermijn (koopsom grond), de bouwtermijnen en het totaal in € per kwartaal; ze schuiven mee met het transport. Bij elke termijn staan het %, het bedrag (alle woningen) en het bedrag per woning.
+- **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont FOUT of LET OP voor de rij; cel C1 telt ze.
+- **Kans grondtermijn:** vul op `Prijslijst` in kolom Y een ander grond-% van de koopsom in (bijvoorbeeld 50%).
+  - Onderaan het transportblok op CF - opbrengsten staat het effect per type en per kwartaal (alleen prognosekwartalen), en de cumulatieve cashflow huidig en met kans, met de laagste stand.
+  - Het Dashboard (V82–Z85) toont de max. financiering huidig en met kans.
+  - De kans zit niet in de cashflow zelf; het is een doorkijk.
+- Op `Prijslijst` zijn ongebruikte woningtypes ingeklapt (na Oud FO inlezen).
 - **Koopsom en grond %:** per woningtype op `Prijslijst` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
 - **Aantallen** staan zonder punt of komma erachter.
 

@@ -36,7 +36,7 @@ CHK, VER, STAT, TOEL = L(C_CHK), L(C_CHK + 1), L(C_CHK + 2), L(C_CHK + 3)
 JAAR = "'CF - opbrengsten'!$D$3"
 
 # ---- CF - opbrengsten -----------------------------------------------------------------------------
-BLOK = NTERM + 6                        # # won, titel, 10 planning, transport, verkocht %, getransp. %, grondprijs
+BLOK = NTERM + 9                        # # won, titel, 10 planning, transport, verkocht %, getransp. %, grondprijs, 3x €
 
 
 def won_rij(k):
@@ -68,7 +68,8 @@ def tt_rij(k):
 
 
 VT_PCT = tt_rij(NT) + 2                # alle woningen: verkocht %/kw, cumulatief, getransporteerd %/kw, cumulatief
-OZ1 = VT_PCT + 6                       # eerste omzet-koprij (# won op de rij erboven)
+KANS = VT_PCT + 5                      # kans grondtermijn: kop, per type, totaal, cumulatief, CF huidig, CF met kans
+OZ1 = KANS + NT + 8                    # eerste omzet-koprij (# won op de rij erboven)
 
 
 def oz_kop(k):
@@ -157,6 +158,7 @@ P_BN = {'type': 'C', 'status': 'I', 'kad': 'J', 'grond': 'K', 'aanneemsom': 'L',
 
 GEEL = PatternFill('solid', fgColor='FFFFF2CC')
 GRIJS = PatternFill('solid', fgColor='FFF3F4F6')
+KOPLICHT = PatternFill('solid', fgColor='FFE9ECEF')   # kwartaalkoppen: rustig grijs
 KOP = PatternFill('solid', fgColor='FFFEB900')
 DONKER = PatternFill('solid', fgColor='FF003366')
 F = Font(name='Heijmans-Light', size=10)
@@ -182,11 +184,11 @@ def zet(ws, ref, v, font=F, fill=None, fmt=None):
 
 def kopregels(ws, r_jaar, r_q, act='actuals', jaar=JAAR):
     """jaartallen (op Q1) en Q1..Q4 boven de kolommen"""
-    zet(ws, '%s%d' % (COLS[0], r_q), act, FB, KOP)
+    zet(ws, '%s%d' % (COLS[0], r_q), act, FB, KOPLICHT)
     for i, c in enumerate(QCOLS):
         # jaartal boven elk kwartaal (Q1 vet), zodat het ook na het inklappen van eerdere kwartalen zichtbaar is
         zet(ws, '%s%d' % (c, r_jaar), '=%s+%d' % (jaar, i // 4), FB if i % 4 == 0 else Font(name='Heijmans-Light', size=8, color='FF9CA3AF'))
-        zet(ws, '%s%d' % (c, r_q), 'Q%d' % (i % 4 + 1), FB, KOP)
+        zet(ws, '%s%d' % (c, r_q), 'Q%d' % (i % 4 + 1), FB, KOPLICHT)
 
 
 def markeringen(ws, r_mark, r1, r2):
@@ -220,6 +222,10 @@ def p_gebr(k, x):
 # ===================================================================================================
 def maak_opbrengsten(ws):
     ws.title = 'CF - opbrengsten'
+    ws.sheet_view.showGridLines = False
+    ws.column_dimensions['A'].width = 8
+    for c_, w_ in (('C', 8), ('D', 13), ('E', 11), ('F', 8)):
+        ws.column_dimensions[c_].width = w_
     zet(ws, 'B2', 'Bouwplanning, verkoop en transport', FT)
     zet(ws, 'B3', 'Eerste jaar van de kwartalen (Q1)', FB)
     zet(ws, 'D3', None, FB, GEEL, '0')
@@ -236,13 +242,30 @@ def maak_opbrengsten(ws):
         for t in range(1, NTERM + 1):
             r = plan(k, t)
             zet(ws, 'B%d' % r, '=B%d' % oz_rij(k, t))
+            # % van de termijn, bedrag (alle woningen) en per woning: van het omzetblok
+            zet(ws, 'C%d' % r, '=IF(B%d="","",C%d)' % (r, oz_rij(k, t)), FN, None, '0.0%')
+            zet(ws, 'D%d' % r, '=IF(B%d="","",D%d)' % (r, oz_rij(k, t)), FN, None, NUM)
+            zet(ws, 'E%d' % r, '=IF(B%d="","",E%d)' % (r, oz_rij(k, t)), FN, None, NUM)
             for c in COLS:
                 zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
             zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
             zet(ws, '%s%d' % (VER, r), '=IF(B%d="","",ROUND($G$%d-%s%d,2))' % (r, w, CHK, r), F, None, AANT)
             zet(ws, '%s%d' % (STAT, r), '=IF(%s%d="","",IF(%s%d=0,"OK","FOUT"))' % (VER, r, VER, r), FB)
-        zet(ws, '%s%d' % (CHK, h), 'Check', FB, KOP)
-        zet(ws, '%s%d' % (VER, h), 'Verschil', FB, KOP)
+        for c, t_ in zip('CDE', ['%', '€ totaal', '€ per won.']):
+            zet(ws, '%s%d' % (c, h), t_, FB, KOP)
+        zet(ws, '%s%d' % (CHK, h), 'Check', FB, KOPLICHT)
+        zet(ws, '%s%d' % (VER, h), 'Verschil', FB, KOPLICHT)
+        # opbrengsten van dit type in € per kwartaal (schuiven mee met het transport)
+        e0 = tr(k) + 4
+        for i, (lab, f) in enumerate((
+                ('Grondtermijn · koopsom grond (€, bij transport)', lambda c: '=%s%d' % (c, eu_rij(k, 0))),
+                ('Bouwtermijnen (€)', lambda c: '=SUM(%s%d:%s%d)' % (c, eu_rij(k, 1), c, eu_rij(k, NTERM))),
+                ('Totaal opbrengsten type %d (€)' % k, lambda c: '=SUM(%s%d:%s%d)' % (c, eu_rij(k, 0), c, eu_rij(k, OMZ_N - 1))))):
+            r = e0 + i
+            zet(ws, 'B%d' % r, lab, FB if i == 2 else F)
+            zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), FB if i == 2 else F, None, NUM)
+            for c in COLS:
+                zet(ws, '%s%d' % (c, r), f(c), FB if i == 2 else F, GRIJS, NUM)
     # verkooptempo (aantallen; komen in het werkbestand uit verkocht %)
     kopregels(ws, VK - 1, VK)
     for c, t in zip('BCDE', ['Verkooptempo', 'Aantal', 'Verkocht', 'Te koop']):
@@ -403,10 +426,41 @@ def maak_opbrengsten(ws):
             else:
                 f = '=SUM($%s%d:%s%d)' % (COLS[0], r - 1, c, r - 1)
             zet(ws, '%s%d' % (c, r), f, FB if i % 2 else F, GRIJS, '0.0%;-0.0%;"-"')
+    # kans: grondtermijn naar een ander % van de koopsom (Prijslijst kolom Y); effect op de cashflow (alleen prognose)
+    zet(ws, 'B%d' % KANS, 'KANS · grondtermijn naar het % op Prijslijst (kolom Y) · effect op de opbrengsten', FW, DONKER)
+    for c in ['C', 'D', 'E', 'F'] + COLS:
+        zet(ws, '%s%d' % (c, KANS), None, FW, DONKER)
+    for k in range(1, NT + 1):
+        r = KANS + k
+        zet(ws, 'B%d' % r, '="Type %d "&%s&" · "&IF(%s="","geen kans",TEXT(%s,"0%%")&" grond")'
+            % (k, pl('$B$%d' % (P_TYPE1 + k - 1)), pl('$Y$%d' % (P_TYPE1 + k - 1)), pl('$Y$%d' % (P_TYPE1 + k - 1))))
+        o1, on = oz_rij(k, 1), oz_rij(k, NTERM)
+        for i, c in enumerate(COLS):
+            if i == 0:
+                f = 0
+            else:
+                f = '=IF((%s*4+%d)<p_huidig,0,N(%s)*(%s%d-SUMPRODUCT($C$%d:$C$%d,%s%d:%s%d)))' % (
+                    JAAR, i, pl('$Z$%d' % (P_TYPE1 + k - 1)), c, tr(k), o1, on, c, o1, c, on)
+            zet(ws, '%s%d' % (c, r), f, F, GRIJS, NUM)
+    rt = KANS + NT + 1
+    zet(ws, 'B%d' % rt, 'Effect kans per kwartaal (€)', FB)
+    zet(ws, 'B%d' % (rt + 1), 'Effect kans cumulatief (€)', FB)
+    zet(ws, 'B%d' % (rt + 2), 'Cashflow cumulatief · huidig (€)', FB)
+    zet(ws, 'B%d' % (rt + 3), 'Cashflow cumulatief · met kans (€)', FB)
+    zet(ws, 'C%d' % (rt + 2), 'laagste:', FN)
+    zet(ws, 'C%d' % (rt + 3), 'laagste:', FN)
+    for i, c in enumerate(COLS):
+        zet(ws, '%s%d' % (c, rt), '=SUM(%s%d:%s%d)' % (c, KANS + 1, c, KANS + NT), FB, GRIJS, NUM)
+        zet(ws, '%s%d' % (c, rt + 1), '=SUM($%s%d:%s%d)' % (COLS[0], rt, c, rt), FB, GRIJS, NUM)
+        if i:
+            zet(ws, '%s%d' % (c, rt + 2), '=IFERROR(INDEX(Invoer!$H$8:$H$67,MATCH(%s*4+%d,Invoer!$A$8:$A$67,0)),"")' % (JAAR, i), F, GRIJS, NUM)
+            zet(ws, '%s%d' % (c, rt + 3), '=IF(%s%d="","",%s%d+%s%d)' % (c, rt + 2, c, rt + 2, c, rt + 1), FB, GRIJS, NUM)
+    for r in (rt + 2, rt + 3):
+        zet(ws, 'D%d' % r, '=MIN(%s%d:%s%d)' % (QCOLS[0], r, QCOLS[-1], r), FB, None, NUM)
     markeringen(ws, 4, 4, PER + 40)
     # inklappen: invoerblok per woningtype, en de rekenblokken (aantallen per termijn en €)
     for k in range(1, NT + 1):
-        ws.row_dimensions.group(plan(k, 1), tr(k) + 3, outline_level=1)
+        ws.row_dimensions.group(plan(k, 1), hb(k) + BLOK - 2, outline_level=1)
     ws.row_dimensions.group(OZ1 - 1, OV_KOP - 2, outline_level=1, hidden=True)
     ws.sheet_properties.outlinePr.summaryBelow = False
     ws.column_dimensions['B'].width = 46
@@ -418,6 +472,8 @@ def maak_opbrengsten(ws):
 # ===================================================================================================
 def maak_kosten(ws):
     ws.title = 'CF - kosten'
+    ws.sheet_view.showGridLines = False
+    ws.column_dimensions['A'].width = 8
     OO = "'CF - opbrengsten'!"
     zet(ws, 'B1', 'Kosten', FT)
     for k in range(1, NT + 1):
@@ -526,10 +582,13 @@ def maak_prijslijst(ws):
     kop = ['Nr', 'Woningtype (naam)', 'Type in prijslijst', 'Aantal', 'Grond (facturatie)', 'Aanneemsom', 'KAO-opties',
            'Kopersmeerwerk', 'Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Korting', 'VON excl. btw',
            'Handm. aantal', 'Handm. grond', 'Handm. aanneemsom + KAO', 'Handm. kopersmeerwerk', 'Handm. kad. + rente',
-           'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente', 'Grond % van de koopsom']
+           'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente', 'Grond % van de koopsom',
+           'KANS: grond % (leeg = geen)', 'Kans: grond +/- per woning']
     zet(ws, 'D3', 'UIT DE PRIJSLIJST (excl. btw)', FW, DONKER)
     zet(ws, 'N3', 'HANDMATIG (overschrijft, leeg = prijslijst)', FW, DONKER)
     zet(ws, 'S3', 'GEBRUIKT IN DE CASHFLOW', FW, DONKER)
+    zet(ws, 'Y3', 'KANS (zie CF - opbrengsten en Dashboard)', FW, DONKER)
+    ws.sheet_view.showGridLines = False
     for i, t in enumerate(kop):
         zet(ws, '%s4' % L(1 + i), t, FB, KOP)
         ws['%s4' % L(1 + i)].alignment = Alignment(wrap_text=True, vertical='center')
@@ -552,6 +611,8 @@ def maak_prijslijst(ws):
         zet(ws, '%s%d' % (P_GEBR['kmw'], r), g('Q', 'H%d' % r), FB, None, NUM)
         zet(ws, '%s%d' % (P_GEBR['kadrente'], r), g('R', 'I%d+J%d+K%d+L%d' % (r, r, r, r)), FB, None, NUM)
         zet(ws, 'X%d' % r, '=IFERROR(T%d/(T%d+U%d),0)' % (r, r, r), FB, None, '0.0%')
+        zet(ws, 'Y%d' % r, None, FB, GEEL, '0%')
+        zet(ws, 'Z%d' % r, '=IF(Y%d="",0,IFERROR((Y%d-X%d)*(T%d+U%d)/S%d,0))' % (r, r, r, r, r, r), F, None, NUM)
     # aansluiting per type + termijnschema
     uit = {'Grond + Ontwikkelkosten': 'E', 'Aanneemsom': 'F', 'KAO opties': 'G', 'Korting': 'L', 'Kopersmeerwerk': 'H',
            'Kadastrale kosten': 'I', 'Bouwrente': 'J', 'Aanvullende rente': 'K'}
@@ -700,8 +761,11 @@ def inklappen(wb, types, jaar, verleden_tot):
     """woningtypes zonder woningen ingeklapt; kwartalen t/m de laatste actuals (kwartaalindex) als ingeklapte groep"""
     o, k = wb['CF - opbrengsten'], wb['CF - kosten']
     for t in types:
-        for r in range(plan(t, 1), tr(t) + 4):
+        for r in range(plan(t, 1), hb(t) + BLOK - 1):
             o.row_dimensions[r].hidden = True
+        p = wb['Prijslijst']
+        for r in [P_TYPE1 + t - 1, KANS + t] + list(range(p_aans(t), p_aans(t) + P_BLOK - 1)):
+            (o if r == KANS + t else p).row_dimensions[r].hidden = True
         for r in range(kterm(t, 1), k_aanneem(t) + 2):
             k.row_dimensions[r].hidden = True
     if verleden_tot:

@@ -197,7 +197,7 @@ def vba_constanten():
     import standaard_fo as S
     from xlsxpkg import col2num as cn
     w = {'NT': S.NT, 'NTERM': S.NTERM, 'NQ': S.NQ, 'C_ACT': S.C_ACT, 'C_Q1': S.C_Q1, 'BLOK': S.BLOK, 'VK_RIJ': S.VK,
-         'OZ1': S.OZ1, 'TT_RIJ': S.TT, 'OBLOK': S.OBLOK, 'OV1_RIJ': S.OV1, 'OV2_RIJ': S.OV2, 'PER_RIJ': S.PER, 'DAEB_KOP_RIJ': S.DAEB_KOP,
+         'OZ1': S.OZ1, 'TT_RIJ': S.TT, 'KANS_RIJ': S.KANS, 'OBLOK': S.OBLOK, 'OV1_RIJ': S.OV1, 'OV2_RIJ': S.OV2, 'PER_RIJ': S.PER, 'DAEB_KOP_RIJ': S.DAEB_KOP,
          'DAEB_AANTAL_RIJ': S.DAEB_AANTAL, 'DAEB_VERKOOP_RIJ': S.DAEB_VERKOOP, 'KBLOK': S.KBLOK, 'K_POST1': S.K_POST1,
          'NPOST': S.NPOST, 'C_TOEL': cn(S.TOEL), 'P_TYPE1': S.P_TYPE1, 'P_AANS1': S.P_AANS1, 'P_BLOK': S.P_BLOK,
          'P_BN1': S.P_BN1, 'P_BNN': S.P_BNN}
@@ -205,6 +205,23 @@ def vba_constanten():
     regels += ['Private Const %s As Long = %d' % (k, v) for k, v in w.items()]
     regels.append('Private Const P_REGELS As String = "%s"' % '|'.join(S.P_REGELS))
     return '\r\n'.join(regels)
+
+
+def foutkolom(sh, kol, st, styles):
+    """kolom A: FOUT of LET OP uit de statuskolom van dezelfde rij (rood/oranje), C1: aantal fouten en let op"""
+    rijen = sorted({split_ref(c.get('r'))[1] for c in sh.t.iter(M + 'c')
+                    if split_ref(c.get('r'))[0] == kol and c.find(M + 'f') is not None})
+    for r in rijen:
+        s_ = '%s%d&""' % (kol, r)
+        sh.set('A%d' % r, '=IF(LEFT(%s,4)="FOUT","FOUT",IF(LEFT(%s,6)="LET OP","LET OP",""))' % (s_, s_), st['vet'])
+    sh.set('C1', '=IF(COUNTIF(A:A,"FOUT")+COUNTIF(A:A,"LET OP")=0,"Geen fouten",COUNTIF(A:A,"FOUT")&" fout · "&'
+                 'COUNTIF(A:A,"LET OP")&" let op · zie kolom A")', st['vet'])
+    rood = styles.add_dxf('<font><b val="1"/><color rgb="FFB91C1C"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFFECACA"/></patternFill></fill>')
+    oranje = styles.add_dxf('<font><b val="1"/><color rgb="FF92400E"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFFEF3C7"/></patternFill></fill>')
+    sh.add_cf('A1:A1000', 'A1="FOUT"', rood)
+    sh.add_cf('A1:A1000', 'A1="LET OP"', oranje)
+    sh.add_cf('C1', 'LEFT(C1,5)<>"Geen "', rood)
+    return len(rijen)
 
 
 def project_uit_bestandsnaam(pad):
@@ -575,6 +592,12 @@ def main():
         if blad == 'CF - opbrengsten':
             daeb_uit_verkooptempo(sh, oz, fo_waarden, st, sjabloon)
         dst.put(part_of[blad], sh.t)
+    # foutkolom vooraan (kolom A) en een telling bovenaan, op CF - opbrengsten en CF - kosten
+    for blad, kol in (('CF - opbrengsten', oz['opbrengsten']['status']), ('CF - kosten', oz['kosten']['status'])):
+        sh = Sheet(dst.x(part_of[blad]), sst)
+        n = foutkolom(sh, kol, st, styles)
+        dst.put(part_of[blad], sh.t)
+        note('%s: foutkolom A voor %d rijen met een status' % (blad, n))
     ab = oz['aansluiting_blad']
     sh = Sheet(dst.x(part_of[ab]), sst)
     fo_aanpassingen.aansluiting(sh, oz, st, sjabloon, note)
@@ -642,6 +665,16 @@ def main():
     sh.set_formula('W71', 'SUM(Invoer!$F$8:$F$%d)' % scenario_koppeling.INV_RN)
     sh.set_formula('W72', 'SUM(Invoer!$D$8:$D$%d)' % scenario_koppeling.INV_RN)
     sh.set_formula('W73', 'Start!$C$10')
+    if oz.get('standaard'):
+        import standaard_fo as S_
+        rk = S_.KANS + S_.NT + 1
+        for ref, v in (('V82', 'KANS GRONDTERMIJN (Prijslijst kolom Y; CF - opbrengsten rij %d)' % S_.KANS),
+                       ('W83', 'Max. financiering · huidig'), ('W84', 'Max. financiering · met kans'),
+                       ('W85', 'Grondtermijn eerder ontvangen (hoogste cumulatief)')):
+            sh.set_value(ref, v)
+        sh.set_formula('Z83', "'CF - opbrengsten'!$D$%d" % (rk + 2))
+        sh.set_formula('Z84', "'CF - opbrengsten'!$D$%d" % (rk + 3))
+        sh.set_formula('Z85', "MAX('CF - opbrengsten'!$H$%d:$AU$%d)" % (rk + 1, rk + 1))
     dst.put(part_of['Dashboard'], sh.t)
 
     # ---- cellen aanvullen --------------------------------------------------------------------------------

@@ -1375,7 +1375,12 @@ Public Sub WeergaveBijwerken()
     For k = 1 To NT
         leeg = (Nk(wsO.Cells(5 + BLOK * (k - 1), 7).Value) = 0)
         r1 = 6 + BLOK * (k - 1)
-        wsO.Range(wsO.Rows(r1 + 1), wsO.Rows(r1 + NTERM + 4)).EntireRow.Hidden = leeg
+        wsO.Range(wsO.Rows(r1 + 1), wsO.Rows(r1 + BLOK - 2)).EntireRow.Hidden = leeg
+        wsO.Rows(KANS_RIJ + k).Hidden = leeg
+        With ThisWorkbook.Worksheets("Prijslijst")
+            .Rows(P_TYPE1 + k - 1).Hidden = leeg
+            .Range(.Rows(P_AANS1 + P_BLOK * (k - 1)), .Rows(P_AANS1 + P_BLOK * k - 2)).EntireRow.Hidden = leeg
+        End With
         r1 = 3 + KBLOK * (k - 1)
         wsK.Range(wsK.Rows(r1 + 2), wsK.Rows(r1 + NTERM + 5)).EntireRow.Hidden = leeg
     Next k
