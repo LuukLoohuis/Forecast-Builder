@@ -231,14 +231,14 @@ Fout:
     MsgBox "Inlezen in '" & blad & "' is niet gelukt." & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms, vbExclamation, TITEL
 End Sub
 
-Private Sub LeegMaken(ws As Worksheet, nKol As Long)
+Private Sub LeegMaken(ByVal ws As Worksheet, ByVal nKol As Long)
     Dim h As Long
     h = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
     If h < 1 Then h = 1
     ws.Range(ws.Cells(1, 1), ws.Cells(h, nKol)).ClearContents
 End Sub
 
-Private Function LaatsteRij(ws As Worksheet, nKol As Long) As Long
+Private Function LaatsteRij(ByVal ws As Worksheet, ByVal nKol As Long) As Long
     ' laatste rij met iets in de exportkolommen: vanaf de onderkant van het gebruikte bereik omhoog
     Dim m As Long
     m = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
@@ -249,7 +249,7 @@ Private Function LaatsteRij(ws As Worksheet, nKol As Long) As Long
     LaatsteRij = m
 End Function
 
-Private Function HulpKolommen(blad As String) As String
+Private Function HulpKolommen(ByVal blad As String) As String
     ' hulpkolommen rechts van de export met de eerste rij met een formule, bv. "X:17|Y:30"
     Select Case blad
         Case "FO - vorig", "FO - huidig": HulpKolommen = Cfg("hulp|" & blad, "X:17|Y:17")
@@ -258,7 +258,7 @@ Private Function HulpKolommen(blad As String) As String
     End Select
 End Function
 
-Private Sub HulpBijwerken(ws As Worksheet, hulp As String, hulpRij As Long, laatste As Long)
+Private Sub HulpBijwerken(ByVal ws As Worksheet, ByVal hulp As String, ByVal hulpRij As Long, ByVal laatste As Long)
     ' per hulpkolom ("X:17|Y:30", kolom:eerste formulerij) de formule van de eerste rij doortrekken t/m de laatste
     ' exportrij (rijen daaronder houden hun formule); hulpRij geldt voor kolommen zonder eigen eerste rij
     Dim kolommen() As String, i As Long, f As String, k As String, r1 As Long
@@ -444,200 +444,7 @@ Fout:
     MsgBox "Oud FO inlezen ging mis bij: " & stap & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms, vbExclamation, "Oud FO inlezen"
 End Sub
 
-Private Sub KopieerBlad(wsO As Worksheet, wsN As Worksheet, ByRef waarschuwing As String)
-    ' alle formules en waarden van het oude tabblad op dezelfde plek; formules die naar een tabblad verwijzen dat hier niet
-    ' bestaat (of naar een ander bestand) worden waarden, zodat Excel niet om een bestand gaat vragen
-    Dim nR As Long, nC As Long, f As Variant, v As Variant, i As Long, j As Long, s As String, mist As Long, r As Long
-    nR = wsO.UsedRange.Row + wsO.UsedRange.Rows.Count - 1
-    nC = wsO.UsedRange.Column + wsO.UsedRange.Columns.Count - 1
-    If nR < 2 Then nR = 2
-    If nC < 2 Then nC = 2
-    f = wsO.Range(wsO.Cells(1, 1), wsO.Cells(nR, nC)).Formula
-    v = wsO.Range(wsO.Cells(1, 1), wsO.Cells(nR, nC)).Value
-    For i = 1 To nR
-        For j = 1 To nC
-            s = CStr(f(i, j))
-            If Left$(s, 1) = "=" Then
-                If Not VerwijzingenBestaan(s) Then
-                    If IsError(v(i, j)) Then f(i, j) = "" Else f(i, j) = v(i, j)
-                    mist = mist + 1
-                End If
-            End If
-        Next j
-    Next i
-    wsN.UsedRange.ClearContents
-    On Error Resume Next
-    wsN.Range(wsN.Cells(1, 1), wsN.Cells(nR, nC)).Formula = f
-    If Err.Number <> 0 Then
-        ' bijvoorbeeld samengevoegde cellen die anders liggen: per cel
-        Err.Clear
-        For i = 1 To nR
-            For j = 1 To nC
-                If Len(CStr(f(i, j))) > 0 Then
-                    wsN.Cells(i, j).Formula = f(i, j)
-                    If Err.Number <> 0 Then
-                        Err.Clear
-                        r = r + 1
-                    End If
-                End If
-            Next j
-        Next i
-    End If
-    On Error GoTo 0
-    If mist > 0 Then waarschuwing = waarschuwing & "- '" & wsN.Name & "': " & mist & " formule(s) met een verwijzing naar een " & _
-                                    "ander bestand of tabblad zijn als waarde overgenomen." & vbCrLf
-    If r > 0 Then waarschuwing = waarschuwing & "- '" & wsN.Name & "': " & r & " cel(len) niet overgenomen (samengevoegde cellen)." & vbCrLf
-End Sub
-
-Private Function VerwijzingenBestaan(f As String) As Boolean
-    ' True als elke bladverwijzing (Blad!A1 of 'Blad naam'!A1) in deze formule naar een tabblad van dit werkbestand wijst
-    Dim p As Long, q As Long, naam As String, ch As String
-    VerwijzingenBestaan = True
-    If InStr(f, "[") > 0 Then
-        VerwijzingenBestaan = False
-        Exit Function
-    End If
-    p = InStr(f, "!")
-    Do While p > 0
-        If BinnenTekst(f, p) Then
-            naam = ""
-        ElseIf p > 1 And Mid$(f, p - 1, 1) = "'" Then
-            q = p - 2
-            Do While q > 0
-                If Mid$(f, q, 1) = "'" Then
-                    If q > 1 Then
-                        If Mid$(f, q - 1, 1) = "'" Then
-                            q = q - 2
-                        Else
-                            Exit Do
-                        End If
-                    Else
-                        Exit Do
-                    End If
-                Else
-                    q = q - 1
-                End If
-            Loop
-            naam = Replace(Mid$(f, q + 1, p - q - 2), "''", "'")
-        Else
-            q = p - 1
-            Do While q > 0
-                ch = Mid$(f, q, 1)
-                If ch Like "[A-Za-z0-9_.]" Then q = q - 1 Else Exit Do
-            Loop
-            naam = Mid$(f, q + 1, p - q - 1)
-        End If
-        If Len(naam) > 0 Then
-            If ZoekBlad(ThisWorkbook, naam) Is Nothing Then
-                VerwijzingenBestaan = False
-                Exit Function
-            End If
-        End If
-        p = InStr(p + 1, f, "!")
-    Loop
-End Function
-
-Private Function BinnenTekst(f As String, p As Long) As Boolean
-    ' staat positie p tussen dubbele aanhalingstekens (een tekst in de formule)?
-    Dim i As Long, n As Long
-    For i = 1 To p - 1
-        If Mid$(f, i, 1) = Chr$(34) Then n = n + 1
-    Next i
-    BinnenTekst = (n Mod 2 = 1)
-End Function
-
-Private Sub SjabloonTerugzetten(ByRef waarschuwing As String)
-    ' tab _sjabloon: per regel blad, cel en inhoud ('=formule', waarde of leeg) van de onderdelen die een oud FO niet heeft.
-    ' Regels met blad 'CF - opbrengsten|DAEB' (het lege DAEB-blok) alleen als het oude FO geen eigen DAEB-blok heeft.
-    ' Daarna krijgt het totaal (rij 194) de correctieregel (rij 192) erbij, en het DAEB-totaal als het lege blok terugkwam.
-    Dim ws As Worksheet, wo As Worksheet, r As Long, blad As String, cel As String, inhoud As String, mis As Long
-    Dim daebLeeg As Boolean, zetten As Boolean, c As Long, f As String
-    Dim rTot As Long, rCorr As Long, rDaeb As Long, k1 As Long, k2 As Long
-    Set ws = ThisWorkbook.Worksheets(SH_SJABLOON)
-    Set wo = ThisWorkbook.Worksheets("CF - opbrengsten")
-    rTot = CLng(Cfg("opbrengsten_totaal", "194"))
-    rCorr = CLng(Cfg("opbrengsten_correctie", "192"))
-    rDaeb = CLng(Cfg("daeb_totaal", "224"))                 ' 0 = het FO had een eigen DAEB-blok
-    k1 = CLng(Cfg("opbrengsten_kol1", "7"))
-    k2 = CLng(Cfg("opbrengsten_kol2", "26"))
-    daebLeeg = (rDaeb > 0) And (Application.WorksheetFunction.CountIf(wo.Range("B1:B600"), "*daeb*") = 0) And _
-               (Application.WorksheetFunction.CountA(wo.Range(Cfg("daeb_bereik", "B200:Z228"))) = 0)
-    r = 2
-    Do While Len(CStr(ws.Cells(r, 1).Value)) > 0
-        blad = CStr(ws.Cells(r, 1).Value)
-        cel = CStr(ws.Cells(r, 2).Value)
-        inhoud = CStr(ws.Cells(r, 3).Value)
-        zetten = True
-        If Right$(blad, 5) = "|DAEB" Then
-            blad = Left$(blad, Len(blad) - 5)
-            zetten = daebLeeg
-        End If
-        If zetten Then
-            On Error Resume Next
-            If Len(inhoud) = 0 Then
-                ThisWorkbook.Worksheets(blad).Range(cel).ClearContents
-            Else
-                ThisWorkbook.Worksheets(blad).Range(cel).Formula = inhoud
-            End If
-            If Err.Number <> 0 Then
-                Err.Clear
-                mis = mis + 1
-            End If
-            On Error GoTo 0
-        End If
-        r = r + 1
-    Loop
-    For c = k1 To k2
-        f = wo.Cells(rTot, c).Formula
-        If Left$(f, 1) = "=" Then
-            If InStr(f, KolomLetter(c) & rCorr) = 0 Then f = f & "+" & KolomLetter(c) & rCorr
-            If daebLeeg And InStr(f, KolomLetter(c) & rDaeb) = 0 Then f = f & "+" & KolomLetter(c) & rDaeb
-            If f <> wo.Cells(rTot, c).Formula Then wo.Cells(rTot, c).Formula = f
-        End If
-    Next c
-    If mis > 0 Then waarschuwing = waarschuwing & "- " & mis & " cel(len) van het sjabloon konden niet worden teruggezet." & vbCrLf
-End Sub
-
-Private Sub OpzetControleren(ByRef waarschuwing As String)
-    ' de prognosebladen volgen de rijen van de standaardopzet; wijkt het oude FO daarvan af, dan melden
-    ' de vaste rijen staan op _sjabloon (sleutel 'controles': blad|cel|begin;...)
-    Dim fout As String, c As Variant, d() As String, bereik As String, kolZ As String
-    For Each c In Split(Cfg("controles", "CF - kosten|B58|onderdelen;CF - kosten|B75|totaal kosten;" & _
-            "CF - kosten|B77|periode in cashflow sap;CF - opbrengsten|B128|termijnen 1 in;" & _
-            "CF - opbrengsten|B189|overige opbrengsten in;CF - opbrengsten|B194|totaal opbrengsten;" & _
-            "CF - opbrengsten|B196|periode in cashflow sap"), ";")
-        d = Split(c, "|")
-        If UBound(d) = 2 Then fout = fout & Controleer(d(0), d(1), d(2))
-    Next c
-    ' onderdelen van het werkbestand die op vaste rijen staan: stond daar in het oude FO al iets, dan melden
-    bereik = Cfg("correctie_bereik", "B192:Z192")
-    If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - opbrengsten").Range(bereik)) > 0 Then
-        fout = fout & "    CF - opbrengsten " & bereik & " was niet leeg; daar staat nu de correctieregel" & vbCrLf
-    End If
-    bereik = Cfg("voorstel_bereik", "B93:AD112")
-    If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - kosten").Range(bereik)) > 0 Then
-        fout = fout & "    CF - kosten " & bereik & " was niet leeg; daar staat nu het voorstelblok" & vbCrLf
-    End If
-    ' de transportregels komen in lege rijen onder de bouwtermijnen; stond daar iets, dan melden
-    Dim t As Variant
-    kolZ = KolomLetter(CLng(Cfg("opbrengsten_kol2", "26")))
-    For Each t In Split(Cfg("transportrijen", TRANSPORTRIJEN), "|")
-        If Application.WorksheetFunction.CountA(ThisWorkbook.Worksheets("CF - opbrengsten").Range("B" & t & ":" & kolZ & t)) > 0 Then
-            fout = fout & "    CF - opbrengsten rij " & t & " was niet leeg; daar staat nu de transportregel" & vbCrLf
-        End If
-    Next t
-    If Len(fout) > 0 Then
-        waarschuwing = waarschuwing & "- de opzet van het oude FO wijkt af van de standaard; controleer:" & vbCrLf & fout
-    End If
-End Sub
-
-Private Function Controleer(blad As String, cel As String, begin As String) As String
-    Dim t As String
-    t = LCase$(Trim$(CStr(ThisWorkbook.Worksheets(blad).Range(cel).Value)))
-    If Left$(t, Len(begin)) <> begin Then Controleer = "    " & blad & "!" & cel & " (verwacht '" & begin & "...')" & vbCrLf
-End Function
-
-Private Sub ControleVullen(wbO As Workbook, pad As String)
+Private Sub ControleVullen(ByVal wbO As Workbook, ByVal pad As String)
     ' cashflow van het oude FO (1. Cashflow, waarden) naar tab Controle oud FO (per jaar en kwartaal) en kolom
     ' 'CF vorig kwartaal' naar tab Vorige prognose, zodat tab Invoer kolom J doorloopt
     Dim wsO As Worksheet, wsK As Worksheet, wsV As Worksheet, i As Long, r As Long
@@ -681,55 +488,11 @@ End Sub
 '  hulpjes
 ' =====================================================================================
 
-Public Function WerkbestandCfg(sleutel As String, standaard As String) As String
+Public Function WerkbestandCfg(ByVal sleutel As String, ByVal standaard As String) As String
     WerkbestandCfg = Cfg(sleutel, standaard)
 End Function
 
-Private Sub RijenInvoegenOudFO(wbO As Workbook)
-    ' _sjabloon 'vt_invoeg': rij:aantal in de opzet van het FO, van onder naar boven
-    Dim ws As Worksheet, t As Variant, d() As String
-    Set ws = ZoekBlad(wbO, "CF - opbrengsten")
-    If ws Is Nothing Then Exit Sub
-    For Each t In Split(Cfg("vt_invoeg", ""), "|")
-        d = Split(t, ":")
-        If UBound(d) = 1 Then ws.Rows(CLng(d(0))).Resize(CLng(d(1))).Insert
-    Next t
-End Sub
-
-Private Sub VerkoopTransportOvernemen(wbO As Workbook, ByRef waarschuwing As String)
-    ' het oude FO plant verkoop en transport in aantallen (verkooprij en grondtermijn op CF - opbrengsten); het werkbestand
-    ' in % in de rijen onder de transportregel. Per type: verkocht % (vanaf de 2e kolom; de 1e is de realisatie uit
-    ' Salesforce) en getransporteerd % = de grondtermijn van het oude FO, gedeeld door het aantal woningen
-    Dim wsO As Worksheet, wsV As Worksheet, t As Variant, d() As String, k1 As Long, k2 As Long, c As Long
-    Dim won As Double, rV As Long, rK As Long, rT As Long
-    Set wsO = ZoekBlad(wbO, "CF - opbrengsten")
-    Set wsV = ThisWorkbook.Worksheets("CF - opbrengsten")
-    If wsO Is Nothing Then Exit Sub
-    k1 = CLng(Cfg("opbrengsten_kol1", "7"))
-    k2 = CLng(Cfg("opbrengsten_kol2", "26"))
-    For Each t In Split(Cfg("vt_types", ""), "|")
-        d = Split(t, ":")
-        If UBound(d) = 3 Then
-            rV = CLng(d(0)): rK = CLng(d(1)): rT = CLng(d(2))
-            won = 0
-            If IsNumeric(wsO.Cells(CLng(d(3)), 7).Value) Then won = CDbl(wsO.Cells(CLng(d(3)), 7).Value)
-            For c = k1 To k2
-                If c > k1 Then wsV.Cells(rT, c).Value = Deel(wsO.Cells(rV, c).Value, won)
-                wsV.Cells(rT + 1, c).Value = Deel(wsO.Cells(rK, c).Value, won)
-            Next c
-        End If
-    Next t
-End Sub
-
-Private Function Deel(v As Variant, won As Double) As Variant
-    Deel = Empty
-    If won = 0 Or IsError(v) Then Exit Function
-    If IsNumeric(v) And Not IsEmpty(v) Then
-        If CDbl(v) <> 0 Then Deel = CDbl(v) / won
-    End If
-End Function
-
-Private Function Cfg(sleutel As String, standaard As String) As String
+Private Function Cfg(ByVal sleutel As String, ByVal standaard As String) As String
     ' opzet van het FO (_sjabloon kolom E: sleutel, F: waarde), anders de standaardwaarde
     Dim ws As Worksheet, r As Variant
     Cfg = standaard
@@ -743,7 +506,7 @@ Private Function Cfg(sleutel As String, standaard As String) As String
     End If
 End Function
 
-Private Function Kwartaal(v As Variant) As String
+Private Function Kwartaal(ByVal v As Variant) As String
     ' 'Q1'..'Q4'; een jaarrij (leeg of het jaartal in de kolom Q) wordt leeg
     Dim t As String
     If IsError(v) Then Exit Function
@@ -751,7 +514,7 @@ Private Function Kwartaal(v As Variant) As String
     If t Like "Q[1-4]" Then Kwartaal = t
 End Function
 
-Private Function ZoekBlad(wb As Workbook, naam As String) As Worksheet
+Private Function ZoekBlad(ByVal wb As Workbook, ByVal naam As String) As Worksheet
     Dim ws As Worksheet
     For Each ws In wb.Worksheets
         If StrComp(Trim$(ws.Name), Trim$(naam), vbTextCompare) = 0 Then
@@ -761,7 +524,7 @@ Private Function ZoekBlad(wb As Workbook, naam As String) As Worksheet
     Next ws
 End Function
 
-Private Function BestandsNaam(pad As String) As String
+Private Function BestandsNaam(ByVal pad As String) As String
     Dim p As Long
     p = InStrRev(pad, "\")
     If InStrRev(pad, "/") > p Then p = InStrRev(pad, "/")
@@ -769,7 +532,7 @@ Private Function BestandsNaam(pad As String) As String
     BestandsNaam = Mid$(pad, p + 1)
 End Function
 
-Private Function KolomLetter(n As Long) As String
+Private Function KolomLetter(ByVal n As Long) As String
     KolomLetter = Split(ThisWorkbook.Worksheets(1).Cells(1, n).Address(True, False), "$")(0)
 End Function
 
@@ -777,7 +540,7 @@ End Function
 '  Oud FO omzetten naar de vaste opzet van dit werkbestand (zelfde regels als tools/omzetten.py)
 ' =====================================================================================
 
-Public Sub OudFOOmzettenTest(pad As String)
+Public Sub OudFOOmzettenTest(ByVal pad As String)
     ' zonder vragen en meldingen (voor de controle buiten Excel)
     Dim wbO As Workbook, logTekst As String
     Set wbO = Workbooks.Open(pad, UpdateLinks:=0, ReadOnly:=True)
@@ -788,25 +551,25 @@ Public Sub OudFOOmzettenTest(pad As String)
     ThisWorkbook.Worksheets(SH_START).Range("B4").Value = logTekst
 End Sub
 
-Private Function Tk(v As Variant) As String
+Private Function Tk(ByVal v As Variant) As String
     If IsError(v) Then Exit Function
     Tk = Trim$(CStr(v))
 End Function
 
-Private Function Nk(v As Variant) As Double
+Private Function Nk(ByVal v As Variant) As Double
     If IsError(v) Then Exit Function
     If IsEmpty(v) Then Exit Function
     If VarType(v) = vbString Then Exit Function
     If IsNumeric(v) Then Nk = CDbl(v)
 End Function
 
-Private Function IsGetalW(v As Variant) As Boolean
+Private Function IsGetalW(ByVal v As Variant) As Boolean
     If IsError(v) Or IsEmpty(v) Then Exit Function
     If VarType(v) = vbString Or VarType(v) = vbBoolean Then Exit Function
     IsGetalW = IsNumeric(v)
 End Function
 
-Private Function KwSleutels(ws As Worksheet, rj As Long, rq As Long, c1 As Long, c2 As Long) As Variant
+Private Function KwSleutels(ByVal ws As Worksheet, ByVal rj As Long, ByVal rq As Long, ByVal c1 As Long, ByVal c2 As Long) As Variant
     ' kolom -> kwartaalindex (jaar*4+q), 0 voor kolommen zonder kwartaal
     Dim a() As Long, c As Long, jaar As Long, q As String
     ReDim a(1 To c2)
@@ -818,7 +581,7 @@ Private Function KwSleutels(ws As Worksheet, rj As Long, rq As Long, c1 As Long,
     KwSleutels = a
 End Function
 
-Private Function KolStd(sleutel As Long, k1 As Long) As Long
+Private Function KolStd(ByVal sleutel As Long, ByVal k1 As Long) As Long
     ' kolom in dit werkbestand: actuals (G) voor alles vóór het eerste kwartaal, 0 = valt na het laatste kwartaal
     If sleutel = 0 Or sleutel < k1 Then
         KolStd = C_ACT
@@ -827,8 +590,8 @@ Private Function KolStd(sleutel As Long, k1 As Long) As Long
     End If
 End Function
 
-Private Sub RijOver(wsB As Worksheet, rB As Long, sl As Variant, c1 As Long, c2 As Long, wsD As Worksheet, rD As Long, _
-                    k1 As Long, alleenQ As Boolean, deler As Double, ByRef logTekst As String)
+Private Sub RijOver(ByVal wsB As Worksheet, ByVal rB As Long, ByVal sl As Variant, ByVal c1 As Long, ByVal c2 As Long, ByVal wsD As Worksheet, ByVal rD As Long, _
+                    ByVal k1 As Long, ByVal alleenQ As Boolean, ByVal deler As Double, ByRef logTekst As String)
     ' waarden van een rij in het oude FO naar rij rD (per kwartaal; niet-kwartalen opgeteld in actuals); deel <> 0 = delen
     Dim som() As Double, gezet() As Boolean, c As Long, k As Long, v As Variant
     ReDim som(1 To C_Q1 + NQ): ReDim gezet(1 To C_Q1 + NQ)
@@ -851,7 +614,7 @@ Private Sub RijOver(wsB As Worksheet, rB As Long, sl As Variant, c1 As Long, c2 
     Next k
 End Sub
 
-Private Function RijMet(ws As Worksheet, kol As Long, r1 As Long, r2 As Long, begin As String) As Long
+Private Function RijMet(ByVal ws As Worksheet, ByVal kol As Long, ByVal r1 As Long, ByVal r2 As Long, ByVal begin As String) As Long
     Dim r As Long
     For r = r1 To r2
         If LCase$(Tk(ws.Cells(r, kol).Value)) Like begin Then
@@ -861,7 +624,7 @@ Private Function RijMet(ws As Worksheet, kol As Long, r1 As Long, r2 As Long, be
     Next r
 End Function
 
-Private Function OmzettenOudFO(wbO As Workbook) As String
+Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     Dim lg As String, wO As Worksheet, wK As Worksheet, wP As Worksheet, wD As Worksheet, ws As Worksheet
     Dim maxR As Long, vk As Long, r As Long, c As Long, i As Long, j As Long, k As Long, n As Long
     Dim kops(1 To 20) As Long, omz(1 To 20) As Long, nKop As Long, nOmz As Long, laatste As Long, euro As Long, per As Long
@@ -1195,13 +958,13 @@ Private Function OmzettenOudFO(wbO As Workbook) As String
     OmzettenOudFO = lg
 End Function
 
-Private Function PrijsW(ws As Worksheet, r As Long, kopP As Long, naam As String) As Double
+Private Function PrijsW(ByVal ws As Worksheet, ByVal r As Long, ByVal kopP As Long, ByVal naam As String) As Double
     Dim c As Long
     c = KolNaam(ws, kopP, naam)
     If c > 0 Then PrijsW = Nk(ws.Cells(r, c).Value)
 End Function
 
-Private Function KolNaam(ws As Worksheet, r As Long, naam As String) As Long
+Private Function KolNaam(ByVal ws As Worksheet, ByVal r As Long, ByVal naam As String) As Long
     Dim c As Long
     For c = 1 To 40
         If LCase$(Tk(ws.Cells(r, c).Value)) = naam Then
@@ -1211,8 +974,8 @@ Private Function KolNaam(ws As Worksheet, r As Long, naam As String) As Long
     Next c
 End Function
 
-Private Sub KostenOmzetten(wbO As Workbook, wO As Worksheet, i As Long, hbOud As Long, term() As Long, aantT As Long, d As Long, _
-                           sl As Variant, laatste As Long, k1 As Long, ByRef lg As String)
+Private Sub KostenOmzetten(ByVal wbO As Workbook, ByVal wO As Worksheet, ByVal i As Long, ByVal hbOud As Long, term() As Long, ByVal aantT As Long, ByVal d As Long, _
+                           ByVal sl As Variant, ByVal laatste As Long, ByVal k1 As Long, ByRef lg As String)
     Dim wKo As Worksheet, wK As Worksheet, kopTekst As String, r As Long, kr As Long, kRij(1 To 20) As Long, n As Long
     Dim ksl As Variant, kc2 As Long, c As Long, kb As Long, j As Long, afwijk As Boolean, c2 As Long, sK As Double, sP As Double
     Set wKo = ZoekBlad(wbO, "CF - kosten")
@@ -1265,8 +1028,8 @@ Private Sub KostenOmzetten(wbO As Workbook, wO As Worksheet, i As Long, hbOud As
     Next j
 End Sub
 
-Private Sub DaebOmzetten(wbO As Workbook, wO As Worksheet, kops() As Long, nKop As Long, sl As Variant, laatste As Long, _
-                         k1 As Long, ByRef lg As String)
+Private Sub DaebOmzetten(ByVal wbO As Workbook, ByVal wO As Worksheet, kops() As Long, ByVal nKop As Long, ByVal sl As Variant, ByVal laatste As Long, _
+                         ByVal k1 As Long, ByRef lg As String)
     Dim wD As Worksheet, r0 As Long, r As Long, lab As String, comp As Long, g As Long, i As Long, aantal As Variant
     Dim rv As Long, c As Long, wv As Worksheet, kop As Long, rij As Long, acol As Long, vsl As Variant, vk As Long
     Set wD = ThisWorkbook.Worksheets("CF - opbrengsten")
@@ -1337,7 +1100,7 @@ Private Sub DaebOmzetten(wbO As Workbook, wO As Worksheet, kops() As Long, nKop 
     lg = lg & "- DAEB-blok overgenomen (" & comp & " componenten, aantal " & aantal & ")" & vbCrLf
 End Sub
 
-Private Sub PewOmzetten(wbO As Workbook, ByRef lg As String)
+Private Sub PewOmzetten(ByVal wbO As Workbook, ByRef lg As String)
     Dim wO As Worksheet, wN As Worksheet, kop As Long, r As Long, c As Long, fd As Long, toel As Long, eind As Long
     Set wO = ZoekBlad(wbO, "2. Ontw PEW")
     If wO Is Nothing Then Exit Sub
