@@ -21,7 +21,7 @@ en de PowerPoint komt uit hetzelfde bestand.
 | `Start` | project, oplevering, knoppen, status van de invoer, alle controles, teksten voor dia 10 |
 | `FO - vorig`, `FO - huidig`, `FO - actuals`, `Prijslijst dump` | exports plakken of inlezen (SAP FO-overzicht van vorige en huidige periode, SAP actuals, Salesforce) |
 | `Prijslijst` | dashboard (zie hieronder): kaarten, woningtypes, grafieken, te boeken in SAP, aansluiting per type met het termijnschema, en onderaan de prijslijst per bouwnummer |
-| `CF - opbrengsten` | per woningtype: planning bouwtermijnen, verkocht %, getransporteerd %, grondprijsaanpassing; kadastrale kosten en rente (handmatig); overige opbrengsten, correctie, DAEB |
+| `CF - opbrengsten` | per woningtype: planning bouwtermijnen, verkoop en transport in aantallen (verkooptempo en tabel Transport), grondprijsaanpassing; kadastrale kosten en rente (handmatig); overige opbrengsten, correctie, DAEB |
 | `CF - kosten` | bouwtermijnen kosten per type (eigen planning HWB, standaard gelijk aan de opbrengsten) en per kostenpost Handmatig, Voorstel of Transport |
 | `Dashboard`, `Scenario's` | cashflow, kerncijfers, grafieken en scenario's: rekenen automatisch mee |
 | `2. Ontw PEW` | PEW huidig/vorig uit SAP, meest recente FD (invullen), toelichting |
@@ -66,6 +66,10 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   - de kwartalen vóór het kwartaal van de laatste actuals zijn een ingeklapte kolomgroep; met + klap je ze open. Het kwartaal van de laatste actuals (vaak het lopende kwartaal) blijft zichtbaar.
 
   De macro werkt dit bij na Oud FO inlezen, Nieuw kwartaal en het inlezen van actuals.
+- **Verkoop:** in het verkooptempo vul je per woningtype het aantal verkochte woningen per kwartaal in; "verkocht %" in het woningtypeblok rekent daaruit.
+  - Kolom 1 is verkocht t/m de exportdatum van de prijslijst (Salesforce, Prijslijst C1).
+  - Kwartalen vóór het kwartaal van die export tellen niet nog eens mee; die verkopen zitten al in kolom 1.
+  - Verkoop en transport mogen per woningtype verschillen: transport kan later dan verkoop.
 - **Transport:** onder het verkooptempo staat de tabel Transport. Daar vul je per woningtype het aantal woningen in dat per kwartaal getransporteerd wordt; "getransporteerd %" in het woningtypeblok rekent daaruit.
   - Getransporteerd kan niet vóór verkocht; wat op verkoop wacht, schuift mee.
   - De omzet schuift mee: de grondtermijn en de bouwtermijnen die bij transport al vervallen zijn, komen in het transportkwartaal binnen.

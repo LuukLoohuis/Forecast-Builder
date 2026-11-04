@@ -298,11 +298,16 @@ def invoer(inv: Sheet, types, st):
         for t in types:
             cv, ct = num2col(12 + 2 * (t['k'] - 1)), num2col(13 + 2 * (t['k'] - 1))
             naam = 'Woningtypes!$%s$7' % num2col(3 + 3 * (t['k'] - 1))
-            for col, bron in ((cv, t['verkoop']), (ct, t['koop'])):
+            # standaard-FO: het verkooptempo is invoer (ook kwartalen vóór nu); verkocht = verkocht % x aantal woningen
+            if t.get('transport_tabel') and t.get('rij_verkocht'):
+                bronnen = ((cv, t['rij_verkocht'], '*%s$G$%d' % (OK, t['hb'] - 1)), (ct, t['koop'], ''))
+            else:
+                bronnen = ((cv, t['verkoop'], ''), (ct, t['koop'], ''))
+            for col, bron, maal in bronnen:
                 rng = '%s$%s$%d:$%s$%d' % (OK, O1, bron, ON, bron)
-                inv.set('%s%d' % (col, r), '=IF(OR($B%d="",%s=""),"",IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)'
-                                           '+IF($A%d=%s,SUMIFS(%s,%s,0),0))'
-                        % (r, naam, r, rng, r, KEYO, r, ACT, rng, KEYO), st['aantal'])
+                inv.set('%s%d' % (col, r), '=IF(OR($B%d="",%s=""),"",ROUND((IF($A%d>0,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0)'
+                                           '+IF($A%d=%s,SUMIFS(%s,%s,0),0))%s,6))'
+                        % (r, naam, r, rng, r, KEYO, r, ACT, rng, KEYO, maal), st['aantal'])
     # oude inhoud onder de periodes (tot de 60 rijen van het model) leeg
     for r in range(INV_RN + 1, tot):
         for c in 'ABCDEFGHIJ':
