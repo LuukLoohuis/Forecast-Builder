@@ -71,7 +71,9 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   - De omzet schuift mee: de grondtermijn en de bouwtermijnen die bij transport al vervallen zijn, komen in het transportkwartaal binnen.
   - De kosten van de bouwtermijnen volgen de bouwplanning (HWB), niet het transport. Een kostenpost met methode Transport (bijvoorbeeld de grond) schuift wel mee.
 - **Alle woningen:** onder de transporttabel per kwartaal het % verkocht en getransporteerd van alle woningen, en cumulatief.
-- **Bedragen per woningtype:** onder de transportregel staan de grondtermijn (koopsom grond), de bouwtermijnen en het totaal in € per kwartaal; ze schuiven mee met het transport. Bij elke termijn staan het %, het bedrag (alle woningen) en het bedrag per woning.
+- **Bedragen per woningtype:** onder de transportregel staan in € per kwartaal: de grondtermijn (koopsom grond), de bouwtermijnen, kopersmeerwerk 25% (met de eerste termijn, start bouw), kopersmeerwerk 75% (met de laatste termijn, oplevering) en het totaal. Ze schuiven mee met het transport; de kopersmeerwerkregels zijn vooraf ingevuld. Bij elke termijn staan het %, het bedrag (alle woningen) en het bedrag per woning.
+- **Kleuren:** kopregels donkerblauw, geel = invoer (alleen bij termijnen die er zijn), totaalregels lichtblauw en vet.
+- **Grafiekperiode:** op het Dashboard (V87–Z91) vul je "Grafiek vanaf" en "Grafiek t/m" in (jaar · kwartaal). Leeg = automatisch: van het eerste kwartaal met opbrengsten of kosten tot één kwartaal na het laatste. De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
 - **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont FOUT of LET OP voor de rij; cel C1 telt ze.
 - **Kans grondtermijn:** vul op `Prijslijst` in kolom Y een ander grond-% van de koopsom in (bijvoorbeeld 50%).
   - Onderaan het transportblok op CF - opbrengsten staat het effect per type en per kwartaal (alleen prognosekwartalen), en de cumulatieve cashflow huidig en met kans, met de laagste stand.

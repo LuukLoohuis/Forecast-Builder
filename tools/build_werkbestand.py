@@ -675,7 +675,40 @@ def main():
         sh.set_formula('Z83', "'CF - opbrengsten'!$D$%d" % (rk + 2))
         sh.set_formula('Z84', "'CF - opbrengsten'!$D$%d" % (rk + 3))
         sh.set_formula('Z85', "MAX('CF - opbrengsten'!$H$%d:$AU$%d)" % (rk + 1, rk + 1))
+    # periode van de cashflowgrafiek: vanaf / t/m (leeg = automatisch: eerste t/m laatste kwartaal met opbrengsten of
+    # kosten, plus één kwartaal); de grafiekreeksen (namen g_...) lopen via Model!BY336:BY338 mee
+    st_k, st_l, st_i, st_n, st_w = (sh.style_of(x) for x in ('V82', 'V77', 'W18', 'Z18', 'W9'))
+    sh.set_value('V87', 'GRAFIEK · PERIODE (cashflow per kwartaal en de andere grafieken over de hele looptijd)', st_k)
+    sh.set_value('W88', 'jaar', st_l)
+    sh.set_value('X88', 'kwartaal', st_l)
+    sh.set_value('V89', 'Grafiek vanaf', st_l)
+    sh.set_value('V90', 'Grafiek t/m', st_l)
+    for r in (89, 90):
+        sh.set_value('W%d' % r, None, st_i)
+        sh.set_value('X%d' % r, None, st_i)
+    sh.set_value('Z89', 'leeg = automatisch: het eerste kwartaal met opbrengsten of kosten', st_n)
+    sh.set_value('Z90', 'leeg = automatisch: één kwartaal na het laatste kwartaal met opbrengsten of kosten', st_n)
+    sh.set_value('V91', 'Getoond', st_l)
+    sh.set_formula('W91', 'INDEX(Model!$E$8:$E$67,Model!$BY$336)&" t/m "&INDEX(Model!$E$8:$E$67,Model!$BY$337)', st_w)
     dst.put(part_of['Dashboard'], sh.t)
+    sh = Sheet(dst.x(part_of['Model']), sst)
+    st_lab = sh.style_of('BX132')
+    st_val = sh.style_of('BY132')
+    rng = lambda c: '$%s$8:$%s$67' % (c, c)
+    nz = '(ISNUMBER({a})*({a}<>0)+ISNUMBER({u})*({u}<>0)>0)'.format(a=rng('AT'), u=rng('AU'))
+    fq = rng('F')
+    for r, lab, formule in (
+            (336, 'Grafiek: positie van de eerste getoonde periode (Dashboard W89:X89, leeg = eerste met opbrengsten of kosten)',
+             'IF(N(Dashboard!$W$89)=0,IFERROR(MATCH(1,INDEX(%s*1,0),0),1),IFERROR(MATCH(1,INDEX(ISNUMBER(%s)*(%s>=Dashboard!$W$89*4+MAX(1,N(Dashboard!$X$89))),0),0),1))'
+             % (nz, fq, fq)),
+            (337, 'Grafiek: positie van de laatste getoonde periode (Dashboard W90:X90, leeg = één na de laatste met opbrengsten of kosten)',
+             'MAX($BY$336,MIN(MAX(1,$BY$8),IF(N(Dashboard!$W$90)=0,IFERROR(LOOKUP(2,1/%s,ROW(%s)-7)+1,$BY$8),'
+             'IFERROR(LOOKUP(2,1/(ISNUMBER(%s)*(%s<=Dashboard!$W$90*4+IF(N(Dashboard!$X$90)=0,4,Dashboard!$X$90))),ROW(%s)-7),$BY$8))))'
+             % (nz, fq, fq, fq, fq)),
+            (338, 'Grafiek: aantal getoonde periodes', 'MAX(1,$BY$337-$BY$336+1)')):
+        sh.set_value('BX%d' % r, lab, st_lab)
+        sh.set_formula('BY%d' % r, formule, st_val)
+    dst.put(part_of['Model'], sh.t)
 
     # ---- cellen aanvullen --------------------------------------------------------------------------------
     print('Cellen aanvullen')
@@ -770,6 +803,10 @@ def main():
                     ('p_startbouw', 'Start!$F$7')):
         d = etree.SubElement(new_dn, M + 'definedName', name=nm)
         d.text = ref
+    # grafieken over de hele looptijd: periode vanaf/t-m van het Dashboard (Model!BY336:BY338)
+    for d in new_dn:
+        if d.get('name', '').startswith('g_') and d.text and ',0,0,MAX(1,Model!$BY$8),1)' in d.text:
+            d.text = d.text.replace(',0,0,MAX(1,Model!$BY$8),1)', ',Model!$BY$336-1,0,MAX(1,Model!$BY$338),1)')
     # Excel wil de namen gesorteerd (hoofdletterongevoelig), _xlnm-namen per blad
     items = sorted(new_dn, key=lambda d: (d.get('name').lower(), int(d.get('localSheetId') or -1)))
     for d in list(new_dn):

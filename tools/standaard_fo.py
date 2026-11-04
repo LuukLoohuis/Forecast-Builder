@@ -36,7 +36,7 @@ CHK, VER, STAT, TOEL = L(C_CHK), L(C_CHK + 1), L(C_CHK + 2), L(C_CHK + 3)
 JAAR = "'CF - opbrengsten'!$D$3"
 
 # ---- CF - opbrengsten -----------------------------------------------------------------------------
-BLOK = NTERM + 9                        # # won, titel, 10 planning, transport, verkocht %, getransp. %, grondprijs, 3x €
+BLOK = NTERM + 11                       # # won, titel, 10 planning, transport, verkocht %, getransp. %, grondprijs, 5x €
 
 
 def won_rij(k):
@@ -169,7 +169,8 @@ def p_match(sleutel, blad=''):
 GEEL = PatternFill('solid', fgColor='FFFFF2CC')
 GRIJS = PatternFill('solid', fgColor='FFF3F4F6')
 KOPLICHT = PatternFill('solid', fgColor='FFE9ECEF')   # kwartaalkoppen: rustig grijs
-KOP = PatternFill('solid', fgColor='FFFEB900')
+KOP = PatternFill('solid', fgColor='FF003366')       # kopregels: donkerblauw met witte tekst (contrast met geel = invoer)
+TOTAAL = PatternFill('solid', fgColor='FFDCE8F5')    # totaalregels
 DONKER = PatternFill('solid', fgColor='FF003366')
 F = Font(name='Heijmans-Light', size=10)
 FB = Font(name='Heijmans-Light', size=10, bold=True)
@@ -189,12 +190,25 @@ def ci_(c):
 def zet(ws, ref, v, font=F, fill=None, fmt=None):
     c = ws[ref]
     c.value = v
+    if fill is KOP:
+        font = Font(name=font.name, size=font.size, bold=True, italic=font.italic, color='FFFFFFFF')
     c.font = font
     if fill:
         c.fill = fill
     if fmt:
         c.number_format = fmt
     return c
+
+
+def totaalrijen(ws, rijen):
+    """totaalregels: lichtblauw vlak, vet en donkerblauw, met een lijn erboven"""
+    lijn = Side(style='thin', color='FF003366')
+    for r in rijen:
+        for c in ['B', 'C', 'D', 'E', 'F'] + COLS:
+            cel = ws['%s%d' % (c, r)]
+            cel.fill = TOTAAL
+            cel.font = Font(name='Heijmans-Light', size=10, bold=True, color='FF003366')
+            cel.border = Border(top=lijn)
 
 
 def kopregels(ws, r_jaar, r_q, act='actuals', jaar=JAAR):
@@ -262,10 +276,14 @@ def maak_opbrengsten(ws):
             zet(ws, 'D%d' % r, '=IF(B%d="","",D%d)' % (r, oz_rij(k, t)), FN, None, NUM)
             zet(ws, 'E%d' % r, '=IF(B%d="","",E%d)' % (r, oz_rij(k, t)), FN, None, NUM)
             for c in COLS:
-                zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
+                zet(ws, '%s%d' % (c, r), None, F, None, AANT)
             zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
             zet(ws, '%s%d' % (VER, r), '=IF(B%d="","",ROUND($G$%d-%s%d,2))' % (r, w, CHK, r), F, None, AANT)
             zet(ws, '%s%d' % (STAT, r), '=IF(%s%d="","",IF(%s%d=0,"OK","FOUT"))' % (VER, r, VER, r), FB)
+        # geel (invoer) alleen op de termijnen die er zijn: lege termijnregels blijven wit
+        from openpyxl.formatting.rule import FormulaRule
+        ws.conditional_formatting.add('%s%d:%s%d' % (COLS[0], plan(k, 1), COLS[-1], plan(k, NTERM)),
+                                      FormulaRule(formula=['$B%d<>""' % plan(k, 1)], fill=PatternFill('solid', fgColor='FFFFF2CC', bgColor='FFFFF2CC'), stopIfTrue=False))
         for c, t_ in zip('CDE', ['%', '€ totaal', '€ per won.']):
             zet(ws, '%s%d' % (c, h), t_, FB, KOP)
         zet(ws, '%s%d' % (CHK, h), 'Check', FB, KOPLICHT)
@@ -275,12 +293,18 @@ def maak_opbrengsten(ws):
         for i, (lab, f) in enumerate((
                 ('Grondtermijn · koopsom grond (€, bij transport)', lambda c: '=%s%d' % (c, eu_rij(k, 0))),
                 ('Bouwtermijnen (€)', lambda c: '=SUM(%s%d:%s%d)' % (c, eu_rij(k, 1), c, eu_rij(k, NTERM))),
+                ('Kopersmeerwerk 25% (€, bij start bouw)', lambda c: '=%s%d' % (c, eu_rij(k, NTERM + 1))),
+                ('Kopersmeerwerk 75% (€, bij oplevering)', lambda c: '=%s%d' % (c, eu_rij(k, NTERM + 2))),
                 ('Totaal opbrengsten type %d (€)' % k, lambda c: '=SUM(%s%d:%s%d)' % (c, eu_rij(k, 0), c, eu_rij(k, OMZ_N - 1))))):
             r = e0 + i
-            zet(ws, 'B%d' % r, lab, FB if i == 2 else F)
-            zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), FB if i == 2 else F, None, NUM)
+            tot_ = i == 4
+            zet(ws, 'B%d' % r, lab, FB if tot_ else F)
+            if i in (2, 3):         # % van het kopersmeerwerk en € per woning, zoals bij de termijnen
+                zet(ws, 'C%d' % r, '=C%d' % oz_rij(k, NTERM + i - 1), FN, None, '0%')
+                zet(ws, 'E%d' % r, '=E%d' % oz_rij(k, NTERM + i - 1), FN, None, NUM)
+            zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), FB if tot_ else F, None, NUM)
             for c in COLS:
-                zet(ws, '%s%d' % (c, r), f(c), FB if i == 2 else F, GRIJS, NUM)
+                zet(ws, '%s%d' % (c, r), f(c), FB if tot_ else F, GRIJS, NUM)
     # verkooptempo (aantallen; komen in het werkbestand uit verkocht %)
     kopregels(ws, VK - 1, VK)
     for c, t in zip('BCDE', ['Verkooptempo', 'Aantal', 'Verkocht', 'Te koop']):
@@ -480,7 +504,8 @@ def maak_opbrengsten(ws):
     ws.sheet_properties.outlinePr.summaryBelow = False
     ws.column_dimensions['B'].width = 46
     for c in COLS:
-        ws.column_dimensions[c].width = 9
+        ws.column_dimensions[c].width = 11
+    totaalrijen(ws, [tr(k) + 8 for k in range(1, NT + 1)] + [TOT])
     ws.freeze_panes = 'H6'
 
 
@@ -508,12 +533,12 @@ def maak_kosten(ws):
             r = kterm(k, t)
             if t <= NTERM:
                 zet(ws, 'B%d' % r, "=%sB%d" % (OO, plan(k, t)))
-                zet(ws, 'C%d' % r, '=N(%s)' % pl('$%s$%d' % (P_TERM_PCT, a + 1 + t)), F, GEEL, '0.0%')
+                zet(ws, 'C%d' % r, '=N(%s)' % pl('$%s$%d' % (P_TERM_PCT, a + 1 + t)), F, None, '0.0%')
                 zet(ws, 'D%d' % r, '=C%d*$D$%d' % (r, b), F, None, NUM)
                 zet(ws, 'E%d' % r, '=IFERROR(D%d/%s,0)' % (r, w), F, None, NUM2)
                 zet(ws, 'F%d' % r, '=IFERROR($F$%d*C%d/%s,0)' % (b, r, w), F, None, NUM2)
                 for c in COLS:
-                    zet(ws, '%s%d' % (c, r), "=%s%s%d" % (OO, c, plan(k, t)), F, GEEL, AANT)
+                    zet(ws, '%s%d' % (c, r), "=%s%s%d" % (OO, c, plan(k, t)), F, None, AANT)
             else:
                 i = t - NTERM
                 zet(ws, 'B%d' % r, 'Kopersmeerwerk %d%%' % (25 if i == 1 else 75))
@@ -525,6 +550,11 @@ def maak_kosten(ws):
                     f = '=%s%d' % (c, t1) if i == 1 else "=INDEX(%s$%d:%s$%d,%s$F$%d)" % (c, t1, c, tn, OO, oz_rij(k, NTERM + 2))
                     zet(ws, '%s%d' % (c, r), f, F, None, AANT)
             zet(ws, '%s%d' % (CHK, r), '=ROUND(SUM(%s%d:%s%d),2)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
+        # geel (overschrijfbaar) alleen op de termijnen die er zijn
+        from openpyxl.formatting.rule import FormulaRule
+        geel_cf = PatternFill('solid', fgColor='FFFFF2CC', bgColor='FFFFF2CC')
+        for rng_ in ('C%d:C%d' % (kterm(k, 1), kterm(k, NTERM)), '%s%d:%s%d' % (COLS[0], kterm(k, 1), COLS[-1], kterm(k, NTERM))):
+            ws.conditional_formatting.add(rng_, FormulaRule(formula=['$B%d<>""' % kterm(k, 1)], fill=geel_cf))
         ra = k_aanneem(k)
         t1, tn, m1, m2 = kterm(k, 1), kterm(k, NTERM), kterm(k, NTERM + 1), kterm(k, NTERM + 2)
         zet(ws, 'B%d' % ra, 'Aanneemsom', FB)
@@ -577,7 +607,10 @@ def maak_kosten(ws):
     ws.sheet_properties.outlinePr.summaryBelow = False
     ws.column_dimensions['B'].width = 46
     for c in COLS:
-        ws.column_dimensions[c].width = 9
+        ws.column_dimensions[c].width = 11
+    for c_, w_ in (('C', 7), ('D', 13), ('E', 11), ('F', 11)):
+        ws.column_dimensions[c_].width = w_
+    totaalrijen(ws, [K_PEW, K_TOT] + [k_aanneem(k) for k in range(1, NT + 1)])
     ws.freeze_panes = 'H3'
 
 
