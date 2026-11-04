@@ -69,6 +69,12 @@ Het Excel-bestand wordt **gegenereerd**. Pas nooit het .xlsm zelf aan, maar de g
 - WBS = kolom "WBS-element", anders uit de tekst (zoekt "G.");
 - kwartaal = ROUNDUP(Boekingsperiode/3), met periode 13–16 als Q4.
 
+## 5a. Al hersteld (door Claude, test 'AK zonder grootboek' groen)
+- **Oorzaak 1:** t/m de peildatum geldt zonder geboekte AK in het rapportagejaar: `Kosten LJ / P_AKFactor × AK %`, verdeeld naar de kwartaalkosten (anders gelijk). Kolommen M–P op AK-dekking tonen de gebruikte kostenbasis. De verborgen hulpkolommen Z–AC bevatten de ruwe kosten. `AKR_NJaar` = aantal grootboekregels in het rapportagejaar.
+- **Oorzaak 2:** na de peildatum geldt zonder kwartaalkosten: `Kosten RJ` (restant), gelijk verdeeld over de resterende kwartalen.
+- **Oorzaak 3:** bij vastleggen komt een extra Concept-regel met WBS "REGIO", kengetal "AK-dekking FY", waarde `AK_NietToegewezen`. Daardoor sluiten vastgelegde versies aan op de upload. Let op: al vastgelegde versies hebben deze regel niet.
+- **Nog open:** oorzaak 4 t/m 7 en de nieuwe tabel per prognose (hoofdstuk 6).
+
 ## 5. Vermoedelijke oorzaken van "veel te laag" (eerst uitzoeken, in deze volgorde)
 1. **Terugval naar kwartaalkosten geeft nul voor afgelopen kwartalen.**
    - Zonder grootboekdump (of als `Boekjaar`/`Bedrag` niet gevonden wordt, of er geen regels van 2026 zijn) rekent het bestand de afgelopen kwartalen met "Kosten 2026-Q1..Q3".

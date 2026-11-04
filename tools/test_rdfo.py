@@ -314,6 +314,35 @@ ok = (abs(sum(q) - jaar) < 1 and abs(jaar / 1000 - v(w0, rd("ak", "H"))) < TOL a
 record("AK-dekking per kwartaal: Q1+Q2+Q3+Q4 = jaar = RDFO; geboekt t/m peildatum, daarna prognose", ok,
        f"kwartalen {[round(x) for x in q]} = jaar {jaar:,.0f}; zonder project Q2 {A('G8')}; rekenvoorbeeld: {A('B12')} | {A('B15')}")
 
+# AK zonder grootboekdump: afgelopen kwartalen uit Kosten LJ (niet nul); regioregel 'zonder project' wordt mee vastgelegd
+def zonder_grootboek(wb):
+    ws = wb["Bron_AKR"]
+    for row in ws.iter_rows(min_row=2):
+        for c in row:
+            c.value = None
+
+
+p, info, wak = scenario("t_ak_zonder_grootboek", zonder_grootboek)
+ak2 = wak["AK-dekking"]
+fouten, n_proj, verl = 0, 0, []
+for r in range(B.AK0R, B.AK0R + B.MAP1 - B.MAP0 + 1):
+    if ak2[f"C{r}"].value != "Ja" or not isinstance(ak2[f"D{r}"].value, (int, float)):
+        continue
+    n_proj += 1
+    ytd, na, rest = (ak2[f"{c}{r}"].value or 0 for c in ("AA", "AB", "AC"))
+    verwacht = (ytd + (na if na else rest)) / 1.05 * ak2[f"D{r}"].value
+    if abs((ak2[f"J{r}"].value or 0) - verwacht) > 1:
+        fouten += 1
+        verl.append(ak2[f"B{r}"].value)
+q_ytd = sum(ak2[f"{c}9"].value or 0 for c in "FGH")
+regio = [r for r in range(B.C0, B.C1 + 1) if w0["Concept"][f"J{r}"].value == "REGIO"]
+ok = (fouten == 0 and n_proj > 5 and q_ytd > 0 and ak2["F6"].value == "kosten LJ" and len(regio) == 1
+      and abs(w0["Concept"][f"P{regio[0]}"].value - 25000) < 1 and w0["Concept"][f"O{regio[0]}"].value == B.K_AK)
+record("AK zonder grootboek = (Kosten LJ + kosten rest) / 1,05 x AK %; AK zonder project wordt mee vastgelegd", ok,
+       f"{n_proj} projecten, {fouten} afwijkend {verl[:3]}; Q1–Q3 samen {q_ytd:,.0f} (niet 0); jaar {ak2['J9'].value:,.0f}; "
+       f"regioregel in Concept: {len(regio)} x, waarde {w0['Concept'][f'P{regio[0]}'].value if regio else '-'}")
+
+
 # ------------------------------------------------------------------ stoplicht
 ws = w0["Bandbreedte"]
 rows_sl = {ws[f"A{r}"].value: r for r in range(B.SL0, B.SL1 + 1) if ws[f"A{r}"].value}

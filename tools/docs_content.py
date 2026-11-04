@@ -83,7 +83,8 @@ CORRECTIE = [
 
 FAQ = [
     ("Hoe is de AK-dekking van een project berekend?",
-     "Kijk op het tabblad AK-dekking. Per kwartaal: t/m de peildatum de geboekte AK uit de grootboekdump (blauw), daarna kosten van dat kwartaal / 1,05 x AK % (geel). "
+     "Kijk op het tabblad AK-dekking. Per kwartaal: t/m de peildatum de geboekte AK uit de grootboekdump (blauw; zonder dump: Kosten LJ / 1,05 x AK %), daarna kosten van dat kwartaal / 1,05 x AK % (geel; zonder kwartaalkosten: Kosten RJ verdeeld). "
+     "Elke prognose (Q1, Q2, Q3) is een jaarbedrag; AK die zonder project is geboekt, wordt mee vastgelegd. "
      "Jaar = Q1 + Q2 + Q3 + Q4. Bovenaan staat het totaal per kwartaal, inclusief AK die zonder project is geboekt. "
      "Kies bij 'Rekenvoorbeeld' een project: dan staat er per kwartaal uitgeschreven hoe het bedrag tot stand komt."),
     ("Waar zie ik de reserves?",

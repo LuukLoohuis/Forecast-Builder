@@ -1088,7 +1088,7 @@ KT = [  # k: (doeljaar-offset, kengetal, VERW-kolom, eenheid, bron)
     (0, K_WQ[3], "W_HQ4", "aantal", "E"), (0, K_WACT, "W_ActYTD", "aantal", "E"), (1, K_WFY, "W_VolgendJaar", "aantal", "E"),
     (0, K_AK, "AK0", "EUR", "Z"), (1, K_AK, "AK1", "EUR", "Z"),
 ]
-C0, C1 = 8, 8 + (MAP1 - MAP0 + 1) * len(KT) - 1
+C0, C1 = 8, 8 + (MAP1 - MAP0 + 1) * len(KT)   # +1: regioregel 'AK geboekt zonder project'
 
 
 def build_vastleggen(wb, ws):
@@ -1137,13 +1137,23 @@ def build_vastleggen(wb, ws):
             for c in ("AB", "AC", "AD", "AE", "AF"):
                 ws[f"{c}{r}"].font = font(7, False, GREY)
             r += 1
+    # regioregel: AK die in het grootboek zonder (bekend) project is geboekt, telt mee in de vastgelegde AK-dekking
+    k_ak = next(k for k, t in enumerate(KT) if t[1] == K_AK and t[0] == 0)
+    ws[f"AB{r}"] = 0
+    ws[f"AC{r}"] = k_ak
+    ws[f"AD{r}"] = "=IF(AKR_N>0,AK_NietToegewezen,0)"
+    ws[f"AE{r}"] = f'=IF(AND(ISNUMBER(AD{r}),AD{r}<>0),1,0)'
+    ws[f"AF{r}"] = f'=IF(AE{r}=1,SUM($AE${C0}:AE{r}),"")'
+    for c in ("AB", "AC", "AD", "AE", "AF"):
+        ws[f"{c}{r}"].font = font(7, False, GREY)
     for r in range(C0, C1 + 1):
         i = r - C0 + 1
         ws[f"AG{r}"] = f'=IFERROR(MATCH({i},$AF${C0}:$AF${C1},0),"")'
         g = f"$AG{r}"
         mi = f"INDEX($AB${C0}:$AB${C1},{g})"
         kk = f"INDEX($AC${C0}:$AC${C1},{g})+1"
-        vv = lambda n: f"INDEX(V_{n},{mi})"  # noqa: E731
+        regio = {"WBS": '"REGIO"', "Projdef": '""', "Naam": '"AK geboekt zonder project"', "Type": '"Regio"', "IFRS": '""'}
+        vv = lambda n: f"IF({mi}=0,{regio[n]},INDEX(V_{n},{mi}))"  # noqa: E731
         f = {
             "A": "P_ImportID",
             "B": f'IF(INDEX({ktr("AN")},{kk})="Z",P_BronZ,P_BronE)',
@@ -3653,7 +3663,7 @@ def build_controle(wb, ws):
         ("AK", "Grootboekdump AK: kolom Bedrag of Boekjaar niet gevonden", '=IF(AKR_Rijen=0,0,(STG_AKR!$B$3=0)+(STG_AKR!$C$3=0))', "0",
          'IF({v}=0,"OK","FOUT")', "Zonder deze kolommen telt de geboekte AK als nul. Controleer de kolomnamen 'Bedrag in eigen valuta' en 'Boekjaar' in de export."),
         ("AK", "Grootboekdump AK: geen boekingen in het rapportagejaar", '=IF(AKR_Rijen=0,1,IF(SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ)=0,1,0))', "0",
-         'IF({v}=0,"OK","WAARSCHUWING")', '="Zonder boekingen in "&P_RJ&" rekent het bestand de afgelopen kwartalen met kosten x AK % (of als nul). Lees de dump AK-realisatie in (Bronnen inlezen, stap 4)."'),
+         'IF({v}=0,"OK","WAARSCHUWING")', '="Zonder boekingen in "&P_RJ&" rekent het bestand de afgelopen kwartalen met Kosten LJ / "&FIXED(P_AKFactor,2)&" x AK %. Lees de dump AK-realisatie in (Bronnen inlezen, stap 4)."'),
         ("AK", "Geboekte AK per saldo negatief (teken omgekeerd?)", '=IF(AKR_Rijen=0,0,IF(SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ)<0,1,0))', "0",
          'IF({v}=0,"OK","WAARSCHUWING")', "AK-dekking is in het grootboek normaal een creditboeking (min). Is het teken in de export omgedraaid, dan daalt de AK-dekking. Meld dit."),
         ("AK", "Grootboekdump AK: kolom Boekingsperiode niet gevonden", '=IF(AKR_Rijen=0,0,IF(STG_AKR!$F$3=0,1,0))', "0",
@@ -4222,13 +4232,13 @@ def build_ak(wb, ws):
         put(ws, f"B{r}", lbl, bold=kind == "tot")
         for q, c in enumerate(QC, start=1):
             if kind is None:
-                ws[f"{c}{r}"] = f'=IF(AND({q}<=AK_PeilQ,AKR_N>0),"geboekt","prognose")'
+                ws[f"{c}{r}"] = f'=IF({q}<=AK_PeilQ,IF(AKR_NJaar>0,"geboekt","kosten LJ"),"prognose")'
                 ws[f"{c}{r}"].font = font(8, True, GREY)
                 ws[f"{c}{r}"].alignment = Alignment(horizontal="right")
             elif kind == "proj":
                 ws[f"{c}{r}"] = f"=SUM({rngc(c)})"
             elif kind == "zonder":
-                ws[f"{c}{r}"] = (f'=IF(OR(AKR_N=0,{q}>AK_PeilQ),0,SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ,AKR_Bekend,0,AKR_Kw,'
+                ws[f"{c}{r}"] = (f'=IF(OR(AKR_NJaar=0,{q}>AK_PeilQ),0,SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ,AKR_Bekend,0,AKR_Kw,'
                                  f'IF({q}=AK_PeilQ,">=","")&{q}))')
             else:
                 ws[f"{c}{r}"] = f"={c}7+{c}8"
@@ -4260,8 +4270,8 @@ def build_ak(wb, ws):
         kost = f"INDEX({rngc(col(12 + q))},{rr})"
         pct = f"INDEX({rngc('D')},{rr})"
         ws[f"B{r}"] = (f'=IF($F$11="","",IFERROR(IF(INDEX({rngc("C")},{rr})<>"Ja","Q{q}: dit project telt niet mee voor AK (Projectlijst)",'
-                       f'IF(AND({q}<=AK_PeilQ,AKR_N>0),"Q{q} geboekt: € "&FIXED(N({ak}),0)&" (som van de boekingen op dit WBS-element in het grootboek)",'
-                       f'"Q{q} prognose: kosten € "&FIXED(N({kost}),0)&" / "&FIXED(P_AKFactor,2)&" x "&FIXED(N({pct})*100,1)&"% = € "&FIXED(N({ak}),0))),'
+                       f'IF(AND({q}<=AK_PeilQ,AKR_NJaar>0),"Q{q} geboekt: € "&FIXED(N({ak}),0)&" (som van de boekingen op dit WBS-element in het grootboek)",'
+                       f'"Q{q} "&IF({q}<=AK_PeilQ,"berekend (geen grootboek, kosten uit Kosten LJ)","prognose")&": kosten € "&FIXED(N({kost}),0)&" / "&FIXED(P_AKFactor,2)&" x "&FIXED(N({pct})*100,1)&"% = € "&FIXED(N({ak}),0))),'
                        f'"Project niet gevonden"))')
         ws[f"B{r}"].font = font(9, False, NAVY)
     ws["B16"] = (f'=IF($F$11="","",IFERROR("Jaar: € "&FIXED(N(INDEX({rngc("J")},{rr})),0)&"   ·   budget "&IF(ISNUMBER(INDEX({rngc("K")},{rr})),"€ "&FIXED(INDEX({rngc("K")},{rr}),0),"n.b.")'
@@ -4281,7 +4291,7 @@ def build_ak(wb, ws):
             ws.cell(row=AK0R - 2, column=c).fill = fill(colr)
     hdr = ["WBS-element", "Project", "AK mee-\nnemen", "AK %", "Bron AK %",
            '=P_RJ&" Q1"', '=P_RJ&" Q2"', '=P_RJ&" Q3"', '=P_RJ&" Q4"', '="Jaar"&CHAR(10)&P_RJ', '="Budget"&CHAR(10)&P_RJ', "Verschil",
-           "Kosten\nQ1", "Kosten\nQ2", "Kosten\nQ3", "Kosten\nQ4", "AK geboekt\nt/m peildatum",
+           "Kosten Q1\n(basis)", "Kosten Q2\n(basis)", "Kosten Q3\n(basis)", "Kosten Q4\n(basis)", "AK t/m\npeildatum",
            '="Kosten"&CHAR(10)&(P_RJ+1)', '="AK"&CHAR(10)&(P_RJ+1)', '="Kosten"&CHAR(10)&(P_RJ+2)', '="AK"&CHAR(10)&(P_RJ+2)',
            '="Kosten"&CHAR(10)&(P_RJ+3)', '="AK"&CHAR(10)&(P_RJ+3)', '="Kosten"&CHAR(10)&(P_RJ+4)', '="AK"&CHAR(10)&(P_RJ+4)']
     header(ws, AK0R - 1, 1, hdr, height=34)
@@ -4292,10 +4302,19 @@ def build_ak(wb, ws):
         ws[f"C{r}"] = f'=IF(A{r}="","",IF(OR(Projectlijst!$E{pk}="Nee",Projectlijst!$G{pk}="Nee"),"Nee","Ja"))'
         ws[f"D{r}"] = f'=IF(C{r}<>"Ja","",IF(Projectlijst!$I{pk}<>"",Projectlijst!$I{pk},IF(Invoer!$V{mr}<>"",Invoer!$V{mr},"")))'
         ws[f"E{r}"] = f'=IF(C{r}<>"Ja","",IF(Projectlijst!$I{pk}<>"","eigen",IF(Invoer!$V{mr}<>"","SAP","ontbreekt")))'
+        # hulpkolommen (verborgen): kosten uit ZPMW03 zoals ze binnenkomen
+        raw = {q: f'N({V(f"KostQ{q}", vr)})' for q in range(1, 5)}
+        ws[f"Z{r}"] = "=" + "+".join(f"IF(AK_PeilQ>={q},{raw[q]},0)" for q in range(1, 5))   # kwartaalkosten t/m peildatum
+        ws[f"AA{r}"] = f'=N({V("KostYTD", vr)})'                                            # Kosten LJ (gerealiseerd)
+        ws[f"AB{r}"] = "=" + "+".join(f"IF(AK_PeilQ<{q},{raw[q]},0)" for q in range(1, 5))   # kwartaalkosten na peildatum
+        ws[f"AC{r}"] = f'=N({V("KostRest", vr)})'                                           # Kosten RJ (restant)
         for q, c in enumerate(QC, start=1):
             kc = col(12 + q)
-            ws[f"{kc}{r}"] = f'=IF(C{r}<>"Ja","",N({V(f"KostQ{q}", vr)}))'
-            ws[f"{c}{r}"] = (f'=IF(C{r}<>"Ja","",IF(AND({q}<=AK_PeilQ,AKR_N>0),SUMIFS(AKR_Bedrag,AKR_WBS,$A{r},AKR_Jaar,P_RJ,AKR_Kw,'
+            # kostenbasis per kwartaal: t/m peildatum = Kosten LJ (verdeeld naar de kwartaalkosten, anders gelijk);
+            # daarna = kwartaalkosten, of Kosten RJ gelijk verdeeld als de export geen kwartalen heeft
+            ws[f"{kc}{r}"] = (f'=IF(C{r}<>"Ja","",IF({q}<=AK_PeilQ,IF(Z{r}<>0,AA{r}*{raw[q]}/Z{r},AA{r}/MAX(1,AK_PeilQ)),'
+                              f'IF(AB{r}<>0,{raw[q]},AC{r}/MAX(1,4-AK_PeilQ))))')
+            ws[f"{c}{r}"] = (f'=IF(C{r}<>"Ja","",IF(AND({q}<=AK_PeilQ,AKR_NJaar>0),SUMIFS(AKR_Bedrag,AKR_WBS,$A{r},AKR_Jaar,P_RJ,AKR_Kw,'
                              f'IF({q}=AK_PeilQ,">=","")&{q}),IF(D{r}="","",{kc}{r}/P_AKFactor*D{r})))')
         ws[f"J{r}"] = f'=IF(C{r}<>"Ja","",N(F{r})+N(G{r})+N(H{r})+N(I{r}))'
         cr = f'L_WBS,A{r},L_Actief,1,L_Versie,"Budget",L_Versiejaar,P_VJ,L_Doeljaar,P_RJ,L_Kengetal,"{K_AK}"'
@@ -4306,6 +4325,9 @@ def build_ak(wb, ws):
         for k, (kc, ac, src) in enumerate((("R", "S", "KostFY1"), ("T", "U", "KostRJ2"), ("V", "W", "KostRJ3"), ("X", "Y", "KostRJ4"))):
             ws[f"{kc}{r}"] = f'=IF(C{r}<>"Ja","",N({V(src, vr)}))'
             ws[f"{ac}{r}"] = f'=IF(OR(C{r}<>"Ja",D{r}=""),"",{kc}{r}/P_AKFactor*D{r})'
+        for c in ("Z", "AA", "AB", "AC"):
+            helper_style(ws[f"{c}{r}"])
+            ws[f"{c}{r}"].number_format = FMT_EUR
         for c in [col(k) for k in range(1, 26)]:
             cell = ws[f"{c}{r}"]
             cell.font = font(9, c == "J", GREY if c == "E" or c in "MNOPQRSTUVWXY" else "000000")
@@ -4316,10 +4338,10 @@ def build_ak(wb, ws):
                 cell.number_format = FMT_EUR
     # kleur: geboekt (blauw) of prognose (geel)
     for rng_, r0 in ((f"F{AK0R}:I{last}", AK0R), ("F7:I9", 7)):
-        ws.conditional_formatting.add(rng_, FormulaRule(formula=[f"AND(COLUMN(F{r0})-COLUMN($F{r0})+1<=AK_PeilQ,AKR_N>0)"],
+        ws.conditional_formatting.add(rng_, FormulaRule(formula=[f"AND(COLUMN(F{r0})-COLUMN($F{r0})+1<=AK_PeilQ,AKR_NJaar>0)"],
                                                          fill=fill("DCE6F2")))
         ws.conditional_formatting.add(rng_, FormulaRule(formula=["TRUE"], fill=fill("FFF7D6")))
-    put(ws, f"F{AK0R-3}", "blauw = geboekt (grootboek) · geel = prognose (kosten / factor x AK %)", color=GREY, italic=True, size=8)
+    put(ws, f"F{AK0R-3}", "blauw = geboekt (grootboek) · geel = berekend: kosten / factor x AK % (t/m peildatum zonder grootboek: Kosten LJ)", color=GREY, italic=True, size=8)
     ws.conditional_formatting.add(f"L{AK0R}:L{last}", FormulaRule(formula=[f"AND(ISNUMBER(L{AK0R}),L{AK0R}<0)"], font=Font(color=BAD)))
     ws.conditional_formatting.add(f"E{AK0R}:E{last}", FormulaRule(formula=[f'E{AK0R}="ontbreekt"'], font=Font(color=RED, bold=True)))
     janee_cf(ws, f"C{AK0R}:C{last}")
@@ -4332,6 +4354,8 @@ def build_ak(wb, ws):
         ws[f"{c}{t}"].border = Border(top=thick_navy, bottom=thin)
     ws[f"B{t}"].border = Border(top=thick_navy, bottom=thin)
     widths(ws, {"A": 16, "B": 30, "C": 8, "D": 7, "E": 9, "F": 12, "G": 12, "H": 12, "I": 12, "J": 13, "K": 12, "L": 11})
+    for c in ("Z", "AA", "AB", "AC"):
+        ws.column_dimensions[c].hidden = True
     for c in "MNOPQRSTUVWXY":
         ws.column_dimensions[c].width = 11
         ws.column_dimensions[c].outlineLevel = 1
@@ -4584,6 +4608,9 @@ def build_stg_akr(wb, ws):
     ws["J3"] = "=MAX(0,COUNTA(Bron_AKR!$A:$A)-1)"
     put(ws, "J2", "Regels in dump", size=8)
     add_name(wb, "AKR_Rijen", "STG_AKR!$J$3")
+    ws["K3"] = "=COUNTIFS(AKR_Jaar,P_RJ)"
+    put(ws, "K2", "Regels in rapportagejaar", size=8)
+    add_name(wb, "AKR_NJaar", "STG_AKR!$K$3")
     ws["I3"] = "=SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ,AKR_Bekend,0)"
     put(ws, "I2", "Geboekt zonder (bekend) project", size=8)
     add_name(wb, "AK_NietToegewezen", "STG_AKR!$I$3")
