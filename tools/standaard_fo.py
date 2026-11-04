@@ -227,9 +227,11 @@ def markeringen(ws, r_mark, r1, r2):
     """rij r_mark: 'Start bouw' / 'Oplevering' boven het kwartaal (Start, rij 7 en 9); in r1..r2 de kolom gekleurd en
     een rand aan het begin van elk jaar (vakken per jaar)"""
     key = lambda c: '(%s*4+1+COLUMN(%s%d)-COLUMN($%s$%d))' % (JAAR, c, r1, QCOLS[0], r1)
+    # in de cel zelf COLUMN() zonder verwijzing (geen verwijzing naar de eigen cel)
+    kc = '(%s*4+1+COLUMN()-COLUMN($%s$%d))' % (JAAR, QCOLS[0], r1)
     for c in QCOLS:
         zet(ws, '%s%d' % (c, r_mark), '=IF(%s=p_startbouw,"Start bouw",IF(%s=p_oplevering,"Oplevering",""))'
-            % (key(c), key(c)), Font(name='Heijmans-BoldCon', size=9, color='FF003366'))
+            % (kc, kc), Font(name='Heijmans-BoldCon', size=9, color='FF003366'))
     zet(ws, 'B%d' % r_mark, '="Start bouw "&Start!$E$7&" · oplevering "&Start!$E$9', FN)
     rng = '%s%d:%s%d' % (QCOLS[0], r1, QCOLS[-1], r2)
     k0 = key(QCOLS[0]).replace('COLUMN(%s%d)' % (QCOLS[0], r1), 'COLUMN(%s%d)' % (QCOLS[0], r1))

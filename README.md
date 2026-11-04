@@ -174,6 +174,14 @@ python3 tools/bouw.py
 python3 tools/controleer.py
 ```
 
+Kringverwijzingen zoeken (zoals Excel ze ziet, ook in een ALS-tak die niet gekozen wordt):
+
+```bash
+python3 tools/kringen.py output/FO_werkbestand_sjabloon.xlsm
+```
+
+Het sjabloon, het demo en het omgezette echte FO hebben er geen.
+
 Een ander oud FO omzetten (zonder Excel):
 
 ```bash
