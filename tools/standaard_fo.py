@@ -68,8 +68,10 @@ def tt_rij(k):
 
 
 VT_PCT = tt_rij(NT) + 2                # alle woningen: verkocht %/kw, cumulatief, getransporteerd %/kw, cumulatief
-KANS = VT_PCT + 5                      # kans grondtermijn: kop, per type, totaal, cumulatief, CF huidig, CF met kans
-OZ1 = KANS + NT + 8                    # eerste omzet-koprij (# won op de rij erboven)
+KANS = VT_PCT + 5                      # kans grondtermijn: kop, per type (netto effect), daarna de totaalregels:
+KT = KANS + NT + 1                     # KT grond huidig, +1 grond met kans, +2 extra grond, +3 minder bouwtermijnen,
+                                       # +4 netto per kwartaal, +5 netto cumulatief, +6/+7 CF cum. huidig/met kans (verborgen)
+OZ1 = KANS + NT + 12                   # eerste omzet-koprij (# won op de rij erboven)
 
 
 def oz_kop(k):
@@ -410,10 +412,23 @@ def maak_opbrengsten(ws):
                 zet(ws, '%s%d' % (c, r), '=%s%d*$E%d' % (c, o, o), F, None, NUM)
     kopregels(ws, OV_KOP - 1, OV_KOP)
     zet(ws, 'B%d' % OV_KOP, 'Overige opbrengsten in €', FB, KOP)
+    zet(ws, 'D%d' % OV_KOP, 'PEW (aansl.)', FB, KOP)
+    zet(ws, 'E%d' % OV_KOP, 'te verdelen', FB, KOP)
+    zet(ws, '%s%d' % (CHK, OV_KOP), 'Verdeeld', FB, KOPLICHT)
+    zet(ws, '%s%d' % (VER, OV_KOP), 'Verschil', FB, KOPLICHT)
     for r, lab in ((OV1, 'Opbrengsten commercieel'), (OV2, 'Opbrengsten parkeren')):
         zet(ws, 'B%d' % r, lab)
+        # bedrag volgens de aansluiting op Prijslijst (kolom PEW, alle woningtypes), te verdelen over de kwartalen
+        i_ = P_REGELS.index(lab)
+        # (alleen zolang de regel deze naam heeft: Oud FO inlezen kan er 'overige opbrengsten uit het oude FO' van maken)
+        zet(ws, 'D%d' % r, '=IF($B%d<>"%s","",%s)' % (r, lab, '+'.join(pl('$H$%d' % (p_aans(k) + 2 + i_)) for k in range(1, NT + 1))), FB, None, NUM)
+        zet(ws, 'E%d' % r, '=IF(D%d="","",ROUND(D%d-%s%d,2))' % (r, r, CHK, r), F, None, NUM)
         for c in COLS:
             zet(ws, '%s%d' % (c, r), None, F, GEEL, NUM)
+        zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, NUM)
+        zet(ws, '%s%d' % (VER, r), '=E%d' % r, F, None, NUM)
+        zet(ws, '%s%d' % (STAT, r), '=IF(D%d="","",IF(AND(D%d=0,%s%d=0),"",IF(ABS(E%d)<1,"OK","LET OP: "&TEXT(E%d,"#,##0")&" nog te verdelen")))'
+            % (r, r, CHK, r, r, r), FB)
     zet(ws, 'B%d' % TOT, 'Totaal opbrengsten', FB)
     for c in COLS + [CHK]:
         delen = ['%s%d:%s%d' % (c, eu_rij(k, 0), c, eu_rij(k, OMZ_N - 1)) for k in range(1, NT + 1)]
@@ -469,33 +484,61 @@ def maak_opbrengsten(ws):
     zet(ws, 'B%d' % KANS, 'KANS · grondtermijn naar het % op Prijslijst (kolom Y) · effect op de opbrengsten', FW, DONKER)
     for c in ['C', 'D', 'E', 'F'] + COLS:
         zet(ws, '%s%d' % (c, KANS), None, FW, DONKER)
+    zet(ws, 'C%d' % KANS, 'al getransp.', FW, DONKER)
+    zet(ws, 'D%d' % KANS, 'totaal prognose', FW, DONKER)
+    prog = lambda i: '(%s*4+%d)>=p_huidig' % (JAAR, i)
     for k in range(1, NT + 1):
         r = KANS + k
-        zet(ws, 'B%d' % r, '="Type %d "&%s&" · "&IF(%s="","geen kans",TEXT(%s,"0%%")&" grond")'
+        z_ = 'N(%s)' % pl('$Z$%d' % (P_TYPE1 + k - 1))
+        zet(ws, 'B%d' % r, '="Type %d "&%s&" · "&IF(%s="","geen kans",TEXT(%s,"0%%")&" grond · netto effect")'
             % (k, pl('$B$%d' % (P_TYPE1 + k - 1)), pl('$Y$%d' % (P_TYPE1 + k - 1)), pl('$Y$%d' % (P_TYPE1 + k - 1))))
-        o1, on = oz_rij(k, 1), oz_rij(k, NTERM)
+        # al getransporteerd (t/m de actuals): voor die woningen ligt de verdeling grond / bouwtermijnen vast
+        t_ = tr(k)
+        zet(ws, 'C%d' % r, '=N(%s%d)+SUMPRODUCT(%s%d:%s%d,--((%s*4+COLUMN(%s%d:%s%d)-COLUMN(%s%d)+1)<p_huidig))'
+            % (COLS[0], t_, QCOLS[0], t_, QCOLS[-1], t_, JAAR, QCOLS[0], t_, QCOLS[-1], t_, QCOLS[0], t_), FN, None, '0')
+        # per kwartaal: + extra grond bij transport (woningen die nog getransporteerd worden), − het deel van hun
+        # bouwtermijnen dat met het grond-% verschuift (de eerste woningen, al getransporteerd, krijgen de termijnen eerst)
         for i, c in enumerate(COLS):
             if i == 0:
                 f = 0
             else:
-                f = '=IF((%s*4+%d)<p_huidig,0,N(%s)*(%s%d-SUMPRODUCT($C$%d:$C$%d,%s%d:%s%d)))' % (
-                    JAAR, i, pl('$Z$%d' % (P_TYPE1 + k - 1)), c, tr(k), o1, on, c, o1, c, on)
-            zet(ws, '%s%d' % (c, r), f, F, GRIJS, NUM)
-    rt = KANS + NT + 1
-    zet(ws, 'B%d' % rt, 'Effect kans per kwartaal (€)', FB)
-    zet(ws, 'B%d' % (rt + 1), 'Effect kans cumulatief (€)', FB)
-    zet(ws, 'B%d' % (rt + 2), 'Cashflow cumulatief · huidig (€)', FB)
-    zet(ws, 'B%d' % (rt + 3), 'Cashflow cumulatief · met kans (€)', FB)
-    zet(ws, 'C%d' % (rt + 2), 'laagste:', FN)
-    zet(ws, 'C%d' % (rt + 3), 'laagste:', FN)
+                p_ = COLS[i - 1]
+                bt = '+'.join('$C$%d*(MAX(0,SUM($%s%d:%s%d)-$C%d)-MAX(0,SUM($%s%d:%s%d)-$C%d))'
+                              % (oz_rij(k, t), COLS[0], oz_rij(k, t), c, oz_rij(k, t), r, COLS[0], oz_rij(k, t), p_, oz_rij(k, t), r)
+                              for t in range(1, NTERM + 1))
+                f = '=IF(%s=0,0,IF(%s,%s*(%s%d-(%s)),0))' % (z_, prog(i), z_, c, t_, bt)
+            zet(ws, '%s%d' % (c, r), f, F, None, NUM)
+        zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (QCOLS[0], r, QCOLS[-1], r), F, None, NUM)
+    rt = KT
+    labels = ['Grondtermijn · huidig (€)', 'Grondtermijn · met kans (€)', 'Extra opbrengst grondtermijn (€, eerder ontvangen)',
+              'Minder bouwtermijnen (€, later)', 'Netto effect kans per kwartaal (€)', 'Netto effect cumulatief (€)',
+              'Cashflow cumulatief · huidig (€, hulp voor het Dashboard)', 'Cashflow cumulatief · met kans (€, hulp)']
+    for j, lab in enumerate(labels):
+        zet(ws, 'B%d' % (rt + j), lab, FB if j in (1, 2, 4) else F)
     for i, c in enumerate(COLS):
-        zet(ws, '%s%d' % (c, rt), '=SUM(%s%d:%s%d)' % (c, KANS + 1, c, KANS + NT), FB, GRIJS, NUM)
-        zet(ws, '%s%d' % (c, rt + 1), '=SUM($%s%d:%s%d)' % (COLS[0], rt, c, rt), FB, GRIJS, NUM)
-        if i:
-            zet(ws, '%s%d' % (c, rt + 2), '=IFERROR(INDEX(Invoer!$H$8:$H$67,MATCH(%s*4+%d,Invoer!$A$8:$A$67,0)),"")' % (JAAR, i), F, GRIJS, NUM)
-            zet(ws, '%s%d' % (c, rt + 3), '=IF(%s%d="","",%s%d+%s%d)' % (c, rt + 2, c, rt + 2, c, rt + 1), FB, GRIJS, NUM)
-    for r in (rt + 2, rt + 3):
-        zet(ws, 'D%d' % r, '=MIN(%s%d:%s%d)' % (QCOLS[0], r, QCOLS[-1], r), FB, None, NUM)
+        if i == 0:
+            for j in range(6):
+                zet(ws, '%s%d' % (c, rt + j), 0, F, None, NUM)
+            continue
+        grond = '+'.join('%s%d' % (c, tr(k) + 4) for k in range(1, NT + 1))
+        extra = '+'.join('N(%s)*%s%d' % (pl('$Z$%d' % (P_TYPE1 + k - 1)), c, tr(k)) for k in range(1, NT + 1))
+        zet(ws, '%s%d' % (c, rt), '=IF(%s,%s,0)' % (prog(i), grond), F, None, NUM)
+        zet(ws, '%s%d' % (c, rt + 2), '=IF(%s,%s,0)' % (prog(i), extra), FB, None, NUM)
+        zet(ws, '%s%d' % (c, rt + 1), '=%s%d+%s%d' % (c, rt, c, rt + 2), FB, None, NUM)
+        zet(ws, '%s%d' % (c, rt + 4), '=SUM(%s%d:%s%d)' % (c, KANS + 1, c, KANS + NT), FB, None, NUM)
+        zet(ws, '%s%d' % (c, rt + 3), '=%s%d-%s%d' % (c, rt + 4, c, rt + 2), F, None, NUM)
+        zet(ws, '%s%d' % (c, rt + 5), '=SUM($%s%d:%s%d)' % (QCOLS[0], rt + 4, c, rt + 4), F, None, NUM)
+        zet(ws, '%s%d' % (c, rt + 6), '=IFERROR(INDEX(Invoer!$H$8:$H$67,MATCH(%s*4+%d,Invoer!$A$8:$A$67,0)),"")' % (JAAR, i), F, None, NUM)
+        zet(ws, '%s%d' % (c, rt + 7), '=IF(%s%d="","",%s%d+%s%d)' % (c, rt + 6, c, rt + 6, c, rt + 5), F, None, NUM)
+    for j in range(5):
+        zet(ws, 'D%d' % (rt + j), '=SUM(%s%d:%s%d)' % (QCOLS[0], rt + j, QCOLS[-1], rt + j), FB if j in (1, 2, 4) else F, None, NUM)
+    zet(ws, 'C%d' % (rt + 5), 'hoogste:', FN)
+    zet(ws, 'D%d' % (rt + 5), '=MAX(0,MAX(%s%d:%s%d))' % (QCOLS[0], rt + 5, QCOLS[-1], rt + 5), F, None, NUM)
+    for r in (rt + 6, rt + 7):
+        zet(ws, 'C%d' % r, 'laagste:', FN)
+        zet(ws, 'D%d' % r, '=MIN(%s%d:%s%d)' % (QCOLS[0], r, QCOLS[-1], r), F, None, NUM)
+        ws.row_dimensions[r].hidden = True
+    totaalrijen(ws, [rt + 2, rt + 4])
     markeringen(ws, 4, 4, PER + 40)
     # inklappen: invoerblok per woningtype, en de rekenblokken (aantallen per termijn en €)
     for k in range(1, NT + 1):
@@ -645,7 +688,7 @@ def maak_prijslijst(ws):
     rij_tot = tn + 1
     regels = lambda col: '+'.join('SUM(%s%d:%s%d)' % (col, p_aans(k) + 2, col, p_aans(k) + 1 + len(P_REGELS))
                                   for k in range(1, NT + 1))
-    rk = KANS + NT + 1
+    rk = KT
     OO = "'CF - opbrengsten'!"
     kaarten = [
         ('B', 'WONINGEN', '=SUM(S%d:S%d)' % (t1, tn), '0', '=COUNTIF(B%d:B%d,"?*")&" woningtypes"' % (t1, tn), None),
@@ -653,8 +696,8 @@ def maak_prijslijst(ws):
         ('J', 'SKO (actueel budget)', '=' + regels('B'), NUM, 'verschil met prijslijst:', '=SUM(T%d:W%d)-(%s)' % (t1, tn, regels('B'))),
         ('N', 'TE BOEKEN IN SAP (Corr)', '=' + regels('G'), NUM, 'per SAP-nummer: zie blok 3', None),
         ('R', 'AANSLUITING', '=IF((%s)=0,"OK",(%s)&" type(s) met FOUT")' % (('+'.join('N(J%d="FOUT")' % p_aans(k) for k in range(1, NT + 1)),) * 2), None, 'SKO ↔ prijslijst ↔ PEW, per regel', None),
-        ('V', 'KANS GRONDTERMIJN · eerder ontvangen', '=MAX(0,MAX(%sH%d:AU%d))' % (OO, rk + 1, rk + 1), NUM,
-         '="max. financiering huidig "&TEXT(%sD%d,"#,##0")&" · met kans:"' % (OO, rk + 2), '=%sD%d' % (OO, rk + 3)),
+        ('V', 'KANS GRONDTERMIJN · extra eerder ontvangen', '=%sD%d' % (OO, rk + 5), NUM,
+         '="max. financiering huidig "&TEXT(%sD%d,"#,##0")&" · met kans:"' % (OO, rk + 6), '=%sD%d' % (OO, rk + 7)),
     ]
     for c, kop_, waarde, fmt, sub, subw in kaarten:
         c2 = L(ci_(c) + 2)

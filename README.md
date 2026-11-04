@@ -76,9 +76,20 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
 - **Grafiekperiode:** op het Dashboard (V87–Z91) vul je "Grafiek vanaf" en "Grafiek t/m" in (jaar · kwartaal). Leeg = automatisch: van het eerste kwartaal met opbrengsten of kosten tot één kwartaal na het laatste. De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
 - **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont FOUT of LET OP voor de rij; cel C1 telt ze.
 - **Kans grondtermijn:** vul op `Prijslijst` in kolom Y een ander grond-% van de koopsom in (bijvoorbeeld 50%).
-  - Onderaan het transportblok op CF - opbrengsten staat het effect per type en per kwartaal (alleen prognosekwartalen), en de cumulatieve cashflow huidig en met kans, met de laagste stand.
-  - Het Dashboard (V82–Z85) toont de max. financiering huidig en met kans.
+  - De kans geldt alleen voor woningen die nog getransporteerd worden. Bij al getransporteerde woningen ligt de verdeling grond/bouwtermijnen vast (CF - opbrengsten, kolom C van de kansregels).
+  - Per type staat het netto effect per kwartaal: meer grondtermijn bij transport, minder bouwtermijnen daarna.
+  - De totaalregels tonen:
+    - de grondtermijn huidig en met kans;
+    - de extra opbrengst grondtermijn (eerder ontvangen);
+    - de minder bouwtermijnen (later);
+    - het netto effect per kwartaal en cumulatief (de hoogste stand).
+  - Over de hele looptijd is het netto 0: de kans verschuift opbrengsten naar voren.
+  - Het Dashboard (V82–Z86) toont de max. financiering huidig en met kans, en de extra grondtermijn.
   - De kans zit niet in de cashflow zelf; het is een doorkijk.
+- **Parkeren en commercieel:** onder "Overige opbrengsten in €" op CF - opbrengsten:
+  - kolom D toont het bedrag uit de aansluiting (PEW, alle woningtypes);
+  - je verdeelt het bedrag in € over de kwartalen (geel);
+  - kolom E en de statuskolom tonen wat nog te verdelen is (LET OP in kolom A).
 - Op `Prijslijst` zijn ongebruikte woningtypes ingeklapt (na Oud FO inlezen).
 - **Koopsom en grond %:** per woningtype op `Prijslijst` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
 - **Aantallen** staan zonder punt of komma erachter.

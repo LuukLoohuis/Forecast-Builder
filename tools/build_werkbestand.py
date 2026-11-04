@@ -667,14 +667,16 @@ def main():
     sh.set_formula('W73', 'Start!$C$10')
     if oz.get('standaard'):
         import standaard_fo as S_
-        rk = S_.KANS + S_.NT + 1
+        rk = S_.KT
         for ref, v in (('V82', 'KANS GRONDTERMIJN (Prijslijst kolom Y; CF - opbrengsten rij %d)' % S_.KANS),
                        ('W83', 'Max. financiering · huidig'), ('W84', 'Max. financiering · met kans'),
-                       ('W85', 'Grondtermijn eerder ontvangen (hoogste cumulatief)')):
+                       ('W85', 'Extra grondtermijn eerder ontvangen (hoogste stand)'),
+                       ('W86', 'Extra opbrengst grondtermijn (totaal prognose)')):
             sh.set_value(ref, v)
-        sh.set_formula('Z83', "'CF - opbrengsten'!$D$%d" % (rk + 2))
-        sh.set_formula('Z84', "'CF - opbrengsten'!$D$%d" % (rk + 3))
-        sh.set_formula('Z85', "MAX('CF - opbrengsten'!$H$%d:$AU$%d)" % (rk + 1, rk + 1))
+        sh.set_formula('Z83', "'CF - opbrengsten'!$D$%d" % (rk + 6))
+        sh.set_formula('Z84', "'CF - opbrengsten'!$D$%d" % (rk + 7))
+        sh.set_formula('Z85', "'CF - opbrengsten'!$D$%d" % (rk + 5))
+        sh.set_formula('Z86', "'CF - opbrengsten'!$D$%d" % (rk + 2), sh.style_of('Z85'))
     # periode van de cashflowgrafiek: vanaf / t/m (leeg = automatisch: eerste t/m laatste kwartaal met opbrengsten of
     # kosten, plus één kwartaal); de grafiekreeksen (namen g_...) lopen via Model!BY336:BY338 mee
     st_k, st_l, st_i, st_n, st_w = (sh.style_of(x) for x in ('V82', 'V77', 'W18', 'Z18', 'W9'))
