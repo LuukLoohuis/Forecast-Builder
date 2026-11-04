@@ -305,9 +305,11 @@ def main(src, out, workdir):
                     tc.fill.fore_color.rgb = NAVY
                 elif codes.get(c) == sel:
                     tc.fill.fore_color.rgb = GEELLICHT
-                elif name == "T_WONQ" and 0 < j < len(cols) - 1 and isinstance(cel.value, (int, float)) and cel.value > 0:
-                    mx = max((ws.cell(row=q, column=cc).value or 0) for q in rows[1:] for cc in cols[1:-1]
-                             if isinstance(ws.cell(row=q, column=cc).value, (int, float))) or 1
+                elif (name == "T_WONQ" and 1 < j < len(cols) - 1 and isinstance(cel.value, (int, float)) and cel.value > 0
+                      and not str(ws.cell(row=rr, column=c1).value).startswith("Totaal")):
+                    mx = max((ws.cell(row=q, column=cc).value or 0) for q in rows[1:] for cc in cols[2:-1]
+                             if isinstance(ws.cell(row=q, column=cc).value, (int, float))
+                             and not str(ws.cell(row=q, column=c1).value).startswith("Totaal")) or 1
                     tc.fill.fore_color.rgb = RGBColor.from_string("F5B800" if cel.value >= 0.5 * mx else ("F8D873" if cel.value >= 0.2 * mx else "FFF1C2"))
                 elif cel.fill and cel.fill.fill_type == "solid" and cel.fill.start_color.rgb not in (None, "00000000", "FFFFFFFF"):
                     tc.fill.fore_color.rgb = RGBColor.from_string(str(cel.fill.start_color.rgb)[-6:])

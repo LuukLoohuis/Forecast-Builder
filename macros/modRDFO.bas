@@ -278,30 +278,26 @@ End Sub
 Public Sub RDFO_OudePrognosesOverzetten()
     Dim f As Variant, wbS As Workbook, ws As Worksheet, tabs As Variant, tabblad As Variant, versie As String, verslag As String
     Dim kopRij As Long, r As Long, c As Long, jaar As Long, leeg As Long, n As Long, totN As Long
-    Dim cBOB As Long, cBOR As Long, cAK As Long, wbs As String, wsH As Worksheet, r0 As Long, peil As Date
+    Dim cBOB As Long, cBOR As Long, cAK As Long, wbsCode As String, wsH As Worksheet, r0 As Long, peil As Date
     Dim waarden(1 To 3) As Double, heeft(1 To 3) As Boolean, kg As Variant, k As Long, mi As Variant, naam As String, typ As String
 
     f = Application.GetOpenFilename("Excel-bestanden (*.xlsx;*.xlsm;*.xls),*.xlsx;*.xlsm;*.xls", , _
-                                    "Kies het oude RDFO-bestand (met tabbladen Budget en Prognose Q1/Q2/Q3)")
+                                    "Kies het Excel-bestand met de oude prognoses (tabbladen Budget, Q1, Q2, Q3 of Prognose Q1 ...)")
     If VarType(f) = vbBoolean Then Exit Sub
     On Error GoTo Fout
     Application.ScreenUpdating = False
     Set wsH = ThisWorkbook.Worksheets("Historie")
     Set wbS = Workbooks.Open(Filename:=CStr(f), ReadOnly:=True, UpdateLinks:=0)
-    tabs = Array("Budget", "Prognose Q1", "Prognose Q2", "Prognose Q3", "Prognose Q4")
     kg = Array("Omzet FY", "BOR FY", "AK-dekking FY")
     With Nm("L_WBS")
         r0 = .Cells(.Rows.Count, 1).End(xlUp).Row + 1
         If Trim(CStr(.Cells(.Rows.Count, 1).Value)) <> "" Then r0 = .Row + .Rows.Count
         If r0 < .Row Then r0 = .Row
     End With
-    For Each tabblad In tabs
-        Set ws = Nothing
-        On Error Resume Next
-        Set ws = wbS.Worksheets(CStr(tabblad))
-        On Error GoTo Fout
-        If ws Is Nothing Then GoTo Volgende
-        versie = IIf(tabblad = "Budget", "Budget", Right(CStr(tabblad), 2))
+    For Each ws In wbS.Worksheets
+        tabblad = ws.Name
+        versie = VersieUitNaam(CStr(tabblad))
+        If versie = "" Then GoTo Volgende
         ' kopregel en kolommen zoeken
         kopRij = 0: cBOB = 0: cBOR = 0: cAK = 0: jaar = 0
         For r = 1 To 15
@@ -330,15 +326,15 @@ Public Sub RDFO_OudePrognosesOverzetten()
         n = 0: leeg = 0
         r = kopRij + 1
         Do While leeg < 5 And r < kopRij + 3000
-            wbs = Trim(CStr(ws.Cells(r, 1).Value))
-            If wbs = "" Or LCase(Left(wbs, 6)) = "totaal" Then
+            wbsCode = Trim(CStr(ws.Cells(r, 1).Value))
+            If wbsCode = "" Or LCase(Left(wbsCode, 6)) = "totaal" Then
                 leeg = leeg + 1
             Else
                 leeg = 0
                 waarden(1) = Waarde(ws, r, cBOB, heeft(1))
                 waarden(2) = Waarde(ws, r, cBOR, heeft(2))
                 waarden(3) = Waarde(ws, r, cAK, heeft(3))
-                mi = Application.Match(wbs, Nm("Map_WBS"), 0)
+                mi = Application.Match(wbsCode, Nm("Map_WBS"), 0)
                 If IsError(mi) Then
                     naam = CStr(ws.Cells(r, 3).Value)
                     typ = IIf(InStr(1, CStr(ws.Cells(r, 2).Value), "Deel", vbTextCompare) > 0, "Deelneming", "Opstal")
@@ -350,7 +346,7 @@ Public Sub RDFO_OudePrognosesOverzetten()
                     If heeft(k) And Abs(waarden(k)) > 0.5 Then
                         If r0 > HISTORIE_LAATSTE_RIJ Then Err.Raise vbObjectError + 1, , "Historie is vol (maximaal rij " & HISTORIE_LAATSTE_RIJ & ")."
                         wsH.Cells(r0, 1).Resize(1, 18).Value = Array("MIGR-" & versie & "-" & jaar, BestandsNaam(CStr(f)), Date, "Vastgesteld", jaar, versie, 0, _
-                            peil, jaar, wbs, Left(wbs, 8), naam, typ, "", kg(k - 1), waarden(k), "EUR", "Overgezet uit oude RDFO, tabblad " & tabblad)
+                            peil, jaar, wbsCode, Left(wbsCode, 8), naam, typ, "", kg(k - 1), waarden(k), "EUR", "Overgezet uit oude RDFO, tabblad " & tabblad)
                         wsH.Cells(r0, 3).NumberFormat = "dd-mm-yyyy"
                         wsH.Cells(r0, 8).NumberFormat = "dd-mm-yyyy"
                         wsH.Cells(r0, 1).Resize(1, 18).Font.Size = 8
@@ -365,7 +361,7 @@ Public Sub RDFO_OudePrognosesOverzetten()
         verslag = verslag & vbCr & "   - " & versie & " " & jaar & ": " & n & " regels"
         totN = totN + n
 Volgende:
-    Next tabblad
+    Next ws
     wbS.Close SaveChanges:=False
     Application.CalculateFull
     Application.ScreenUpdating = True
@@ -380,6 +376,19 @@ Fout:
     Application.ScreenUpdating = True
     MsgBox "Overzetten is niet gelukt: " & Err.Description, vbExclamation
 End Sub
+
+Private Function VersieUitNaam(ByVal naam As String) As String
+    ' 'Budget', 'Prognose Q1', 'Q1', 'Q2 2026' ... -> Budget / Q1..Q4; anders leeg (tabblad wordt overgeslagen)
+    Dim q As Long, u As String
+    u = UCase(naam)
+    If InStr(u, "BUDGET") > 0 Then VersieUitNaam = "Budget": Exit Function
+    For q = 1 To 4
+        If u = "Q" & q Or u Like "*[!A-Z]Q" & q Or u Like "Q" & q & "[!0-9]*" Or u Like "*[!A-Z]Q" & q & "[!0-9]*" Then
+            VersieUitNaam = "Q" & q
+            Exit Function
+        End If
+    Next q
+End Function
 
 Private Function TotaalKolom(ByVal ws As Worksheet, ByVal r As Long, ByVal c As Long) As Long
     ' kolom 'Totaal' in de regel onder de groepskop; anders 0 (dan worden Q1..Q4 opgeteld, kolom wordt dan negatief teruggegeven)

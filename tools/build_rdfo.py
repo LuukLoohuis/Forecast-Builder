@@ -2207,12 +2207,28 @@ def build_woningen(wb, ws):
         ws[f"K{rr}"].font = font(9, True)
         ws[f"B{rr}"].border = Border(bottom=thin)
         ws[f"K{rr}"].number_format = FMT_INT
+        ws[f"L{rr}"] = f'=IF({ix}=0,"",INDEX(V_WBS,{ix}))'
+        ws[f"L{rr}"].font = font(8, False, GREY)
+    put(ws, f"L{wq0-1}", "Projectnummer", bold=True, color=WHITE, fillc=NAVY)
     ws.conditional_formatting.add(f"C{wq0}:J{wq0+14}", FormulaRule(
         formula=[f'AND(C{wq0}<>"",DATE(IF(COLUMN()-COLUMN($C{wq0})<4,P_RJ,P_RJ+1),MOD(COLUMN()-COLUMN($C{wq0}),4)*3+1,1)>P_Peildatum)'],
         font=Font(color="8A6A00", italic=True)))
-    put(ws, f"B{wq0+15}", "Cursief = prognose (na de peildatum). Alleen projecten met 'Woningen meetellen = Ja'.", color=GREY, italic=True, size=8)
+    # totaal per kwartaal over alle projecten (niet alleen de 15 hierboven)
+    rt = wq0 + 15
+    put(ws, f"B{rt}", "Totaal alle projecten", bold=True, fillc=LIGHT)
+    for j, q in enumerate(("HQ1", "HQ2", "HQ3", "HQ4", "VQ1", "VQ2", "VQ3", "VQ4")):
+        c = col(3 + j)
+        ws[f"{c}{rt}"] = f'=SUMIFS(V_W_{q},V_Meetellen,"Ja")'
+    ws[f"K{rt}"] = f"=SUM(C{rt}:J{rt})"
+    for c in "BCDEFGHIJK":
+        ws[f"{c}{rt}"].font = font(9, True)
+        ws[f"{c}{rt}"].fill = fill(LIGHT)
+        ws[f"{c}{rt}"].border = Border(top=thick_navy, bottom=thin)
+        if c != "B":
+            ws[f"{c}{rt}"].number_format = FMT_INT
+    put(ws, f"B{wq0+16}", "Cursief = prognose (na de peildatum). Alleen projecten met 'Woningen meetellen = Ja'.", color=GREY, italic=True, size=8)
     WON.update(wq0=wq0)
-    add_name(wb, "PPT_WONQ", f"Woningen!$B${wq0-1}:$K${wq0+14}")
+    add_name(wb, "PPT_WONQ", f"Woningen!$B${wq0-1}:$L${wq0+15}")
     heat_cf(ws, f"C{wq0}:J{wq0+14}")
     # projectmatrix
     r = wq0 + 19
@@ -3394,15 +3410,19 @@ def build_dias(wb, ws):
     t = 236
     wws = wb["Woningen"]
     wq0 = WON["wq0"]
-    table_head(t, ["Project"] + [f"=Woningen!{col(3 + j)}{wq0-1}" for j in range(8)] + ["Totaal"], [3.2] + [1] * 8 + [1.1], "T_WONQ", 15)
-    for i in range(15):
+    table_head(t, ["Project", "Projectnummer"] + [f"=Woningen!{col(3 + j)}{wq0-1}" for j in range(8)] + ["Totaal"],
+               [3.0, 1.5] + [0.9] * 8 + [1.0], "T_WONQ", 16)
+    for i in range(16):
         r = t + 1 + i
         sr = wq0 + i
-        cell(r, 2, f'=IF(Woningen!B{sr}="","",Woningen!B{sr})', align="left", size=9)
+        tot = i == 15
+        cell(r, 2, f'=IF(Woningen!B{sr}="","",Woningen!B{sr})', bold=tot, align="left", size=9, fillc=LIGHT if tot else None)
+        cell(r, 3, "" if tot else f'=IF(Woningen!L{sr}="","",Woningen!L{sr})', None, False, GREY, LIGHT if tot else None, align="left", size=8)
         for j in range(8):
-            cell(r, 3 + j, f'=IF(Woningen!{col(3 + j)}{sr}="","",Woningen!{col(3 + j)}{sr})', '#,##0;-#,##0;""', align="center", size=9)
-        cell(r, 11, f'=IF(Woningen!K{sr}="","",Woningen!K{sr})', FMT_INT, True, align="center", size=9)
-    heat_cf(ws, f"C{t+1}:J{t+15}")
+            cell(r, 4 + j, f'=IF(Woningen!{col(3 + j)}{sr}="","",Woningen!{col(3 + j)}{sr})', '#,##0;-#,##0;""', tot, fillc=LIGHT if tot else None,
+                 align="center", size=9)
+        cell(r, 12, f'=IF(Woningen!K{sr}="","",Woningen!K{sr})', FMT_INT, True, align="center", size=9, fillc=LIGHT if tot else None)
+    heat_cf(ws, f"D{t+1}:K{t+15}")
 
     # ---- grafiekblokken (elk op een eigen pagina; volgorde = index voor de macro)
     def chart_block(name, builder, w, h):
@@ -3826,7 +3846,7 @@ def build_start(wb, ws):
     put(ws, "G17", "Beheer", bold=True, color=NAVY, size=11)
     put(ws, "G20", "Zet WBS-elementen uit ZPMW03 die nog niet in de projectlijst staan onderaan Invoer › 2.", color=GREY, size=8, wrap=True)
     put(ws, "G24", "Leeg format: wist bronnen, projectlijst, invoer, stoplicht en Historie. Instellingen blijven.", color=GREY, size=8, wrap=True)
-    put(ws, "G28", "Eenmalig: zet Budget en Prognose Q1–Q3 uit het oude RDFO-bestand (tabbladen) in Historie.", color=GREY, size=8, wrap=True)
+    put(ws, "G28", "Eenmalig: zet Budget en Q1–Q3 (één tabblad per versie) uit een Excelbestand in Historie.", color=GREY, size=8, wrap=True)
     put(ws, "G15", "● groen  ● oranje  ● rood  ○ leeg", color=GREY, size=8)
     landscape(ws, "A1:G35")
 

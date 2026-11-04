@@ -98,7 +98,7 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 
 | Probleem | Oplossing |
 |---|---|
-| Hoe krijg ik mijn eerdere prognoses (Budget, Q1, Q2, Q3) erin? | Eenmalig: klik op Start op 'Oude prognoses overzetten' en kies je oude RDFO-bestand. Het bestand leest de tabbladen Budget en Prognose Q1/Q2/Q3 (omzet, BOR en AK-dekking per WBS, in EUR x 1.000) en zet ze als vastgestelde versies in de Historie. Een versie die er al in staat, wordt overgeslagen. |
+| Hoe krijg ik mijn eerdere prognoses (Budget, Q1, Q2, Q3) erin? | Eenmalig: klik op Start op 'Oude prognoses overzetten' en kies je oude RDFO-bestand. Het bestand leest elk tabblad met Budget, Q1, Q2, Q3 of Q4 in de naam (bijvoorbeeld 'Q1' of 'Prognose Q1') (omzet, BOR en AK-dekking per WBS, in EUR x 1.000) en zet ze als vastgestelde versies in de Historie. Een versie die er al in staat, wordt overgeslagen. |
 | Ik wil met een leeg bestand beginnen | Gebruik RDFO_template.xlsm (al leeg), of klik op Start op 'Bestand leegmaken' en typ LEEG. Daarna: Bronnen inlezen › Nieuwe projecten toevoegen › Type en gebied kiezen. |
 | Na inlezen is alles leeg of staat 'Nieuwe projecten: … FOUT' | De WBS-elementen uit je export staan nog niet in de projectlijst; alleen projecten in Invoer › 2 tellen mee. Klik op 'Nieuwe projecten toevoegen' en controleer per regel Type en Woningen meetellen. |
 | Controle geeft waarschuwingen over woningen of bedragen (aantal, etalage, cumulatief, portefeuille, PEW) | Dat zijn verschillen in de SAP-export zelf; jij hoeft ze niet op te lossen om vast te zetten. Onderaan Controle staat per project welke controle afwijkt. Meld die projecten bij de verkoopadministratie of projectcontrol. |
