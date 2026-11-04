@@ -115,6 +115,10 @@ def _opbrengsten(f, v):
                 if jaren[c] and re.match(r'Q[1-4]$', q):
                     mijlpaal[t] = (jaren[c], int(q[1]))
     act = next((L(c) for c in range(eerste, laatste + 1) if _t(get(kop[0], c)).lower().startswith('actual')), 'J')
+    # standaard-FO: tabel 'Transport' (aantal woningen per kwartaal) onder het verkooptempo
+    tt = next((r for r in range(vk + 1, omz[0]) if _t(get(r, 2)).lower() == 'transport'), None)
+    for i, t in enumerate(types):
+        t['transport_tabel'] = tt + 1 + i if tt else None
     return {'eerste': L(eerste), 'laatste': L(laatste), 'check': L(check), 'verschil': L(check + 1), 'status': L(check + 2),
             'actuals': act,
             'types': types, 'verkoop_kop': vk, 'euro_kop': euro, 'totaal': totaal, 'periode': periode,

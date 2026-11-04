@@ -78,7 +78,12 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
                 z('%s%d' % (c, ra), (v / w) if w and v else None, st['pct_invoer'])
                 z('%s%d' % (c, t['verkoop']), '=ROUND(%s%d*%s,6)' % (c, ra, won), st['aantal'])
             g = t['grond_waarden'][j]
-            z('%s%d' % (c, rb), (g / w) if w and g else None, st['pct_invoer'])
+            if t.get('transport_tabel'):
+                # standaard-FO: transport in aantallen in de tabel Transport; het % rekent daaruit
+                z('%s%d' % (c, t['transport_tabel']), g if g else None, st['invoer_getal'])
+                z('%s%d' % (c, rb), '=IF(N(%s)=0,0,N(%s%d)/%s)' % (won, c, t['transport_tabel'], won), st['pct_calc'])
+            else:
+                z('%s%d' % (c, rb), (g / w) if w and g else None, st['pct_invoer'])
             eff = lambda k: 'MIN(SUM($%s%d:%s%d),SUM($%s%d:%s%d))' % (c1, rb, k, rb, c1, ra, k, ra)
             z('%s%d' % (c, tr), '=ROUND((%s%s)*%s,6)' % (eff(c), '-' + eff(prev) if prev else '', won), st['aantal'])
             z('%s%d' % (c, koop), '=%s%d' % (c, tr))

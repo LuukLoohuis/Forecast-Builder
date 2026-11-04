@@ -62,8 +62,13 @@ def vk_rij(k):
 
 OMZ_N = NTERM + 4                       # grond, termijnen, kmw 25%, kmw 75%, kadastrale kosten + rente
 OBLOK = OMZ_N + 3
-VT_PCT = vk_rij(NT) + 2                # alle woningen: verkocht %/kw, cumulatief, getransporteerd %/kw, cumulatief
-OZ1 = vk_rij(NT) + 8                    # eerste omzet-koprij (# won op de rij erboven)
+TT = vk_rij(NT) + 2                    # koprij tabel Transport (aantal woningen per kwartaal, invullen)
+def tt_rij(k):
+    return TT + k
+
+
+VT_PCT = tt_rij(NT) + 2                # alle woningen: verkocht %/kw, cumulatief, getransporteerd %/kw, cumulatief
+OZ1 = VT_PCT + 6                       # eerste omzet-koprij (# won op de rij erboven)
 
 
 def oz_kop(k):
@@ -222,6 +227,10 @@ def maak_opbrengsten(ws):
         w, h = won_rij(k), hb(k)
         zet(ws, 'F%d' % w, '# won', FB)
         zet(ws, 'G%d' % w, '=%s' % p_gebr(k, 'aantal'), FB, None, '0')
+        # koopsom per woning en het aandeel grond (van Prijslijst)
+        zet(ws, 'B%d' % w, 'Koopsom per woning · grond %', FN)
+        zet(ws, 'D%d' % w, '=IFERROR((%s+%s)/%s,0)' % (p_gebr(k, 'grond'), p_gebr(k, 'aanneemkao'), p_gebr(k, 'aantal')), FB, None, NUM)
+        zet(ws, 'E%d' % w, '=%s' % pl('$X$%d' % (P_TYPE1 + k - 1)), FB, None, '0.0%')
         kopregels(ws, w, h)
         zet(ws, 'B%d' % h, '="Termijnen %d - "&%s' % (k, pl('$B$%d' % (P_TYPE1 + k - 1))), FB, KOP)
         for t in range(1, NTERM + 1):
@@ -251,6 +260,23 @@ def maak_opbrengsten(ws):
         zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, '0')
         zet(ws, 'G%d' % r, '=D%d' % r, F, GRIJS, '0')
         for c in QCOLS:
+            zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
+        zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
+        zet(ws, '%s%d' % (VER, r), '=ROUND(C%d-%s%d,2)' % (r, CHK, r), F, None, AANT)
+    # transport: aantal woningen per kwartaal (invullen); 'getransporteerd %' per type rekent hieruit
+    for c, t in zip('BCDE', ['Transport', 'Aantal', 'Getransp.', 'Nog te transp.']):
+        zet(ws, '%s%d' % (c, TT), t, FB, KOP)
+    zet(ws, '%s%d' % (COLS[0], TT), 'actuals', FB, KOP)
+    for i, c in enumerate(QCOLS):
+        zet(ws, '%s%d' % (c, TT), 'Q%d' % (i % 4 + 1), FB, KOP)
+    zet(ws, '%s%d' % (CHK, TT), 'Check', FB, KOP)
+    for k in range(1, NT + 1):
+        r = tt_rij(k)
+        zet(ws, 'B%d' % r, '=B%d' % vk_rij(k))
+        zet(ws, 'C%d' % r, '=C%d' % vk_rij(k), F, None, '0')
+        zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, GRIJS, AANT)
+        zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, AANT)
+        for c in COLS:
             zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
         zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
         zet(ws, '%s%d' % (VER, r), '=ROUND(C%d-%s%d,2)' % (r, CHK, r), F, None, AANT)
@@ -500,7 +526,7 @@ def maak_prijslijst(ws):
     kop = ['Nr', 'Woningtype (naam)', 'Type in prijslijst', 'Aantal', 'Grond (facturatie)', 'Aanneemsom', 'KAO-opties',
            'Kopersmeerwerk', 'Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Korting', 'VON excl. btw',
            'Handm. aantal', 'Handm. grond', 'Handm. aanneemsom + KAO', 'Handm. kopersmeerwerk', 'Handm. kad. + rente',
-           'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente']
+           'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente', 'Grond % van de koopsom']
     zet(ws, 'D3', 'UIT DE PRIJSLIJST (excl. btw)', FW, DONKER)
     zet(ws, 'N3', 'HANDMATIG (overschrijft, leeg = prijslijst)', FW, DONKER)
     zet(ws, 'S3', 'GEBRUIKT IN DE CASHFLOW', FW, DONKER)
@@ -525,6 +551,7 @@ def maak_prijslijst(ws):
         zet(ws, '%s%d' % (P_GEBR['aanneemkao'], r), g('P', 'F%d+G%d' % (r, r)), FB, None, NUM)
         zet(ws, '%s%d' % (P_GEBR['kmw'], r), g('Q', 'H%d' % r), FB, None, NUM)
         zet(ws, '%s%d' % (P_GEBR['kadrente'], r), g('R', 'I%d+J%d+K%d+L%d' % (r, r, r, r)), FB, None, NUM)
+        zet(ws, 'X%d' % r, '=IFERROR(T%d/(T%d+U%d),0)' % (r, r, r), FB, None, '0.0%')
     # aansluiting per type + termijnschema
     uit = {'Grond + Ontwikkelkosten': 'E', 'Aanneemsom': 'F', 'KAO opties': 'G', 'Korting': 'L', 'Kopersmeerwerk': 'H',
            'Kadastrale kosten': 'I', 'Bouwrente': 'J', 'Aanvullende rente': 'K'}

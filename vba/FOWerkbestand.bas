@@ -1107,9 +1107,9 @@ Private Function OmzettenOudFO(wbO As Workbook) As String
                 RijOver wO, term(j) - d, sl, 7, laatste, wD, hb + j, k1, False, 0, lg
             Next j
             wD.Range(wD.Cells(tr + 1, C_Q1), wD.Cells(tr + 1, C_Q1 + NQ - 1)).ClearContents
-            wD.Range(wD.Cells(tr + 2, C_ACT), wD.Cells(tr + 2, C_Q1 + NQ - 1)).ClearContents
+            wD.Range(wD.Cells(TT_RIJ + i, C_ACT), wD.Cells(TT_RIJ + i, C_Q1 + NQ - 1)).ClearContents
             RijOver wO, vk + i, sl, 7, laatste, wD, tr + 1, k1, True, won, lg
-            RijOver wO, oRij(1), sl, 7, laatste, wD, tr + 2, k1, False, won, lg
+            RijOver wO, oRij(1), sl, 7, laatste, wD, TT_RIJ + i, k1, False, 0, lg      ' transport in aantallen
             If sleutel = "" Then wD.Cells(VK_RIJ + i, 4).Value = Nk(wO.Cells(vk + i, 4).Value)
             If kad > 0 Then RijOver wO, kad, sl, 7, laatste, wD, OZ1 + OBLOK * (i - 1) + 1 + NTERM + 3, k1, False, 0, lg
             For j = 1 To nOv

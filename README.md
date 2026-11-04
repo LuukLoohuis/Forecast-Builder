@@ -45,7 +45,12 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   - de kwartalen t/m de laatste actuals zijn een ingeklapte kolomgroep; met + klap je ze open.
 
   De macro werkt dit bij na Oud FO inlezen, Nieuw kwartaal en het inlezen van actuals.
-- **Alle woningen:** onder het verkooptempo per kwartaal het % verkocht en getransporteerd van alle woningen, en cumulatief.
+- **Transport:** onder het verkooptempo staat de tabel Transport. Daar vul je per woningtype het aantal woningen in dat per kwartaal getransporteerd wordt; "getransporteerd %" in het woningtypeblok rekent daaruit.
+  - Getransporteerd kan niet vóór verkocht; wat op verkoop wacht, schuift mee.
+  - De omzet schuift mee: de grondtermijn en de bouwtermijnen die bij transport al vervallen zijn, komen in het transportkwartaal binnen.
+  - De kosten van de bouwtermijnen volgen de bouwplanning (HWB), niet het transport. Een kostenpost met methode Transport (bijvoorbeeld de grond) schuift wel mee.
+- **Alle woningen:** onder de transporttabel per kwartaal het % verkocht en getransporteerd van alle woningen, en cumulatief.
+- **Koopsom en grond %:** per woningtype op `Prijslijst` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
 - **Aantallen** staan zonder punt of komma erachter.
 
 ## PowerPoint
