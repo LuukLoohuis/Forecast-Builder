@@ -11,7 +11,7 @@ Option Explicit
 Private Const HISTORIE_LAATSTE_RIJ As Long = 5005
 Private Const BRON_CAPACITEIT As Long = 500
 Private Const IMPORTLOG_KOLOM As Long = 24        ' kolom X op Historie
-Private Const VERBORGEN As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Lijsten,PPT,Dias"
+Private Const VERBORGEN As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
 
 ' ---------------------------------------------------------------- huisstijl
 Private Function NAVY() As Long
@@ -44,13 +44,14 @@ End Function
 ' ================================================================= 1. BRONNEN INLEZEN
 Public Sub RDFO_BronnenInlezen()
     Dim fZ As Variant, fE As Variant, peilTxt As String, peil As Date, versie As String
-    Dim nZ As Long, nE As Long, nA As Long, impId As String, flt As String, ontbreekt As String, nieuw As Long, fA As Variant
+    Dim nZ As Long, nE As Long, nA As Long, nR As Long, impId As String, flt As String, ontbreekt As String, nieuw As Long, fA As Variant, fR As Variant
 
     flt = "Excel-bestanden (*.xlsx;*.xlsm;*.xls),*.xlsx;*.xlsm;*.xls"
-    fZ = Application.GetOpenFilename(flt, , "Stap 1 van 3: kies de ZPMW03-export (Annuleren = overslaan)")
-    fE = Application.GetOpenFilename(flt, , "Stap 2 van 3: kies de Woningetalage-export (Annuleren = overslaan)")
-    fA = Application.GetOpenFilename(flt, , "Stap 3 van 3: kies de AK-percentages uit SAP (Annuleren = overslaan)")
-    If VarType(fZ) = vbBoolean And VarType(fE) = vbBoolean And VarType(fA) = vbBoolean Then Exit Sub
+    fZ = Application.GetOpenFilename(flt, , "Stap 1 van 4: kies de ZPMW03-export (Annuleren = overslaan)")
+    fE = Application.GetOpenFilename(flt, , "Stap 2 van 4: kies de Woningetalage-export (Annuleren = overslaan)")
+    fA = Application.GetOpenFilename(flt, , "Stap 3 van 4: kies de AK-percentages uit SAP (Annuleren = overslaan)")
+    fR = Application.GetOpenFilename(flt, , "Stap 4 van 4: kies de AK-realisatie (grootboekdump, Annuleren = overslaan)")
+    If VarType(fZ) = vbBoolean And VarType(fE) = vbBoolean And VarType(fA) = vbBoolean And VarType(fR) = vbBoolean Then Exit Sub
 
     peilTxt = InputBox("Peildatum van deze export (dd-mm-jjjj):", "Peildatum", Format(StandaardPeildatum(), "dd-mm-yyyy"))
     If peilTxt = "" Then Exit Sub
@@ -77,6 +78,8 @@ Public Sub RDFO_BronnenInlezen()
     If VarType(fE) <> vbBoolean Then nE = LeesBron(CStr(fE), "Bron_Woningetalage", "Stufe 3")
     nA = -2
     If VarType(fA) <> vbBoolean Then nA = LeesBron(CStr(fA), "Bron_AK", "WBS-element")
+    nR = -2
+    If VarType(fR) <> vbBoolean Then nR = LeesBron(CStr(fR), "Bron_AKR", "Grootboekrekening")
 
     Nm("CT_Bekeken").ClearContents   ' nieuwe bronnen = waarschuwingen opnieuw bekijken
     Nm("P_Peildatum").Value = peil
@@ -112,7 +115,8 @@ Public Sub RDFO_BronnenInlezen()
     ThisWorkbook.Worksheets("Controle").Range("A1").Select
     MsgBox "Ingelezen: " & IIf(nZ >= 0, nZ & " regels ZPMW03", "ZPMW03 overgeslagen") & ", " & _
            IIf(nE >= 0, nE & " regels Woningetalage", "Woningetalage overgeslagen") & ", " & _
-           IIf(nA >= 0, nA & " regels AK-percentages", "AK-percentages ongewijzigd") & "." & vbCr & vbCr & _
+           IIf(nA >= 0, nA & " regels AK-percentages", "AK-percentages ongewijzigd") & ", " & _
+           IIf(nR >= 0, nR & " regels AK-realisatie", "AK-realisatie ongewijzigd") & "." & vbCr & vbCr & _
            "Controle: " & ThisWorkbook.Worksheets("Controle").Range("D4").Value & " fout(en), " & _
            ThisWorkbook.Worksheets("Controle").Range("D5").Value & " waarschuwing(en)." & vbCr & _
            IIf(ontbreekt <> "", vbCr & "Deze kolommen zijn niet gevonden (kolomnaam in de export wijkt af):" & ontbreekt & vbCr, "") & _
@@ -419,7 +423,7 @@ End Function
 Public Sub RDFO_LeegMaken()
     Dim antw As String, il As Range
     If MsgBox("Hiermee maak je een leeg format. Dit wordt gewist:" & vbCr & _
-              "   - ingelezen ZPMW03, Woningetalage en AK-percentages" & vbCr & _
+              "   - ingelezen ZPMW03, Woningetalage, AK-percentages en AK-realisatie" & vbCr & _
               "   - projectlijst (Invoer › 2), aanvullende posten, toelichtingen, koperstype," & vbCr & _
               "     gebieden, funnel en target, DAEB, kansen en risico's, reserves" & vbCr & _
               "   - stoplicht- en scenario-invoer (tabblad Bandbreedte)" & vbCr & _
@@ -441,6 +445,9 @@ Public Sub RDFO_LeegMaken()
         .Rows("2:" & .Rows.Count).ClearContents
     End With
     With ThisWorkbook.Worksheets("Bron_AK")
+        .Rows("2:" & .Rows.Count).ClearContents
+    End With
+    With ThisWorkbook.Worksheets("Bron_AKR")
         .Rows("2:" & .Rows.Count).ClearContents
     End With
     ThisWorkbook.Worksheets("Projectdetail").Range("C4").Value = ""

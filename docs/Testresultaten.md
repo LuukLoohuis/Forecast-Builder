@@ -4,7 +4,7 @@ Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zo
 
 | Nr | Test | Uitkomst / bewijs | Resultaat |
 |---|---|---|---|
-| 1 | Basis: werkmap rekent zonder formulefouten en controles | 195186 formules, 0 fouten; Controle: 0 FOUT, 0 WAARSCHUWING | GESLAAGD |
+| 1 | Basis: werkmap rekent zonder formulefouten en controles | 208094 formules, 0 fouten; Controle: 0 FOUT, 0 WAARSCHUWING | GESLAAGD |
 | 2 | RDFO-versiekolommen = fictieve historie; upload = bron (onafhankelijk nagerekend) | Budget/Q1/Q2/Q3/upload (EUR x 1.000): 118,525.4 / 116,754.0 / 112,768.2 / 114,096.8 / 114,096.8 | GESLAAGD |
 | 3 | Q3-snapshot sluit aan op de bronbestanden | Q3 vastgelegd 114,096.8 = upload 114,096.8; som \|verschil\| alle 318 conceptregels = 0 | GESLAAGD |
 | 4 | Ontbrekende Q4 en ontbrekende historische actuals niet als nul | Q4-kolom toont 'n.b.'; realisatie YTD Q3 = 74,162.9; vastgelegde versies zonder realisatie (blijven n.b.): 3 | GESLAAGD |
@@ -20,7 +20,7 @@ Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zo
 | 14 | Alias Bedrijfsnaam/Naam maatschappij en gewijzigde kolomvolgorde | Header hernoemd + 'OP.BOB 2026' en 'Huidig jaar' van positie gewisseld: uitkomsten identiek, 0 FOUT | GESLAAGD |
 | 15 | Nieuwe en vervallen projecten verschijnen als uitzondering (niet stil weg) | nieuw: (1, 'FOUT'); vervallen: (1, 'WAARSCHUWING'); uitzonderingslijst bevat G.900099 en Boswaard, Parkeergebouw | GESLAAGD |
 | 16 | Doeljaar 2027: jaarprognoses per versie, geen realisatie (n.v.t.), to go = FY | Q3 2027 = 218,828.5; upload 2027 = 218,828.5; realisatie 'n.v.t.' | GESLAAGD |
-| 17 | Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld) | P_Demo=Nee: AK-dekking = AK % x kosten = 6,099; P_Demo=Ja: fictieve AK-dekking -1,400 gaat voor, met Controle-waarschuwing | GESLAAGD |
+| 17 | Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld) | P_Demo=Nee: AK-dekking = geboekte AK + kosten restant / 1,05 x AK % = 5,899; P_Demo=Ja: fictieve AK-dekking -1,400 gaat voor, met Controle-waarschuwing | GESLAAGD |
 | 18 | Stoplicht (verkoop, omgevingsvergunning, netcongestie): kleur volgt uit invoer en uitgangspunten | Watergaarde (0% verkocht, net Laag) → [1, 3, 2]; Parkeergebouw (geen woningen, net Hoog) → [0, 3, 1] (0 = leeg/n.v.t.) | GESLAAGD |
 | 19 | Stoplicht: uitgangspunten aanpassen kleurt alle lichten direct mee | Groengrens 0% en netcongestie Laag = groen → Watergaarde [3, 3, 3] | GESLAAGD |
 | 20 | Orderintake per jaar/kwartaal = bron (kolom Orderintake, PEW opbrengst) | 2026 t/m peildatum: 337,740,000 EUR in 15 projecten (onafhankelijk: 337,740,000) | GESLAAGD |
@@ -33,4 +33,4 @@ Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zo
 | 27 | Woningen per productsegment en koperstype tellen op tot het totaal; gebieden tellen op tot de RDFO | segmenten 360 = koperstypes 360 = verkopen 360; totaal gebieden 114,096.8 = RDFO 114,096.8 | GESLAAGD |
 | 28 | Verdeelfout in de woningverdeling wordt als FOUT gemeld | Controle: 1 FOUT (basis 0) | GESLAAGD |
 | 29 | Lege templateversie: geen data, geen historie, geen formulefouten | formulefouten 0; Controle 0 FOUT; projectlijst, Historie en bronnen leeg | GESLAAGD |
-| 30 | Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's | 26 VBA-modules (oletools); 12 knoppen → ['RDFO_BronnenInlezen', 'RDFO_LeegMaken', 'RDFO_MaakPowerPoint', 'RDFO_OudePrognosesOverzetten', 'RDFO_PrognoseVastleggen', 'RDFO_ProjectenToevoegen', 'RDFO_ToonRekenbladen']. Let op: uitvoering in Excel zelf is hier niet getest. | GESLAAGD |
+| 30 | Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's | 28 VBA-modules (oletools); 12 knoppen → ['RDFO_BronnenInlezen', 'RDFO_LeegMaken', 'RDFO_MaakPowerPoint', 'RDFO_OudePrognosesOverzetten', 'RDFO_PrognoseVastleggen', 'RDFO_ProjectenToevoegen', 'RDFO_ToonRekenbladen']. Let op: uitvoering in Excel zelf is hier niet getest. | GESLAAGD |

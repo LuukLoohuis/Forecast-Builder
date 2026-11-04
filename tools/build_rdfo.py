@@ -69,7 +69,7 @@ SHEETS = [  # (naam, tabkleur, zichtbaar)
     ("Handleiding", MID, True),
     ("Concept", GREY, False), ("VERW_Project", GREY, False), ("CALC_Versies", GREY, False),
     ("SCEN", GREY, False), ("STG_ZPMW03", GREY, False), ("STG_Woningetalage", GREY, False),
-    ("Bron_ZPMW03", "000000", False), ("Bron_Woningetalage", "000000", False), ("Bron_AK", "000000", False), ("Lijsten", GREY, False),
+    ("Bron_ZPMW03", "000000", False), ("Bron_Woningetalage", "000000", False), ("Bron_AK", "000000", False), ("Bron_AKR", "000000", False), ("STG_AKR", GREY, False), ("Lijsten", GREY, False),
 ]
 
 
@@ -168,6 +168,7 @@ def z_derived():
         ("M_KostFY", '=IFERROR([Kosten_LJ]+[Kosten_RJ],"n.b.")', "Kosten FY RJ = Kosten LJ + Kosten RJ"),
         ("M_KostFY1", '=IFERROR(+[Kosten_RJ1],"n.b.")', "Kosten RJ+1"),
         ("M_KostYTD", '=IFERROR(+[Kosten_LJ],"n.b.")', "Kosten gerealiseerd RJ t/m peildatum = Kosten LJ"),
+        ("M_KostRest", '=IFERROR(+[Kosten_RJ],"n.b.")', "Kosten restant RJ (na de peildatum) = Kosten RJ"),
         ("M_BorQ4", neg("BOR_RJ_Q4"), "BOR Q4 RJ"),
     ]
     for q in range(1, 5):
@@ -660,8 +661,8 @@ def build_invoer_extra(wb, ws):
     add_name(wb, "MJ_Funnel", f"Invoer!$C${MJ0}:${col(2+MJ_YEARS)}${MJ0}")
     add_name(wb, "MJ_Target", f"Invoer!$C${MJ0+1}:${col(2+MJ_YEARS)}${MJ0+1}")
     put(ws, f"A{MJ0+3}", "AK-dekking: kosten delen door")
-    input_style(put(ws, f"C{MJ0+3}", 1, fmt="0.00"), "0.00")
-    put(ws, f"D{MJ0+3}", "AK-dekking per project = kosten x AK %. Laat op 1 staan; alleen aanpassen als kosten eerst door een factor gedeeld moeten worden.", color=GREY, italic=True, size=8)
+    input_style(put(ws, f"C{MJ0+3}", 1.05, fmt="0.00"), "0.00")
+    put(ws, f"D{MJ0+3}", "Zoals de oude RDFO: AK-dekking prognose = kosten / 1,05 x AK % per project. Realisatie = geboekte AK uit de grootboekdump.", color=GREY, italic=True, size=8)
     add_name(wb, "P_AKFactor", f"Invoer!$C${MJ0+3}")
     # 9. DAEB
     inv_head(ws, DB0 - 1, "9. DAEB-omzet en verdeling over jaren",
@@ -866,7 +867,8 @@ def verw_columns():
     money += [(f"OmzRJ{o}", f"M_OmzRJ{o}", f"Omzet RJ+{o}") for o in range(2, 9)] + [("OmzONV", "M_OmzONV", "Omzet onverdeeld")]
     money += [(f"BorRJ{o}", f"M_BorRJ{o}", f"BOR RJ+{o}") for o in range(2, 9)] + [("BorONV", "M_BorONV", "BOR onverdeeld")]
     money += [("PEWOmz", "M_PEWOmz", "PEW omzet"), ("PEWBor", "M_PEWBor", "PEW BOR")]
-    money += [("KostFY", "M_KostFY", "Kosten FY RJ"), ("KostFY1", "M_KostFY1", "Kosten RJ+1"), ("KostYTD", "M_KostYTD", "Kosten RJ t/m peildatum")] + \
+    money += [("KostFY", "M_KostFY", "Kosten FY RJ"), ("KostFY1", "M_KostFY1", "Kosten RJ+1"), ("KostYTD", "M_KostYTD", "Kosten RJ t/m peildatum"),
+              ("KostRest", "M_KostRest", "Kosten restant RJ")] + \
              [(f"KostRJ{o}", f"M_KostRJ{o}", f"Kosten RJ+{o}") for o in range(2, 7)]
     for n, f, lab in money:
         c.append((n, lab, f'=IF($A{{r}}="","",IF($J{{r}}=0,"n.b.",SUMIFS({zr(f)},{zkey},$A{{r}})))', FMT_EUR))
@@ -892,10 +894,17 @@ def verw_columns():
     c.append(("OI_Key", "Sorteersleutel orderintake", '=IF([OI_Datum]="","",[OI_Datum]+ROW()/100000)', "0.00000"))
     c.append(("VerkochtPct", "Verkocht % (cumulatief / totaal)", '=IF($A{r}="","",IF(OR($G{r}="Nee",NOT(ISNUMBER([W_Aantal]))),"n.v.t.",IF([W_Aantal]>0,[W_Cum_T]/[W_Aantal],"n.v.t.")))', FMT_PCT))
     # AK-dekking per jaar = kosten (ZPMW03) / factor x AK %
-    ak_src = ["KostFY", "KostFY1"] + [f"KostRJ{o}" for o in range(2, 7)]
-    for k, k_ in enumerate(ak_src):
+    # zoals de oude RDFO: realisatie = geboekte AK (grootboekdump 'AK realisatie'), prognose = kosten / 1,05 x AK %
+    c.append(("AKMee", "AK meenemen", '=IF(Invoer!$A{mr}="","",IF(Invoer!$U{mr}="Nee","Nee","Ja"))', None))
+    c.append(("AKActAll", "AK geboekt RJ op dit WBS (ook als niet meenemen)", '=IF(OR($A{r}="",AKR_N=0),0,SUMIFS(AKR_Bedrag,AKR_WBS,$A{r},AKR_Jaar,P_RJ))', FMT_EUR))
+    c.append(("AKAct", "AK-dekking geboekt RJ (grootboek)", '=IF(OR($A{r}="",AKR_N=0,[AKMee]="Nee"),"",SUMIFS(AKR_Bedrag,AKR_WBS,$A{r},AKR_Jaar,P_RJ))', FMT_EUR))
+    c.append(("AKYTD", "AK-dekking gerealiseerd RJ t/m peildatum",
+              '=IF([AKMee]<>"Ja","",IF(AKR_N>0,[AKAct],IF(AND(ISNUMBER([AKPct]),ISNUMBER([KostYTD])),[KostYTD]/P_AKFactor*[AKPct],"")))', FMT_EUR))
+    c.append(("AK0", "AK-dekking FY RJ (realisatie + kosten restant / factor x AK %)",
+              '=IF([AKMee]<>"Ja","",IF(AND(ISNUMBER([AKPct]),ISNUMBER([KostRest])),N([AKYTD])+[KostRest]/P_AKFactor*[AKPct],IF(ISNUMBER([AKYTD]),[AKYTD],"")))', FMT_EUR))
+    ak_src = ["KostFY1"] + [f"KostRJ{o}" for o in range(2, 7)]
+    for k, k_ in enumerate(ak_src, start=1):
         c.append((f"AK{k}", f"AK-dekking RJ+{k}", f'=IF(AND(ISNUMBER([AKPct]),ISNUMBER([{k_}])),[{k_}]/P_AKFactor*[AKPct],"")', FMT_EUR))
-    c.append(("AKYTD", "AK-dekking gerealiseerd RJ t/m peildatum", '=IF(AND(ISNUMBER([AKPct]),ISNUMBER([KostYTD])),[KostYTD]/P_AKFactor*[AKPct],"")', FMT_EUR))
     # woningverkopen per productsegment en koperstype (RJ en RJ+1)
     for y, src in ((0, "W_HuidigJaar"), (1, "W_VolgendJaar")):
         sales = f'IF($G{{r}}="Ja",N([{src}]),0)'
@@ -1039,9 +1048,10 @@ def build_calc(wb, ws):
             ws[f"{CC[pre+rb]}{r}"] = f'=IF(COUNTIFS({crit})=0,"n.b.",SUMIFS(A_Waarde,{crit}))'
             if pre == "AA_" and rb == "AK-dekking":   # realisatie: AK % x gerealiseerde kosten (Kosten LJ)
                 ws[f"{CC[pre+rb]}{r}"] = (f'=IF(COUNTIFS({crit})>0,SUMIFS(A_Waarde,{crit}),'
-                                          f'IF(AND(Sel_Doeljaar=P_RJ,COUNT(V_AKYTD)>0),SUM(V_AKYTD),"n.b."))')
+                                          f'IF(AND(Sel_Doeljaar=P_RJ,COUNT(V_AKYTD)>0),SUM(V_AKYTD)+IF(AKR_N>0,AK_NietToegewezen,0),"n.b."))')
             if pre == "AV_" and rb == "AK-dekking":   # geen aanvullende invoer: AK % x kosten uit de upload
-                ak = 'IF(Sel_Doeljaar=P_RJ,IF(COUNT(V_AK0)=0,"n.b.",SUM(V_AK0)),IF(Sel_Doeljaar=P_RJ+1,IF(COUNT(V_AK1)=0,"n.b.",SUM(V_AK1)),"n.b."))'
+                ak = ('IF(Sel_Doeljaar=P_RJ,IF(COUNT(V_AK0)=0,"n.b.",SUM(V_AK0)+IF(AKR_N>0,AK_NietToegewezen,0)),'
+                      'IF(Sel_Doeljaar=P_RJ+1,IF(COUNT(V_AK1)=0,"n.b.",SUM(V_AK1)),"n.b."))')
                 ws[f"{CC[pre+rb]}{r}"] = f'=IF(COUNTIFS({crit})>0,SUMIFS(A_Waarde,{crit}),{ak})'
     # Geselecteerd en vorige versie
     rs, rp = CR["Sel"], CR["Vorige"]
@@ -3618,6 +3628,8 @@ def build_controle(wb, ws):
          'IF({v}=0,"OK","WAARSCHUWING")', "Invoer › 10: zonder jaar telt de regel niet mee."),
         ("Invoer", "Projecten zonder AK % (niet in de SAP-dump en geen eigen %)", '=COUNTIFS(Map_WBS,"?*",Map_AKMee,"<>Nee",Map_AKPct,"",Map_AKSap,"")',
          "info", '"INFO"', "Lees de AK-percentages in (knop Bronnen inlezen, stap 3) of vul in Invoer › 2 een eigen AK % in. Zet 'AK meenemen' op Nee als het niet hoort."),
+        ("Invoer", "AK geboekt zonder (bekend) project (grootboekdump)", '=IF(AKR_N=0,0,AK_NietToegewezen)', "info", '"INFO"',
+         "Boekingen zonder WBS of op een WBS buiten de projectlijst. Telt mee in de RDFO (regio), niet per project."),
         ("Invoer", "Projecten zonder gebied", '=COUNTIFS(Map_WBS,"?*",Map_Gebied,"")', "info", '"INFO"', "Invoer › 2, kolom I. Telt mee als 'Zonder gebied'."),
         ("Bandbreedte", "Scenario 'Basis' = omzet upload (alle projecten)", f'=SC_basis_0', '=SUM(V_OmzFY)',
          'IF(ABS({v}-{n})<=P_Tol,"OK","FOUT")', "Het basisscenario moet aansluiten op de prognose."),
@@ -4011,13 +4023,77 @@ def build_bron_ak(ws, hist):
     ws.freeze_panes = "A2"
 
 
+AKR_HDR = ["Grootboekrekening", "Documentnummer", "Business area", "Doc.soort", "Documentdatum", "Boekingssleutel", "Bedrag in eigen valuta",
+           "Belastingcode", "Kostenplaats", "WBS-element", "Order", "Functiegebied", "Profit center", "Bedrijfsnummer", "Tekst", "Boekjaar",
+           "Boekingsperiode"]
+AKR_N = 3000
+
+
+def build_bron_akr(ws):
+    """Fictieve grootboekdump 'AK realisatie' (zelfde kolommen als SAP): geboekte AK per WBS + een handmatige boeking zonder WBS."""
+    for j, h in enumerate(AKR_HDR):
+        c = ws.cell(row=1, column=1 + j, value=h)
+        c.font = Font(name=FONT, size=9, bold=True)
+        c.fill = fill(MID)
+    z = load_workbook(DATA / SRC_Z_FILE, read_only=True)["ZPMW03"]
+    zr = list(z.iter_rows(values_only=True))
+    zh = list(zr[0])
+    r = 2
+    for row in zr[1:]:
+        wbs, kost = row[zh.index("WBS-element")], row[zh.index("Kosten LJ")] or 0
+        pct = 0.06 if "9090" in str(wbs) else 0.04
+        bedrag = -round(kost / 1.05 * pct, 2)
+        for per, deel in ((3, 0.3), (6, 0.35), (9, 0.35)):
+            vals = ["4489020", f"1002{r:05d}", None, "SA", PEIL.replace(month=per, day=28), "50", round(bedrag * deel, 2), "V0", "11050", None, None,
+                    "40", "1015", "1001", f"Auto-posting opslag AK {wbs}", 2026, per]
+            for j, v in enumerate(vals):
+                ws.cell(row=r, column=1 + j, value=v)
+            r += 1
+    for j, v in enumerate(["4489020", "100299999", None, "SA", PEIL.replace(month=6, day=11), "50", -25000, "V0", "11050", None, None, "40",
+                           "1015", "1001", "AK fee handmatig (zonder WBS)", 2026, 6]):
+        ws.cell(row=r, column=1 + j, value=v)
+    ws.freeze_panes = "A2"
+
+
+def build_stg_akr(wb, ws):
+    """AK-realisatie per regel: bedrag (AK-dekking positief), boekjaar en WBS (uit de kolom WBS-element of uit de tekst)."""
+    base_sheet(ws, zoom=80)
+    put(ws, "A1", "STG_AKR — AK-realisatie uit de grootboekdump (niet invullen). Kolommen worden op naam gezocht.", bold=True, color=NAVY)
+    zoek = [("Bedrag", "Bedrag in eigen valuta*"), ("Jaar", "Boekjaar*"), ("WBSkol", "WBS-element*"), ("Tekst", "Tekst*")]
+    for j, (n, kop) in enumerate(zoek):
+        put(ws, (2, 2 + j), n, bold=True, size=8)
+        ws.cell(row=3, column=2 + j, value=f'=IFERROR(MATCH("{kop}",Bron_AKR!$1:$1,0),0)').font = font(8, False, GREY)
+    hdr = ["Bedrag (AK-dekking)", "Boekjaar", "WBS"]
+    for j, h in enumerate(hdr):
+        put(ws, (4, 2 + j), h, bold=True, size=8)
+    src = f"Bron_AKR!$A$2:$Z${AKR_N + 1}"
+    for i in range(AKR_N):
+        r = 5 + i
+        rij = i + 1
+        ws[f"B{r}"] = f'=IF($C$3=0,"",IF(ISNUMBER(INDEX({src},{rij},$B$3)),-INDEX({src},{rij},$B$3),""))'
+        ws[f"C{r}"] = f'=IF($C$3=0,"",IFERROR(--INDEX({src},{rij},$C$3),""))'
+        t = f'(IF($E$3=0,"",INDEX({src},{rij},$E$3)&""))'
+        ws[f"F{r}"] = f"={t}"
+        ws[f"D{r}"] = (f'=IF($B{r}="","",IF(IF($D$3=0,"",INDEX({src},{rij},$D$3)&"")<>"",INDEX({src},{rij},$D$3)&"",'
+                       f'IFERROR(LEFT(MID($F{r},SEARCH("G.",$F{r}),30),FIND(" ",MID($F{r},SEARCH("G.",$F{r}),30)&" ")-1),"")))')
+    add_name(wb, "AKR_Bedrag", f"STG_AKR!$B$5:$B${AKR_N + 4}")
+    add_name(wb, "AKR_Jaar", f"STG_AKR!$C$5:$C${AKR_N + 4}")
+    add_name(wb, "AKR_WBS", f"STG_AKR!$D$5:$D${AKR_N + 4}")
+    ws["H3"] = "=COUNT(AKR_Bedrag)"
+    put(ws, "H2", "Aantal regels", size=8)
+    add_name(wb, "AKR_N", "STG_AKR!$H$3")
+    ws["I3"] = '=SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ)-SUM(V_AKActAll)'
+    put(ws, "I2", "Geboekt zonder (bekend) project", size=8)
+    add_name(wb, "AK_NietToegewezen", "STG_AKR!$I$3")
+
+
 def make_template(wb):
     """Lege versie: alle invoer, bronregels en historie leeg; instellingen en formules blijven."""
     def clear(ws, cols, r0, r1):
         for r in range(r0, r1 + 1):
             for c in cols:
                 ws[f"{c}{r}"].value = None
-    for n in ("Bron_ZPMW03", "Bron_Woningetalage", "Bron_AK"):
+    for n in ("Bron_ZPMW03", "Bron_Woningetalage", "Bron_AK", "Bron_AKR"):
         ws = wb[n]
         for row in ws.iter_rows(min_row=2):
             for c in row:
@@ -4065,6 +4141,7 @@ def build(out, test_results=None, template=False):
     nz = copy_source(sh["Bron_ZPMW03"], DATA / SRC_Z_FILE, "ZPMW03")
     ne = copy_source(sh["Bron_Woningetalage"], DATA / SRC_E_FILE, "Woningetalage")
     build_bron_ak(sh["Bron_AK"], hist)
+    build_bron_akr(sh["Bron_AKR"])
     build_stg(wb, sh["STG_ZPMW03"], "Bron_ZPMW03", z_fields(), z_derived(), ZCOLS)
     build_stg(wb, sh["STG_Woningetalage"], "Bron_Woningetalage", e_fields(), e_derived(), ECOLS)
     put(sh["STG_ZPMW03"], "A5", "Staging ZPMW03 — niet invullen", bold=True, color=NAVY)
@@ -4078,6 +4155,7 @@ def build(out, test_results=None, template=False):
     build_verw(wb, sh["VERW_Project"])
     build_calc(wb, sh["CALC_Versies"])
     build_scen(wb, sh["SCEN"])
+    build_stg_akr(wb, sh["STG_AKR"])
     build_vastleggen(wb, sh["Concept"])
     build_rdfo(wb, sh["RDFO"])
     OUT_CTX["demo_n"], OUT_CTX["demo_later"] = demo_years()

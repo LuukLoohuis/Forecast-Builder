@@ -299,11 +299,11 @@ p, info, w12 = scenario("t09_demo_aannames", lambda wb: set_name(wb, "P_Demo", "
 ebit = v(w12, rd("ebit", "H")) - v(w12, rd("bor_tot", "H"))
 ak_c = B.VCOLS["AK0"]
 ak_som = sum(w0["VERW_Project"][f"{ak_c}{r}"].value or 0 for r in range(B.V0, B.V1 + 1)
-             if isinstance(w0["VERW_Project"][f"{ak_c}{r}"].value, (int, float))) / 1000
+             if isinstance(w0["VERW_Project"][f"{ak_c}{r}"].value, (int, float))) / 1000 + (v(w0, "STG_AKR!I3") or 0) / 1000
 ok = abs(v(w12, rd("ak", "H")) + 1400) < TOL and abs(ebit - (-1400 + 300 + 150)) < TOL and v(w12, "Controle!D5") >= 1 \
     and ak_som > 0 and abs(v(w0, rd("ak", "H")) - ak_som) < TOL
 record("Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld)", ok,
-       f"P_Demo=Nee: AK-dekking = AK % x kosten = {v(w0, rd('ak', 'H')):,.0f}; P_Demo=Ja: fictieve AK-dekking {v(w12, rd('ak', 'H')):,.0f} gaat voor, met Controle-waarschuwing")
+       f"P_Demo=Nee: AK-dekking = geboekte AK + kosten restant / 1,05 x AK % = {v(w0, rd('ak', 'H')):,.0f}; P_Demo=Ja: fictieve AK-dekking {v(w12, rd('ak', 'H')):,.0f} gaat voor, met Controle-waarschuwing")
 
 
 # ------------------------------------------------------------------ stoplicht

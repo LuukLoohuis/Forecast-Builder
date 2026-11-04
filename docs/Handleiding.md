@@ -8,7 +8,7 @@ Begin je met een leeg bestand? Gebruik `RDFO_template.xlsm` of de knop *Bestand 
 
 **1. Inlezen** — Knop op Start
 
-Klik op 'Bronnen inlezen'. Kies de ZPMW03-export, daarna de Woningetalage-export en tot slot (als die er is) de AK-percentages uit SAP. Vul de peildatum in (bijv. 30-09-2026) en de versie (bijv. Q3).
+Klik op 'Bronnen inlezen'. Kies de ZPMW03-export, daarna de Woningetalage-export daarna (als je die hebt) de AK-percentages uit SAP en de AK-realisatie (grootboekdump). Vul de peildatum in (bijv. 30-09-2026) en de versie (bijv. Q3).
 
 *Let op:* Het bestand opent daarna het tabblad Controle. Eerder vastgezette prognoses blijven zoals ze waren.
 
