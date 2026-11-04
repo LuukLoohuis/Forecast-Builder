@@ -22,6 +22,46 @@ In het RDFO ziet de regel **AK-dekking** er per prognose zo uit (jaarbedrag 2026
 3. Maak het verschil per project zichtbaar.
 4. Voeg de tabel "AK per project per prognose" toe (hoofdstuk 7c).
 
+## 1b. Bevindingen met het eigen bestand van de gebruiker (Claude, november 2026)
+Doorgerekend is het geanonimiseerde bestand `RDFO_Noordwest_Q3_Budget_geanonimiseerd_hersteld.xlsx`, met de tabbladen ZPMW03, AK Percentages en AK realisatie. Script: `tools/ak_aansluiting.py <bestand>`. De cijfers zijn geanonimiseerd en daarom indicatief; het patroon is wel duidelijk.
+
+**Hoe het oude bestand rekent** (tabblad "AK dekking 2027", rij 8 en verder):
+- per project en per kwartaal: `Kosten <jaar>-Qq / 1,05 × AK %`;
+- AK % = `VLOOKUP(WBS-element, 'AK Percentages'!D:H, 5)`;
+- jaar = som van de vier kwartalen;
+- RDFO-regel AK Dekking = `SUMIFS(..., Bedrijfsnummer, "1001")`, dus **alleen bedrijf 1001**;
+- de kolom "Actual" = −totaal tabblad AK realisatie (geboekt);
+- regel "Totaal dbl AK" = Actual + resterende kwartalen;
+- tabblad "BOB, BOR & AK 2027-2030" (outlook): AK = Kosten jaar × AK %, **zonder /1,05**. Dat is inconsistent met de rest; navragen.
+
+**In de Q3-export zijn "Kosten 2026-Q1..Q3" leeg (0).** Alleen Q4 (= het restant) is gevuld. Gerealiseerde kosten staan in "Kosten LJ".
+
+**De rekenwijze van het nieuwe bestand op deze data:**
+
+| Variant | AK-dekking 2026 |
+|---|---|
+| Nieuw bestand: geboekt (839k) + zonder project (498k) + kosten Q4 / 1,05 × AK % | **626.256** (≈ de 740 die de gebruiker ziet) |
+| Idem, maar negatieve kosten Q4 tellen als 0 | **2.089.852** |
+| Idem, maar zonder één project (Zuiderveld, Spoorzicht) | 2.084.979 |
+| Kostenmethode (Kosten LJ + Kosten 2026) / 1,05 × AK %, per project minimaal 0 | 1.876.987 |
+| Q3-prognose van de gebruiker (RDFO, "Q3 Prognose EJ") | **2.686.000** |
+
+**Conclusies:**
+1. **Hoofdoorzaak: negatieve kosten.**
+   - Eén project (`G.800044.8.1015`, Zuiderveld, Spoorzicht) heeft **Kosten 2026-Q4 = −25,5 mln** (een correctie of afboeking). Dat geeft −1,46 mln AK-dekking.
+   - In totaal staat er −25,6 mln aan negatieve kosten Q4 tegenover +16,0 mln positief.
+   - **Beslissing nodig van de gebruiker:** krijgt een negatieve kostenpost een negatieve AK (huidige werking), of telt die als 0?
+2. **Het grootboek loopt achter.** De dump AK realisatie bevat boekingen t/m periode 7 (juli), terwijl de peildatum 30-09 is. Augustus en september (±0,4 mln, op basis van het gemiddelde per maand) ontbreken. Bij de methode "geboekt + rest" valt dat weg.
+3. **AK geboekt zonder bekend project: 498k** (37% van het geboekte totaal). De WBS in de tekst matcht niet met een project in ZPMW03. Dit telt wel mee op regioniveau, maar niet per project.
+4. **50 van de 80 WBS-elementen hebben geen AK %** in de dump, waaronder `G.800045.8.1015` (Oosterwaard, Buitenplaats). Op deze data is het effect klein (de kosten zijn per saldo negatief), maar het moet wel kloppen.
+5. **Bedrijfsnummer:** het oude bestand telt alleen bedrijf 1001. Het nieuwe telt elk project met AK = Ja (ook deelnemingen, bijv. bedrijf 1089). Zet AK-dekking = Nee voor deelnemingen, of filter op bedrijfsnummer.
+
+**Voorgestelde herstelvolgorde:**
+1. Laat de gebruiker beslissen over negatieve kosten. Advies: AK per project per kwartaal minimaal 0, met een Controle-WAARSCHUWING die de projecten met negatieve kosten noemt.
+2. Voer de instelling `P_AKMethode` in (hoofdstuk 4). Advies voor de Q-prognoses: "Kosten (zoals oude RDFO)", met de geboekte AK alleen als realisatie/controle. Dan heeft de achterstand in het grootboek geen invloed.
+3. Maak het WBS-matchen in het grootboek ruimer (begin van het WBS-element / projectdefinitie) en toon de lijst "zonder project".
+4. Voeg het filter op bedrijfsnummer toe, of zet de keuze per project op de Projectlijst.
+
 ## 2. Hoe de gebruiker het berekent (te bevestigen met het oude RDFO-bestand)
 - **Per project:** AK-dekking = **kosten / 1,05 × AK %**.
   - AK % = het percentage van het project uit SAP (dump "AK-percentages"), of een eigen % op de Projectlijst.
@@ -179,6 +219,7 @@ Het rekenvoorbeeld moet de gekozen methode uitschrijven.
 - De macro's zijn alleen buiten Excel gecontroleerd. Test Bronnen inlezen en Prognose vastleggen in Excel zelf.
 
 ## 11. Vragen aan de gebruiker (eerst stellen)
+0. **Negatieve kosten** (bijv. −25,5 mln op Zuiderveld, Spoorzicht): AK-dekking dan negatief, of 0? En is −25,5 mln een echte correctie, of een fout in de export?
 1. Hoe reken je AK-dekking 2026 in je eigen bestand: over welke kostenkolom, en tel je de geboekte AK mee of alleen kosten × AK %?
 2. Wanneer wordt AK in het grootboek geboekt: maandelijks, per kwartaal of bij de jaarafsluiting?
 3. Kun je de ZPMW03-export, de AK-percentages-dump, de grootboekdump en je oude RDFO met de AK-berekening aanleveren (eventueel geanonimiseerd)?
