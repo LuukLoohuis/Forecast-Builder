@@ -24,6 +24,7 @@ import build_rdfo  # noqa: E402
 import inject_cache  # noqa: E402
 import package_xlsm  # noqa: E402
 import preview_pptx  # noqa: E402
+import template_pptx  # noqa: E402
 import write_docs  # noqa: E402
 
 raw = work / "RDFO_raw.xlsx"
@@ -52,4 +53,5 @@ inject_cache.main(str(raw_t), str(calc_t), str(cached_t))
 print(package_xlsm.main(str(cached_t), str(ROOT / "RDFO_template.xlsm")), "knoppen geplaatst (template)")
 write_docs.main(str(work / "tests" / "testresultaten.json"))
 print(preview_pptx.main(str(cached), str(ROOT / "docs" / "Voorbeeld_PowerPoint.pptx"), str(work / "preview")), "dia's in voorbeeldpresentatie")
+print(template_pptx.main(str(cached), str(ROOT / "docs" / "RDFO_PowerPoint_template.pptx")), "dia's in PowerPoint-template")
 sys.exit(t.returncode)
