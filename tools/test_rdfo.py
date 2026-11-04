@@ -280,8 +280,8 @@ def new_and_dropped(wb):
 p, info, w10 = scenario("t07_nieuw_vervallen", new_and_dropped)
 wc = w10["Controle"]
 txt = {wc[f"D{r}"].value: (wc[f"E{r}"].value, wc[f"G{r}"].value) for r in range(9, 90)}
-nieuw = txt["Nieuwe projecten: ZPMW03-WBS niet in Mapping"]
-verv = txt["Vervallen / ontbrekend: Mapping-WBS niet in ZPMW03"]
+nieuw = txt["Nieuwe projecten: WBS uit ZPMW03 nog niet op Projectlijst"]
+verv = txt["Vervallen: project op Projectlijst staat niet (meer) in ZPMW03"]
 lists = [wc.cell(row=r, column=c).value for r in range(60, 130) for c in range(2, 10)]
 ok = nieuw == (1, "FOUT") and verv == (1, "WAARSCHUWING") and "G.900099.8.9090" in lists and "Boswaard, Parkeergebouw" in lists
 record("Nieuwe en vervallen projecten verschijnen als uitzondering (niet stil weg)", ok,
@@ -305,6 +305,14 @@ ok = abs(v(w12, rd("ak", "H")) + 1400) < TOL and abs(ebit - (-1400 + 300 + 150))
 record("Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld)", ok,
        f"P_Demo=Nee: AK-dekking = geboekte AK + kosten restant / 1,05 x AK % = {v(w0, rd('ak', 'H')):,.0f}; P_Demo=Ja: fictieve AK-dekking {v(w12, rd('ak', 'H')):,.0f} gaat voor, met Controle-waarschuwing")
 
+akw = w0["AK-dekking"]
+A = lambda ref: akw[ref].value  # noqa: E731
+q = [A(f"{c}9") or 0 for c in "FGHI"]
+jaar = A("J9") or 0
+ok = (abs(sum(q) - jaar) < 1 and abs(jaar / 1000 - v(w0, rd("ak", "H"))) < TOL and abs((A("G8") or 0) - 25000) < 1
+      and A("F6") == "geboekt" and A("I6") == "prognose" and str(A("B15") or "").startswith("Q4 prognose: kosten"))
+record("AK-dekking per kwartaal: Q1+Q2+Q3+Q4 = jaar = RDFO; geboekt t/m peildatum, daarna prognose", ok,
+       f"kwartalen {[round(x) for x in q]} = jaar {jaar:,.0f}; zonder project Q2 {A('G8')}; rekenvoorbeeld: {A('B12')} | {A('B15')}")
 
 # ------------------------------------------------------------------ stoplicht
 ws = w0["Bandbreedte"]
@@ -436,7 +444,7 @@ record("Verdeelfout in de woningverdeling wordt als FOUT gemeld", ok, f"Controle
 tpl = WORK / "template.xlsx"
 B.build(str(tpl), template=True)
 info_t, wt = recalc(tpl)
-ok = (info_t["total_errors"] == 0 and v(wt, "Controle!D4") == 0 and wt["Invoer"][f"A{B.MAP0}"].value is None
+ok = (info_t["total_errors"] == 0 and v(wt, "Controle!D4") == 0 and wt["Projectlijst"][f"A{B.PK0}"].value is None
       and wt["Historie"][f"A{B.L0}"].value is None and wt["Bron_ZPMW03"]["A2"].value is None and v(wt, "Bandbreedte!B7") == 0)
 record("Lege templateversie: geen data, geen historie, geen formulefouten", ok,
        f"formulefouten {info_t['total_errors']}; Controle {v(wt, 'Controle!D4')} FOUT; projectlijst, Historie en bronnen leeg")
@@ -463,7 +471,7 @@ for nme in zx.namelist():
     if nme.startswith("xl/drawings/drawing"):
         macros_in_buttons |= {m.split("!")[1] for m in __import__("re").findall(r'macro="([^"]+)"', zx.read(nme).decode()) if "!" in m}
 ct = zx.read("[Content_Types].xml").decode()
-ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 7 and n_btn == len(B.BUTTONS)
+ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 8 and n_btn == len(B.BUTTONS)
       and "macroEnabled.main+xml" in ct and "shBandbreedte.cls" in mods)
 record("Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's", ok,
        f"{len(mods)} VBA-modules (oletools); {n_btn} knoppen → {sorted(macros_in_buttons)}. Let op: uitvoering in Excel zelf is hier niet getest.")

@@ -14,7 +14,7 @@ Klik op 'Bronnen inlezen'. Kies de ZPMW03-export, daarna de Woningetalage-export
 
 **2. Controleren** — Tabblad Controle
 
-Kijk bovenaan het tabblad Controle: staat er een FOUT? Los die eerst op. Staan er nieuwe projecten? Klik op 'Nieuwe projecten toevoegen' en kies in Invoer › 2 of het Opstal of Deelneming is.
+Kijk bovenaan het tabblad Controle: staat er een FOUT? Los die eerst op. Nieuwe projecten uit ZPMW03 staan al op de Projectlijst (oranje, alles op Ja). Controleer naam en type en zet op Nee wat niet mee moet. Controle toont alleen wat aandacht vraagt (knop 'Toon alle controles' voor de rest).
 
 *Let op:* Achter elke controle staat wat je moet doen. Onderaan staan de lijsten met nieuwe, verdwenen en verliesgevende projecten.
 
@@ -45,13 +45,12 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 | RDFO | De RDFO: budget, Q1–Q4, upload, realisatie, to go en verschillen. Onderaan: per gebied. | Alleen lezen. |
 | Outlook | De 4 jaren na het lopende jaar: omzet (ook DAEB, funnel, target), BOR, AK-dekking, kansen en risico's, reserves, bandbreedte, woningen, orderintake. | Alleen lezen. Basis voor het budget. |
 | Projecten | Per project: alle versies, realisatie, to go, BOR, marge en stoplicht. | Filteren met de pijltjes. |
-| Projectdetail | Eén project in detail. | Project kiezen bovenaan. |
 | Woningen | Verkopen per maand en kwartaal, per project per kwartaal (dit en volgend jaar), per versie, per productsegment en koperstype. | Alleen lezen. |
 | Bandbreedte | Bovenaan de vijf scenario's per jaar met grafiek. Daaronder per project het stoplicht en de scenario's. | Gele cellen invullen. |
 | Kansen en risico's | Invoer per kans of risico (project, jaar, kwartaal, bedrag) en een grafiek per project; staat ook in de PowerPoint. | Gele cellen invullen. |
-| Projectkeuze | Per project: telt het mee voor prognose, woningaantallen, AK-dekking en de PowerPoint? Plus eigen AK % en de reserves. | Ja/Nee kiezen; leeg = Ja. |
-| AK-dekking | Per project de hele AK-berekening: AK %, kosten per kwartaal, geboekte AK, prognose rest jaar, FY, budget en volgende jaren. | Alleen lezen; om na te lopen. |
-| Controle | Alle controles. Rood = eerst oplossen. | Na elke keer inlezen bekijken. |
+| Projectlijst | Alle projecten op één plek: WBS, naam, type, gebied en 4 keuzes (prognose, woningen, AK-dekking, PowerPoint). Plus eigen AK % en reserves. | Nieuwe projecten komen er bij inlezen vanzelf bij; zelf toevoegen kan onderaan. Ja/Nee kiezen. |
+| AK-dekking | Bovenaan het totaal per kwartaal (projecten + geboekt zonder project = regio), daarna een rekenvoorbeeld voor één project en de tabel per project per kwartaal. | Project kiezen voor het rekenvoorbeeld; verder alleen lezen. |
+| Controle | Bovenaan: x oplossen · y nakijken · z in orde. Alleen FOUT en WAARSCHUWING worden getoond, met in kolom H wat je moet doen. | Na elke keer inlezen bekijken; x bij akkoord. |
 | Invoer | Instellingen, projectlijst en alles wat niet in SAP staat. | Gele cellen invullen. |
 | Handleiding | Deze uitleg. |  |
 
@@ -90,7 +89,7 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 ## Spelregels
 
 - Wijzig nooit iets in de Historie. Alleen de knop 'Prognose vastleggen' voegt regels toe.
-- Voeg nieuwe projecten altijd onderaan toe in Invoer › 2 (of met de knop). Niet sorteren of tussenvoegen: het stoplicht hoort bij de regel.
+- Voeg nieuwe projecten altijd onderaan de Projectlijst toe (of met de knop). Niet sorteren of tussenvoegen: het stoplicht hoort bij de regel.
 - Bedragen in de bron zijn hele euro's; de rapportage toont EUR x 1.000 of EUR mln (instelbaar).
 - Omzet en resultaat zijn positief, verlies is negatief (rood). Er wordt nooit een absolute waarde genomen.
 - Woningaantallen en bedragen zijn al op aandeelbasis; het aandeel wordt niet nog eens toegepast.
@@ -99,10 +98,11 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 
 | Probleem | Oplossing |
 |---|---|
-| Hoe is de AK-dekking van een project berekend? | Kijk op het tabblad AK-dekking. Per project zie je het AK %, de kosten per kwartaal, de geboekte AK t/m de peildatum (grootboekdump), de prognose voor de rest van het jaar (kosten na de peildatum / 1,05 x AK %), het totaal, het budget en de volgende jaren. |
+| Hoe is de AK-dekking van een project berekend? | Kijk op het tabblad AK-dekking. Per kwartaal: t/m de peildatum de geboekte AK uit de grootboekdump (blauw), daarna kosten van dat kwartaal / 1,05 x AK % (geel). Jaar = Q1 + Q2 + Q3 + Q4. Bovenaan staat het totaal per kwartaal, inclusief AK die zonder project is geboekt. Kies bij 'Rekenvoorbeeld' een project: dan staat er per kwartaal uitgeschreven hoe het bedrag tot stand komt. |
+| Hoe voeg ik een project toe? | Meestal hoeft dat niet: bij 'Bronnen inlezen' komt elk nieuw WBS-element uit ZPMW03 vanzelf onderaan de Projectlijst (oranje, alle keuzes op Ja). Zelf toevoegen: typ onderaan de Projectlijst het WBS-element, de naam, het type en het gebied. Niet tussenvoegen of sorteren. |
 | Hoe krijg ik mijn eerdere prognoses (Budget, Q1, Q2, Q3) erin? | Eenmalig: klik op Start op 'Oude prognoses overzetten' en kies je oude RDFO-bestand. Het bestand leest elk tabblad met Budget, Q1, Q2, Q3 of Q4 in de naam (bijvoorbeeld 'Q1' of 'Prognose Q1') (omzet, BOR en AK-dekking per WBS, in EUR x 1.000) en zet ze als vastgestelde versies in de Historie. Een versie die er al in staat, wordt overgeslagen. |
-| Ik wil met een leeg bestand beginnen | Gebruik RDFO_template.xlsm (al leeg), of klik op Start op 'Bestand leegmaken' en typ LEEG. Daarna: Bronnen inlezen › Nieuwe projecten toevoegen › Type en gebied kiezen. |
-| Na inlezen is alles leeg of staat 'Nieuwe projecten: … FOUT' | De WBS-elementen uit je export staan nog niet in de projectlijst; alleen projecten in Invoer › 2 tellen mee. Klik op 'Nieuwe projecten toevoegen' en controleer per regel Type en Woningen meetellen. |
+| Ik wil met een leeg bestand beginnen | Gebruik RDFO_template.xlsm (al leeg), of klik op Start op 'Bestand leegmaken' en typ LEEG. Daarna: Bronnen inlezen (projecten komen vanzelf op de Projectlijst) › type en gebied controleren. |
+| Na inlezen is alles leeg of staat 'Nieuwe projecten: … FOUT' | De WBS-elementen uit je export staan nog niet op de Projectlijst. Klik op 'Nieuwe projecten toevoegen' (gebeurt ook vanzelf bij inlezen) en controleer per regel naam en type. |
 | Controle geeft waarschuwingen over woningen of bedragen (aantal, etalage, cumulatief, portefeuille, PEW) | Dat zijn verschillen in de SAP-export zelf; jij hoeft ze niet op te lossen om vast te zetten. Onderaan Controle staat per project welke controle afwijkt. Meld die projecten bij de verkoopadministratie of projectcontrol. |
 | Controle meldt 'ontbrekende kolommen' | Het bestand zoekt kolommen op naam (zie Handleiding › Veldwoordenboek). Na inlezen noemt de melding welke kolomnamen niet gevonden zijn. Hernoem de kolom in de export of pas de naam aan in de export-layout in SAP. |
 | De knoppen doen niets / gele balk 'Macro's zijn uitgeschakeld' | Klik op 'Inhoud inschakelen'. Komt het bestand uit e-mail of internet: sluit het, klik met rechts op het bestand › Eigenschappen › vink 'Blokkering opheffen' aan. |

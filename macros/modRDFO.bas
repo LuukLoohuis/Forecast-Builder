@@ -11,7 +11,7 @@ Option Explicit
 Private Const HISTORIE_LAATSTE_RIJ As Long = 5005
 Private Const BRON_CAPACITEIT As Long = 500
 Private Const IMPORTLOG_KOLOM As Long = 24        ' kolom X op Historie
-Private Const VERBORGEN As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
+Private Const VERBORGEN As String = "Historie,Projectdetail,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
 
 ' ---------------------------------------------------------------- huisstijl
 Private Function NAVY() As Long
@@ -109,7 +109,9 @@ Public Sub RDFO_BronnenInlezen()
     If nZ >= 0 Then ontbreekt = ontbreekt & OntbrekendeKolommen("STG_ZPMW03")
     If nE >= 0 Then ontbreekt = ontbreekt & OntbrekendeKolommen("STG_Woningetalage")
     nieuw = 0
-    If nZ >= 0 Then nieuw = NieuweProjecten()
+    If nZ >= 0 Then nieuw = ProjectenErbij(True)
+    If nieuw > 0 Then Application.CalculateFull
+    ControleAlleenProblemen
     Application.ScreenUpdating = True
     ThisWorkbook.Worksheets("Controle").Activate
     ThisWorkbook.Worksheets("Controle").Range("A1").Select
@@ -120,7 +122,7 @@ Public Sub RDFO_BronnenInlezen()
            "Controle: " & ThisWorkbook.Worksheets("Controle").Range("D4").Value & " fout(en), " & _
            ThisWorkbook.Worksheets("Controle").Range("D5").Value & " waarschuwing(en)." & vbCr & _
            IIf(ontbreekt <> "", vbCr & "Deze kolommen zijn niet gevonden (kolomnaam in de export wijkt af):" & ontbreekt & vbCr, "") & _
-           IIf(nieuw > 0, vbCr & nieuw & " WBS-element(en) staan nog niet in de projectlijst. Klik op 'Nieuwe projecten toevoegen'." & vbCr, "") & _
+           IIf(nieuw > 0, vbCr & nieuw & " nieuw(e) project(en) toegevoegd aan de Projectlijst (oranje, alles op Ja). Controleer naam en type." & vbCr, "") & _
            vbCr & "Los eventuele fouten op en klik daarna op 'Prognose vastleggen'.", vbInformation, "Bronnen inlezen"
     Exit Sub
 Fout:
@@ -199,81 +201,103 @@ Private Function KolomNr(ByVal ws As Worksheet, ByVal kop As String) As Long
     If Not f Is Nothing Then KolomNr = f.Column
 End Function
 
-Private Function NieuweProjecten() As Long
-    Dim wsZ As Worksheet, c As Long, r As Long, map As Range, w As String
-    Set wsZ = ThisWorkbook.Worksheets("Bron_ZPMW03")
-    Set map = Nm("Map_WBS")
-    c = KolomNr(wsZ, "WBS-element")
-    If c = 0 Then Exit Function
-    For r = 2 To wsZ.Cells(wsZ.Rows.Count, c).End(xlUp).Row
-        w = Trim(CStr(wsZ.Cells(r, c).Value))
-        If w <> "" Then If Application.WorksheetFunction.CountIf(map, w) = 0 Then NieuweProjecten = NieuweProjecten + 1
-    Next r
-End Function
-
 ' ================================================================= 1b. NIEUWE PROJECTEN NAAR MAPPING
 Public Sub RDFO_ProjectenToevoegen()
-    Dim wsZ As Worksheet, wsE As Worksheet, map As Range, r As Long, i As Long, n As Long, vrij As Long
-    Dim cW As Long, cP As Long, cO As Long, eS As Long, eA As Long, eH As Long, wbs As String, m As Variant, eerste As Range, naam As String
+    Dim n As Long
+    n = ProjectenErbij(False)
+    If n < 0 Then Exit Sub
+    If n = 0 Then
+        MsgBox "Alle WBS-elementen uit ZPMW03 staan al op de Projectlijst.", vbInformation, "Nieuwe projecten"
+    Else
+        ThisWorkbook.Worksheets("Projectlijst").Activate
+        MsgBox n & " nieuw(e) project(en) toegevoegd aan de Projectlijst (oranje gemarkeerd, alles op Ja)." & vbCr & vbCr & _
+               "Controleer per regel de projectnaam en het type (Opstal of Deelneming) en zet op Nee wat niet mee moet.", _
+               vbInformation, "Nieuwe projecten"
+    End If
+End Sub
+
+Private Function ProjectenErbij(ByVal stil As Boolean) As Long
+    ' Zet elk WBS-element uit ZPMW03 dat nog niet op de Projectlijst staat onderaan de lijst. Keuzes standaard Ja
+    ' (woningen alleen Ja als het project in de Woningetalage staat). Geeft het aantal toegevoegde projecten terug.
+    Dim wsZ As Worksheet, wsE As Worksheet, pl As Range, det As Range, r As Long, n As Long, vrij As Long
+    Dim cW As Long, cP As Long, cO As Long, eS As Long, eA As Long, eH As Long, wbs As String, m As Variant, naam As String
+    Dim berekening As Long
 
     Set wsZ = ThisWorkbook.Worksheets("Bron_ZPMW03")
     Set wsE = ThisWorkbook.Worksheets("Bron_Woningetalage")
-    Set map = Nm("Map_WBS")
+    Set pl = Nm("PL_Invoer")          ' Projectlijst A..D: WBS, naam, type, gebied
+    Set det = Nm("Map_WBS")           ' Invoer > 2 (details per project, zelfde regel)
     cW = KolomNr(wsZ, "WBS-element"): cP = KolomNr(wsZ, "Projectdefinitie"): cO = KolomNr(wsZ, "Omschrijving")
     eS = KolomNr(wsE, "Stufe 3"): eA = KolomNr(wsE, "Aantal woningen"): eH = KolomNr(wsE, "Aandeel Heijm.")
     If cW = 0 Then
-        MsgBox "Er is nog geen ZPMW03 ingelezen (kolom 'WBS-element' niet gevonden). Klik eerst op 'Bronnen inlezen'.", vbExclamation
-        Exit Sub
+        If Not stil Then MsgBox "Er is nog geen ZPMW03 ingelezen (kolom 'WBS-element' niet gevonden). Klik eerst op 'Bronnen inlezen'.", vbExclamation
+        ProjectenErbij = -1
+        Exit Function
     End If
+    berekening = Application.Calculation
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
     vrij = 1
     For r = 2 To wsZ.Cells(wsZ.Rows.Count, cW).End(xlUp).Row
         wbs = Trim(CStr(wsZ.Cells(r, cW).Value))
-        If wbs <> "" And Application.WorksheetFunction.CountIf(map, wbs) = 0 Then
-            Do While vrij <= map.Rows.Count
-                If Trim(CStr(map.Cells(vrij, 1).Value)) = "" Then Exit Do
+        If wbs <> "" And Application.WorksheetFunction.CountIf(pl.Columns(1), wbs) = 0 Then
+            Do While vrij <= pl.Rows.Count
+                If Trim(CStr(pl.Cells(vrij, 1).Value)) = "" Then Exit Do
                 vrij = vrij + 1
             Loop
-            If vrij > map.Rows.Count Then
-                MsgBox "De projectlijst op Invoer is vol (" & map.Rows.Count & " regels). " & n & " project(en) toegevoegd; de rest niet.", vbExclamation
+            If vrij > pl.Rows.Count Then
+                MsgBox "De Projectlijst is vol (" & pl.Rows.Count & " regels). " & n & " project(en) toegevoegd; de rest niet.", vbExclamation
                 Exit For
             End If
-            With map.Cells(vrij, 1)
-                .Value = wbs
-                If cP > 0 Then .Offset(0, 1).Value = wsZ.Cells(r, cP).Value
-                If cO > 0 Then
-                    naam = Trim(CStr(wsZ.Cells(r, cO).Value))
-                    If Application.WorksheetFunction.CountIf(map.Offset(0, 2), naam) > 0 Then naam = naam & " (" & wbs & ")"
-                    .Offset(0, 2).Value = naam
-                End If
-                .Offset(0, 5).Value = "Opstal"
-                .Offset(0, 9).Value = "Nee"
-                Nm("PK_Keuzes").Rows(vrij).Value = Array("Ja", "Nee", "Ja", "Ja")   ' prognose, woningen, AK, PowerPoint
-                m = CVErr(xlErrNA)
-                If eS > 0 Then m = Application.Match(wbs, wsE.Columns(eS), 0)
-                If Not IsError(m) Then
-                    If eA > 0 Then .Offset(0, 3).Value = wsE.Cells(m, eA).Value
-                    If eH > 0 Then .Offset(0, 4).Value = wsE.Cells(m, eH).Value
-                    Nm("PK_Woningen").Cells(vrij, 1).Value = "Ja"
-                End If
-                .Resize(1, 19).Interior.Color = RGB(255, 235, 156)
-            End With
-            If eerste Is Nothing Then Set eerste = map.Cells(vrij, 1)
+            pl.Cells(vrij, 1).Value = wbs
+            naam = wbs
+            If cO > 0 Then If Trim(CStr(wsZ.Cells(r, cO).Value)) <> "" Then naam = Trim(CStr(wsZ.Cells(r, cO).Value))
+            If Application.WorksheetFunction.CountIf(pl.Columns(2), naam) > 0 Then naam = naam & " (" & wbs & ")"
+            pl.Cells(vrij, 2).Value = naam
+            pl.Cells(vrij, 3).Value = "Opstal"
+            If cP > 0 Then det.Cells(vrij, 1).Offset(0, 1).Value = wsZ.Cells(r, cP).Value
+            det.Cells(vrij, 1).Offset(0, 9).Value = "Nee"          ' strapo
+            Nm("PK_Keuzes").Rows(vrij).Value = Array("Ja", "Nee", "Ja", "Ja")   ' prognose, woningen, AK, PowerPoint
+            m = CVErr(xlErrNA)
+            If eS > 0 Then m = Application.Match(wbs, wsE.Columns(eS), 0)
+            If Not IsError(m) Then
+                If eA > 0 Then det.Cells(vrij, 1).Offset(0, 3).Value = wsE.Cells(m, eA).Value
+                If eH > 0 Then det.Cells(vrij, 1).Offset(0, 4).Value = wsE.Cells(m, eH).Value
+                Nm("PK_Woningen").Cells(vrij, 1).Value = "Ja"
+            End If
+            pl.Rows(vrij).Interior.Color = RGB(255, 235, 156)
             n = n + 1
         End If
     Next r
-    Application.Calculation = xlCalculationAutomatic
-    Application.ScreenUpdating = True
-    If n = 0 Then
-        MsgBox "Alle WBS-elementen uit ZPMW03 staan al in de projectlijst.", vbInformation, "Nieuwe projecten"
+    Application.Calculation = berekening
+    If berekening = xlCalculationAutomatic Then Application.Calculate
+    If Not stil Then Application.ScreenUpdating = True
+    ProjectenErbij = n
+End Function
+
+' ================================================================= 1c. CONTROLE: ALLEEN PROBLEMEN TONEN
+Public Sub RDFO_ControleWissel()
+    Dim st As Range, c As Range, verborgen As Boolean
+    Set st = Nm("CT_Status")
+    For Each c In st.Cells
+        If c.EntireRow.Hidden Then verborgen = True: Exit For
+    Next c
+    If verborgen Then
+        st.EntireRow.Hidden = False
     Else
-        ThisWorkbook.Worksheets("Invoer").Activate
-        eerste.Select
-        MsgBox n & " nieuw(e) project(en) toegevoegd aan Invoer › 2 (oranje gemarkeerd)." & vbCr & vbCr & _
-               "Controleer per regel:" & vbCr & "   - Projectnaam" & vbCr & "   - Type: Opstal of Deelneming (standaard Opstal)" & vbCr & _
-               "   - Op het tabblad Projectkeuze: wat meetelt (prognose, woningen, AK, PowerPoint)", vbInformation, "Nieuwe projecten"
+        ControleAlleenProblemen
     End If
+End Sub
+
+Private Sub ControleAlleenProblemen()
+    ' Verbergt de controles met status OK, INFO of BEKEKEN; alleen FOUT en WAARSCHUWING blijven zichtbaar.
+    Dim c As Range, t As String
+    Application.ScreenUpdating = False
+    For Each c In Nm("CT_Status").Cells
+        t = CStr(c.Text)
+        c.EntireRow.Hidden = Not (t = "FOUT" Or t = "WAARSCHUWING")
+    Next c
+    Application.ScreenUpdating = True
 End Sub
 
 ' ================================================================= 1d. OUDE PROGNOSES OVERZETTEN (eenmalig)
@@ -451,10 +475,15 @@ Public Sub RDFO_LeegMaken()
         .Rows("2:" & .Rows.Count).ClearContents
     End With
     ThisWorkbook.Worksheets("Projectdetail").Range("C4").Value = ""
-    ' projectlijst: alleen de invoerkolommen (G, K en U zijn verwijzingen naar Projectkeuze)
-    Nm("Map_WBS").Resize(, 6).ClearContents          ' A..F
-    Nm("Map_Segment").Resize(, 3).ClearContents      ' H..J
-    Nm("Map_WBS").Offset(0, 11).Resize(, 8).ClearContents   ' L..S
+    ThisWorkbook.Worksheets("AK-dekking").Range("F11").Value = ""
+    ' projectlijst: alleen de invoerkolommen (G, K en U zijn verwijzingen naar Projectlijst)
+    Nm("PL_Invoer").ClearContents                    ' Projectlijst A..D (WBS, naam, type, gebied)
+    Nm("PL_Invoer").Interior.Color = RGB(255, 244, 204)
+    Nm("Map_Projdef").ClearContents                  ' Invoer > 2: B, D, E, H, J, L..S (A, C, F, G, I, K zijn verwijzingen)
+    Nm("Map_Aantal").Resize(, 2).ClearContents
+    Nm("Map_Segment").ClearContents
+    Nm("Map_Strapo").ClearContents
+    Nm("Map_WBS").Offset(0, 11).Resize(, 8).ClearContents
     Nm("PK_Keuzes").ClearContents
     Nm("PK_AKEigen").ClearContents
     Nm("RS_Invoer").ClearContents

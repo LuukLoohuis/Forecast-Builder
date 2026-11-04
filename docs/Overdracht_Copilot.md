@@ -9,10 +9,10 @@ Dit document is bedoeld als startcontext voor een AI-assistent (Copilot) of ontw
 Een Excel-werkmap (`RDFO_prototype.xlsm`) voor de kwartaalprognose van een bouw-/ontwikkelregio (Heijmans-huisstijl: geel `#F5B800`, donkerblauw `#14284B`). De werkmap:
 
 - leest twee SAP-exports in: **ZPMW03** (financieel per WBS-element) en **Woningetalage** (woningverkopen per Stufe 3);
-- koppelt die via een projectlijst (**Invoer › 2**, sleutel WBS-element = Stufe 3);
+- koppelt die via het tabblad **Projectlijst** (WBS, naam, type, gebied + 4 keuzes; sleutel WBS-element = Stufe 3). Invoer › 2 verwijst daarnaar en bevat alleen de details per project;
 - rekent per project en per versie (Budget, Q1–Q4) omzet, BOR (bruto omzetresultaat), realisatie, to go, woningverkopen en orderintake;
 - legt elke kwartaalprognose onveranderlijk vast in **Historie** (correcties = nieuwe revisie, nooit overschrijven);
-- rapporteert in Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook en Stoplicht;
+- rapporteert in Dashboard, RDFO, Projecten, Woningen, Outlook, Bandbreedte, Kansen en risico's en AK-dekking (per kwartaal);
 - maakt met één knop een PowerPoint (native, bewerkbare tabellen + grafieken).
 
 Alle data in `data/` is **fictief**. De oorspronkelijke opdracht staat in `docs/opdracht.txt`.
@@ -51,7 +51,7 @@ python tools/release.py <pad-naar-recalc.py> [werkmap]
 
 ## 3. Architectuur van de werkmap
 
-**Zichtbare bladen (11):** Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook, Bandbreedte, Controle, Invoer, Handleiding. Historie is verborgen (knop *Toon / verberg rekenbladen*).
+**Zichtbare bladen (13):** Start, Dashboard, RDFO, Projecten, Woningen, Outlook, Bandbreedte, Kansen en risico's, Projectlijst, AK-dekking, Controle, Invoer, Handleiding. Historie en Projectdetail zijn verborgen (knop *Toon / verberg rekenbladen*). Controle toont na inlezen alleen FOUT/WAARSCHUWING (macro `RDFO_ControleWissel`).
 
 **Verborgen bladen:** `Bron_ZPMW03`, `Bron_Woningetalage` (ruwe export, kop in rij 1) → `STG_ZPMW03`, `STG_Woningetalage` (kolommen op naam gezocht, afgeleide velden, controlekolommen `C_*`) → `VERW_Project` (1 rij per project in de projectlijst) → `CALC_Versies` (totalen per versie) → rapportbladen. Verder `Concept` (wat vastgelegd wordt), `Lijsten`, `PPT` (teksten + dia-specificatie `PPT_Spec`), `Dias` (tabellen/grafieken voor de PowerPoint).
 
@@ -110,7 +110,7 @@ Gebouwd op basis van de oorspronkelijke RDFO van de gebruiker (tabbladen BHTS, B
 |---|---|---|
 | Bandbreedte (5 scenario's) | Tabblad **Bandbreedte** (vervangt Stoplicht) + verborgen **SCEN** | Per project en jaar RJ..RJ+4: optimistisch (verkoop haalt `SC_Opt`, max `SC_Max` x), basis (upload), afslag (`SC_Afslag` van de geplande verkopen), gewogen (x kans %), 0-100 (kans ≥ `SC_Grens` of Ja/Nee). Realisatie blijft altijd staan. |
 | DAEB, funnel, target | Invoer › 8 en 9 → Outlook | DAEB-omzet x % per jaar; funnel en target per jaar. |
-| AK-dekking | Invoer › 2 (AK %) → VERW `AK0..AK6` → Outlook en RDFO | Kosten (ZPMW03: Kosten LJ + Kosten RJ, daarna Kosten per jaar) / `P_AKFactor` (1,05) x AK %; aanvullende invoer gaat voor; kengetal `AK-dekking FY` wordt mee vastgelegd. |
+| AK-dekking | Projectlijst (AK % eigen) of SAP-dump → tabblad AK-dekking (per kwartaal: t/m `AK_PeilQ` geboekt uit STG_AKR `AKR_Kw`, daarna kosten kwartaal / `P_AKFactor` x AK %) → VERW `AKYTD`, `AK0..AK4` → Outlook en RDFO | Jaar = Q1..Q4; regio = projecten + `AK_NietToegewezen`; aanvullende invoer gaat voor; kengetal `AK-dekking FY` wordt mee vastgelegd. |
 | Kansen en risico's | Invoer › 10 → Outlook, PowerPoint | Saldo per jaar, risico negatief. |
 | Reserves / PCM | Invoer › 11 → Outlook | Reserves x % gereed (cumulatief) per jaar. |
 | Gebieden | Invoer › 7 en 2 → RDFO (onderaan), PowerPoint | Som per gebied uit Projecten. |
