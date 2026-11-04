@@ -99,7 +99,7 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   - kolom E en de statuskolom tonen wat nog te verdelen is (LET OP in kolom A);
   - Oud FO inlezen zet de overige opbrengsten van het oude FO in de handmatige regel; die gaan dan altijd als handmatig mee.
 - Op `Prijslijst` zijn ongebruikte woningtypes ingeklapt (na Oud FO inlezen).
-- **Koopsom en grond %:** per woningtype op `Prijslijst` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
+- **Koopsom en grond %:** grond % = grond / (grond + aanneemsom), zonder KAO; de kans in kolom Y rekent met dezelfde basis. Per woningtype op `Prijslijst` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
 - **Aantallen** staan zonder punt of komma erachter.
 
 ## PowerPoint

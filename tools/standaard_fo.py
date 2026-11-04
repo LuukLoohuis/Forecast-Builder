@@ -753,7 +753,7 @@ def maak_prijslijst(ws):
     kop = ['Nr', 'Woningtype (naam)', 'Type of blok in prijslijst (bv. A, of 4A;4B, * = alle)', 'Aantal', 'Grond (facturatie)', 'Aanneemsom', 'KAO-opties',
            'Kopersmeerwerk', 'Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Korting', 'VON excl. btw',
            'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente',
-           'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente', 'Grond % van de koopsom',
+           'Aantal', 'Grond', 'Aanneemsom + KAO', 'Kopersmeerwerk', 'Kad. kosten + rente', 'Grond % · grond / (grond + aanneemsom), excl. KAO',
            'Kans: grond % (leeg = geen kans)', 'Kans: grond +/- per woning']
     for i, t in enumerate(kop):
         zet(ws, '%s%d' % (L(1 + i), t1 - 1), t, FB, LICHT)
@@ -777,9 +777,9 @@ def maak_prijslijst(ws):
         zet(ws, '%s%d' % (P_GEBR['aanneemkao'], r), g('P', 'F%d+G%d' % (r, r)), FB, WIT, NUM)
         zet(ws, '%s%d' % (P_GEBR['kmw'], r), g('Q', 'H%d' % r), FB, WIT, NUM)
         zet(ws, '%s%d' % (P_GEBR['kadrente'], r), g('R', 'I%d+J%d+K%d+L%d' % (r, r, r, r)), FB, WIT, NUM)
-        zet(ws, 'X%d' % r, '=IFERROR(T%d/(T%d+U%d),0)' % (r, r, r), FB, WIT, '0.0%')
+        zet(ws, 'X%d' % r, '=IFERROR(T%d/(T%d+U%d-G%d),0)' % (r, r, r, r), FB, WIT, '0.0%')     # excl. KAO
         zet(ws, 'Y%d' % r, None, FB, GEEL, '0%')
-        zet(ws, 'Z%d' % r, '=IF(Y%d="",0,IFERROR((Y%d-X%d)*(T%d+U%d)/S%d,0))' % (r, r, r, r, r, r), F, WIT, NUM)
+        zet(ws, 'Z%d' % r, '=IF(Y%d="",0,IFERROR((Y%d-X%d)*(T%d+U%d-G%d)/S%d,0))' % (r, r, r, r, r, r, r), F, WIT, NUM)
         # hulp voor de grafiek: SKO en prijslijst per type (uit het aansluitblok)
         a = p_aans(k)
         zet(ws, 'AB%d' % r, '=SUM(B%d:B%d)' % (a + 2, a + 1 + len(P_REGELS)), FK, None, NUM)
@@ -793,7 +793,7 @@ def maak_prijslijst(ws):
     for c in [L(x) for x in range(4, 24)] + ['Z']:
         zet(ws, '%s%d' % (c, rij_tot), '=SUM(%s%d:%s%d)' % (c, t1, c, tn) if c not in ('X', 'Z') else None, FB, LICHT,
             '0' if c in ('D', 'N', 'S') else NUM)
-    zet(ws, 'X%d' % rij_tot, '=IFERROR(T%d/(T%d+U%d),0)' % (rij_tot, rij_tot, rij_tot), FB, LICHT, '0.0%')
+    zet(ws, 'X%d' % rij_tot, '=IFERROR(T%d/(T%d+U%d-G%d),0)' % (rij_tot, rij_tot, rij_tot, rij_tot), FB, LICHT, '0.0%')
     for c in ('A', 'C', 'Y', 'Z'):
         ws['%s%d' % (c, rij_tot)].fill = LICHT
     ws.conditional_formatting.add('X%d:X%d' % (t1, tn), DataBarRule(start_type='num', start_value=0, end_type='num',
