@@ -1,134 +1,185 @@
-# Overdracht aan Copilot: AK-dekking in het RDFO repareren en per prognose zichtbaar maken
+# Overdracht aan Copilot: AK-dekking valt te laag uit
 
-## 1. Opdracht in één alinea
-De AK-dekking (opslag algemene kosten die een project draagt) komt in het RDFO **veel te laag** uit. De regel AK-dekking in de RDFO toont per prognose (jaarbedrag 2026, EUR x 1.000):
+## 1. Het probleem in de woorden van de gebruiker
+> "AK-dekking valt laag uit. Dit strookt niet met hoe ik het heb."
 
-| Budget | Q1 2026 | Q2 2026 | Q3 2026 |
+In het RDFO ziet de regel **AK-dekking** er per prognose zo uit (jaarbedrag 2026, EUR x 1.000):
+
+| Budget 2026 | Prognose Q1 2026 | Prognose Q2 2026 | Prognose Q3 2026 |
 |---|---|---|---|
 | n.b. | 2.409 | 1.358 | 740 |
 
-**De opbouw van het tabblad is goed** en moet blijven:
-- totaal per kwartaal;
-- rekenvoorbeeld per project;
-- tabel per project.
+- Elke prognose is een **jaarprognose voor heel 2026**, geen kwartaalbedrag. Voor 2027 telt één jaarbedrag per project.
+- De jaarprognose wordt bij elke prognose **lager**. Volgens de gebruiker klopt dat niet: in zijn eigen berekening (het oude RDFO) ligt de AK-dekking hoger en zakt die niet zo.
+- De **opbouw** van het tabblad AK-dekking is goed en blijft:
+  - totaal per kwartaal;
+  - rekenvoorbeeld per project;
+  - tabel per project.
 
-**De uitkomst klopt niet.** Zoek de oorzaak, herstel de berekening en voeg op het tabblad AK-dekking een tabel toe met per project de **vastgelegde jaarprognose AK-dekking per versie**: Budget, Q1, Q2, Q3, Q4 2026, de huidige prognose en het verschil. Doe hetzelfde voor 2027 als één jaarbedrag per project.
+**Opdracht:**
+1. Zoek uit waarom de uitkomst afwijkt van de berekening van de gebruiker.
+2. Laat het bestand rekenen zoals de gebruiker het doet.
+3. Maak het verschil per project zichtbaar.
+4. Voeg de tabel "AK per project per prognose" toe (hoofdstuk 7c).
 
-## 2. Wat de gebruiker bedoelt (functionele eisen)
-1. **Elke prognose is een jaarprognose.** "Prognose Q3 2026" = de verwachte AK-dekking over **heel 2026**, gemaakt op peildatum 30-09-2026. Het is geen kwartaalbedrag.
-2. **2027 is één jaarbedrag per project** (geen kwartalen).
-3. **Berekening per project, zoals in het oude RDFO:**
-   - prognose = kosten / 1,05 × AK % van het project (factor `P_AKFactor`, standaard 1,05);
-   - AK % = eigen % op de Projectlijst (kolom I), anders het % uit de SAP-dump AK-percentages;
-   - realisatie = geboekte AK uit de grootboekdump "AK realisatie".
-4. **Jaar 2026 = geboekt t/m de peildatum + prognose voor de rest van het jaar.**
-5. **Per project terug te zien in het tabblad AK-dekking:** wat de vastgelegde AK-jaarprognose was in Budget, Q1, Q2, Q3 (en Q4), plus de huidige berekening en het verschil met de vorige prognose. De totaalregel per versie moet aansluiten op de regel AK-dekking in de RDFO.
-6. **Simpel en naloopbaar:** geen ingewikkelde formules. Per project moet je kunnen zien hoe het bedrag tot stand komt (het rekenvoorbeeld bestaat al).
-7. **Projectkeuzes:** alleen projecten met Prognose = Ja en AK-dekking = Ja op de Projectlijst tellen mee.
+## 2. Hoe de gebruiker het berekent (te bevestigen met het oude RDFO-bestand)
+- **Per project:** AK-dekking = **kosten / 1,05 × AK %**.
+  - AK % = het percentage van het project uit SAP (dump "AK-percentages"), of een eigen % op de Projectlijst.
+  - 1,05 = instelling `P_AKFactor`.
+- **Jaar 2026** = AK over de kosten van **heel 2026**.
+- **2027** = kosten 2027 / 1,05 × AK %.
+- De **geboekte AK** (grootboekdump "AK realisatie") is in het oude bestand de realisatie.
+- **Nog te verifiëren in het oude bestand:**
+  - welke kostenkolom de basis is (Kosten LJ + Kosten RJ? een kolom "Kosten 2026"? totale kosten volgens de PEW?);
+  - of de jaarprognose de geboekte AK gebruikt of alleen de kostenberekening.
 
-## 3. Waar de code staat
-Het Excel-bestand wordt **gegenereerd**. Pas nooit het .xlsm zelf aan, maar de generator.
+  Leg één project uit het oude bestand naast het nieuwe en reken het met de hand na.
 
-| Bestand | Wat |
+## 3. Wat het bestand nu doet
+Het bestand wordt gegenereerd door `tools/build_rdfo.py`. Wijzig nooit het .xlsm zelf.
+
+**Tabblad AK-dekking, functie `build_ak`.** Per project (rij vanaf 21) en per kwartaal van 2026 (kolom F–I):
+- **t/m het peilkwartaal** (`AK_PeilQ`):
+  - zijn er grootboekboekingen in 2026 (`AKR_NJaar > 0`)? Dan geldt de **geboekte AK** van dat WBS-element in dat kwartaal: `SUMIFS(AKR_Bedrag, AKR_WBS, wbs, AKR_Jaar, 2026, AKR_Kw, q)`;
+  - anders: **Kosten LJ / 1,05 × AK %**, verdeeld over de kwartalen.
+- **na het peilkwartaal:** kosten van dat kwartaal (ZPMW03 "Kosten 2026-Qq"; als die ontbreken: Kosten RJ gelijk verdeeld) / 1,05 × AK %.
+- **Jaar (kolom J)** = Q1 + Q2 + Q3 + Q4. Dit wordt per project vastgelegd als kengetal "AK-dekking FY" (doeljaar 2026).
+- **2027 (kolom S)** = Kosten 2027 / 1,05 × AK %. Wordt vastgelegd als "AK-dekking FY" doeljaar 2027.
+
+**Regio:**
+- AK die geboekt is zonder (bekend) WBS (`AK_NietToegewezen`) telt mee in het RDFO-totaal.
+- Sinds de laatste aanpassing wordt die ook vastgelegd, met WBS "REGIO". Eerder vastgelegde prognoses hebben deze regel niet.
+
+**Bronvelden** (`z_fields` / `z_derived` in `build_rdfo.py`):
+
+| Veld | Bron |
 |---|---|
-| `tools/build_rdfo.py` | Generator (openpyxl). Relevante functies: `build_ak` (tabblad AK-dekking), `build_stg_akr` (grootboekdump → STG_AKR), `build_bron_akr` (demo-dump), `z_fields`/`z_derived` (ZPMW03-velden, o.a. `M_KostQ1..4`, `M_KostYTD`, `M_KostRest`), `verw_columns` (VERW_Project: `AKYTD`, `AK0`..`AK4`), `build_calc` (CALC_Versies: RDFO-regel AK per versie), `KT` (wat er bij vastleggen per project wordt opgeslagen: `AK0` → kengetal "AK-dekking FY" doeljaar RJ, `AK1` → RJ+1). |
-| `macros/modRDFO.bas` | VBA: `RDFO_BronnenInlezen` (stap 3 AK-percentages → `Bron_AK`, stap 4 grootboekdump → `Bron_AKR`), `RDFO_PrognoseVastleggen`, `RDFO_OudePrognosesOverzetten` (leest "ak dekking 20##" uit het oude bestand, x 1.000). |
-| `tools/test_rdfo.py` | 31 tests; AK-test: "AK-dekking per kwartaal: Q1+Q2+Q3+Q4 = jaar = RDFO". |
-| `tools/release.py` | Bouwen + tests + herberekenen (LibreOffice) + template. Draaien: `python3 tools/release.py <pad>/recalc.py <werkmap>`. |
+| `M_KostYTD` | ZPMW03 "Kosten LJ" (aanname: gerealiseerd t/m peildatum) |
+| `M_KostRest` | "Kosten RJ" (aanname: restant na peildatum) |
+| `M_KostQ1..4` | "Kosten 2026-Q1..Q4" |
+| `M_KostFY1` | "Kosten 2027" |
 
-**Belangrijke namen in de werkmap:**
+**Grootboek** (`build_stg_akr`):
+- bedrag = **min** "Bedrag in eigen valuta" (AK-dekking is credit);
+- jaar = "Boekjaar";
+- kwartaal = "Boekingsperiode" / 3;
+- WBS = kolom "WBS-element", anders uit de tekst (zoekt "G.").
+
+## 4. Belangrijkste verdenking: methodeverschil "geboekt" tegenover "kosten"
+Het patroon past bij een methodeverschil: hoe later de prognose, hoe lager de uitkomst (2.409 → 1.358 → 740).
+- **Het nieuwe bestand** neemt voor de afgelopen kwartalen de **geboekte AK** uit het grootboek. Het rekent alleen de rest van het jaar met kosten × AK %.
+- **Wordt AK in het grootboek later of maar deels geboekt?** Bijvoorbeeld pas bij de jaarafsluiting, per halfjaar, of niet op alle projecten. Dan is "geboekt t/m de peildatum" veel lager dan kosten × AK % over dezelfde periode. Elke volgende prognose vervangt meer kwartalen door dat lage geboekte bedrag, en daardoor daalt het jaarbedrag.
+- **De gebruiker rekent waarschijnlijk** het hele jaar met kosten × AK %. Dan zakt het bedrag niet.
+
+**Te bouwen:** een instelling `P_AKMethode` op Invoer › 1 met twee keuzes:
+1. **"Kosten (zoals oude RDFO)"** — standaard. Jaar 2026 = (Kosten LJ + Kosten RJ) / 1,05 × AK %. De kwartaalverdeling blijft alleen ter informatie.
+2. **"Geboekt + rest"** — de huidige werking.
+
+De geboekte AK blijft bij beide methodes zichtbaar als **realisatie** (eigen kolom). Per project komt een kolom **"geboekt t/m peildatum − berekend t/m peildatum"**. Zo zie je meteen waar het grootboek achterloopt.
+
+## 5. Overige verdachten (allemaal nalopen, met het eigen bestand van de gebruiker)
+1. **Betekenis van de kostenkolommen.** Is "Kosten LJ" echt gerealiseerd 2026 t/m de peildatum, en is "Kosten RJ" het restant (niet het hele jaar)? Zo niet, dan valt de basis te laag of dubbel uit. Vergelijk per project Kosten LJ + Kosten RJ met de jaarkosten in het oude bestand.
+2. **AK % ontbreekt of is te laag.**
+   - De SAP-dump koppelt op "WBS-element". Staat het % in de dump op projectdefinitieniveau of een ander WBS-niveau, dan matcht het niet en krijgt het project 0.
+   - Controle "Projecten zonder AK %" moet 0 zijn.
+   - Wordt het % als 6 gelezen in plaats van 6%, of andersom?
+3. **Projecten tellen niet mee.** Op de Projectlijst moeten Prognose = Ja en AK-dekking = Ja staan. Nieuwe projecten komen er bij inlezen vanzelf bij (alles op Ja). Projecten die nooit zijn toegevoegd tellen niet mee.
+4. **WBS-match in het grootboek.** Boekingen op een sub-WBS (bijv. `G.900001.8.9090.01`) of zonder WBS gaan naar "zonder project". Ze tellen dan wel in de regio, maar niet per project.
+5. **Teken.** Is "Bedrag in eigen valuta" in de export al positief, dan wordt de geboekte AK negatief. Controle "Geboekte AK per saldo negatief" bestaat. Voeg een controle toe voor negatieve kosten in ZPMW03.
+6. **Overgezette prognoses** (`RDFO_OudePrognosesOverzetten`).
+   - Q1/Q2 uit het oude bestand zijn ×1.000 omgerekend uit de kolom "AK dekking 2026" → "Totaal".
+   - Controleer of de totaalkolom gelezen is (en niet Q1), en of de bedragen al in hele euro's stonden.
+7. **Aanvullende invoer** (Invoer › 3, rubriek AK-dekking) gaat altijd voor de berekening. Een ingevuld bedrag daar overschrijft de hele berekening.
+
+## 6. Diagnose in het bestand van de gebruiker (eerst doen, voordat je iets bouwt)
+1. **Vraag de gebruiker om:** de ZPMW03-export, de AK-percentages-dump, de grootboekdump AK realisatie en het oude RDFO-bestand (met de AK-berekening).
+2. **Bouw een aansluittabel per project** (tijdelijk, in Python of in een kladblad), met deze kolommen:
+
+   | Kolom | Bron |
+   |---|---|
+   | Kosten LJ, Kosten RJ, Kosten 2027 | ZPMW03 |
+   | AK % gebruikt | eigen % of SAP-dump |
+   | A = (Kosten LJ + Kosten RJ) / 1,05 × AK % | kostenmethode |
+   | B = geboekte AK 2026 | grootboek |
+   | C = AK-dekking jaar | nieuw bestand, tabblad AK-dekking, kolom J |
+   | D = AK-dekking 2026 | oude RDFO |
+   | Verschillen | A−D, C−D, B−A |
+3. **Interpreteer de uitkomst:**
+   - A ≈ D maar C < D → methodeverschil (hoofdstuk 4);
+   - A < D → kostenbasis of AK % wijkt af (punt 5.1, 5.2);
+   - grote "zonder project" → WBS-match (punt 5.4).
+4. Leg de bevinding vast in dit document voordat je iets bouwt.
+
+## 7. Te bouwen (na de diagnose)
+**a. Instelling `P_AKMethode`** (hoofdstuk 4). Standaard "Kosten (zoals oude RDFO)". Pas `build_ak` kolom F–J aan, en daarmee VERW `AK0`/`AKYTD` en het vastleggen.
+
+**b. Aansluitkolommen op AK-dekking** (ingeklapt), per project:
+- Kosten LJ, Kosten RJ;
+- AK volgens kosten;
+- AK geboekt;
+- verschil.
+
+Het rekenvoorbeeld moet de gekozen methode uitschrijven.
+
+**c. Tabel "AK per project per prognose"**, direct onder het totaal per kwartaal:
+
+| Project | WBS | Budget 2026 | Q1 2026 | Q2 2026 | Q3 2026 | Q4 2026 | Huidig 2026 | Δ vs laatste prognose | Q1–Q4 2027 | Huidig 2027 |
+|---|---|---|---|---|---|---|---|---|---|---|
+
+- Vastgelegde waarden: `SUMIFS(L_Waarde, L_WBS, wbs, L_Actief, 1, L_Versie, v, L_Versiejaar, P_VJ, L_Doeljaar, jaar, L_Kengetal, "AK-dekking FY")`.
+- Niet vastgelegd → **"n.b."**, nooit 0.
+- Totaalregel per kolom, inclusief de REGIO-regel. Het totaal moet aansluiten op de RDFO-regel AK-dekking per versie.
+- Δ rood als het negatief is.
+
+**d. Controle:** WAARSCHUWING als de geboekte AK t/m de peildatum meer dan 25% afwijkt van kosten × AK % over dezelfde periode, met de projecten in de lijst eronder.
+
+## 8. Waar de code staat
+
+| Bestand / functie | Inhoud |
+|---|---|
+| `tools/build_rdfo.py` › `build_ak` | Tabblad AK-dekking: samenvatting rij 5–9, rekenvoorbeeld rij 11–16, tabel vanaf rij 21; verborgen hulpkolommen Z–AC |
+| `build_stg_akr`, `build_bron_akr` | Grootboekdump → STG_AKR; demo-dump |
+| `z_fields`, `z_derived` | ZPMW03-velden (`M_KostYTD`, `M_KostRest`, `M_KostQ1..4`, `M_KostFY1`) |
+| `verw_columns` | VERW_Project: `AKYTD` (← AK-dekking kolom Q), `AK0` (← J), `AK1` (← S) |
+| `build_calc` | RDFO-regel AK-dekking per versie (Historie) en upload (`SUM(V_AK0) + AK_NietToegewezen`) |
+| `KT`, `build_vastleggen` | Wat er per project wordt vastgelegd, plus de REGIO-regel |
+| `PARAMS` | Instellingen op Invoer › 1 (hier `P_AKMethode` toevoegen) |
+| `macros/modRDFO.bas` | Inlezen (stap 3 AK-percentages, stap 4 grootboek), vastleggen, oude prognoses overzetten |
+| `tools/test_rdfo.py` | 32 tests; AK: "AK-dekking per kwartaal" en "AK zonder grootboek" |
+| `tools/release.py` | Alles bouwen en testen: `python3 tools/release.py <recalc.py> <werkmap>` |
+
+**Belangrijke namen:**
 
 | Naam | Betekenis |
 |---|---|
 | `P_AKFactor` | 1,05 |
-| `AK_PeilQ` | kwartaal van de peildatum |
+| `AK_PeilQ` | peilkwartaal |
 | `AKR_Bedrag`, `AKR_Jaar`, `AKR_WBS`, `AKR_Kw`, `AKR_Bekend` | grootboekregels |
-| `AK_NietToegewezen` | geboekt zonder bekend project |
-| `AKR_N` | aantal regels met bedrag |
-| `AKR_Rijen` | regels in de dump |
-| `AK_Totaal` | totaal regio, lopend jaar |
-| `V_AK0`, `V_AKYTD` | per project uit het tabblad AK-dekking |
-| `L_*` | Historie (vastgelegde regels) |
+| `AKR_NJaar` | aantal grootboekregels in het rapportagejaar |
+| `AK_NietToegewezen` | geboekt zonder project |
+| `AK_Totaal` | totaal AK-dekking regio |
+| `V_AK0`, `V_AKYTD` | per project |
+| `L_*` | Historie |
 
-## 4. Huidige berekening (stand van de code)
-**Tabblad AK-dekking, per project (rij vanaf `AK0R` = 21):**
-- **Kolom F–I (Q1–Q4 van RJ):**
-  - als het kwartaal ≤ `AK_PeilQ` en er een grootboekdump is: `SUMIFS(AKR_Bedrag, AKR_WBS, WBS, AKR_Jaar, RJ, AKR_Kw, q)`. Voor het peilkwartaal geldt `>= q`, zodat latere perioden ook meetellen;
-  - anders: `Kosten RJ-Qq / P_AKFactor × AK %`, waarbij de kosten uit de ZPMW03-kolom **"Kosten 2026-Qq"** (`M_KostQq`) komen.
-- **Kolom J:** jaar = F+G+H+I. Dit gaat naar VERW `AK0` en wordt per project vastgelegd als "AK-dekking FY" (doeljaar RJ).
-- **Kolom S/U/W/Y:** RJ+1..RJ+4 = `Kosten RJ+n / P_AKFactor × AK %`. RJ+1 wordt vastgelegd als "AK-dekking FY" doeljaar RJ+1.
+## 9. Acceptatie
+1. Met `P_AKMethode` = "Kosten": jaar 2026 per project = (Kosten LJ + Kosten RJ) / 1,05 × AK %, onafhankelijk van het grootboek. Dit geldt ook als het grootboek leeg is of achterloopt.
+2. Met de dataset van de gebruiker sluit het jaarbedrag per project aan op het oude RDFO (verschil < € 1.000 per project), of het verschil is per project verklaard.
+3. De tabel per prognose toont Budget/Q1–Q4 per project. Het totaal is gelijk aan de RDFO-regel AK-dekking per versie; "n.b." waar niet vastgelegd.
+4. Alle bestaande tests blijven groen, aangevuld met tests voor 1 en 3. De herberekening geeft 0 formulefouten (behalve de bekende `#N/A` in grafiekhulpkolommen).
 
-**RDFO-regel AK-dekking (`build_calc`):**
-- **Upload:** `SUM(V_AK0) + AK_NietToegewezen`.
-- **Vastgelegde versies (Budget/Q1–Q4):** `SUMIFS(L_Waarde, …, L_Kengetal, "AK-dekking FY")`, alleen de som van de **projectregels**.
-- Aanvullende invoer (Invoer › 3, rubriek AK-dekking) gaat altijd voor.
-
-**Grootboek (`build_stg_akr`):**
-- bedrag = **−** "Bedrag in eigen valuta": AK-dekking is credit, wordt positief;
-- jaar = "Boekjaar";
-- WBS = kolom "WBS-element", anders uit de tekst (zoekt "G.");
-- kwartaal = ROUNDUP(Boekingsperiode/3), met periode 13–16 als Q4.
-
-## 5a. Al hersteld (door Claude, test 'AK zonder grootboek' groen)
-- **Oorzaak 1:** t/m de peildatum geldt zonder geboekte AK in het rapportagejaar: `Kosten LJ / P_AKFactor × AK %`, verdeeld naar de kwartaalkosten (anders gelijk). Kolommen M–P op AK-dekking tonen de gebruikte kostenbasis. De verborgen hulpkolommen Z–AC bevatten de ruwe kosten. `AKR_NJaar` = aantal grootboekregels in het rapportagejaar.
-- **Oorzaak 2:** na de peildatum geldt zonder kwartaalkosten: `Kosten RJ` (restant), gelijk verdeeld over de resterende kwartalen.
-- **Oorzaak 3:** bij vastleggen komt een extra Concept-regel met WBS "REGIO", kengetal "AK-dekking FY", waarde `AK_NietToegewezen`. Daardoor sluiten vastgelegde versies aan op de upload. Let op: al vastgelegde versies hebben deze regel niet.
-- **Nog open:** oorzaak 4 t/m 7 en de nieuwe tabel per prognose (hoofdstuk 6).
-
-## 5. Vermoedelijke oorzaken van "veel te laag" (eerst uitzoeken, in deze volgorde)
-1. **Terugval naar kwartaalkosten geeft nul voor afgelopen kwartalen.**
-   - Zonder grootboekdump (of als `Boekjaar`/`Bedrag` niet gevonden wordt, of er geen regels van 2026 zijn) rekent het bestand de afgelopen kwartalen met "Kosten 2026-Q1..Q3".
-   - In een ZPMW03-export op peildatum Q3 zijn dat vaak **restant/plan-kolommen met 0** voor voorbije kwartalen. De gerealiseerde kosten staan in **"Kosten LJ"**.
-   - Gevolg: de AK over de afgelopen kwartalen valt weg, en hoe later in het jaar, hoe lager de uitkomst. Dat past bij 2.409 → 1.358 → 740.
-   - In een eerdere versie werd hier `Kosten LJ / 1,05 × AK %` gebruikt.
-   - **Herstel:** zonder geboekte AK geldt voor t/m de peildatum `Kosten LJ / P_AKFactor × AK %`, verdeeld naar rato van de kwartaalkosten of volledig in het peilkwartaal.
-2. **Ontbrekende kwartaalverdeling van de restkosten.**
-   - Heeft de export geen kolommen "Kosten 2026-Qq" (alleen "Kosten 2026"), dan is de prognose voor de rest van het jaar 0.
-   - **Herstel:** rest van het jaar = `Kosten RJ` (= `M_KostRest`, restant na de peildatum) / factor × AK %. Gebruik de kwartaalkolommen alleen voor de verdeling over de kwartalen, en val terug op gelijk verdelen over de resterende kwartalen.
-3. **Vastgelegde versies missen "AK geboekt zonder project".**
-   - De upload telt `AK_NietToegewezen` mee, maar bij vastleggen worden alleen projectregels opgeslagen. Vastgelegde Q1/Q2/Q3 zijn daardoor lager dan de upload van hetzelfde moment.
-   - **Herstel:** bij vastleggen een regel op regioniveau opslaan (WBS leeg of "REGIO", kengetal "AK-dekking FY"), die CALC meetelt. Alternatief: boekingen op sub-WBS'en toewijzen aan het project (zie punt 4).
-4. **WBS in het grootboek matcht niet.**
-   - Boekingen op een sub-WBS (bijv. `G.900001.8.9090.01`) of met een afwijkende notatie matchen niet met de Projectlijst. Dan komen ze bij "zonder project", en dus niet in de vastgelegde projectbedragen.
-   - **Herstel:** koppelen op het begin van het WBS-element (projectdeel), of op de projectdefinitie.
-5. **Teken.**
-   - Het bestand draait het teken om (credit → positief). Is de export al positief, dan wordt AK negatief en trekt die de som omlaag. Hetzelfde geldt voor kosten: zijn kosten in ZPMW03 negatief, dan wordt de AK-prognose negatief.
-   - Er bestaat een controle "Geboekte AK per saldo negatief". Voeg er een toe voor negatieve kosten.
-6. **AK % ontbreekt.** Projecten zonder eigen % en zonder regel in de SAP-dump (match op WBS-element) krijgen geen AK. Controle "Projecten zonder AK %" bestaat (WAARSCHUWING).
-7. **Andere methode in overgezette versies.**
-   - Q1/Q2 kunnen met `RDFO_OudePrognosesOverzetten` uit het oude bestand komen ("AK dekking 2026"-totaalkolom, x 1.000). Dat is de oude methode.
-   - Controleer of de waarden in duizenden goed zijn omgerekend (x 1.000), en of de totaalkolom gelezen is (en niet één kwartaal).
-
-**Werkwijze:** reproduceer met de demo (`RDFO_prototype.xlsm`). Haal daarvoor de grootboekdump weg en zet de kwartaalkosten van Q1–Q3 op 0: de AK zakt dan precies zoals bij de gebruiker. Leg per oorzaak in een test vast dat het herstel werkt.
-
-## 6. Nieuwe tabel: AK-dekking per project per prognose
-Plaats deze op het tabblad AK-dekking, direct onder het totaal per kwartaal. Het rekenvoorbeeld en de kwartaaltabel blijven, eventueel ingeklapt.
-
-| Project | WBS | Budget 2026 | Q1 2026 | Q2 2026 | Q3 2026 | Q4 2026 | Huidig 2026 | Δ huidig vs laatste vastgelegde | Q1–Q4 2027 (vastgelegd) | Huidig 2027 |
-|---|---|---|---|---|---|---|---|---|---|---|
-
-- **Vastgelegde kolommen:**
-  - `SUMIFS(L_Waarde, L_WBS, wbs, L_Actief, 1, L_Versie, v, L_Versiejaar, P_VJ, L_Doeljaar, RJ (of RJ+1), L_Kengetal, "AK-dekking FY")`;
-  - niet vastgelegd → **"n.b."** (nooit 0);
-  - Budget heeft versiejaar = RJ (zie de bestaande budgetkolom in `build_ak`).
-- **Huidig:** kolom J (2026) en kolom S (2027) van de kwartaaltabel.
-- **Totaalregel per kolom**, plus een regel "geboekt zonder project" (zie oorzaak 3). Het totaal moet gelijk zijn aan de RDFO-regel AK-dekking per versie.
-- **Opmaak:** Δ rood als het negatief is. Alleen projecten met AK = Ja tonen.
-
-## 7. Acceptatie (tests toevoegen in `tools/test_rdfo.py`)
-1. **Zonder grootboekdump:** jaar 2026 per project = Kosten LJ / 1,05 × AK % + Kosten RJ / 1,05 × AK %, dus nooit lager doordat de kwartaalkolommen 0 zijn.
-2. **Export zonder kolommen "Kosten 2026-Qq":** jaarbedrag gelijk aan punt 1.
-3. **Met grootboekdump:** jaar = geboekt (incl. zonder project) + rest/1,05 × AK %. De vastgelegde versie geeft hetzelfde totaal als de upload van dat moment.
-4. **Tabel per prognose:** totaal per versie = RDFO-regel AK-dekking per versie. Een niet-vastgelegde versie toont "n.b.".
-5. Alle bestaande 31 tests blijven groen, en de herberekening geeft 0 formulefouten (behalve de bekende `#N/A` in grafiekhulpkolommen).
-
-## 8. Randvoorwaarden
-- Nederlands, korte teksten, voor een controller zonder VBA-kennis. Huisstijl geel/donkerblauw.
-- Historie is onveranderlijk. Nieuwe kengetallen of regelsoorten mogen wel worden toegevoegd.
-- Niets stil op 0: ontbrekend = "n.b.", met een melding op Controle.
+## 10. Randvoorwaarden
+- Nederlands, kort, voor een controller zonder VBA-kennis. Huisstijl geel/donkerblauw.
+- Historie is onveranderlijk; al vastgelegde prognoses worden niet herrekend.
+- Niets stil op 0: ontbrekend = "n.b." plus een melding op Controle.
 - Na afloop:
-  - `docs_content.py` bijwerken: FAQ "Hoe is de AK-dekking berekend?" en de mapping-regel "RDFO › AK-dekking";
+  - FAQ "Hoe is de AK-dekking berekend?" bijwerken, plus de mappingregel "RDFO › AK-dekking" in `tools/docs_content.py`;
   - README en `docs/Overdracht_Copilot.md` bijwerken;
   - `release.py` draaien;
   - alleen `RDFO_template.xlsm` opleveren.
-- De macro's zijn alleen buiten Excel gecontroleerd (syntax/oletools). Test de knoppen Bronnen inlezen en Prognose vastleggen in Excel zelf.
+- De macro's zijn alleen buiten Excel gecontroleerd. Test Bronnen inlezen en Prognose vastleggen in Excel zelf.
+
+## 11. Vragen aan de gebruiker (eerst stellen)
+1. Hoe reken je AK-dekking 2026 in je eigen bestand: over welke kostenkolom, en tel je de geboekte AK mee of alleen kosten × AK %?
+2. Wanneer wordt AK in het grootboek geboekt: maandelijks, per kwartaal of bij de jaarafsluiting?
+3. Kun je de ZPMW03-export, de AK-percentages-dump, de grootboekdump en je oude RDFO met de AK-berekening aanleveren (eventueel geanonimiseerd)?
+4. Welk bedrag verwacht je ongeveer voor AK-dekking 2026 in Q3?
