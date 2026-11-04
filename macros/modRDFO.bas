@@ -248,14 +248,14 @@ Public Sub RDFO_ProjectenToevoegen()
                     .Offset(0, 2).Value = naam
                 End If
                 .Offset(0, 5).Value = "Opstal"
-                .Offset(0, 6).Value = "Nee"
                 .Offset(0, 9).Value = "Nee"
+                Nm("PK_Keuzes").Rows(vrij).Value = Array("Ja", "Nee", "Ja", "Ja")   ' prognose, woningen, AK, PowerPoint
                 m = CVErr(xlErrNA)
                 If eS > 0 Then m = Application.Match(wbs, wsE.Columns(eS), 0)
                 If Not IsError(m) Then
                     If eA > 0 Then .Offset(0, 3).Value = wsE.Cells(m, eA).Value
                     If eH > 0 Then .Offset(0, 4).Value = wsE.Cells(m, eH).Value
-                    .Offset(0, 6).Value = "Ja"
+                    Nm("PK_Woningen").Cells(vrij, 1).Value = "Ja"
                 End If
                 .Resize(1, 19).Interior.Color = RGB(255, 235, 156)
             End With
@@ -272,7 +272,7 @@ Public Sub RDFO_ProjectenToevoegen()
         eerste.Select
         MsgBox n & " nieuw(e) project(en) toegevoegd aan Invoer › 2 (oranje gemarkeerd)." & vbCr & vbCr & _
                "Controleer per regel:" & vbCr & "   - Projectnaam" & vbCr & "   - Type: Opstal of Deelneming (standaard Opstal)" & vbCr & _
-               "   - Woningen meetellen (Ja als het project in de Woningetalage staat)", vbInformation, "Nieuwe projecten"
+               "   - Op het tabblad Projectkeuze: wat meetelt (prognose, woningen, AK, PowerPoint)", vbInformation, "Nieuwe projecten"
     End If
 End Sub
 
@@ -425,7 +425,7 @@ Public Sub RDFO_LeegMaken()
     If MsgBox("Hiermee maak je een leeg format. Dit wordt gewist:" & vbCr & _
               "   - ingelezen ZPMW03, Woningetalage, AK-percentages en AK-realisatie" & vbCr & _
               "   - projectlijst (Invoer › 2), aanvullende posten, toelichtingen, koperstype," & vbCr & _
-              "     gebieden, funnel en target, DAEB, kansen en risico's, reserves" & vbCr & _
+              "     gebieden, funnel en target, DAEB, projectkeuze en reserves, kansen en risico's" & vbCr & _
               "   - stoplicht- en scenario-invoer (tabblad Bandbreedte)" & vbCr & _
               "   - Historie: alle vastgelegde prognoses en het importlog" & vbCr & vbCr & _
               "Instellingen (regio, uitgangspunten stoplicht) blijven staan." & vbCr & _
@@ -451,20 +451,18 @@ Public Sub RDFO_LeegMaken()
         .Rows("2:" & .Rows.Count).ClearContents
     End With
     ThisWorkbook.Worksheets("Projectdetail").Range("C4").Value = ""
-    With Nm("Map_WBS").Resize(, 19)
-        .ClearContents
-        .Interior.Color = Nm("P_Regio").Interior.Color
-    End With
-    With Nm("Map_AKMee")
-        .ClearContents
-        .Interior.Color = Nm("P_Regio").Interior.Color
-    End With
+    ' projectlijst: alleen de invoerkolommen (G, K en U zijn verwijzingen naar Projectkeuze)
+    Nm("Map_WBS").Resize(, 6).ClearContents          ' A..F
+    Nm("Map_Segment").Resize(, 3).ClearContents      ' H..J
+    Nm("Map_WBS").Offset(0, 11).Resize(, 8).ClearContents   ' L..S
+    Nm("PK_Keuzes").ClearContents
+    Nm("PK_AKEigen").ClearContents
+    Nm("RS_Invoer").ClearContents
     Nm("Gebieden").ClearContents
     Nm("MJ_Funnel").ClearContents
     Nm("MJ_Target").ClearContents
     Nm("DB_Omzet").Resize(, 7).ClearContents
     Nm("KR_Project").Resize(, 7).ClearContents
-    Nm("RS_Project").Resize(, 6).ClearContents
     Nm("A_Doel").Resize(, 12).ClearContents
     Nm("T_Key").Offset(0, -8).Resize(, 5).ClearContents
     Nm("T_Txt").Resize(, 3).ClearContents

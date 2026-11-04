@@ -48,6 +48,9 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 | Projectdetail | Eén project in detail. | Project kiezen bovenaan. |
 | Woningen | Verkopen per maand en kwartaal, per project per kwartaal (dit en volgend jaar), per versie, per productsegment en koperstype. | Alleen lezen. |
 | Bandbreedte | Bovenaan de vijf scenario's per jaar met grafiek. Daaronder per project het stoplicht en de scenario's. | Gele cellen invullen. |
+| Kansen en risico's | Invoer per kans of risico (project, jaar, kwartaal, bedrag) en een grafiek per project; staat ook in de PowerPoint. | Gele cellen invullen. |
+| Projectkeuze | Per project: telt het mee voor prognose, woningaantallen, AK-dekking en de PowerPoint? Plus eigen AK % en de reserves. | Ja/Nee kiezen; leeg = Ja. |
+| AK-dekking | Per project de hele AK-berekening: AK %, kosten per kwartaal, geboekte AK, prognose rest jaar, FY, budget en volgende jaren. | Alleen lezen; om na te lopen. |
 | Controle | Alle controles. Rood = eerst oplossen. | Na elke keer inlezen bekijken. |
 | Invoer | Instellingen, projectlijst en alles wat niet in SAP staat. | Gele cellen invullen. |
 | Handleiding | Deze uitleg. |  |
@@ -77,8 +80,6 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 | 7. Gebieden | De lijst met gebieden. Die kun je per project kiezen. |
 | 8. Funnel en target | Per jaar de omzet uit de acquisitiefunnel en de target. |
 | 9. DAEB-omzet | Per project de DAEB-omzet en welk deel in welk jaar valt (samen 100%). |
-| 10. Kansen en risico's | Per kans of risico een regel: kies het project, vul omschrijving, jaar en kwartaal, soort en bedrag in. Bijvoorbeeld: 2026 Q4, project X, hogere koopsom, € 1.500.000 (bedrag altijd positief; een risico telt als min). |
-| 11. Reserves | Per project de reserves en hoe ver het project klaar is. Het bestand rekent het effect per jaar uit. |
 
 ## Een vastgelegde prognose corrigeren
 
@@ -98,6 +99,7 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 
 | Probleem | Oplossing |
 |---|---|
+| Hoe is de AK-dekking van een project berekend? | Kijk op het tabblad AK-dekking. Per project zie je het AK %, de kosten per kwartaal, de geboekte AK t/m de peildatum (grootboekdump), de prognose voor de rest van het jaar (kosten na de peildatum / 1,05 x AK %), het totaal, het budget en de volgende jaren. |
 | Hoe krijg ik mijn eerdere prognoses (Budget, Q1, Q2, Q3) erin? | Eenmalig: klik op Start op 'Oude prognoses overzetten' en kies je oude RDFO-bestand. Het bestand leest elk tabblad met Budget, Q1, Q2, Q3 of Q4 in de naam (bijvoorbeeld 'Q1' of 'Prognose Q1') (omzet, BOR en AK-dekking per WBS, in EUR x 1.000) en zet ze als vastgestelde versies in de Historie. Een versie die er al in staat, wordt overgeslagen. |
 | Ik wil met een leeg bestand beginnen | Gebruik RDFO_template.xlsm (al leeg), of klik op Start op 'Bestand leegmaken' en typ LEEG. Daarna: Bronnen inlezen › Nieuwe projecten toevoegen › Type en gebied kiezen. |
 | Na inlezen is alles leeg of staat 'Nieuwe projecten: … FOUT' | De WBS-elementen uit je export staan nog niet in de projectlijst; alleen projecten in Invoer › 2 tellen mee. Klik op 'Nieuwe projecten toevoegen' en controleer per regel Type en Woningen meetellen. |
