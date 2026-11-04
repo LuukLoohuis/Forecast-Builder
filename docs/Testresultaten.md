@@ -4,7 +4,7 @@ Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zo
 
 | Nr | Test | Uitkomst / bewijs | Resultaat |
 |---|---|---|---|
-| 1 | Basis: werkmap rekent zonder formulefouten en controles | 225177 formules, 0 fouten; Controle: 0 FOUT, 0 WAARSCHUWING | GESLAAGD |
+| 1 | Basis: werkmap rekent zonder formulefouten en controles | 227063 formules, 0 fouten; Controle: 0 FOUT, 0 WAARSCHUWING | GESLAAGD |
 | 2 | RDFO-versiekolommen = fictieve historie; upload = bron (onafhankelijk nagerekend) | Budget/Q1/Q2/Q3/upload (EUR x 1.000): 118,525.4 / 116,754.0 / 112,768.2 / 114,096.8 / 114,096.8 | GESLAAGD |
 | 3 | Q3-snapshot sluit aan op de bronbestanden | Q3 vastgelegd 114,096.8 = upload 114,096.8; som \|verschil\| alle 318 conceptregels = 0 | GESLAAGD |
 | 4 | Ontbrekende Q4 en ontbrekende historische actuals niet als nul | Q4-kolom toont 'n.b.'; realisatie YTD Q3 = 74,162.9; vastgelegde versies zonder realisatie (blijven n.b.): 3 | GESLAAGD |
@@ -34,4 +34,4 @@ Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zo
 | 28 | Woningen per productsegment en koperstype tellen op tot het totaal; gebieden tellen op tot de RDFO | segmenten 360 = koperstypes 360 = verkopen 360; totaal gebieden 114,096.8 = RDFO 114,096.8 | GESLAAGD |
 | 29 | Verdeelfout in de woningverdeling wordt als FOUT gemeld | Controle: 1 FOUT (basis 0) | GESLAAGD |
 | 30 | Lege templateversie: geen data, geen historie, geen formulefouten | formulefouten 0; Controle 0 FOUT; projectlijst, Historie en bronnen leeg | GESLAAGD |
-| 31 | Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's | 32 VBA-modules (oletools); 13 knoppen → ['RDFO_BronnenInlezen', 'RDFO_ControleWissel', 'RDFO_LeegMaken', 'RDFO_MaakPowerPoint', 'RDFO_OudePrognosesOverzetten', 'RDFO_PrognoseVastleggen', 'RDFO_ProjectenToevoegen', 'RDFO_ToonRekenbladen']. Let op: uitvoering in Excel zelf is hier niet getest. | GESLAAGD |
+| 31 | Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's | 32 VBA-modules (oletools); 9 knoppen → ['RDFO_BronnenInlezen', 'RDFO_ControleWissel', 'RDFO_LeegMaken', 'RDFO_MaakPowerPoint', 'RDFO_OudePrognosesOverzetten', 'RDFO_PrognoseVastleggen', 'RDFO_ProjectenToevoegen', 'RDFO_ToonRekenbladen']. Let op: uitvoering in Excel zelf is hier niet getest. | GESLAAGD |

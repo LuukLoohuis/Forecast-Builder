@@ -18,9 +18,9 @@ Kijk bovenaan het tabblad Controle: staat er een FOUT? Los die eerst op. Nieuwe 
 
 *Let op:* Achter elke controle staat wat je moet doen. Onderaan staan de lijsten met nieuwe, verdwenen en verliesgevende projecten.
 
-**3. Aanvullen** — Tabbladen Bandbreedte en Invoer
+**3. Aanvullen** — Tabbladen Projectlijst, Invoer en Kansen en risico's
 
-Vul de gele cellen in: op het tabblad Bandbreedte het stoplicht (vergunning, netcongestie) en eventueel kans %; op Invoer wat niet in SAP staat (taakstellingen, toelichtingen, kansen en risico's, DAEB, reserves).
+Vul de gele cellen in: op de Projectlijst per project het stoplicht (vergunning, netcongestie), eventueel kans % en de reserves; op Invoer wat niet in SAP staat (taakstellingen, toelichtingen, DAEB); kansen en risico's op hun eigen tabblad.
 
 *Let op:* Niet ingevuld? Dan staat er 'n.b.' (niet bekend). Het bestand vult nooit stiekem een nul in.
 
@@ -46,10 +46,10 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 | Outlook | De 4 jaren na het lopende jaar: omzet (ook DAEB, funnel, target), BOR, AK-dekking, kansen en risico's, reserves, bandbreedte, woningen, orderintake. | Alleen lezen. Basis voor het budget. |
 | Projecten | Per project: alle versies, realisatie, to go, BOR, marge en stoplicht. | Filteren met de pijltjes. |
 | Woningen | Verkopen per maand en kwartaal, per project per kwartaal (dit en volgend jaar), per versie, per productsegment en koperstype. | Alleen lezen. |
-| Bandbreedte | Bovenaan de vijf scenario's per jaar met grafiek. Daaronder per project het stoplicht en de scenario's. | Gele cellen invullen. |
+| Bandbreedte | Bovenaan de vijf scenario's per jaar met grafiek. Daaronder per project het stoplicht en de scenario's. | Alleen instellingen bovenaan; de invoer per project staat op de Projectlijst. |
 | Kansen en risico's | Invoer per kans of risico (project, jaar, kwartaal, bedrag) en een grafiek per project; staat ook in de PowerPoint. | Gele cellen invullen. |
 | Reserves | Commerciële reserve, operationele reserve en nazorg: totaal per soort en per project, met de vrijval per jaar. Onderaan het RDFO staat het totaal (in- en uitklapbaar); in de PowerPoint een eigen dia. | Alleen lezen; invullen op de Projectlijst (kolommen L–Q). |
-| Projectlijst | Alle projecten op één plek: WBS, naam, type, gebied en 4 keuzes (prognose, woningen, AK-dekking, PowerPoint). Plus eigen AK % en reserves. | Nieuwe projecten komen er bij inlezen vanzelf bij; zelf toevoegen kan onderaan. Ja/Nee kiezen. |
+| Projectlijst | Alle projecten op één plek: WBS, naam, type, gebied en 4 keuzes (prognose, woningen, AK-dekking, PowerPoint). Plus eigen AK %, reserves, stoplicht en scenario; details (projectdefinitie, strapo, woningverdeling) onder de +. | Nieuwe projecten komen er bij inlezen vanzelf bij; zelf toevoegen kan onderaan. Ja/Nee kiezen. |
 | AK-dekking | Bovenaan het totaal per kwartaal (projecten + geboekt zonder project = regio), daarna een rekenvoorbeeld voor één project en de tabel per project per kwartaal. | Project kiezen voor het rekenvoorbeeld; verder alleen lezen. |
 | Controle | Bovenaan: x oplossen · y nakijken · z in orde. Alleen FOUT en WAARSCHUWING worden getoond, met in kolom H wat je moet doen. | Na elke keer inlezen bekijken; x bij akkoord. |
 | Invoer | Instellingen, projectlijst en alles wat niet in SAP staat. | Gele cellen invullen. |
@@ -90,7 +90,7 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 ## Spelregels
 
 - Wijzig nooit iets in de Historie. Alleen de knop 'Prognose vastleggen' voegt regels toe.
-- Voeg nieuwe projecten altijd onderaan de Projectlijst toe (of met de knop). Niet sorteren of tussenvoegen: het stoplicht hoort bij de regel.
+- Voeg nieuwe projecten altijd onderaan de Projectlijst toe (of met de knop). Niet sorteren of tussenvoegen: Historie en kansen koppelen op WBS, maar de lijst zelf blijft in volgorde.
 - Bedragen in de bron zijn hele euro's; de rapportage toont EUR x 1.000 of EUR mln (instelbaar).
 - Omzet en resultaat zijn positief, verlies is negatief (rood). Er wordt nooit een absolute waarde genomen.
 - Woningaantallen en bedragen zijn al op aandeelbasis; het aandeel wordt niet nog eens toegepast.
@@ -114,7 +114,7 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 | Een oranje subtotaal in de RDFO | Minstens één onderliggende post is n.b.; het subtotaal is dus onvolledig. |
 | Nieuw rapportagejaar | Zet in Invoer › 1 het rapportagejaar, het versiejaar van de upload en het versiejaar in de rapporten op het nieuwe jaar. Kolomkoppen schuiven mee. |
 | Ik wil de rekenbladen of de Historie zien | Klik op Start op 'Toon / verberg rekenbladen'. Ook Historie (alle vastgezette prognoses) staat daar. |
-| Waar is het tabblad Stoplicht? | Het stoplicht staat nu op het tabblad Bandbreedte, samen met de scenario's per project. |
+| Waar vul ik het stoplicht in? | Op de Projectlijst, groep 'Stoplicht en scenario' (kolommen AG–AL): verkocht % handmatig, omgevingsvergunning, netcongestie, toelichting, kans % en 0-100. De lichten zie je op Projecten, Bandbreedte, het Dashboard en in de PowerPoint. |
 | Excel meldt bij openen dat inhoud is hersteld en de knoppen werken niet | Importeer de macro's handmatig: Alt+F11 › Bestand › Bestand importeren › macros/modRDFO.bas. Klik daarna met rechts op elke knop › Macro toewijzen. |
 
 ## Waarom zo gebouwd

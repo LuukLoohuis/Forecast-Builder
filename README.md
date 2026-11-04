@@ -17,7 +17,7 @@ Open het bestand en klik op *Inhoud inschakelen*.
 | Bestand leegmaken | Wist bronnen, projectlijst, invoer, stoplicht en Historie. Instellingen blijven staan. |
 | Toon / verberg rekenbladen | Toont of verbergt de bron- en rekenbladen en de Historie. |
 
-Er zijn 14 zichtbare tabbladen: Start, Dashboard, RDFO, Projecten, Woningen, Outlook, Bandbreedte, Kansen en risico's, Reserves, Projectlijst, AK-dekking, Controle, Invoer en Handleiding. Projecten voeg je toe op de Projectlijst; Projectdetail is verborgen (knop Toon / verberg rekenbladen).
+Er zijn 15 zichtbare tabbladen: Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook, Bandbreedte, Kansen en risico's, Reserves, Projectlijst, AK-dekking, Controle, Invoer en Handleiding. Alle invoer per project (keuzes, details, AK %, reserves, stoplicht en scenario) staat op de Projectlijst; Invoer › 2 en de projecttabel op Bandbreedte verwijzen ernaar.
 - **Bandbreedte** bevat het stoplicht en vijf scenario's per jaar: optimistisch, basis, afslag, gewogen en 0-100.
 - **Outlook** toont per jaar ook DAEB, acquisitiefunnel, target, AK-dekking, kansen en risico's, reserves en de bandbreedte.
 - **RDFO** toont onderaan het overzicht per gebied.

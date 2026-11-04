@@ -1,6 +1,19 @@
 # Voorstel vereenvoudiging RDFO
 
-Dit voorstel volgt `docs/Prompt_vereenvoudiging.md`. Er is nog niets gebouwd.
+Dit voorstel volgt `docs/Prompt_vereenvoudiging.md`.
+
+**Status (uitgevoerd):**
+- **Uitgevoerd:**
+  - nr 1–5;
+  - nr 8 (443 → 335 namen; ongebruikte namen worden voortaan bij elke build automatisch opgeruimd);
+  - nr 10 (demo-opties verborgen in de template);
+  - nr 13 (STG_AKR rekent alleen de regels die er zijn).
+- **Op verzoek gewijzigd:** Projectdetail blijft en is weer zichtbaar (nr 6 vervalt).
+- **Bewust niet gedaan:** nr 7 (PPT en Dias samenvoegen). Weinig winst voor de gebruiker en risico voor de PowerPoint-macro, die buiten Excel niet te testen is.
+- **Geen actie nodig:**
+  - nr 9: op de Outlook staan alleen 2 regels bandbreedte (laagste/hoogste), geen dubbele tabel;
+  - nr 11, 12 en 14: blijven zoals ze zijn.
+- **Extra:** vier AK-controles (grootboekdump: ontbrekende kolommen, geen boekingen in het jaar, negatief saldo, geen boekingsperiode); projecten zonder AK % is nu een WAARSCHUWING.
 
 ## Inventarisatie (huidige stand)
 - **Tabbladen:** 14 zichtbaar, 16 verborgen.

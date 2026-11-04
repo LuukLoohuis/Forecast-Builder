@@ -67,7 +67,7 @@ RUBRIEKEN = ["Taakstelling omzet", "Interne eliminaties", "IFRS-eliminaties", "A
 
 SHEETS = [  # (naam, tabkleur, zichtbaar)
     ("Start", NAVY, True), ("Dashboard", YELLOW, True), ("RDFO", YELLOW, True), ("Projecten", YELLOW, True),
-    ("Projectdetail", YELLOW, False), ("Woningen", YELLOW, True), ("Outlook", YELLOW, True),
+    ("Projectdetail", YELLOW, True), ("Woningen", YELLOW, True), ("Outlook", YELLOW, True),
     ("Bandbreedte", YELLOW, True), ("Kansen en risico's", YELLOW, True), ("Reserves", YELLOW, True),
     ("Projectlijst", "1F4E9A", True),
     ("AK-dekking", "1F4E9A", True), ("Controle", RED, True), ("Invoer", "1F4E9A", True), ("Historie", GREEN, False),
@@ -461,6 +461,8 @@ PARAM_INPUTS = {"P_Regio", "P_RJ", "P_Peildatum", "P_UploadVJ", "P_UploadVersie"
                 "P_ImportID", "P_BronZ", "P_BronE", "P_Importdatum", "P_RegelsZ", "P_RegelsE", "P_StatusVastleg",
                 "P_ToelCorrectie", "P_Tol"}
 PROW = {}
+PL_EXTRA = {}  # demo: details per regel (voor Projectlijst)
+PL_MIRROR = {"B": "U", "E": "V", "H": "W", "J": "X", **{"LMNOPQR"[j]: col(25 + j) for j in range(7)}, "S": "AF"}
 PL_DEMO = {}   # demo: WBS, naam, type, gebied per regel (voor Projectlijst)
 PK_DEMO = {}   # demo: woningen meetellen per mappingregel (voor Projectlijst)
 
@@ -534,17 +536,21 @@ def build_invoer(wb, ws, hist):
         ws[f"F{r}"] = f'=IF(Projectlijst!$C${pk}="","",Projectlijst!$C${pk})'
         ws[f"I{r}"] = f'=IF(Projectlijst!$D${pk}="","",Projectlijst!$D${pk})'
         PL_DEMO[r - MAP0] = (row[0], row[2], row[5], extra[0]) if demo else None
+        if demo:
+            PL_EXTRA[r - MAP0] = {"U": row[1], "V": row[4], "W": row[7], "X": extra[1],
+                                  **{col(25 + j): seg[j] for j in range(len(PRODSEG))}, "AF": extra[-1]}
+        for ic, pc in PL_MIRROR.items():
+            ws[f"{ic}{r}"] = f'=IF(Projectlijst!${pc}${pk}="","",Projectlijst!${pc}${pk})'
         ws[f"G{r}"] = f'=IF(A{r}="","",IF(Projectlijst!$F${pk}="Nee","Nee","Ja"))'
         ws[f"K{r}"] = f'=IF(Projectlijst!$I${pk}="","",Projectlijst!$I${pk})'
         ws[f"U{r}"] = f'=IF(A{r}="","",IF(Projectlijst!$G${pk}="Nee","Nee","Ja"))'
-        for c_ in "ACFGIKU":
+        for c_ in list("ACFGIKUDBEHJLMNOPQRS"):
             ws[f"{c_}{r}"].fill = PatternFill(fill_type=None)
             helper_style(ws[f"{c_}{r}"])
         ws[f"K{r}"].number_format = "0.0%"
         segr = f"L{r}:R{r}"
         ws[f"T{r}"] = f'=IF(A{r}="","",IF(COUNT({segr})=0,"leeg",IF(ABS(SUM({segr})-1)<0.001,"OK","Verdeelfout")))'
         helper_style(ws[f"T{r}"])
-    dv_list(ws, f"J{MAP0}:J{MAP1}", '"Ja,Nee"')
     put(ws, f"V{MAP0-3}", "AK-kolommen in de SAP-dump:", color=GREY, size=8)
     ws[f"W{MAP0-3}"] = '=IFERROR(MATCH("WBS-element*",Bron_AK!$1:$1,0),0)'
     ws[f"X{MAP0-3}"] = '=IFERROR(MATCH("AK %*",Bron_AK!$1:$1,0),0)'
@@ -2596,7 +2602,7 @@ def build_stoplicht(wb, ws):
         put(ws, f"A{rr}", lab)
         input_style(put(ws, f"D{rr}", v, fmt=f), f)
         add_name(wb, nm, f"Bandbreedte!$D${rr}")
-    put(ws, "A19", "Per project kun je de kans % en '0-100' hieronder zelf invullen; leeg = kans uit ZPMW03 en 0-100 volgens de grens.",
+    put(ws, "A19", "Stoplicht- en scenario-invoer per project vul je in op de Projectlijst (kolommen AG–AL); hier zie je het resultaat. Kans leeg = kans uit ZPMW03.",
         color=GREY, italic=True, size=8)
     put(ws, "A20", "Projecttabel hieronder toont jaar:", bold=True)
     ws["D20"] = "=P_RJ+1"
@@ -2605,8 +2611,8 @@ def build_stoplicht(wb, ws):
     dv_list(ws, "D20", "L_ScenJaren")
 
     # ---- projecttabel
-    groups = [(1, 4, "PROJECT", NAVY), (5, 8, "STOPLICHT: INVOER", "C9A000"), (9, 11, "STOPLICHT", NAVY),
-              (12, 13, "SCENARIO: INVOER", "C9A000"), (14, 18, '="OMZET "&SC_Jaar&" PER SCENARIO ("&P_Eenheid&")"', NAVY)]
+    groups = [(1, 4, "PROJECT", NAVY), (5, 8, "STOPLICHT: INVOER (Projectlijst)", GREY), (9, 11, "STOPLICHT", NAVY),
+              (12, 13, "SCENARIO (Projectlijst)", GREY), (14, 18, '="OMZET "&SC_Jaar&" PER SCENARIO ("&P_Eenheid&")"', NAVY)]
     for c1, c2, t, colr in groups:
         ws.merge_cells(start_row=SL0 - 2, start_column=c1, end_row=SL0 - 2, end_column=c2)
         cell = ws.cell(row=SL0 - 2, column=c1, value=t)
@@ -2618,7 +2624,7 @@ def build_stoplicht(wb, ws):
                             "Net-\ncongestie", "Toelichting", "Verkoop", "Omgevings-\nvergunning", "Net-\ncongestie",
                             "Kans %\n(leeg = bron)", "0-100\nJa/Nee", "Optimistisch", "Basis", "Afslag", "Gewogen", "0-100"], height=34)
     for c in (5, 6, 7, 8, 12, 13):
-        ws.cell(row=SL0 - 1, column=c).fill = fill("8A6A00")
+        ws.cell(row=SL0 - 1, column=c).fill = fill(GREY)
     yk = "(SC_Jaar-P_RJ)"
     for r in range(SL0, SL1 + 1):
         i = r - SL0
@@ -2628,17 +2634,12 @@ def build_stoplicht(wb, ws):
         ws[f"B{r}"] = f'=IF({a}="","",VERW_Project!$D{vr})'
         ws[f"C{r}"] = f'=IF({a}="","",VERW_Project!${VCOLS["OI_Datum"]}{vr})'
         ws[f"D{r}"] = f'=IF({a}="","",VERW_Project!${VCOLS["VerkochtPct"]}{vr})'
-        omg, _rvs, net = SL_DEMO[i] if i < len(SL_DEMO) else (None, None, None)
-        sb = SL_SB[i] if i < len(SL_SB) else None
-        input_style(ws.cell(row=r, column=5, value=sb), "0%")
-        input_style(ws.cell(row=r, column=6, value=omg))
-        input_style(ws.cell(row=r, column=7, value=net))
-        input_style(ws[f"H{r}"])
-        input_style(ws[f"L{r}"], "0%")
-        input_style(ws[f"M{r}"])
-        wbs_now = wb["Invoer"].cell(row=MAP0 + i, column=1).value
-        if wbs_now and i < len(SL_DEMO):
-            ws[f"AF{r}"] = wbs_now  # stempel van de voorbeeldinvoer
+        # invoer staat op de Projectlijst (zelfde regel); hier grijs doorverwezen
+        for c, pc, f_ in (("E", "AG", "0%"), ("F", "AH", None), ("G", "AI", None), ("H", "AJ", None), ("L", "AK", "0%"), ("M", "AL", None)):
+            ws[f"{c}{r}"] = f'=IF(Projectlijst!${pc}{PK0 + i}="","",Projectlijst!${pc}{PK0 + i})'
+            helper_style(ws[f"{c}{r}"])
+            if f_:
+                ws[f"{c}{r}"].number_format = f_
         pct = f'IF(E{r}<>"",E{r},D{r})'
         ws[f"I{r}"] = f'=IF(A{r}="","",IF(ISNUMBER({pct}),IF({pct}>=SL_Groen,3,IF({pct}>=SL_Oranje,2,1)),0))'
         for c, src, names in (("J", "F", "OV"), ("K", "G", "NET")):
@@ -2672,19 +2673,7 @@ def build_stoplicht(wb, ws):
     add_name(wb, "SL_RoodNr", f"Bandbreedte!$AG${SL0}:$AG${SL1}")
     add_name(wb, "SL_Project", f"Bandbreedte!$A${SL0}:$A${SL1}")
     add_name(wb, "SL_WBS", f"Bandbreedte!$AE${SL0}:$AE${SL1}")
-    add_name(wb, "SL_Stempel", f"Bandbreedte!$AF${SL0}:$AF${SL1}")
-    add_name(wb, "SL_Invoer1", f"Bandbreedte!$E${SL0}:$H${SL1}")
-    add_name(wb, "SL_Invoer2", f"Bandbreedte!$L${SL0}:$M${SL1}")
     put(ws, f"AE{SL0-1}", "WBS (hulp)", color=GREY, size=7)
-    put(ws, f"AF{SL0-1}", "WBS bij invoer", color=GREY, size=7)
-    dv = DataValidation(type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True)
-    dv.error = "Vul een percentage in tussen 0% en 100%."
-    ws.add_data_validation(dv)
-    dv.add(f"E{SL0}:E{SL1}")
-    dv.add(f"L{SL0}:L{SL1}")
-    dv_list(ws, f"F{SL0}:F{SL1}", "OV_W")
-    dv_list(ws, f"G{SL0}:G{SL1}", "NET_W")
-    dv_list(ws, f"M{SL0}:M{SL1}", '"Ja,Nee"')
 
     # instellingen & legenda stoplicht (rechts van de projecttabel)
     c0 = 20  # kolom T
@@ -3646,24 +3635,29 @@ def build_controle(wb, ws):
         ("Woningen", "Huidig/Volgend jaar ≠ som maanden/kwartalen", f'=COUNTIF({ec("C_Jaren")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Fout in de export zelf. Het bestand gebruikt de maanden en kwartalen. Zie de lijst onderaan."),
         ("Woningen", "Niet-geïnterpreteerde kolommen bevatten waarden", f'=COUNTIF({ec("C_NietGeinterp")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
          "Rond en negatieve jaarkoppen: eerst betekenis vastleggen in Invoer › 6."),
-        ("Woningen", "Aantal woningen wijkt af van Mapping", f'=COUNTIF({ec("C_MapAantal")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Werk het aantal woningen bij in Invoer › 2 (rapportage gebruikt de Woningetalage)."),
         ("Woningen", "Woningen bij project met 'Woningen meetellen = Nee'", f'=COUNTIF({ec("C_Meetellen")},1)', "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Zet op Projectlijst 'Woningen' op Ja, anders ontbreken deze woningen."),
         ("Weging", "Woningen niet dubbel gewogen: rapporttotaal = bron (projecten met meetellen = Ja)", '=SUMIFS(V_W_Aantal,V_Meetellen,"Ja")',
          f'=SUMPRODUCT(SUMIFS({ec("Aantal")},{ec("Stufe3")},V_WBS)*(V_Meetellen="Ja"))',
          'IF(ABS({v}-{n})<=P_Tol,"OK","FOUT")', '="Bewijst dat het aandeel niet nog eens wordt toegepast. Projecten met meetellen = Nee tellen bewust niet mee (zie controle hierboven)."'),
-        ("Stoplicht", "Stoplichtinvoer hoort bij een ander project (lijst verschoven?)", '=SUMPRODUCT((SL_Stempel<>"")*(SL_Stempel<>SL_WBS))', "0",
-         'IF({v}=0,"OK","WAARSCHUWING")', "Projecten op Projectlijst zijn tussengevoegd of gesorteerd. Controleer de gele cellen op Stoplicht (stempel in verborgen kolom P)."),
         ("Stoplicht", "Projecten zonder ingevulde vergunning of netcongestie", '=COUNTIFS(SL_Project,"?*",SL_Vergunning,0)+COUNTIFS(SL_Project,"?*",SL_Net,0)', "info", '"INFO"', "Leeg rondje: nog geen beoordeling."),
         ("Invoer", "Woningverdeling per productsegment telt niet op tot 100%", '=COUNTIF(Map_Verdeling,"Verdeelfout")', "0", 'IF({v}=0,"OK","FOUT")',
-         "Invoer › 2, kolommen L-R: per project samen 100% (of alles leeg)."),
+         "Projectlijst, details (kolommen Y–AE): per project samen 100% (of alles leeg)."),
         ("Invoer", "DAEB-verdeling over jaren telt niet op tot 100%", '=COUNTIF(DB_Check,"Verdeelfout")', "0", 'IF({v}=0,"OK","FOUT")',
          "Invoer › 9: percentages per regel samen 100%."),
         ("Invoer", "Kansen/risico's zonder jaar of soort", '=COUNTIFS(KR_Bedrag,"<>",KR_Jaar,"")+COUNTIFS(KR_Bedrag,"<>",KR_Soort,"")', "0",
-         'IF({v}=0,"OK","WAARSCHUWING")', "Invoer › 10: zonder jaar telt de regel niet mee."),
-        ("Invoer", "Projecten zonder AK % (niet in de SAP-dump en geen eigen %)", '=COUNTIFS(Map_WBS,"?*",Map_AKMee,"<>Nee",Map_AKPct,"",Map_AKSap,"")',
-         "info", '"INFO"', "Lees de AK-percentages in (Bronnen inlezen, stap 3) of vul op Projectlijst een eigen AK % in. Hoort er geen AK bij? Zet 'AK-dekking' op Nee."),
-        ("Invoer", "AK geboekt zonder (bekend) project (grootboekdump)", '=IF(AKR_N=0,0,AK_NietToegewezen)', "info", '"INFO"',
+         'IF({v}=0,"OK","WAARSCHUWING")', "Tabblad Kansen en risico's: zonder jaar telt de regel niet mee."),
+        ("AK", "Projecten zonder AK % (niet in de SAP-dump en geen eigen %)", '=COUNTIFS(Map_WBS,"?*",Map_AKMee,"<>Nee",Map_AKPct,"",Map_AKSap,"")',
+         "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Lees de AK-percentages in (Bronnen inlezen, stap 3) of vul op Projectlijst een eigen AK % in. Hoort er geen AK bij? Zet 'AK-dekking' op Nee."),
+        ("AK", "AK geboekt zonder (bekend) project (grootboekdump)", '=IF(AKR_N=0,0,AK_NietToegewezen)', "info", '"INFO"',
          "Boekingen zonder WBS of op een WBS buiten de projectlijst. Telt mee in de RDFO (regio), niet per project."),
+        ("AK", "Grootboekdump AK: kolom Bedrag of Boekjaar niet gevonden", '=IF(AKR_Rijen=0,0,(STG_AKR!$B$3=0)+(STG_AKR!$C$3=0))', "0",
+         'IF({v}=0,"OK","FOUT")', "Zonder deze kolommen telt de geboekte AK als nul. Controleer de kolomnamen 'Bedrag in eigen valuta' en 'Boekjaar' in de export."),
+        ("AK", "Grootboekdump AK: geen boekingen in het rapportagejaar", '=IF(AKR_Rijen=0,1,IF(SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ)=0,1,0))', "0",
+         'IF({v}=0,"OK","WAARSCHUWING")', '="Zonder boekingen in "&P_RJ&" rekent het bestand de afgelopen kwartalen met kosten x AK % (of als nul). Lees de dump AK-realisatie in (Bronnen inlezen, stap 4)."'),
+        ("AK", "Geboekte AK per saldo negatief (teken omgekeerd?)", '=IF(AKR_Rijen=0,0,IF(SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ)<0,1,0))', "0",
+         'IF({v}=0,"OK","WAARSCHUWING")', "AK-dekking is in het grootboek normaal een creditboeking (min). Is het teken in de export omgedraaid, dan daalt de AK-dekking. Meld dit."),
+        ("AK", "Grootboekdump AK: kolom Boekingsperiode niet gevonden", '=IF(AKR_Rijen=0,0,IF(STG_AKR!$F$3=0,1,0))', "0",
+         'IF({v}=0,"OK","WAARSCHUWING")', "Zonder periode telt alle geboekte AK in het lopende kwartaal (jaartotaal klopt wel)."),
         ("Invoer", "Projecten zonder gebied", '=COUNTIFS(Map_WBS,"?*",Map_Gebied,"")', "info", '"INFO"', "Projectlijst, kolom Gebied. Telt mee als 'Zonder gebied'."),
         ("Bandbreedte", "Scenario 'Basis' = omzet upload (alle projecten)", f'=SC_basis_0', '=SUM(V_OmzFY)',
          'IF(ABS({v}-{n})<=P_Tol,"OK","FOUT")', "Het basisscenario moet aansluiten op de prognose."),
@@ -3719,9 +3713,30 @@ def build_controle(wb, ws):
     ]
     header(ws, 8, 2, ["Nr", "Categorie", "Controle", "Resultaat", "Norm", "Status", "Toelichting / actie", "Bekeken?\n(x = akkoord)"], height=30)
     r0 = 9
-    for i, (cat, txt, res, norm, st, act) in enumerate(checks):
+    # technische aansluitcontroles (rekenkundig; vragen alleen actie bij FOUT) onderaan, ingeklapt
+    tech_cat = {"Weging", "Bandbreedte", "Rapport", "Historie", "Aansluiting"}
+    tech_txt = ("RDFO-BOR upload", "Dubbele regels in Vastlegging", "Ongeldige status", "Ongeldige versie", "Concept-regels",
+                "Actieve correcties", '="Uploadversie', "RDFO-posten n.b.")
+    is_tech = lambda c_: (c_[0] in tech_cat and not c_[1].startswith("Totaal")) or str(c_[1]).startswith(tech_txt)  # noqa: E731
+    checks = [c_ for c_ in checks if not is_tech(c_)] + [None] + [c_ for c_ in checks if is_tech(c_)]
+    nr = 0
+    tech_rows = []
+    for i, chk in enumerate(checks):
         r = r0 + i
-        put(ws, f"B{r}", i + 1, align="center")
+        if chk is None:
+            put(ws, f"C{r}", "Technische controles", bold=True, color=NAVY)
+            put(ws, f"D{r}", "Rekenkundige aansluitingen in het bestand zelf. Alleen van belang bij FOUT (dan komen ze vanzelf in beeld). Klik + links om ze te zien.",
+                color=GREY, italic=True, size=8, wrap=True)
+            ws.row_dimensions[r].height = 26
+            for c in "BCDEFGHI":
+                ws[f"{c}{r}"].border = Border(top=thick_navy)
+            tech_hdr = r
+            continue
+        cat, txt, res, norm, st, act = chk
+        if tech_rows or i > checks.index(None):
+            tech_rows.append(r)
+        nr += 1
+        put(ws, f"B{r}", nr, align="center")
         put(ws, f"C{r}", cat, color=GREY)
         ws[f"D{r}"] = txt
         ws[f"E{r}"] = res
@@ -3738,6 +3753,11 @@ def build_controle(wb, ws):
             ws[f"{c}{r}"].alignment = Alignment(vertical="top", wrap_text=c in "DH", horizontal="right" if c in "EF" else None)
         ws[f"E{r}"].number_format = 'General'
     rl = r0 + len(checks) - 1
+    for r in tech_rows:
+        ws.row_dimensions[r].outlineLevel = 1
+        ws.row_dimensions[r].hidden = True
+    ws.row_dimensions[tech_hdr].collapsed = True
+    ws.sheet_properties.outlinePr.summaryBelow = False
     ws["D4"] = f'=COUNTIF($G${r0}:$G${rl},"FOUT")'
     ws["D5"] = f'=COUNTIF($G${r0}:$G${rl},"WAARSCHUWING")'
     add_name(wb, "CT_Bekeken", f"Controle!$I${r0}:$I${rl}")
@@ -3816,12 +3836,8 @@ BUTTONS = [
     ("Start", "C9", "C11", "2  Prognose vastleggen", "RDFO_PrognoseVastleggen", "geel"),
     ("Start", "D9", "D11", "3  Maak PowerPoint", "RDFO_MaakPowerPoint", "geel"),
     ("Start", "E9", "E11", "Toon / verberg rekenbladen", "RDFO_ToonRekenbladen", "blauw"),
-    ("Dashboard", "R1", "T2", "Maak PowerPoint", "RDFO_MaakPowerPoint", "geel"),
-    ("Historie", "P2", "R3", "Prognose vastleggen", "RDFO_PrognoseVastleggen", "geel"),
     ("Controle", "G2", "H3", "Bronnen opnieuw inlezen", "RDFO_BronnenInlezen", "geel"),
-    ("Controle", "E2", "F3", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
     ("Controle", "I2", "I3", "Toon alle controles", "RDFO_ControleWissel", "blauw"),
-    ("Start", "G18", "G19", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
     ("Start", "G22", "G23", "Bestand leegmaken", "RDFO_LeegMaken", "blauw"),
     ("Start", "G26", "G27", "Oude prognoses overzetten", "RDFO_OudePrognosesOverzetten", "blauw"),
     ("Projectlijst", "L1", "N2", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
@@ -3898,7 +3914,8 @@ def build_start(wb, ws):
     put(ws, "G13", "n.b. = niet beschikbaar (geen nul)", color=GREY, size=8)
     put(ws, "G14", "n.v.t. = niet van toepassing", color=GREY, size=8)
     put(ws, "G17", "Beheer", bold=True, color=NAVY, size=11)
-    put(ws, "G20", "Zet WBS-elementen uit ZPMW03 die nog niet in de projectlijst staan onderaan Invoer › 2.", color=GREY, size=8, wrap=True)
+    put(ws, "G18", "Projecten toevoegen of aanpassen: tabblad Projectlijst. Nieuwe projecten uit ZPMW03 komen er bij 'Bronnen inlezen' vanzelf bij.", color=GREY, size=8, wrap=True)
+    ws["G18"].hyperlink = "#'Projectlijst'!A1"
     put(ws, "G24", "Leeg format: wist bronnen, projectlijst, invoer, stoplicht en Historie. Instellingen blijven.", color=GREY, size=8, wrap=True)
     put(ws, "G28", "Eenmalig: zet Budget en Q1–Q3 (één tabblad per versie) uit een Excelbestand in Historie.", color=GREY, size=8, wrap=True)
     put(ws, "G15", "● groen  ● oranje  ● rood  ○ leeg", color=GREY, size=8)
@@ -4104,6 +4121,52 @@ def build_projectkeuze(wb, ws, hist):
             ws[f"{c}{r}"].font = font(9, c == "O", "000000" if c in "ORST" else GREY)
             ws[f"{c}{r}"].number_format = "0.0%" if c in "JK" else FMT_EUR
             ws[f"{c}{r}"].border = Border(bottom=thin)
+    # ---- details per project (inklapbaar) en stoplicht/scenario-invoer
+    det = [("U", "Project-\ndefinitie", None), ("V", "Aandeel %\n(info)", "0%"), ("W", "Segment", None), ("X", "Strapo", None)] + \
+          [(col(25 + j), f"% {p_}", "0%") for j, p_ in enumerate(PRODSEG)] + [("AF", "% belegger /\ncorporatie", "0%")]
+    slc = [("AG", "Verkocht %\nhandmatig", "0%"), ("AH", "Omgevings-\nvergunning", None), ("AI", "Net-\ncongestie", None),
+           ("AJ", "Toelichting\nstoplicht", None), ("AK", "Kans %\n(leeg = bron)", "0%"), ("AL", "0-100\nJa/Nee", None)]
+    for c1, c2, t, colr in ((21, 32, "DETAILS PER PROJECT", NAVY), (33, 38, "STOPLICHT EN SCENARIO", "C9A000")):
+        ws.merge_cells(start_row=PK0 - 2, start_column=c1, end_row=PK0 - 2, end_column=c2)
+        cell = ws.cell(row=PK0 - 2, column=c1, value=t)
+        cell.font = font(9, True, WHITE)
+        cell.alignment = Alignment(horizontal="center")
+        for c in range(c1, c2 + 1):
+            ws.cell(row=PK0 - 2, column=c).fill = fill(colr)
+    for c, lab, _f in det + slc:
+        h = ws[f"{c}{PK0 - 1}"]
+        h.value = lab
+        h.fill = fill("8A6A00")
+        h.font = font(9, True, WHITE)
+        h.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for i in range(PK1 - PK0 + 1):
+        r = PK0 + i
+        ex = dict(PL_EXTRA.get(i, {}))
+        if i in PL_EXTRA:
+            omg, _rvs, net = SL_DEMO[i] if i < len(SL_DEMO) else (None, None, None)
+            ex.update({"AG": SL_SB[i] if i < len(SL_SB) else None, "AH": omg, "AI": net})
+        for c, _lab, f_ in det + slc:
+            input_style(ws[f"{c}{r}"], f_)
+            ws[f"{c}{r}"].value = ex.get(c)
+            if c in ("AG", "AH", "AI", "AK", "AL", "X"):
+                ws[f"{c}{r}"].alignment = Alignment(horizontal="center")
+    dv_list(ws, f"X{PK0}:X{PK1}", '"Ja,Nee"')
+    dv_list(ws, f"AL{PK0}:AL{PK1}", '"Ja,Nee"')
+    dv_list(ws, f"AH{PK0}:AH{PK1}", "OV_W")
+    dv_list(ws, f"AI{PK0}:AI{PK1}", "NET_W")
+    pdv = DataValidation(type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True)
+    pdv.error = "Vul een percentage in tussen 0% en 100%."
+    ws.add_data_validation(pdv)
+    pdv.add(f"AG{PK0}:AG{PK1}")
+    pdv.add(f"AK{PK0}:AK{PK1}")
+    add_name(wb, "PL_Details", f"Projectlijst!$U${PK0}:$AF${PK1}")
+    add_name(wb, "PL_Stoplicht", f"Projectlijst!$AG${PK0}:$AL${PK1}")
+    for c in ["U", "V", "W", "X"] + [col(25 + j) for j in range(8)]:
+        ws.column_dimensions[c].width = 10
+        ws.column_dimensions[c].outlineLevel = 1
+        ws.column_dimensions[c].hidden = True
+    for c, w_ in zip(["AG", "AH", "AI", "AJ", "AK", "AL"], [10, 12, 10, 26, 10, 9]):
+        ws.column_dimensions[c].width = w_
     rng = lambda c: f"Projectlijst!${c}${PK0}:${c}${PK1}"  # noqa: E731
     dv_list(ws, f"C{PK0}:C{PK1}", '"Opstal,Deelneming"')
     dv_list(ws, f"D{PK0}:D{PK1}", "Gebieden")
@@ -4501,10 +4564,10 @@ def build_stg_akr(wb, ws):
     for i in range(AKR_N):
         r = 5 + i
         rij = i + 1
-        ws[f"B{r}"] = f'=IF($C$3=0,"",IF(ISNUMBER(INDEX({src},{rij},$B$3)),-INDEX({src},{rij},$B$3),""))'
-        ws[f"C{r}"] = f'=IF($C$3=0,"",IFERROR(--INDEX({src},{rij},$C$3),""))'
+        ws[f"B{r}"] = f'=IF(OR($C$3=0,{rij}>$J$3),"",IF(ISNUMBER(INDEX({src},{rij},$B$3)),-INDEX({src},{rij},$B$3),""))'
+        ws[f"C{r}"] = f'=IF(OR($C$3=0,{rij}>$J$3),"",IFERROR(--INDEX({src},{rij},$C$3),""))'
         t = f'(IF($E$3=0,"",INDEX({src},{rij},$E$3)&""))'
-        ws[f"F{r}"] = f"={t}"
+        ws[f"F{r}"] = f'=IF({rij}>$J$3,"",{t})'
         ws[f"D{r}"] = (f'=IF($B{r}="","",IF(IF($D$3=0,"",INDEX({src},{rij},$D$3)&"")<>"",INDEX({src},{rij},$D$3)&"",'
                        f'IFERROR(LEFT(MID($F{r},SEARCH("G.",$F{r}),30),FIND(" ",MID($F{r},SEARCH("G.",$F{r}),30)&" ")-1),"")))')
         # kwartaal uit de boekingsperiode (13-16 = Q4); zonder periode-kolom telt alles in het lopende kwartaal
@@ -4518,6 +4581,9 @@ def build_stg_akr(wb, ws):
     ws["H3"] = "=COUNT(AKR_Bedrag)"
     put(ws, "H2", "Aantal regels", size=8)
     add_name(wb, "AKR_N", "STG_AKR!$H$3")
+    ws["J3"] = "=MAX(0,COUNTA(Bron_AKR!$A:$A)-1)"
+    put(ws, "J2", "Regels in dump", size=8)
+    add_name(wb, "AKR_Rijen", "STG_AKR!$J$3")
     ws["I3"] = "=SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ,AKR_Bekend,0)"
     put(ws, "I2", "Geboekt zonder (bekend) project", size=8)
     add_name(wb, "AK_NietToegewezen", "STG_AKR!$I$3")
@@ -4535,7 +4601,6 @@ def make_template(wb):
             for c in row:
                 c.value = None
     inv = wb["Invoer"]
-    clear(inv, "BDEHJLMNOPQRS", MAP0, MAP1)
     clear(inv, "ABCDEFGHIJKL", A0, A1)
     clear(inv, "ABCDEKLM", T0, T1)
     clear(inv, "ABCDEFK", K0, K1)
@@ -4543,18 +4608,59 @@ def make_template(wb):
     clear(inv, [col(3 + j) for j in range(MJ_YEARS)], MJ0, MJ0 + 1)
     clear(inv, ["A", "B"] + [col(3 + j) for j in range(MJ_YEARS)], DB0, DB1)
     clear(wb["Kansen en risico's"], "ABCDEFG", KR0, KR1)
-    clear(wb["Projectlijst"], "ABCDEFGHILMNPQ", PK0, PK1)
+    clear(wb["Projectlijst"], list("ABCDEFGHILMNPQ") + ["U", "V", "W", "X"] + [col(25 + j) for j in range(14)], PK0, PK1)
     wb["AK-dekking"]["F11"].value = None
+    # demo-opties horen niet in de template: statussen 'Fictieve aanname' en 'Voorbeeld' en de instelling demowaarden weg
+    lij = wb["Lijsten"]
+    lij["H6"].value = lij["H7"].value = None
+    add_name(wb, "L_AanvStatus", "Lijsten!$H$4:$H$5")
+    inv.row_dimensions[PROW["P_Demo"]].hidden = True
     for name, val in (("P_Regio", "Regio (invullen)"), ("P_ImportID", ""), ("P_BronZ", ""), ("P_BronE", ""), ("P_RegelsZ", 0), ("P_RegelsE", 0)):
         inv[f"D{PROW[name]}"].value = val
-    bb = wb["Bandbreedte"]
-    clear(bb, ["E", "F", "G", "H", "L", "M", "AF"], SL0, SL1)
     hi = wb["Historie"]
     clear(hi, [col(1 + j) for j in range(len(LCOLS))], L0, L1)
     clear(hi, [col(IL_COL + j) for j in range(11) if j != 8], 6, 6 + 200)
     wb["Projectdetail"]["C4"].value = None
     for row in wb["Controle"].iter_rows(min_row=9, max_row=80, min_col=9, max_col=9):
         row[0].value = None
+
+
+def name_users(wb):
+    """Alle tekst waarin een naam gebruikt kan worden: formules, voorwaardelijke opmaak, validatie, andere namen,
+    teksten in de werkmap (PPT_Spec), de VBA-macro's en de scripts die de werkmap lezen."""
+    parts = []
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for c in row:
+                if isinstance(c.value, str):
+                    parts.append(c.value)
+        for cf in ws.conditional_formatting:
+            for rule in cf.rules:
+                parts += [str(f) for f in (rule.formula or [])]
+        parts += [str(dv.formula1) for dv in ws.data_validations.dataValidation]
+    parts += [str(dn.attr_text) for dn in wb.defined_names.values()]
+    for f in ("macros/modRDFO.bas", "tools/preview_pptx.py", "tools/template_pptx.py", "tools/test_rdfo.py"):
+        parts.append((ROOT / f).read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
+def prune_names(wb):
+    """Verwijdert namen die nergens (meer) gebruikt worden; een naam verwijst nooit naar zichzelf."""
+    import re as _re
+    tekst = name_users(wb)
+    weg = []
+    for n in list(wb.defined_names.keys()):
+        eigen = str(wb.defined_names[n].attr_text)
+        rest = tekst.replace(eigen, "", 1)
+        if not _re.search(r"(?<![A-Za-z0-9_.])" + _re.escape(n) + r"(?![A-Za-z0-9_])", rest):
+            weg.append(n)
+    for n in weg:
+        del wb.defined_names[n]
+    PRUNED[:] = weg
+    return weg
+
+
+PRUNED = []
 
 
 def build(out, test_results=None, template=False):
@@ -4617,6 +4723,12 @@ def build(out, test_results=None, template=False):
     build_handleiding(sh["Handleiding"], test_results)
     if template:
         make_template(wb)
+    # Invoer › 2 kolom D: aantal woningen alleen uit de Woningetalage (geen eigen invoer meer)
+    inv_ = wb["Invoer"]
+    for r in range(MAP0, MAP1 + 1):
+        inv_[f"D{r}"] = (f'=IF(A{r}="","",IFERROR(INDEX(STG_Woningetalage!${ECOLS["Aantal"]}${STG0}:${ECOLS["Aantal"]}${STG1},'
+                         f'MATCH(A{r},STG_Woningetalage!${ECOLS["Stufe3"]}${STG0}:${ECOLS["Stufe3"]}${STG1},0)),""))')
+    prune_names(wb)
     wb.calculation.fullCalcOnLoad = True
     wb.active = 0
     wb.save(out)

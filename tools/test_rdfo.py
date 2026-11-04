@@ -431,9 +431,9 @@ record("Woningen per productsegment en koperstype tellen op tot het totaal; gebi
 
 
 def verdeelfout(wb):
-    inv = wb["Invoer"]
-    inv[f"L{B.MAP0}"] = 0.5
-    inv[f"M{B.MAP0}"] = None
+    pl = wb["Projectlijst"]
+    pl[f"Y{B.PK0}"] = 0.5
+    pl[f"Z{B.PK0}"] = None
 
 
 p, info, w15 = scenario("t12_verdeelfout", verdeelfout)
@@ -472,7 +472,7 @@ for nme in zx.namelist():
         macros_in_buttons |= {m.split("!")[1] for m in __import__("re").findall(r'macro="([^"]+)"', zx.read(nme).decode()) if "!" in m}
 ct = zx.read("[Content_Types].xml").decode()
 ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 8 and n_btn == len(B.BUTTONS)
-      and "macroEnabled.main+xml" in ct and "shBandbreedte.cls" in mods)
+      and "macroEnabled.main+xml" in ct)
 record("Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's", ok,
        f"{len(mods)} VBA-modules (oletools); {n_btn} knoppen → {sorted(macros_in_buttons)}. Let op: uitvoering in Excel zelf is hier niet getest.")
 

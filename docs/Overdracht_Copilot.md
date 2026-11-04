@@ -29,7 +29,6 @@ Alle data in `data/` is **fictief**. De oorspronkelijke opdracht staat in `docs/
 | `tools/xlhelpers.py` | Hulpfuncties (stijlen, `add_name`, `input_style`, `landscape`, …). |
 | `tools/docs_content.py` | Teksten voor Handleiding, Start-pagina en docs (stappen, FAQ, mapping). |
 | `macros/modRDFO.bas` | Alle VBA: bronnen inlezen, nieuwe projecten toevoegen, leegmaken, prognose vastleggen, PowerPoint maken, Outlook-jaren. |
-| `macros/shStoplicht.cls` | Blad-event Stoplicht (stempelt WBS bij invoer). |
 | `tools/vbaproject.py` | Eigen generator van `vbaProject.bin` (MS-CFB/MS-OVBA). Niet aanraken tenzij nodig. |
 | `tools/package_xlsm.py` | Maakt van .xlsx een .xlsm: VBA-project + knoppen (vormen met `macro=`). Knoppen staan in `BUTTONS` in `build_rdfo.py`. |
 | `tools/inject_cache.py` | Zet berekende waarden (uit LibreOffice) als cache in het bestand, zodat het direct goed opent. |
@@ -51,7 +50,7 @@ python tools/release.py <pad-naar-recalc.py> [werkmap]
 
 ## 3. Architectuur van de werkmap
 
-**Zichtbare bladen (14):** Start, Dashboard, RDFO, Projecten, Woningen, Outlook, Bandbreedte, Kansen en risico's, Reserves (overzicht; invoer op Projectlijst L–Q; totaal ook onderaan RDFO, dia T_RESS/T_RES), Projectlijst, AK-dekking, Controle, Invoer, Handleiding. Historie en Projectdetail zijn verborgen (knop *Toon / verberg rekenbladen*). Controle toont na inlezen alleen FOUT/WAARSCHUWING (macro `RDFO_ControleWissel`).
+**Zichtbare bladen (15):** Start, Dashboard, RDFO, Projecten, Projectdetail, Woningen, Outlook, Bandbreedte, Kansen en risico's, Reserves (overzicht; invoer op Projectlijst L–Q; totaal ook onderaan RDFO, dia T_RESS/T_RES), Projectlijst, AK-dekking, Controle, Invoer, Handleiding. Historie is verborgen (knop *Toon / verberg rekenbladen*). Controle toont na inlezen alleen FOUT/WAARSCHUWING (macro `RDFO_ControleWissel`).
 
 **Verborgen bladen:** `Bron_ZPMW03`, `Bron_Woningetalage` (ruwe export, kop in rij 1) → `STG_ZPMW03`, `STG_Woningetalage` (kolommen op naam gezocht, afgeleide velden, controlekolommen `C_*`) → `VERW_Project` (1 rij per project in de projectlijst) → `CALC_Versies` (totalen per versie) → rapportbladen. Verder `Concept` (wat vastgelegd wordt), `Lijsten`, `PPT` (teksten + dia-specificatie `PPT_Spec`), `Dias` (tabellen/grafieken voor de PowerPoint).
 

@@ -11,7 +11,7 @@ Option Explicit
 Private Const HISTORIE_LAATSTE_RIJ As Long = 5005
 Private Const BRON_CAPACITEIT As Long = 500
 Private Const IMPORTLOG_KOLOM As Long = 24        ' kolom X op Historie
-Private Const VERBORGEN As String = "Historie,Projectdetail,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
+Private Const VERBORGEN As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
 
 ' ---------------------------------------------------------------- huisstijl
 Private Function NAVY() As Long
@@ -226,7 +226,7 @@ Private Function ProjectenErbij(ByVal stil As Boolean) As Long
     Set wsZ = ThisWorkbook.Worksheets("Bron_ZPMW03")
     Set wsE = ThisWorkbook.Worksheets("Bron_Woningetalage")
     Set pl = Nm("PL_Invoer")          ' Projectlijst A..D: WBS, naam, type, gebied
-    Set det = Nm("Map_WBS")           ' Invoer > 2 (details per project, zelfde regel)
+    Set det = Nm("PL_Details")        ' Projectlijst U..AF: projectdefinitie, aandeel, segment, strapo, verdeling
     cW = KolomNr(wsZ, "WBS-element"): cP = KolomNr(wsZ, "Projectdefinitie"): cO = KolomNr(wsZ, "Omschrijving")
     eS = KolomNr(wsE, "Stufe 3"): eA = KolomNr(wsE, "Aantal woningen"): eH = KolomNr(wsE, "Aandeel Heijm.")
     If cW = 0 Then
@@ -255,14 +255,13 @@ Private Function ProjectenErbij(ByVal stil As Boolean) As Long
             If Application.WorksheetFunction.CountIf(pl.Columns(2), naam) > 0 Then naam = naam & " (" & wbs & ")"
             pl.Cells(vrij, 2).Value = naam
             pl.Cells(vrij, 3).Value = "Opstal"
-            If cP > 0 Then det.Cells(vrij, 1).Offset(0, 1).Value = wsZ.Cells(r, cP).Value
-            det.Cells(vrij, 1).Offset(0, 9).Value = "Nee"          ' strapo
+            If cP > 0 Then det.Cells(vrij, 1).Value = wsZ.Cells(r, cP).Value
+            det.Cells(vrij, 4).Value = "Nee"          ' strapo
             Nm("PK_Keuzes").Rows(vrij).Value = Array("Ja", "Nee", "Ja", "Ja")   ' prognose, woningen, AK, PowerPoint
             m = CVErr(xlErrNA)
             If eS > 0 Then m = Application.Match(wbs, wsE.Columns(eS), 0)
             If Not IsError(m) Then
-                If eA > 0 Then det.Cells(vrij, 1).Offset(0, 3).Value = wsE.Cells(m, eA).Value
-                If eH > 0 Then det.Cells(vrij, 1).Offset(0, 4).Value = wsE.Cells(m, eH).Value
+                If eH > 0 Then det.Cells(vrij, 2).Value = wsE.Cells(m, eH).Value
                 Nm("PK_Woningen").Cells(vrij, 1).Value = "Ja"
             End If
             pl.Rows(vrij).Interior.Color = RGB(255, 235, 156)
@@ -479,11 +478,7 @@ Public Sub RDFO_LeegMaken()
     ' projectlijst: alleen de invoerkolommen (G, K en U zijn verwijzingen naar Projectlijst)
     Nm("PL_Invoer").ClearContents                    ' Projectlijst A..D (WBS, naam, type, gebied)
     Nm("PL_Invoer").Interior.Color = RGB(255, 244, 204)
-    Nm("Map_Projdef").ClearContents                  ' Invoer > 2: B, D, E, H, J, L..S (A, C, F, G, I, K zijn verwijzingen)
-    Nm("Map_Aantal").Resize(, 2).ClearContents
-    Nm("Map_Segment").ClearContents
-    Nm("Map_Strapo").ClearContents
-    Nm("Map_WBS").Offset(0, 11).Resize(, 8).ClearContents
+    ' Invoer > 2 bestaat alleen nog uit verwijzingen naar de Projectlijst
     Nm("PK_Keuzes").ClearContents
     Nm("PK_AKEigen").ClearContents
     Nm("RS_Invoer").ClearContents
@@ -497,9 +492,8 @@ Public Sub RDFO_LeegMaken()
     Nm("T_Txt").Resize(, 3).ClearContents
     Nm("KT_WBS").Resize(, 6).ClearContents
     Nm("KT_WBS").Offset(0, 10).ClearContents
-    Nm("SL_Invoer1").ClearContents
-    Nm("SL_Invoer2").ClearContents
-    Nm("SL_Stempel").ClearContents
+    Nm("PL_Details").ClearContents
+    Nm("PL_Stoplicht").ClearContents
     Nm("L_ImportID").Resize(, 18).ClearContents
     Set il = ThisWorkbook.Worksheets("Historie").Range(ThisWorkbook.Worksheets("Historie").Cells(6, IMPORTLOG_KOLOM), _
              ThisWorkbook.Worksheets("Historie").Cells(HISTORIE_LAATSTE_RIJ, IMPORTLOG_KOLOM + 10))

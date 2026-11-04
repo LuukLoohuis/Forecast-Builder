@@ -4,20 +4,20 @@ Elke rapportregel met bron, berekening, aanvullende invoer en open punt. Ook in 
 
 | Rapportregel | Bron | Berekening | Aanvullende invoer | Open punt |
 |---|---|---|---|---|
-| RDFO › Omzet opstal | ZPMW03 + Invoer › 2 (Type=Opstal) | FY RJ = −Bedrijfsopbrengsten LJ − OP.BOB RJ; FY RJ+1 = −OP.BOB RJ+1; per WBS gesommeerd. Versiekolommen: Historie 'Omzet FY'. | — | Is OP.BOB RJ in productie een restant of een volledig jaar? (Controle waarschuwt als Q1–Q3 ≠ 0.) |
-| RDFO › Omzet deelnemingen | ZPMW03 + Invoer › 2 (Type=Deelneming) | Idem; al op aandeelbasis. | — | Type in productie uit SAP-veld of mapping? |
+| RDFO › Omzet opstal | ZPMW03 + Projectlijst (Type=Opstal) | FY RJ = −Bedrijfsopbrengsten LJ − OP.BOB RJ; FY RJ+1 = −OP.BOB RJ+1; per WBS gesommeerd. Versiekolommen: Historie 'Omzet FY'. | — | Is OP.BOB RJ in productie een restant of een volledig jaar? (Controle waarschuwt als Q1–Q3 ≠ 0.) |
+| RDFO › Omzet deelnemingen | ZPMW03 + Projectlijst (Type=Deelneming) | Idem; al op aandeelbasis. | — | Type in productie uit SAP-veld of mapping? |
 | RDFO › Taakstelling omzet | — | Som Invoer › 3. | Verplicht | Bron en eigenaar van taakstellingen. |
 | RDFO › Interne eliminaties | — | Som Invoer › 3. | Verplicht | Welke projecten/bedrijven en op welk niveau? |
 | RDFO › Omzet old | — | Opstal + deelnemingen + taakstelling + interne eliminaties. | — | Bevestigen dat dit de bestaande opbouw is. |
 | RDFO › IFRS-eliminaties | — | Som Invoer › 3. IFRS J/N alleen als memo. | Verplicht | Regel voor IFRS-eliminatie per project. |
 | RDFO › Omzet IFRS | — | Omzet old + IFRS-eliminaties. | — |  |
 | RDFO › Projectresultaten / BOR | ZPMW03 | FY RJ = −Bruto (omzet) result. LJ − OP.BOR RJ; RJ+1 = −OP.BOR RJ+1. Geen ABS. | — | Behandeling verliesvoorzieningen. |
-| RDFO › AK-dekking | ZPMW03 + AK-percentages (SAP-dump) + Invoer › 2 | Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) / 1,05 x AK % (zoals de oude RDFO). Realisatie = geboekte AK uit de grootboekdump (zonder dump: Kosten LJ / 1,05 x AK %); boekingen zonder project tellen mee op regioniveau. FY = realisatie + kosten restant / 1,05 x AK %. AK % = eigen % of anders de SAP-dump; niet als 'AK meenemen' = Nee. Wordt mee vastgelegd. | AK meenemen / eigen % |  |
+| RDFO › AK-dekking | ZPMW03 + AK-percentages (SAP-dump) + Projectlijst | Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) / 1,05 x AK % (zoals de oude RDFO). Realisatie = geboekte AK uit de grootboekdump (zonder dump: Kosten LJ / 1,05 x AK %); boekingen zonder project tellen mee op regioniveau. FY = realisatie + kosten restant / 1,05 x AK %. AK % = eigen % of anders de SAP-dump; niet als 'AK meenemen' = Nee. Wordt mee vastgelegd. | AK meenemen / eigen % |  |
 | RDFO › fees, overige, taakstelling EBIT | — | Som Invoer › 3 (FY en Actual YTD apart). | Verplicht |  |
 | Outlook › DAEB, funnel, target | Invoer › 8 en 9 | DAEB-omzet x percentage per jaar; funnel en target per jaar. | Ja | Komt DAEB-omzet uit de ZPMW DAEB-export? |
 | Outlook › kansen en risico's, reserves | Invoer › 10 en 11 | Saldo per jaar (risico negatief); reserves x % gereed (cumulatief). | Ja |  |
 | Bandbreedte | ZPMW03 + Woningetalage + kans % | Per project en jaar: optimistisch, basis, afslag, gewogen, 0-100 (zie Handleiding). | Kans %, 0-100, instellingen | Gelden 50% afslag en 90% optimistisch? |
-| RDFO › per gebied | Projecten + Invoer › 2 (Gebied) | Som per gebied van budget, vorige versie, geselecteerde versie en BOR. | Gebied per project |  |
+| RDFO › per gebied | Projecten + Projectlijst (Gebied) | Som per gebied van budget, vorige versie, geselecteerde versie en BOR. | Gebied per project |  |
 | RDFO › EBIT-bijdrage | — | BOR + AK-dekking + fees + overige + taakstelling EBIT. | — | Bevestigen opbouw. |
 | RDFO › BOR % / EBIT % | — | BOR % = (BOR + fees + overige resultaten + taakstelling EBIT) / Omzet old; EBIT % = EBIT / Omzet old; deling door nul afgevangen. | — |  |
 | RDFO › Budget / Q1–Q4 | Historie | Hoogste vastgestelde revisie per project/kengetal. | Budget/Q1/Q2: fictieve historie | Volledige jaarbedragen of delta’s in oude bladen? |

@@ -121,8 +121,7 @@ def main(src, out):
     for n, p in sheets:
         assert f'codeName="{code_name(n)}"'.encode() in files[p], f"codeName ontbreekt voor {n}"
     files["xl/vbaProject.bin"] = vbaproject.build_vba_project(
-        {"modRDFO": vba_source(ROOT / "macros" / "modRDFO.bas")}, docs,
-        sheet_code={code_name("Bandbreedte"): vba_source(ROOT / "macros" / "shStoplicht.cls")})
+        {"modRDFO": vba_source(ROOT / "macros" / "modRDFO.bas")}, docs)
     files["[Content_Types].xml"] = xml(ct)
     files["xl/_rels/workbook.xml.rels"] = xml(wbrels)
     # grafieklabels: eigen getalnotatie gebruiken (zonder sourceLinked="0" neemt Excel de celopmaak over, bijv. "0,00")
