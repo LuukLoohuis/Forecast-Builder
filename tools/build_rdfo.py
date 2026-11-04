@@ -167,6 +167,7 @@ def z_derived():
         ("M_OmzQ4", neg("BOB_RJ_Q4"), "Omzet Q4 RJ"),
         ("M_KostFY", '=IFERROR([Kosten_LJ]+[Kosten_RJ],"n.b.")', "Kosten FY RJ = Kosten LJ + Kosten RJ"),
         ("M_KostFY1", '=IFERROR(+[Kosten_RJ1],"n.b.")', "Kosten RJ+1"),
+        ("M_KostYTD", '=IFERROR(+[Kosten_LJ],"n.b.")', "Kosten gerealiseerd RJ t/m peildatum = Kosten LJ"),
         ("M_BorQ4", neg("BOR_RJ_Q4"), "BOR Q4 RJ"),
     ]
     for q in range(1, 5):
@@ -659,8 +660,8 @@ def build_invoer_extra(wb, ws):
     add_name(wb, "MJ_Funnel", f"Invoer!$C${MJ0}:${col(2+MJ_YEARS)}${MJ0}")
     add_name(wb, "MJ_Target", f"Invoer!$C${MJ0+1}:${col(2+MJ_YEARS)}${MJ0+1}")
     put(ws, f"A{MJ0+3}", "AK-dekking: kosten delen door")
-    input_style(put(ws, f"C{MJ0+3}", 1.05, fmt="0.00"), "0.00")
-    put(ws, f"D{MJ0+3}", "AK-dekking per project = kosten / deze factor x AK % (Invoer › 2, kolom K).", color=GREY, italic=True, size=8)
+    input_style(put(ws, f"C{MJ0+3}", 1, fmt="0.00"), "0.00")
+    put(ws, f"D{MJ0+3}", "AK-dekking per project = kosten x AK %. Laat op 1 staan; alleen aanpassen als kosten eerst door een factor gedeeld moeten worden.", color=GREY, italic=True, size=8)
     add_name(wb, "P_AKFactor", f"Invoer!$C${MJ0+3}")
     # 9. DAEB
     inv_head(ws, DB0 - 1, "9. DAEB-omzet en verdeling over jaren",
@@ -865,7 +866,7 @@ def verw_columns():
     money += [(f"OmzRJ{o}", f"M_OmzRJ{o}", f"Omzet RJ+{o}") for o in range(2, 9)] + [("OmzONV", "M_OmzONV", "Omzet onverdeeld")]
     money += [(f"BorRJ{o}", f"M_BorRJ{o}", f"BOR RJ+{o}") for o in range(2, 9)] + [("BorONV", "M_BorONV", "BOR onverdeeld")]
     money += [("PEWOmz", "M_PEWOmz", "PEW omzet"), ("PEWBor", "M_PEWBor", "PEW BOR")]
-    money += [("KostFY", "M_KostFY", "Kosten FY RJ"), ("KostFY1", "M_KostFY1", "Kosten RJ+1")] + \
+    money += [("KostFY", "M_KostFY", "Kosten FY RJ"), ("KostFY1", "M_KostFY1", "Kosten RJ+1"), ("KostYTD", "M_KostYTD", "Kosten RJ t/m peildatum")] + \
              [(f"KostRJ{o}", f"M_KostRJ{o}", f"Kosten RJ+{o}") for o in range(2, 7)]
     for n, f, lab in money:
         c.append((n, lab, f'=IF($A{{r}}="","",IF($J{{r}}=0,"n.b.",SUMIFS({zr(f)},{zkey},$A{{r}})))', FMT_EUR))
@@ -894,6 +895,7 @@ def verw_columns():
     ak_src = ["KostFY", "KostFY1"] + [f"KostRJ{o}" for o in range(2, 7)]
     for k, k_ in enumerate(ak_src):
         c.append((f"AK{k}", f"AK-dekking RJ+{k}", f'=IF(AND(ISNUMBER([AKPct]),ISNUMBER([{k_}])),[{k_}]/P_AKFactor*[AKPct],"")', FMT_EUR))
+    c.append(("AKYTD", "AK-dekking gerealiseerd RJ t/m peildatum", '=IF(AND(ISNUMBER([AKPct]),ISNUMBER([KostYTD])),[KostYTD]/P_AKFactor*[AKPct],"")', FMT_EUR))
     # woningverkopen per productsegment en koperstype (RJ en RJ+1)
     for y, src in ((0, "W_HuidigJaar"), (1, "W_VolgendJaar")):
         sales = f'IF($G{{r}}="Ja",N([{src}]),0)'
@@ -1035,6 +1037,9 @@ def build_calc(wb, ws):
         for pre, soort in (("AV_", "FY"), ("AA_", "Actual YTD")):
             crit = f'A_Doel,Sel_Doeljaar,A_VJ,P_UploadVJ,A_Versie,P_UploadVersie,A_Rubriek,"{rb}",A_Soort,"{soort}",A_TeltConcept,1'
             ws[f"{CC[pre+rb]}{r}"] = f'=IF(COUNTIFS({crit})=0,"n.b.",SUMIFS(A_Waarde,{crit}))'
+            if pre == "AA_" and rb == "AK-dekking":   # realisatie: AK % x gerealiseerde kosten (Kosten LJ)
+                ws[f"{CC[pre+rb]}{r}"] = (f'=IF(COUNTIFS({crit})>0,SUMIFS(A_Waarde,{crit}),'
+                                          f'IF(AND(Sel_Doeljaar=P_RJ,COUNT(V_AKYTD)>0),SUM(V_AKYTD),"n.b."))')
             if pre == "AV_" and rb == "AK-dekking":   # geen aanvullende invoer: AK % x kosten uit de upload
                 ak = 'IF(Sel_Doeljaar=P_RJ,IF(COUNT(V_AK0)=0,"n.b.",SUM(V_AK0)),IF(Sel_Doeljaar=P_RJ+1,IF(COUNT(V_AK1)=0,"n.b.",SUM(V_AK1)),"n.b."))'
                 ws[f"{CC[pre+rb]}{r}"] = f'=IF(COUNTIFS({crit})>0,SUMIFS(A_Waarde,{crit}),{ak})'
@@ -1243,7 +1248,7 @@ def build_rdfo(wb, ws):
         ("taak_ebit", "Taakstelling EBIT", "base", F("AV_Taakstelling EBIT"), F("AA_Taakstelling EBIT"), "Invoer › 3. Aanvullende RDFO-posten"),
         ("ebit", "EBIT-bijdrage", "sub", ["bor_tot", "ak", "fees", "overig", "taak_ebit"], None, "BOR + AK-dekking + fees + overige resultaten + taakstelling EBIT"),
         (None,),
-        ("bor_pct", "BOR %", "pct", ("bor_tot", "omz_proj"), None, "Totale BOR / totale projectomzet (opstal + deelnemingen). Geen gemiddelde van projectpercentages"),
+        ("bor_pct", "BOR %", "pct", ("bor_tot", "omzet_old"), None, "(BOR + fees + overige resultaten + taakstelling EBIT) / Omzet old. Geen gemiddelde van projectpercentages"),
         ("ebit_pct", "EBIT %", "pct", ("ebit", "omzet_old"), None, "EBIT-bijdrage / Omzet old (definitie te bevestigen, zie Productievragen)"),
         (None,),
         ("memo", "Memo", "hdr"),
@@ -1303,7 +1308,11 @@ def build_rdfo(wb, ws):
                 ws[f"{c}{r}"] = f'=IF(ISNUMBER({cells[0]}),SUM({",".join(cells)}),{cells[0]})'
             elif kind == "pct":
                 n_, d_ = f"{c}{RDFO_ROWS[src[0]]}", f"{c}{RDFO_ROWS[src[1]]}"
-                ws[f"{c}{r}"] = f'=IF(AND(ISNUMBER({n_}),ISNUMBER({d_})),IF({d_}<>0,{n_}/{d_},"n.b."),"n.b.")'
+                if key == "bor_pct":   # zoals de oude RDFO: taakstelling EBIT, fees en overige resultaten tellen mee in BOR %
+                    extra = "+".join(f"N({c}{RDFO_ROWS[k_]})" for k_ in ("fees", "overig", "taak_ebit"))
+                    ws[f"{c}{r}"] = f'=IF(AND(ISNUMBER({n_}),ISNUMBER({d_})),IF({d_}<>0,({n_}+{extra})/{d_},"n.b."),"n.b.")'
+                else:
+                    ws[f"{c}{r}"] = f'=IF(AND(ISNUMBER({n_}),ISNUMBER({d_})),IF({d_}<>0,{n_}/{d_},"n.b."),"n.b.")'
         # to go en delta's
         if key in togo_keys:
             ws[f"L{r}"] = f'=IF(K{r}="n.v.t.",J{r},IF(AND(ISNUMBER(J{r}),ISNUMBER(K{r})),J{r}-K{r},"n.b."))'
@@ -1706,6 +1715,17 @@ def ibcs_columns(ws, anchor, cats, ac, fc, pl=None, total=None, w=17, h=8, numfm
         ch += ln
     ws.add_chart(ch, anchor)
     return ch
+
+
+def heat_cf(ws, rng_):
+    """Kleurintensiteit t.o.v. de hoogste waarde in het blok: hoe meer verkopen, hoe donkerder geel."""
+    tl = rng_.split(":")[0]
+    c1, c2 = rng_.split(":")
+    import re as _re
+    m1, m2 = _re.match(r"([A-Z]+)(\d+)", c1), _re.match(r"([A-Z]+)(\d+)", c2)
+    blok = f"${m1.group(1)}${m1.group(2)}:${m2.group(1)}${m2.group(2)}"
+    for frac, kleur in ((0.5, "F5B800"), (0.2, "F8D873"), (0.0, "FFF1C2")):
+        ws.conditional_formatting.add(rng_, FormulaRule(formula=[f'AND(ISNUMBER({tl}),{tl}>0,{tl}>={frac}*MAX({blok}))'], fill=fill(kleur), stopIfTrue=True))
 
 
 def woningen_kwartaal_chart(target_ws, anchor, w, h):
@@ -2193,10 +2213,9 @@ def build_woningen(wb, ws):
     put(ws, f"B{wq0+15}", "Cursief = prognose (na de peildatum). Alleen projecten met 'Woningen meetellen = Ja'.", color=GREY, italic=True, size=8)
     WON.update(wq0=wq0)
     add_name(wb, "PPT_WONQ", f"Woningen!$B${wq0-1}:$K${wq0+14}")
-    put(ws, f"B{wq0+17}", '="Verkopen per project per kwartaal, "&P_RJ&"–"&(P_RJ+1)', bold=True, color=NAVY, size=10)
-    woningen_kwartaal_chart(ws, f"B{wq0+18}", 30, 11)
+    heat_cf(ws, f"C{wq0}:J{wq0+14}")
     # projectmatrix
-    r = wq0 + 42
+    r = wq0 + 19
     section(ws, r, 2, "Projectmatrix woningen (upload) — % verkocht als voortgangsbalk", 17)
     hdr = ["Project", "Type", "Segment", "Aandeel %", "Totaal (aandeel)", "Bruto (afgeleid)", '="t/m "&(P_RJ-1)',
            '="Actual "&P_RJ', '="Verw. "&P_RJ', '="Verw. "&(P_RJ+1)', '=(P_RJ+2)&""', "Cumulatief", "Etalage", "% verkocht",
@@ -3149,7 +3168,7 @@ def build_ppt(wb, ws):
         ("PPT_ProjN", '=COUNTIF(Map_WBS,"?*")'),
         ("PPT_Msg9", '="Omzet "&(P_RJ+1)&": € "&FIXED(MIN(Bandbreedte!$C$6:$C$10),1)&" – "&FIXED(MAX(Bandbreedte!$C$6:$C$10),1)&" mln  ·  basis € "&FIXED(Bandbreedte!$C$7,1)&" mln"&IF(ISNUMBER(Bandbreedte!$C$12),"  ·  budget € "&FIXED(Bandbreedte!$C$12,1)&" mln","")'),
         ("PPT_Msg10", '="Saldo kansen en risico\'s: € "&FIXED(SUM(KR_Telt)/1000000,1)&" mln  ·  "&COUNTIF(KR_Soort,"Kans")&" kansen, "&COUNTIF(KR_Soort,"Risico")&" risico\'s"'),
-        ("PPT_Msg11", '="Verkopen per kwartaal "&P_RJ&" (blauw) en "&(P_RJ+1)&" (geel) · de 15 projecten met de meeste verkopen"'),
+        ("PPT_Msg11", '="Verkochte woningen per kwartaal, "&P_RJ&" en "&(P_RJ+1)&" · de 15 projecten met de meeste verkopen · donkerder = meer verkopen"'),
         ("PPT_Msg8", '="Prognoseverloop en brug naar de geselecteerde versie  ·  groen = hoger, rood = lager"'),
     ]
     for i, (n, f) in enumerate(kv):
@@ -3371,6 +3390,20 @@ def build_dias(wb, ws):
         ws.conditional_formatting.add(f"{c}{t+1}:{c}{t+GB1-GB0+3}", FormulaRule(formula=[f"AND(ISNUMBER({c}{t+1}),{c}{t+1}<0)"], font=Font(color=BAD)))
         ws.conditional_formatting.add(f"{c}{t+1}:{c}{t+GB1-GB0+3}", FormulaRule(formula=[f"AND(ISNUMBER({c}{t+1}),{c}{t+1}>0)"], font=Font(color="3B7A1E")))
 
+    # ---- woningverkopen per project per kwartaal (15 projecten x 8 kwartalen)
+    t = 236
+    wws = wb["Woningen"]
+    wq0 = WON["wq0"]
+    table_head(t, ["Project"] + [f"=Woningen!{col(3 + j)}{wq0-1}" for j in range(8)] + ["Totaal"], [3.2] + [1] * 8 + [1.1], "T_WONQ", 15)
+    for i in range(15):
+        r = t + 1 + i
+        sr = wq0 + i
+        cell(r, 2, f'=IF(Woningen!B{sr}="","",Woningen!B{sr})', align="left", size=9)
+        for j in range(8):
+            cell(r, 3 + j, f'=IF(Woningen!{col(3 + j)}{sr}="","",Woningen!{col(3 + j)}{sr})', '#,##0;-#,##0;""', align="center", size=9)
+        cell(r, 11, f'=IF(Woningen!K{sr}="","",Woningen!K{sr})', FMT_INT, True, align="center", size=9)
+    heat_cf(ws, f"C{t+1}:J{t+15}")
+
     # ---- grafiekblokken (elk op een eigen pagina; volgorde = index voor de macro)
     def chart_block(name, builder, w, h):
         k = len(DIA_CHARTS)
@@ -3409,7 +3442,6 @@ def build_dias(wb, ws):
     chart_block("Outlook orderintake", lambda a, w, h: outlook_chart(ws, a, "oi", w, h), pt(290), pt(376))
     chart_block("Woningen per kwartaal", won_q, pt(436), pt(296))
     chart_block("Bandbreedte", lambda a, w, h: bandbreedte_chart(ws, a, w, h), pt(436), pt(376))
-    chart_block("Woningen per project per kwartaal", lambda a, w, h: woningen_kwartaal_chart(ws, a, w, h), pt(888), pt(390))
     chart_block("Woningen per versie", lambda a, w, h: bar(ws, Reference(wws, min_col=17, min_row=v0 - 1, max_row=v0 + 5),
                 Reference(wws, min_col=3, min_row=v0, max_row=v0 + 5), a, [NAVY], numfmt="#,##0", w=w, h=h, labels=True, legend=False,
                 ymin=0, point_colors={5: NAVY_LT}), pt(436), pt(296))
@@ -3457,7 +3489,7 @@ def build_ppt_spec(wb, ws):
         (14, "Woningverkopen", "=PPT_Msg7", "kpi", "K_WON", 36, 96, 888, 74, "", 1),
         (14, "", "", "grafiek", ci("Woningen per kwartaal"), 36, 200, 436, 296, f"=Woningen!{WON['qtitle']}", 1),
         (14, "", "", "grafiek", ci("Woningen per versie"), 488, 200, 436, 296, f"=Woningen!{WON['vtitle']}", 1),
-        (15, "Woningverkopen per project", "=PPT_Msg11", "grafiek", ci("Woningen per project per kwartaal"), 36, 100, 888, 390, "", 1),
+        (15, "Woningverkopen per project", "=PPT_Msg11", "tabel", "T_WONQ", 36, 100, 888, 0, "", 1),
         (16, "Aandachtspunten", "", "opsomming", "PPT_Bullets", 36, 100, 888, 390, "", 1),
     ]
     for i, row in enumerate(spec):
@@ -3613,8 +3645,8 @@ def build_controle(wb, ws):
          "FOUT kan ook komen door een actief autofilter op Projecten."),
         ("Rapport", "Dashboard-omzet = RDFO (alleen zonder filter)", f'=CALC_Versies!${CC["F_OmzFY"]}${CR["Sel"]}',
          f'=IFERROR(RDFO!$J${R("omz_proj")}*P_Factor,"n.b.")', 'IF(Sel_FiltLabel<>"geen filter","INFO",IF(AND(ISNUMBER({v}),ISNUMBER({n})),IF(ABS({v}-{n})<=P_Tol,"OK","FOUT"),"INFO"))', ""),
-        ("Rapport", "BOR % = totale BOR / totale omzet", f'=RDFO!$J${R("bor_pct")}',
-         f'=IFERROR((CALC_Versies!${CC["BorOps"]}${CR["Sel"]}+CALC_Versies!${CC["BorDln"]}${CR["Sel"]})/(CALC_Versies!${CC["OmzOps"]}${CR["Sel"]}+CALC_Versies!${CC["OmzDln"]}${CR["Sel"]}),"n.b.")',
+        ("Rapport", "BOR % = (BOR + fees + overige + taakstelling EBIT) / Omzet old", f'=RDFO!$J${R("bor_pct")}',
+         f'=IFERROR((CALC_Versies!${CC["BorOps"]}${CR["Sel"]}+CALC_Versies!${CC["BorDln"]}${CR["Sel"]}+(N(RDFO!$J${R("fees")})+N(RDFO!$J${R("overig")})+N(RDFO!$J${R("taak_ebit")}))*P_Factor)/(RDFO!$J${R("omzet_old")}*P_Factor),"n.b.")',
          'IF(AND(ISNUMBER({v}),ISNUMBER({n})),IF(ABS({v}-{n})<0.000001,"OK","FOUT"),"INFO")', "Geen gemiddelde van projectpercentages."),
         ("Historie", "Vastgelegde versies zonder realisatie (blijft n.b.)", "=COUNTIFS(CALC_Versies!$C$5:$C$9,\">0\",CALC_Versies!$D$5:$D$9,0)", "info", '"INFO"',
          "Budget/Q1/Q2 hebben geen vastgelegde actuals; die worden niet als 0 getoond."),
@@ -3717,6 +3749,7 @@ BUTTONS = [
     ("Controle", "E2", "F3", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
     ("Start", "G18", "G19", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
     ("Start", "G22", "G23", "Bestand leegmaken", "RDFO_LeegMaken", "blauw"),
+    ("Start", "G26", "G27", "Oude prognoses overzetten", "RDFO_OudePrognosesOverzetten", "blauw"),
     ("Invoer", "J27", "L28", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
 ]
 
@@ -3793,6 +3826,7 @@ def build_start(wb, ws):
     put(ws, "G17", "Beheer", bold=True, color=NAVY, size=11)
     put(ws, "G20", "Zet WBS-elementen uit ZPMW03 die nog niet in de projectlijst staan onderaan Invoer › 2.", color=GREY, size=8, wrap=True)
     put(ws, "G24", "Leeg format: wist bronnen, projectlijst, invoer, stoplicht en Historie. Instellingen blijven.", color=GREY, size=8, wrap=True)
+    put(ws, "G28", "Eenmalig: zet Budget en Prognose Q1–Q3 uit het oude RDFO-bestand (tabbladen) in Historie.", color=GREY, size=8, wrap=True)
     put(ws, "G15", "● groen  ● oranje  ● rood  ○ leeg", color=GREY, size=8)
     landscape(ws, "A1:G35")
 

@@ -12,14 +12,14 @@ Elke rapportregel met bron, berekening, aanvullende invoer en open punt. Ook in 
 | RDFO › IFRS-eliminaties | — | Som Invoer › 3. IFRS J/N alleen als memo. | Verplicht | Regel voor IFRS-eliminatie per project. |
 | RDFO › Omzet IFRS | — | Omzet old + IFRS-eliminaties. | — |  |
 | RDFO › Projectresultaten / BOR | ZPMW03 | FY RJ = −Bruto (omzet) result. LJ − OP.BOR RJ; RJ+1 = −OP.BOR RJ+1. Geen ABS. | — | Behandeling verliesvoorzieningen. |
-| RDFO › AK-dekking | ZPMW03 + AK-percentages (SAP-dump) + Invoer › 2 | Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) / 1,05 x AK %. AK % = eigen % of anders de SAP-dump; niet als 'AK meenemen' = Nee. Wordt mee vastgelegd. | AK meenemen / eigen % |  |
+| RDFO › AK-dekking | ZPMW03 + AK-percentages (SAP-dump) + Invoer › 2 | Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) x AK %. Realisatie = Kosten LJ x AK %. AK % = eigen % of anders de SAP-dump; niet als 'AK meenemen' = Nee. Wordt mee vastgelegd. | AK meenemen / eigen % |  |
 | RDFO › fees, overige, taakstelling EBIT | — | Som Invoer › 3 (FY en Actual YTD apart). | Verplicht |  |
 | Outlook › DAEB, funnel, target | Invoer › 8 en 9 | DAEB-omzet x percentage per jaar; funnel en target per jaar. | Ja | Komt DAEB-omzet uit de ZPMW DAEB-export? |
 | Outlook › kansen en risico's, reserves | Invoer › 10 en 11 | Saldo per jaar (risico negatief); reserves x % gereed (cumulatief). | Ja |  |
 | Bandbreedte | ZPMW03 + Woningetalage + kans % | Per project en jaar: optimistisch, basis, afslag, gewogen, 0-100 (zie Handleiding). | Kans %, 0-100, instellingen | Gelden 50% afslag en 90% optimistisch? |
 | RDFO › per gebied | Projecten + Invoer › 2 (Gebied) | Som per gebied van budget, vorige versie, geselecteerde versie en BOR. | Gebied per project |  |
 | RDFO › EBIT-bijdrage | — | BOR + AK-dekking + fees + overige + taakstelling EBIT. | — | Bevestigen opbouw. |
-| RDFO › BOR % / EBIT % | — | Totale BOR / projectomzet; EBIT / Omzet old; deling door nul afgevangen. | — | Noemer EBIT% bevestigen. |
+| RDFO › BOR % / EBIT % | — | BOR % = (BOR + fees + overige resultaten + taakstelling EBIT) / Omzet old; EBIT % = EBIT / Omzet old; deling door nul afgevangen. | — |  |
 | RDFO › Budget / Q1–Q4 | Historie | Hoogste vastgestelde revisie per project/kengetal. | Budget/Q1/Q2: fictieve historie | Volledige jaarbedragen of delta’s in oude bladen? |
 | RDFO › Upload concept | Bron_ZPMW03 / Bron_Woningetalage | Live uit de bron; pas een versie na 'Prognose vastleggen'. | — |  |
 | RDFO › Realisatie YTD / to go | Historie of upload | Altijd van dezelfde versie/peildatum als de FY-prognose. | — |  |

@@ -67,7 +67,7 @@ BANDBREEDTE = [
 INVOER_EENMALIG = [
     ("2. Projecten", "Eén regel per project. Kies Type, Gebied, Strapo (Ja/Nee) en hoe de woningen verdeeld zijn over de productsegmenten en kopers. AK: het percentage komt uit de SAP-dump (kolom V); zet 'AK meenemen' op Nee als het niet mee moet, of vul in kolom K een eigen percentage in."),
     ("7. Gebieden", "De lijst met gebieden. Die kun je per project kiezen."),
-    ("8. Funnel en target", "Per jaar de omzet uit de acquisitiefunnel en de target. Ook de deler voor de AK-dekking (standaard 1,05)."),
+    ("8. Funnel en target", "Per jaar de omzet uit de acquisitiefunnel en de target."),
     ("9. DAEB-omzet", "Per project de DAEB-omzet en welk deel in welk jaar valt (samen 100%)."),
     ("10. Kansen en risico's", "Per kans of risico een regel: kies het project, vul omschrijving, jaar en kwartaal, soort en bedrag in. Bijvoorbeeld: 2026 Q4, project X, hogere koopsom, € 1.500.000 (bedrag altijd positief; een risico telt als min)."),
     ("11. Reserves", "Per project de reserves en hoe ver het project klaar is. Het bestand rekent het effect per jaar uit."),
@@ -80,6 +80,9 @@ CORRECTIE = [
 ]
 
 FAQ = [
+    ("Hoe krijg ik mijn eerdere prognoses (Budget, Q1, Q2, Q3) erin?",
+     "Eenmalig: klik op Start op 'Oude prognoses overzetten' en kies je oude RDFO-bestand. Het bestand leest de tabbladen Budget en Prognose Q1/Q2/Q3 "
+     "(omzet, BOR en AK-dekking per WBS, in EUR x 1.000) en zet ze als vastgestelde versies in de Historie. Een versie die er al in staat, wordt overgeslagen."),
     ("Ik wil met een leeg bestand beginnen", "Gebruik RDFO_template.xlsm (al leeg), of klik op Start op 'Bestand leegmaken' en typ LEEG. Daarna: Bronnen inlezen › Nieuwe projecten toevoegen › Type en gebied kiezen."),
     ("Na inlezen is alles leeg of staat 'Nieuwe projecten: … FOUT'", "De WBS-elementen uit je export staan nog niet in de projectlijst; alleen projecten in Invoer › 2 tellen mee. Klik op 'Nieuwe projecten toevoegen' en controleer per regel Type en Woningen meetellen."),
     ("Controle geeft waarschuwingen over woningen of bedragen (aantal, etalage, cumulatief, portefeuille, PEW)",
@@ -128,14 +131,14 @@ MAPPING = [
     ("RDFO › IFRS-eliminaties", "—", "Som Invoer › 3. IFRS J/N alleen als memo.", "Verplicht", "Regel voor IFRS-eliminatie per project."),
     ("RDFO › Omzet IFRS", "—", "Omzet old + IFRS-eliminaties.", "—", ""),
     ("RDFO › Projectresultaten / BOR", "ZPMW03", "FY RJ = −Bruto (omzet) result. LJ − OP.BOR RJ; RJ+1 = −OP.BOR RJ+1. Geen ABS.", "—", "Behandeling verliesvoorzieningen."),
-    ("RDFO › AK-dekking", "ZPMW03 + AK-percentages (SAP-dump) + Invoer › 2", "Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) / 1,05 x AK %. AK % = eigen % of anders de SAP-dump; niet als 'AK meenemen' = Nee. Wordt mee vastgelegd.", "AK meenemen / eigen %", ""),
+    ("RDFO › AK-dekking", "ZPMW03 + AK-percentages (SAP-dump) + Invoer › 2", "Invoer › 3 als die is ingevuld; anders per project kosten uit ZPMW03 (Kosten LJ + Kosten RJ, daarna Kosten per jaar) x AK %. Realisatie = Kosten LJ x AK %. AK % = eigen % of anders de SAP-dump; niet als 'AK meenemen' = Nee. Wordt mee vastgelegd.", "AK meenemen / eigen %", ""),
     ("RDFO › fees, overige, taakstelling EBIT", "—", "Som Invoer › 3 (FY en Actual YTD apart).", "Verplicht", ""),
     ("Outlook › DAEB, funnel, target", "Invoer › 8 en 9", "DAEB-omzet x percentage per jaar; funnel en target per jaar.", "Ja", "Komt DAEB-omzet uit de ZPMW DAEB-export?"),
     ("Outlook › kansen en risico's, reserves", "Invoer › 10 en 11", "Saldo per jaar (risico negatief); reserves x % gereed (cumulatief).", "Ja", ""),
     ("Bandbreedte", "ZPMW03 + Woningetalage + kans %", "Per project en jaar: optimistisch, basis, afslag, gewogen, 0-100 (zie Handleiding).", "Kans %, 0-100, instellingen", "Gelden 50% afslag en 90% optimistisch?"),
     ("RDFO › per gebied", "Projecten + Invoer › 2 (Gebied)", "Som per gebied van budget, vorige versie, geselecteerde versie en BOR.", "Gebied per project", ""),
     ("RDFO › EBIT-bijdrage", "—", "BOR + AK-dekking + fees + overige + taakstelling EBIT.", "—", "Bevestigen opbouw."),
-    ("RDFO › BOR % / EBIT %", "—", "Totale BOR / projectomzet; EBIT / Omzet old; deling door nul afgevangen.", "—", "Noemer EBIT% bevestigen."),
+    ("RDFO › BOR % / EBIT %", "—", "BOR % = (BOR + fees + overige resultaten + taakstelling EBIT) / Omzet old; EBIT % = EBIT / Omzet old; deling door nul afgevangen.", "—", ""),
     ("RDFO › Budget / Q1–Q4", "Historie", "Hoogste vastgestelde revisie per project/kengetal.", "Budget/Q1/Q2: fictieve historie", "Volledige jaarbedragen of delta’s in oude bladen?"),
     ("RDFO › Upload concept", "Bron_ZPMW03 / Bron_Woningetalage", "Live uit de bron; pas een versie na 'Prognose vastleggen'.", "—", ""),
     ("RDFO › Realisatie YTD / to go", "Historie of upload", "Altijd van dezelfde versie/peildatum als de FY-prognose.", "—", ""),

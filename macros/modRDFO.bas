@@ -272,6 +272,140 @@ Public Sub RDFO_ProjectenToevoegen()
     End If
 End Sub
 
+' ================================================================= 1d. OUDE PROGNOSES OVERZETTEN (eenmalig)
+' Leest uit een oud RDFO-bestand de tabbladen Budget en Prognose Q1..Q4 (opzet: rij 2 'BOB 2026' / 'BOR 2026' / 'AK dekking 2026',
+' rij 3 Q1..Q4 + Totaal, kopregel met 'WBS-element' in kolom A, bedragen x 1.000) en legt ze vast in Historie als vastgestelde versies.
+Public Sub RDFO_OudePrognosesOverzetten()
+    Dim f As Variant, wbS As Workbook, ws As Worksheet, tabs As Variant, tabblad As Variant, versie As String, verslag As String
+    Dim kopRij As Long, r As Long, c As Long, jaar As Long, leeg As Long, n As Long, totN As Long
+    Dim cBOB As Long, cBOR As Long, cAK As Long, wbs As String, wsH As Worksheet, r0 As Long, peil As Date
+    Dim waarden(1 To 3) As Double, heeft(1 To 3) As Boolean, kg As Variant, k As Long, mi As Variant, naam As String, typ As String
+
+    f = Application.GetOpenFilename("Excel-bestanden (*.xlsx;*.xlsm;*.xls),*.xlsx;*.xlsm;*.xls", , _
+                                    "Kies het oude RDFO-bestand (met tabbladen Budget en Prognose Q1/Q2/Q3)")
+    If VarType(f) = vbBoolean Then Exit Sub
+    On Error GoTo Fout
+    Application.ScreenUpdating = False
+    Set wsH = ThisWorkbook.Worksheets("Historie")
+    Set wbS = Workbooks.Open(Filename:=CStr(f), ReadOnly:=True, UpdateLinks:=0)
+    tabs = Array("Budget", "Prognose Q1", "Prognose Q2", "Prognose Q3", "Prognose Q4")
+    kg = Array("Omzet FY", "BOR FY", "AK-dekking FY")
+    With Nm("L_WBS")
+        r0 = .Cells(.Rows.Count, 1).End(xlUp).Row + 1
+        If Trim(CStr(.Cells(.Rows.Count, 1).Value)) <> "" Then r0 = .Row + .Rows.Count
+        If r0 < .Row Then r0 = .Row
+    End With
+    For Each tabblad In tabs
+        Set ws = Nothing
+        On Error Resume Next
+        Set ws = wbS.Worksheets(CStr(tabblad))
+        On Error GoTo Fout
+        If ws Is Nothing Then GoTo Volgende
+        versie = IIf(tabblad = "Budget", "Budget", Right(CStr(tabblad), 2))
+        ' kopregel en kolommen zoeken
+        kopRij = 0: cBOB = 0: cBOR = 0: cAK = 0: jaar = 0
+        For r = 1 To 15
+            If LCase(Trim(CStr(ws.Cells(r, 1).Value))) Like "wbs-element*" Then kopRij = r: Exit For
+        Next r
+        For r = 1 To 5
+            For c = 1 To 40
+                If LCase(CStr(ws.Cells(r, c).Value)) Like "bob 20##*" And cBOB = 0 Then cBOB = TotaalKolom(ws, r, c): jaar = CLng(Mid(CStr(ws.Cells(r, c).Value), 5, 4))
+                If LCase(CStr(ws.Cells(r, c).Value)) Like "bor 20##*" And cBOR = 0 Then cBOR = TotaalKolom(ws, r, c)
+                If LCase(CStr(ws.Cells(r, c).Value)) Like "ak dekking 20##*" And cAK = 0 Then cAK = TotaalKolom(ws, r, c)
+            Next c
+        Next r
+        If kopRij = 0 Or cBOB = 0 Or jaar = 0 Then
+            verslag = verslag & vbCr & "   - " & tabblad & ": opzet niet herkend, overgeslagen"
+            GoTo Volgende
+        End If
+        If Application.WorksheetFunction.CountIfs(Nm("L_Versiejaar"), jaar, Nm("L_Versie"), versie, Nm("L_Status"), "Vastgesteld") > 0 Then
+            verslag = verslag & vbCr & "   - " & versie & " " & jaar & ": staat al in Historie, overgeslagen"
+            GoTo Volgende
+        End If
+        If versie = "Budget" Then
+            peil = DateSerial(jaar - 1, 12, 31)
+        Else
+            peil = DateSerial(jaar, CLng(Right(versie, 1)) * 3 + 1, 1) - 1
+        End If
+        n = 0: leeg = 0
+        r = kopRij + 1
+        Do While leeg < 5 And r < kopRij + 3000
+            wbs = Trim(CStr(ws.Cells(r, 1).Value))
+            If wbs = "" Or LCase(Left(wbs, 6)) = "totaal" Then
+                leeg = leeg + 1
+            Else
+                leeg = 0
+                waarden(1) = Waarde(ws, r, cBOB, heeft(1))
+                waarden(2) = Waarde(ws, r, cBOR, heeft(2))
+                waarden(3) = Waarde(ws, r, cAK, heeft(3))
+                mi = Application.Match(wbs, Nm("Map_WBS"), 0)
+                If IsError(mi) Then
+                    naam = CStr(ws.Cells(r, 3).Value)
+                    typ = IIf(InStr(1, CStr(ws.Cells(r, 2).Value), "Deel", vbTextCompare) > 0, "Deelneming", "Opstal")
+                Else
+                    naam = CStr(Nm("Map_Naam").Cells(mi, 1).Value)
+                    typ = CStr(Nm("Map_Type").Cells(mi, 1).Value)
+                End If
+                For k = 1 To 3
+                    If heeft(k) And Abs(waarden(k)) > 0.5 Then
+                        If r0 > HISTORIE_LAATSTE_RIJ Then Err.Raise vbObjectError + 1, , "Historie is vol (maximaal rij " & HISTORIE_LAATSTE_RIJ & ")."
+                        wsH.Cells(r0, 1).Resize(1, 18).Value = Array("MIGR-" & versie & "-" & jaar, BestandsNaam(CStr(f)), Date, "Vastgesteld", jaar, versie, 0, _
+                            peil, jaar, wbs, Left(wbs, 8), naam, typ, "", kg(k - 1), waarden(k), "EUR", "Overgezet uit oude RDFO, tabblad " & tabblad)
+                        wsH.Cells(r0, 3).NumberFormat = "dd-mm-yyyy"
+                        wsH.Cells(r0, 8).NumberFormat = "dd-mm-yyyy"
+                        wsH.Cells(r0, 1).Resize(1, 18).Font.Size = 8
+                        r0 = r0 + 1
+                        n = n + 1
+                    End If
+                Next k
+            End If
+            r = r + 1
+        Loop
+        LogRegel "MIGR-" & versie & "-" & jaar, "Oude RDFO (" & tabblad & ")", BestandsNaam(CStr(f)), peil, jaar, versie, n, "Vastgesteld", "Eenmalig overgezet"
+        verslag = verslag & vbCr & "   - " & versie & " " & jaar & ": " & n & " regels"
+        totN = totN + n
+Volgende:
+    Next tabblad
+    wbS.Close SaveChanges:=False
+    Application.CalculateFull
+    Application.ScreenUpdating = True
+    ThisWorkbook.Worksheets("RDFO").Activate
+    MsgBox "Oude prognoses overgezet (" & totN & " regels in Historie):" & verslag & vbCr & vbCr & _
+           "Kijk op het tabblad RDFO of de kolommen Budget/Q1/Q2/Q3 kloppen met je oude bestand." & vbCr & _
+           "Klopt iets niet? Sluit dit bestand zonder opslaan en probeer opnieuw.", vbInformation, "Oude prognoses overzetten"
+    Exit Sub
+Fout:
+    On Error Resume Next
+    If Not wbS Is Nothing Then wbS.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    MsgBox "Overzetten is niet gelukt: " & Err.Description, vbExclamation
+End Sub
+
+Private Function TotaalKolom(ByVal ws As Worksheet, ByVal r As Long, ByVal c As Long) As Long
+    ' kolom 'Totaal' in de regel onder de groepskop; anders 0 (dan worden Q1..Q4 opgeteld, kolom wordt dan negatief teruggegeven)
+    Dim k As Long
+    For k = c To c + 5
+        If LCase(Trim(CStr(ws.Cells(r + 1, k).Value))) = "totaal" Then TotaalKolom = k: Exit Function
+    Next k
+    TotaalKolom = -c
+End Function
+
+Private Function Waarde(ByVal ws As Worksheet, ByVal r As Long, ByVal c As Long, ByRef gevonden As Boolean) As Double
+    ' bedragen in de oude tabbladen staan in EUR x 1.000
+    Dim k As Long, v As Variant
+    gevonden = False
+    If c = 0 Then Exit Function
+    If c > 0 Then
+        v = ws.Cells(r, c).Value
+        If IsNumeric(v) And Not IsEmpty(v) Then Waarde = CDbl(v) * 1000: gevonden = True
+    Else
+        For k = -c To -c + 3
+            v = ws.Cells(r, k).Value
+            If IsNumeric(v) And Not IsEmpty(v) Then Waarde = Waarde + CDbl(v) * 1000: gevonden = True
+        Next k
+    End If
+End Function
+
 ' ================================================================= 1c. BESTAND LEEGMAKEN
 Public Sub RDFO_LeegMaken()
     Dim antw As String, il As Range

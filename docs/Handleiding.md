@@ -75,7 +75,7 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 |---|---|
 | 2. Projecten | Eén regel per project. Kies Type, Gebied, Strapo (Ja/Nee) en hoe de woningen verdeeld zijn over de productsegmenten en kopers. AK: het percentage komt uit de SAP-dump (kolom V); zet 'AK meenemen' op Nee als het niet mee moet, of vul in kolom K een eigen percentage in. |
 | 7. Gebieden | De lijst met gebieden. Die kun je per project kiezen. |
-| 8. Funnel en target | Per jaar de omzet uit de acquisitiefunnel en de target. Ook de deler voor de AK-dekking (standaard 1,05). |
+| 8. Funnel en target | Per jaar de omzet uit de acquisitiefunnel en de target. |
 | 9. DAEB-omzet | Per project de DAEB-omzet en welk deel in welk jaar valt (samen 100%). |
 | 10. Kansen en risico's | Per kans of risico een regel: kies het project, vul omschrijving, jaar en kwartaal, soort en bedrag in. Bijvoorbeeld: 2026 Q4, project X, hogere koopsom, € 1.500.000 (bedrag altijd positief; een risico telt als min). |
 | 11. Reserves | Per project de reserves en hoe ver het project klaar is. Het bestand rekent het effect per jaar uit. |
@@ -98,6 +98,7 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 
 | Probleem | Oplossing |
 |---|---|
+| Hoe krijg ik mijn eerdere prognoses (Budget, Q1, Q2, Q3) erin? | Eenmalig: klik op Start op 'Oude prognoses overzetten' en kies je oude RDFO-bestand. Het bestand leest de tabbladen Budget en Prognose Q1/Q2/Q3 (omzet, BOR en AK-dekking per WBS, in EUR x 1.000) en zet ze als vastgestelde versies in de Historie. Een versie die er al in staat, wordt overgeslagen. |
 | Ik wil met een leeg bestand beginnen | Gebruik RDFO_template.xlsm (al leeg), of klik op Start op 'Bestand leegmaken' en typ LEEG. Daarna: Bronnen inlezen › Nieuwe projecten toevoegen › Type en gebied kiezen. |
 | Na inlezen is alles leeg of staat 'Nieuwe projecten: … FOUT' | De WBS-elementen uit je export staan nog niet in de projectlijst; alleen projecten in Invoer › 2 tellen mee. Klik op 'Nieuwe projecten toevoegen' en controleer per regel Type en Woningen meetellen. |
 | Controle geeft waarschuwingen over woningen of bedragen (aantal, etalage, cumulatief, portefeuille, PEW) | Dat zijn verschillen in de SAP-export zelf; jij hoeft ze niet op te lossen om vast te zetten. Onderaan Controle staat per project welke controle afwijkt. Meld die projecten bij de verkoopadministratie of projectcontrol. |
