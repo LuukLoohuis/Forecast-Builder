@@ -305,15 +305,19 @@ End Sub
 Public Sub NieuwKwartaalStarten()
     Dim wsH As Worksheet, wsV As Worksheet, wsA As Worksheet, h As Long, n As Long
     If MsgBox("Nieuw kwartaal starten:" & vbCrLf & vbCrLf & _
-              "1. de cashflow (tab Invoer) wordt bewaard als vorige prognose (tab Vorige prognose); " & _
-              "die verschijnt in kolom J 'CF vorig kwartaal';" & vbCrLf & _
-              "2. FO - huidig wordt FO - vorig;" & vbCrLf & _
-              "3. FO - huidig en FO - actuals worden leeggemaakt voor de nieuwe exports." & vbCrLf & vbCrLf & _
+              "1. de cashflow wordt bewaard als vorige prognose (stippellijn in de grafiek, tabel vorige/huidig op het Dashboard);" & vbCrLf & _
+              "2. de planning (start bouw per type) wordt bewaard als vorige planning;" & vbCrLf & _
+              "3. FO - huidig wordt FO - vorig;" & vbCrLf & _
+              "4. FO - huidig en FO - actuals worden leeggemaakt voor de nieuwe exports." & vbCrLf & vbCrLf & _
+              "Je invoer op Prijslijst, CF - opbrengsten en CF - kosten blijft staan." & vbCrLf & vbCrLf & _
               "Doe dit pas als het vorige FO helemaal klaar is. Doorgaan?", vbQuestion + vbYesNo, "Nieuw kwartaal starten") <> vbYes Then Exit Sub
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     Application.Calculate
     n = BewaarVorigePrognose()
+    On Error Resume Next
+    CashflowNaarPowerPoint.PlanningBewarenAlsVorig True
+    On Error GoTo 0
     Set wsH = ThisWorkbook.Worksheets("FO - huidig")
     Set wsV = ThisWorkbook.Worksheets("FO - vorig")
     Set wsA = ThisWorkbook.Worksheets("FO - actuals")
@@ -333,10 +337,11 @@ Public Sub NieuwKwartaalStarten()
     Application.ScreenUpdating = True
     ThisWorkbook.Worksheets(SH_START).Activate
     WeergaveBijwerken
-    MsgBox "Klaar: " & n & " periodes bewaard als vorige prognose en FO - huidig staat nu in FO - vorig." & vbCrLf & vbCrLf & _
-           "Volgende stap: plak of lees de nieuwe exports in (FO - huidig, FO - actuals en de prijslijst)." & vbCrLf & _
-           "Wil je ook de planning (start bouw per type) als vorige prognose bewaren? Gebruik dan op tab Woningtypes " & _
-           "de knop 'Nu bewaren als vorige prognose'.", vbInformation, "Nieuw kwartaal starten"
+    MsgBox "Klaar: " & n & " periodes en de planning bewaard als vorige prognose; FO - huidig staat nu in FO - vorig." & vbCrLf & vbCrLf & _
+           "Volgende stappen:" & vbCrLf & _
+           "1. lees de nieuwe exports in (FO - huidig, FO - actuals en de prijslijst);" & vbCrLf & _
+           "2. werk de planning, verkoop en transport bij op CF - opbrengsten en de kosten op CF - kosten;" & vbCrLf & _
+           "3. kijk op Start of alle controles OK zijn.", vbInformation, "Nieuw kwartaal starten"
 End Sub
 
 Private Function BewaarVorigePrognose() As Long

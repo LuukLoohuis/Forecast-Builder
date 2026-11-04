@@ -2044,7 +2044,7 @@ Fout:
     MsgBox bericht & vbCrLf & vbCrLf & "Fout " & foutNr & ": " & foutOms, vbExclamation, "Vorige prognose uit FO"
 End Sub
 
-Public Sub PlanningBewarenAlsVorig()
+Public Sub PlanningBewarenAlsVorig(Optional ByVal stil As Boolean = False)
     ' knop 'Nu bewaren als vorige prognose' (tab Woningtypes): de planning die er nu staat (start bouw per type, kwartalen van de
     ' fee-termijnen) naar blok 4 en 6, zodat je daarna de nieuwe planning kunt invullen en het verschil lichtrood in de grafiek ziet
     Dim wsT As Worksheet, k As Long, col As Long, i As Long, n As Long
@@ -2054,10 +2054,10 @@ Public Sub PlanningBewarenAlsVorig()
         If Len(TekstVan(wsT.Cells(TYPE_RIJ_NAAM, col).Value)) > 0 Or IsGetal(wsT.Cells(TYPE_RIJ_STARTJAAR, col).Value) Then n = n + 1
     Next k
     If n = 0 Then
-        MsgBox "Er staat nog geen planning op tab Woningtypes.", vbInformation, "Nu bewaren als vorige prognose"
+        If Not stil Then MsgBox "Er staat nog geen planning op tab Woningtypes.", vbInformation, "Nu bewaren als vorige prognose"
         Exit Sub
     End If
-    If MsgBox("De huidige start bouw per type en de kwartalen van de fee-termijnen worden de vorige prognose (blok 4 en 6). " & _
+    If Not stil Then If MsgBox("De huidige start bouw per type en de kwartalen van de fee-termijnen worden de vorige prognose (blok 4 en 6). " & _
               "Wat daar nu staat wordt overschreven. Doorgaan?", vbQuestion + vbYesNo, "Nu bewaren als vorige prognose") <> vbYes Then Exit Sub
     For k = 1 To MAX_TYPES
         col = TYPE_COL1 + (k - 1) * TYPE_BREEDTE
@@ -2067,7 +2067,7 @@ Public Sub PlanningBewarenAlsVorig()
             wsT.Cells(TYPE_RIJ_VF1 + i, col + 2).Value = wsT.Cells(TYPE_RIJ_F1 + i, col + 2).Value
         Next i
     Next k
-    MsgBox "Klaar: de huidige planning staat als vorige prognose in blok 4 en 6 van tab Woningtypes. Pas nu de planning aan; " & _
+    If Not stil Then MsgBox "Klaar: de huidige planning staat als vorige prognose in blok 4 en 6 van tab Woningtypes. Pas nu de planning aan; " & _
            "de bouwtermijnengrafiek toont de vorige prognose lichtrood.", vbInformation, "Nu bewaren als vorige prognose"
 End Sub
 

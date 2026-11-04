@@ -17,7 +17,13 @@ Gele cellen vul je zelf in, lichtblauwe komen uit SAP of Salesforce, grijze word
 ## Elk kwartaal
 
 **Voor het FO-gesprek**
-1. **Nieuw kwartaal starten** (Start): FO - huidig wordt FO - vorig, de cashflow wordt de vorige prognose.
+1. **Nieuw kwartaal starten** (Start):
+   - de cashflow wordt de vorige prognose (stippellijn in de grafiek, tabel vorige/huidig op het Dashboard);
+   - de planning (start bouw per type) wordt de vorige planning;
+   - FO - huidig wordt FO - vorig;
+   - FO - huidig en FO - actuals worden leeggemaakt.
+
+   Je invoer op Prijslijst, CF - opbrengsten en CF - kosten blijft staan.
 2. **Exports:** Plakken of Inlezen op `Start`:
    - SAP FO-overzicht (FR4) → *FO - huidig*;
    - SAP actuals (FR5) → *FO - actuals*;

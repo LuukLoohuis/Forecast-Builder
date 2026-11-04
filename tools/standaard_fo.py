@@ -630,6 +630,10 @@ def maak_kosten(ws):
     kopregels(ws, K_JAAR, K_OND, act='Actuals')
     zet(ws, '%s%d' % (COLS[0], K_JAAR), 'Actuals', FB)
     zet(ws, 'B%d' % K_OND, 'Onderdelen', FB, KOP)
+    zet(ws, 'B%d' % (K_PEW + 1), 'Methode per post (kolom C): Handmatig = de bedragen die je in de regel invult · Voorstel = '
+                                 'wat nog over is (PEW − verwerkt − wat je zelf invult) gelijk verdeeld over de lege prognosekwartalen '
+                                 't/m oplevering · Transport = idem, naar rato van het aantal getransporteerde woningen. '
+                                 'De uitkomst staat in het voorstelblok onderaan; de totaalregel is de definitieve cashflow.', FN)
     zet(ws, 'D%d' % K_OND, '€', FB, KOP)
     zet(ws, '%s%d' % (CHK, K_OND), 'Check', FB, KOP)
     zet(ws, '%s%d' % (TOEL, K_OND), 'Toelichting', FB, KOP)
@@ -940,6 +944,30 @@ def maak_vena(ws):
         c = L(4 + i)
         for r, p, t in ((3, po, to), (4, pk, tk)):
             zet(ws, '%s%d' % (c, r), '=IF(SUMIF(%s,%s1,%s)=0,"",(SUMIF(%s,%s1,%s)))' % (p, c, t, p, c, t))
+    # per maand: het kwartaal (bij de laatste maand van het kwartaal) en de status t.o.v. het huidige kwartaal (tab Start)
+    from openpyxl.formatting.rule import FormulaRule
+    st = "%s$E$%d" % (O, PER)
+    zet(ws, 'A2', 'Kwartaal', FB)
+    zet(ws, 'A5', 'Status', FB)
+    zet(ws, 'B2', '="Startmaand: "&IF(N(%s)=0,"(vul in op CF - opbrengsten rij %d)",TEXT(%s,"mm-yyyy"))' % (st, PER, st), FN)
+    for i in range(60):
+        c = L(4 + i)
+        d = 'EDATE(%s,%s$1-1)' % (st, c)
+        idx = '(YEAR(%s)*4+ROUNDUP(MONTH(%s)/3,0))' % (d, d)
+        zet(ws, '%s2' % c, '=IF(N(%s)=0,"",IF(MOD(MONTH(%s),3)=0,YEAR(%s)&" Q"&ROUNDUP(MONTH(%s)/3,0),""))' % (st, d, d, d), FB)
+        zet(ws, '%s5' % c, '=IF(N(%s)=0,"",IF(%s<p_huidig,"actuals",IF(%s=p_huidig,"nu","prognose")))' % (st, idx, idx), FN)
+    zet(ws, 'B6', '=IF(OR(N(%s)=0,N(p_huidig)=0),"","Huidig kwartaal: Q"&(p_huidig-4*INT((p_huidig-1)/4))&" "&INT((p_huidig-1)/4)'
+                  '&" = maand "&((INT((p_huidig-1)/4)-YEAR(%s))*12+(p_huidig-4*INT((p_huidig-1)/4))*3-MONTH(%s)+1)&'
+                  '" (kolom met het groene vak)")' % (st, st, st), FB)
+    groen = PatternFill('solid', fgColor='FFD1FAE5', bgColor='FFD1FAE5')
+    grijs = Font(color='FF9CA3AF')
+    ws.conditional_formatting.add('D1:BK5', FormulaRule(formula=['D$5="nu"'], fill=groen))
+    ws.conditional_formatting.add('D1:BK5', FormulaRule(formula=['D$5="actuals"'], font=grijs))
+    ws.column_dimensions['A'].width = 10
+    ws.column_dimensions['B'].width = 14
+    for i in range(60):
+        ws.column_dimensions[L(4 + i)].width = 11
+    ws.freeze_panes = 'D1'
 
 
 def maak_cashflow_plek(ws, jaar=2026, rijen=None):

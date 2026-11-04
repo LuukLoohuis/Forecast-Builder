@@ -25,7 +25,7 @@ en de PowerPoint komt uit hetzelfde bestand.
 | `CF - kosten` | bouwtermijnen kosten per type (eigen planning HWB, standaard gelijk aan de opbrengsten) en per kostenpost Handmatig, Voorstel of Transport |
 | `Dashboard`, `Scenario's` | cashflow, kerncijfers, grafieken en scenario's: rekenen automatisch mee |
 | `2. Ontw PEW` | PEW huidig/vorig uit SAP, meest recente FD (invullen), toelichting |
-| `CF - hulp VENA` | de definitieve cashflow per maand, in het VENA-format |
+| `CF - hulp VENA` | de definitieve cashflow per maand, in het VENA-format; per maand het kwartaal en de status (actuals / nu / prognose), het huidige kwartaal groen, en in B6 bij welke maand het huidige kwartaal hoort |
 
 Verborgen: de rekenbladen van het scenariomodel (`Invoer`, `Woningtypes`, `Scenario kosten`, `Model`), `PowerPoint`
 (welke tekst naar welke vorm), `Vorige prognose`, `Controle oud FO` (verschijnt na Oud FO inlezen) en `Behind the scens`
