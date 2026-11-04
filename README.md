@@ -88,8 +88,11 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   - De kans zit niet in de cashflow zelf; het is een doorkijk.
 - **Parkeren en commercieel:** onder "Overige opbrengsten in €" op CF - opbrengsten:
   - kolom D toont het bedrag uit de aansluiting (PEW, alle woningtypes);
-  - je verdeelt het bedrag in € over de kwartalen (geel);
-  - kolom E en de statuskolom tonen wat nog te verdelen is (LET OP in kolom A).
+  - in kolom C kies je de verdeling:
+    - **bouwtermijnen** (standaard): naar rato van de gefactureerde bouwtermijnen van alle woningtypes. Wordt in een kwartaal 10% van de bouwtermijnen gefactureerd, dan komt 10% van het bedrag binnen;
+    - **handmatig**: de bedragen in € die je in de gele regel eronder invult;
+  - kolom E en de statuskolom tonen wat nog te verdelen is (LET OP in kolom A);
+  - Oud FO inlezen zet de overige opbrengsten van het oude FO in de handmatige regel; die gaan dan altijd als handmatig mee.
 - Op `Prijslijst` zijn ongebruikte woningtypes ingeklapt (na Oud FO inlezen).
 - **Koopsom en grond %:** per woningtype op `Prijslijst` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
 - **Aantallen** staan zonder punt of komma erachter.

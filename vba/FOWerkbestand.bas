@@ -922,8 +922,8 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         Next j
     End If
     For k = C_ACT To C_Q1 + NQ - 1
-        If ov1(k) <> 0 Then wD.Cells(OV1_RIJ, k).Value = ov1(k): wD.Cells(OV1_RIJ, 2).Value = "Overige opbrengsten (uit het oude FO)"
-        If ov2(k) <> 0 Then wD.Cells(OV2_RIJ, k).Value = ov2(k): wD.Cells(OV2_RIJ, 2).Value = "Overige / verschillen per type (uit het oude FO)"
+        If ov1(k) <> 0 Then wD.Cells(OV1_RIJ, k).Value = ov1(k): wD.Cells(OV1_RIJ, 2).Value = "Overige opbrengsten (uit het oude FO)": wD.Cells(OV1_RIJ - 2, 3).Value = "handmatig"
+        If ov2(k) <> 0 Then wD.Cells(OV2_RIJ, k).Value = ov2(k): wD.Cells(OV2_RIJ, 2).Value = "Overige / verschillen per type (uit het oude FO)": wD.Cells(OV2_RIJ - 2, 3).Value = "handmatig"
     Next k
     ' aansluiting: SKO per regel (kolom B van de vergelijkingsblokken)
     If Not wA Is Nothing Then

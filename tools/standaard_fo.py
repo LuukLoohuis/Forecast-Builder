@@ -94,7 +94,8 @@ def eu_rij(k, i):
 
 
 OV_KOP = eu_kop(NT) + OBLOK + 1         # 'Overige opbrengsten in €'
-OV1, OV2 = OV_KOP + 1, OV_KOP + 2
+OVR1, OVR2 = OV_KOP + 1, OV_KOP + 2     # commercieel / parkeren in de cashflow (naar rato bouwtermijnen of handmatig)
+OV1, OV2 = OV_KOP + 3, OV_KOP + 4       # handmatige bedragen (Oud FO inlezen zet hier de overige opbrengsten)
 CORR = OV2 + 2
 TOT = OV2 + 3
 PCT = TOT + 1
@@ -412,27 +413,45 @@ def maak_opbrengsten(ws):
                 zet(ws, '%s%d' % (c, r), '=%s%d*$E%d' % (c, o, o), F, None, NUM)
     kopregels(ws, OV_KOP - 1, OV_KOP)
     zet(ws, 'B%d' % OV_KOP, 'Overige opbrengsten in €', FB, KOP)
+    from openpyxl.worksheet.datavalidation import DataValidation
+    zet(ws, 'C%d' % OV_KOP, 'verdeling', FB, KOP)
     zet(ws, 'D%d' % OV_KOP, 'PEW (aansl.)', FB, KOP)
     zet(ws, 'E%d' % OV_KOP, 'te verdelen', FB, KOP)
     zet(ws, '%s%d' % (CHK, OV_KOP), 'Verdeeld', FB, KOPLICHT)
     zet(ws, '%s%d' % (VER, OV_KOP), 'Verschil', FB, KOPLICHT)
-    for r, lab in ((OV1, 'Opbrengsten commercieel'), (OV2, 'Opbrengsten parkeren')):
-        zet(ws, 'B%d' % r, lab)
-        # bedrag volgens de aansluiting op Prijslijst (kolom PEW, alle woningtypes), te verdelen over de kwartalen
+    dv = DataValidation(type='list', formula1='"bouwtermijnen,handmatig"', allow_blank=False)
+    ws.add_data_validation(dv)
+    # verdeelsleutel: aandeel van de gefactureerde bouwtermijnen (alle woningtypes) in het kwartaal
+    bt_tot = '+'.join('$D$%d' % (tr(k) + 5) for k in range(1, NT + 1))
+    for r, h, lab in ((OVR1, OV1, 'Opbrengsten commercieel'), (OVR2, OV2, 'Opbrengsten parkeren')):
+        std = '%s · handmatig (€)' % lab
+        zet(ws, 'B%d' % r, '=IF($B%d="%s","%s",$B%d)' % (h, std, lab, h), FB)
+        zet(ws, 'C%d' % r, 'bouwtermijnen', F, GEEL)
+        dv.add('C%d' % r)
+        # bedrag volgens de aansluiting op Prijslijst (kolom PEW, alle woningtypes)
         i_ = P_REGELS.index(lab)
-        # (alleen zolang de regel deze naam heeft: Oud FO inlezen kan er 'overige opbrengsten uit het oude FO' van maken)
-        zet(ws, 'D%d' % r, '=IF($B%d<>"%s","",%s)' % (r, lab, '+'.join(pl('$H$%d' % (p_aans(k) + 2 + i_)) for k in range(1, NT + 1))), FB, None, NUM)
+        zet(ws, 'D%d' % r, '=IF($B%d<>"%s","",%s)' % (h, std, '+'.join(pl('$H$%d' % (p_aans(k) + 2 + i_)) for k in range(1, NT + 1))), FB, None, NUM)
         zet(ws, 'E%d' % r, '=IF(D%d="","",ROUND(D%d-%s%d,2))' % (r, r, CHK, r), F, None, NUM)
+        rato = 'AND($C%d="bouwtermijnen",$B%d="%s")' % (r, h, std)
         for c in COLS:
-            zet(ws, '%s%d' % (c, r), None, F, GEEL, NUM)
+            bt_c = '+'.join('%s%d' % (c, tr(k) + 5) for k in range(1, NT + 1))
+            zet(ws, '%s%d' % (c, r), '=IF(%s,IFERROR(N($D%d)*(%s)/(%s),0),N(%s%d))' % (rato, r, bt_c, bt_tot, c, h), F, None, NUM)
         zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, NUM)
         zet(ws, '%s%d' % (VER, r), '=E%d' % r, F, None, NUM)
-        zet(ws, '%s%d' % (STAT, r), '=IF(D%d="","",IF(AND(D%d=0,%s%d=0),"",IF(ABS(E%d)<1,"OK","LET OP: "&TEXT(E%d,"#,##0")&" nog te verdelen")))'
-            % (r, r, CHK, r, r, r), FB)
+        zet(ws, '%s%d' % (STAT, r), ('=IF(AND($C{r}="bouwtermijnen",$B{h}="{std}",SUM({c0}{h}:{cn}{h})<>0),'
+                                     '"LET OP: handmatige bedragen (rij {h}) tellen niet mee bij bouwtermijnen",'
+                                     'IF(D{r}="","",IF(AND(D{r}=0,{chk}{r}=0),"",IF(ABS(E{r})<1,"OK",'
+                                     '"LET OP: "&TEXT(E{r},"#,##0")&" nog te verdelen"))))').format(
+            r=r, h=h, std=std, c0=COLS[0], cn=COLS[-1], chk=CHK), FB)
+        # handmatige bedragen (geel); bij 'bouwtermijnen' niet gebruikt
+        zet(ws, 'B%d' % h, std, FN)
+        for c in COLS:
+            zet(ws, '%s%d' % (c, h), None, F, GEEL, NUM)
+        zet(ws, '%s%d' % (CHK, h), '=SUM(%s%d:%s%d)' % (COLS[0], h, COLS[-1], h), F, None, NUM)
     zet(ws, 'B%d' % TOT, 'Totaal opbrengsten', FB)
     for c in COLS + [CHK]:
         delen = ['%s%d:%s%d' % (c, eu_rij(k, 0), c, eu_rij(k, OMZ_N - 1)) for k in range(1, NT + 1)]
-        zet(ws, '%s%d' % (c, TOT), '=SUM(%s,%s%d:%s%d)+%s%d' % (','.join(delen), c, OV1, c, OV2, c, DAEB_TOT), FB, None, NUM)
+        zet(ws, '%s%d' % (c, TOT), '=SUM(%s,%s%d:%s%d)+%s%d' % (','.join(delen), c, OVR1, c, OVR2, c, DAEB_TOT), FB, None, NUM)
     zet(ws, 'B%d' % PCT, 'Opbrengsten in %')
     for c in COLS:
         zet(ws, '%s%d' % (c, PCT), '=IFERROR(%s%d/$%s$%d,0)' % (c, TOT, CHK, TOT), F, None, '0%')

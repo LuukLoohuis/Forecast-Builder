@@ -299,6 +299,7 @@ def omzetten(oud, uit, project=None):
     for rr, som, lab in ((S.OV1, ov1, 'Overige opbrengsten (uit het oude FO)'), (S.OV2, ov2, 'Overige / verschillen per type (uit het oude FO)')):
         if som:
             O['B%d' % rr] = lab
+            O['C%d' % (rr - 2)] = 'handmatig'          # de regel in de cashflow neemt de handmatige bedragen
             for k2, v in som.items():
                 O.cell(rr, k2).value = v
     # ---- DAEB --------------------------------------------------------------------------------------------
