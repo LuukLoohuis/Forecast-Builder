@@ -219,7 +219,7 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         for p in posten:
             z('E%d' % p, '=IF(OR($C%d="Voorstel",$C%d="Transport"),%s%d,SUM(%s%d:%s%d))' % (p, p, tk, p + off, cols[0], p, cols[-1], p),
               st['getal'])
-            z('F%d' % p, '=IF(B%d="","",ROUND(N(D%d)-E%d,0))' % (p, p, p), st['vet'])
+            z('F%d' % p, '=IF(B%d="","",ROUND(N(D%d)-E%d,0))' % (p, p, p), st['getal_tot'])
     m = '$C$%d:$C$%d' % (p1, pn)
     for c in cols:
         hand, vs = '%s%d:%s%d' % (c, p1, c, pn), '%s%d:%s%d' % (c, v1, c, vn)
@@ -237,11 +237,21 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     for c in ['B'] + kolommen('C', st_k):
         z('%s%d' % (c, s0), 'VOORSTEL · restant budget (PEW − verwerkt) vanaf het eerste prognosekwartaal: gelijk verdeeld t/m '
                             'oplevering (tab Start), of bij "Transport" naar rato van het transport · kies per post in kolom C' if c == 'B' else None, st['sectie'])
+    # kolom voor het aantal kwartalen (of woningen) waarover verdeeld wordt: G, tenzij G een kwartaalkolom is (in het
+    # standaard-FO is G de kolom Actuals; dan C)
+    N_ = 'C' if 'G' in cols else 'G'
+    # verdelen t/m: de oplevering (tab Start); leeg of al voorbij = het laatste kwartaal met opbrengsten
+    ob = oz['opbrengsten']
+    eind = '$D$%d' % (s0 + 1)
+    keyo = '_koppeling!$%s$521:$%s$521' % (ob['eerste'], ob['laatste'])
+    tot_o = "'CF - opbrengsten'!$%s$%d:$%s$%d" % (ob['eerste'], ob['totaal'], ob['laatste'], ob['totaal'])
+    z('B%d' % (s0 + 1), 'verdelen t/m (oplevering op Start; leeg of voorbij = laatste kwartaal met opbrengsten)', st['hulp_links'])
+    z('D%d' % (s0 + 1), '=IF(%s>=%s,%s,MAX(%s,IFERROR(LOOKUP(2,1/((%s<>0)*(%s>0)),%s),%s)))'
+      % (P_O, P_H, P_O, P_H, tot_o, keyo, keyo, P_H), st['aantal'])
+    z('E%d' % (s0 + 1), '=IF(N(D%d)=0,"","Q"&(D%d-4*INT((D%d-1)/4))&" "&INT((D%d-1)/4))' % (s0 + 1, s0 + 1, s0 + 1, s0 + 1), st['vet'])
     z('B%d' % hj, 'hulp: jaar', st['hulp_links'])
     z('B%d' % hk, 'hulp: kwartaalindex (jaar × 4 + kw)', st['hulp_links'])
     z('B%d' % ht, 'hulp: transport (aantal woningen, alle types)', st['hulp_links'])
-    ob = oz['opbrengsten']
-    keyo = '_koppeling!$%s$521:$%s$521' % (ob['eerste'], ob['laatste'])
     tr_rng = lambda t: "'CF - opbrengsten'!$%s$%d:$%s$%d" % (ob['eerste'], t['tr'], ob['laatste'], t['tr'])
     o = k['onderdelen']
     for i, c in enumerate(cols):
@@ -251,11 +261,11 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
           % (c, hj, c, o, c, hj, c, o), st['hulp'])
         z('%s%d' % (c, hkop), '=IF(%s$%d>0,"Q"&(%s$%d-4*%s$%d)&" \'"&RIGHT(%s$%d,2),"actuals")' % (c, hk, c, hk, c, hj, c, hj),
           st['kop'])
-        z('%s%d' % (c, hst), '=IF(%s$%d<%s,"verwerkt",IF(%s$%d<=MAX(%s,%s),"prognose","na oplevering"))'
-          % (c, hk, P_H, c, hk, P_H, P_O), st['hulp'])
+        z('%s%d' % (c, hst), '=IF(%s$%d<%s,"verwerkt",IF(%s$%d<=%s,"prognose","na oplevering"))'
+          % (c, hk, P_H, c, hk, eind), st['hulp'])
         z('%s%d' % (c, ht), '=IF(%s$%d=0,0,%s)' % (c, hk, '+'.join('SUMIFS(%s,%s,%s$%d)' % (tr_rng(t), keyo, c, hk)
                                                                      for t in ob['types'])), st['hulp'])
-    for c, h in zip(['B', 'C', 'D', 'E', 'F', 'G', tk, st_k],
+    for c, h in zip(['B', 'C', 'D', 'E', 'F', N_, tk, st_k],
                     ['Post', '', 'PEW (huidig)', 'Verwerkt', 'Restant', 'Kw. / won.', 'Totaal', 'Check']):
         z('%s%d' % (c, hkop), h or None, st['kop_links'] if c == 'B' else st['kop'])
     rk = '$%s$%d:$%s$%d' % (cols[0], hk, cols[-1], hk)
@@ -269,20 +279,20 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         # restant na de zelf ingevulde (overschreven) prognosekwartalen
         z('F%d' % r, '=MAX(0,D%d-E%d-SUMIFS(%s,%s,">="&%s))' % (r, r, rp, rk, P_H), st['getal'])
         # een kwartaal telt als leeg (wordt verdeeld) als er niets of 0 staat
-        z('G%d' % r, '=IF($C%d="Transport",SUMPRODUCT(%s*(%s>=%s)*(((%s&"")="")+((%s&"")="0"))),'
-                     'COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s),%s,"")+COUNTIFS(%s,">="&%s,%s,"<="&MAX(%s,%s),%s,0))'
-          % (p, rt, rk, P_H, rp, rp, rk, P_H, rk, P_H, P_O, rp, rk, P_H, rk, P_H, P_O, rp), st['aantal'])
+        z('%s%d' % (N_, r), '=IF($C%d="Transport",SUMPRODUCT(%s*(%s>=%s)*(((%s&"")="")+((%s&"")="0"))),'
+                            'COUNTIFS(%s,">="&%s,%s,"<="&%s,%s,"")+COUNTIFS(%s,">="&%s,%s,"<="&%s,%s,0))'
+          % (p, rt, rk, P_H, rp, rp, rk, P_H, rk, eind, rp, rk, P_H, rk, eind, rp), st['aantal'])
         for c in cols:
-            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF(N(%s%d)<>0,%s%d,IF($C%d="Transport",IF($G%d=0,0,$F%d*%s$%d/$G%d),'
-                               'IF(%s$%d<=MAX(%s,%s),IF($G%d=0,0,$F%d/$G%d),0))))'
-              % (c, hk, P_H, c, p, c, p, c, p, p, r, r, c, ht, r, c, hk, P_H, P_O, r, r, r), st['getal'])
+            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF(N(%s%d)<>0,%s%d,IF($C%d="Transport",IF($%s%d=0,0,$F%d*%s$%d/$%s%d),'
+                               'IF(%s$%d<=%s,IF($%s%d=0,0,$F%d/$%s%d),0))))'
+              % (c, hk, P_H, c, p, c, p, c, p, p, N_, r, r, c, ht, N_, r, c, hk, eind, N_, r, r, N_, r), st['getal'])
         z('%s%d' % (tk, r), '=SUM(%s%d:%s%d)' % (cols[0], r, cols[-1], r), st['getal_tot'])
         z('%s%d' % (st_k, r), '=IF(B%d="","",IF(D%d-E%d<-1,"OVERSCHRIJDING",IF(ABS(%s%d-D%d)<1,"OK","FOUT")))'
           % (r, r, r, tk, r, r), st['vet'])
     r = vn + 1
     z('B%d' % r, 'Totaal voorstel', st['label_tot'])
-    for c in ['C', 'D', 'E', 'F', 'G'] + cols + [tk]:
-        z('%s%d' % (c, r), '=SUM(%s%d:%s%d)' % (c, v1, c, vn) if c not in ('C', 'G') else None, st['getal_tot'])
+    for c in ['C', 'D', 'E', 'F'] + [x for x in ['G'] if x not in cols] + cols + [tk]:
+        z('%s%d' % (c, r), '=SUM(%s%d:%s%d)' % (c, v1, c, vn) if c not in ('C', N_) else None, st['getal_tot'])
     k.update({'voorstel_eerste': v1, 'voorstel_laatste': vn, 'voorstel_eind': r, 'sleutelrij': hk})
     # opmaak: gekozen methode zichtbaar maken
     grijs = styles.add_dxf('<font><strike val="1"/><color rgb="FF9CA3AF"/></font>')
