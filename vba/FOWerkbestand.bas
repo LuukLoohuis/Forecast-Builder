@@ -17,7 +17,7 @@ Option Explicit
 Private Const SH_START As String = "Start"
 Private Const SH_CF As String = "Invoer"              ' cashflow per periode (vervangt 1. Cashflow; kop 'Jaar' in B7)
 Private Const SH_CF_OUD As String = "1. Cashflow"     ' in een oud FO
-Private Const SH_VORIGE As String = "Vorige prognose"
+Private Const SH_VORIGE As String = "CF vorig en huidig"
 Private Const SH_CONTROLE As String = "Controle oud FO"
 Private Const SH_SJABLOON As String = "_sjabloon"     ' blad / cel / inhoud: na Oud FO inlezen terugzetten
 Private Const TITEL As String = "FO-werkbestand"

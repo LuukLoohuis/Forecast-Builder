@@ -292,8 +292,8 @@ def invoer(inv: Sheet, types, st):
         inv.set('G%d' % r, '=IF(F%d="","",IFERROR(F%d/$F$%d,0))' % (r, r, tot), st['pct'])
         inv.set('H%d' % r, '=-D%d+F%d' % (r, r) if r == r1 else '=IF(D%d="","",N(H%d)-D%d+F%d)' % (r, r - 1, r, r), st['getal'])
         inv.set('I%d' % r, '=IF(H%d="","",H%d/1000)' % (r, r), st['getal1'])
-        inv.set('J%d' % r, "=IF(OR($B%d=\"\",COUNTIFS('Vorige prognose'!$B:$B,$B%d,'Vorige prognose'!$C:$C,$C%d&\"\")=0),\"\","
-                           "SUMIFS('Vorige prognose'!$G:$G,'Vorige prognose'!$B:$B,$B%d,'Vorige prognose'!$C:$C,$C%d&\"\"))"
+        inv.set('J%d' % r, "=IF(OR($B%d=\"\",COUNTIFS('CF vorig en huidig'!$B:$B,$B%d,'CF vorig en huidig'!$C:$C,$C%d&\"\",'CF vorig en huidig'!$G:$G,\"<>\")=0),\"\","
+                           "SUMIFS('CF vorig en huidig'!$G:$G,'CF vorig en huidig'!$B:$B,$B%d,'CF vorig en huidig'!$C:$C,$C%d&\"\"))"
                 % (r, r, r, r, r), st['getal1'])
         for t in types:
             cv, ct = num2col(12 + 2 * (t['k'] - 1)), num2col(13 + 2 * (t['k'] - 1))

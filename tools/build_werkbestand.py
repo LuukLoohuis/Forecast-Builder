@@ -47,6 +47,7 @@ LAYOUT = [
     ('CF - kosten', 'fo', 'CF - kosten', 'shCFKostenFO'),
     ('Dashboard', 'sc', 'Dashboard', 'shDashboard'),
     ("Scenario's", 'sc', "Scenario's", 'shScenarios'),
+    ('CF vorig en huidig', 'new', 'CF vorig en huidig', 'shVorigePrognose'),
     ('2. Ontw PEW', 'new', '2. Ontw PEW', 'shOntwPEW'),
     ('CF - hulp VENA', 'fo', 'CF - hulp VENA', 'shVENA'),
     ('PowerPoint', 'sc', 'PowerPoint', 'shPowerPoint'),
@@ -54,7 +55,6 @@ LAYOUT = [
     ('Woningtypes', 'sc', 'Woningtypes', 'shWoningtypes'),
     ('Scenario kosten', 'sc', 'CF kosten', 'shCFKosten'),
     ('Model', 'sc', 'Model', 'shModel'),
-    ('Vorige prognose', 'new', 'Vorige prognose', 'shVorigePrognose'),
     ('Controle oud FO', 'new', 'Controle oud FO', 'shControleOudFO'),
     ('Behind the scens', 'fo', 'Behind the scens', 'shBehindScens'),
     ('_sjabloon', 'new', '_sjabloon', 'shSjabloon'),
@@ -63,7 +63,7 @@ LAYOUT = [
 VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', 'Notities FO gesprek', 'Verkooptempo',
              'Toelichting onderlegger', '1. Ontw businessc FD', '5. K&R businessc'}    # 2. Ontw PEW komt in een nieuw jasje
 VERBORGEN = {'Invoer', 'Woningtypes', 'Scenario kosten', 'Model',   # rekenbladen van het scenariomodel: alles is formule
-             'PowerPoint', 'Vorige prognose', 'Controle oud FO', 'Behind the scens'}
+             'PowerPoint', 'Controle oud FO', 'Behind the scens'}
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
 DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3), 'startbouw': (2027, 2),
         'dia10': [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),
@@ -709,7 +709,7 @@ def main():
     sh.set_value('B2', 'Formules: verwerkte kwartalen uit FO - actuals, prognose uit CF - kosten (rij %d) en CF - opbrengsten '
                        '(rij %d); verkocht = verkooptempo, transport = transportregel op CF - opbrengsten. Niet overschrijven.'
                  % (ko['totaal'], ob['totaal']))
-    sh.set_value('B3', 'Kolom J = vorige prognose (tab Vorige prognose). Rij %d-%d: totalen en aansluiting op het PEW.'
+    sh.set_value('B3', 'Kolom J = vorige prognose (tab CF vorig en huidig). Rij %d-%d: totalen en aansluiting op het PEW.'
                  % (inv_tot, inv_tot + 3))
     sh.set_value('B4', None)
     sh.set_value('B5', '1 · CASHFLOW · automatisch uit FO - actuals en de CF-tabbladen')
@@ -929,7 +929,7 @@ def main():
     TABKLEUR = {'Start': 'FF003366',
                 'FO - vorig': 'FF9CA3AF', 'FO - huidig': 'FF9CA3AF', 'FO - actuals': 'FF9CA3AF', 'Prijslijst dump': 'FF9CA3AF',
                 'Prijslijst': 'FFFEB900', 'CF - opbrengsten': 'FFFEB900', 'CF - kosten': 'FFFEB900', '2. Ontw PEW': 'FFFEB900',
-                'Dashboard': 'FF15803D', "Scenario's": 'FF15803D', 'CF - hulp VENA': 'FF15803D'}
+                'Dashboard': 'FF15803D', "Scenario's": 'FF15803D', 'CF vorig en huidig': 'FF15803D', 'CF - hulp VENA': 'FF15803D'}
     for naam, kleur in TABKLEUR.items():
         if naam not in part_of:
             continue

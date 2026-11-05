@@ -6,7 +6,7 @@ Vaste plekken (de macro's in vba/FOWerkbestand.bas gebruiken ze):
   Start            C6 projectnaam, C8/D8 eerste prognosekwartaal, C9/D9 oplevering, F8/F9 kwartaalindex,
                    rijen 15-18 invoertabbladen (F = laatst ingelezen, G = bestand)
   Start            C12/D12 actuals t/m, F12 kwartaalindex (naam p_actuals)
-  Vorige prognose  rij 8-67: jaar, Q, kosten, omzet, CF, CF x 1000
+  CF vorig en huidig  rij 8-67: vorige (jaar, Q, kosten, omzet, CF, CF x 1000); rechts de huidige per periode
   _sjabloon        blad / cel / inhoud: wordt na Oud FO inlezen teruggezet (transportregels, methode, voorstel, ...)
 """
 from __future__ import annotations
@@ -166,7 +166,7 @@ def maak_start(wb, demo, R):
              'uit': ('uitkomst', PatternFill('solid', fgColor='FF15803D'), Font(name=FONT, size=10, bold=True, color='FFFFFFFF'))}
     tabs = [('FO - vorig', 'export'), ('FO - huidig', 'export'), ('FO - actuals', 'export'), ('Prijslijst dump', 'export'),
             ('Prijslijst', 'invoer'), ('CF - opbrengsten', 'invoer'), ('CF - kosten', 'invoer'), ('2. Ontw PEW', 'invoer'),
-            ('Dashboard', 'uit'), ("Scenario's", 'uit'), ('CF - hulp VENA', 'uit')]
+            ('Dashboard', 'uit'), ("Scenario's", 'uit'), ('CF vorig en huidig', 'uit'), ('CF - hulp VENA', 'uit')]
     for i, (t, k) in enumerate(tabs):
         r = 3 + i
         cell(ws, 'M%d' % r, '=HYPERLINK("#\'%s\'!A1","→ %s")' % (t.replace("'", "''"), t),
@@ -529,24 +529,82 @@ def maak_pew(wb, inhoud, pw):
 # ================================================================================================
 
 def maak_vorige_prognose(wb, vooraf=None, bron=''):
-    ws = wb.create_sheet('Vorige prognose')
+    """tab 'CF vorig en huidig': links de vorige prognose (bewaard; kolom G aanpasbaar, die wordt de stippellijn en kolom J
+    van Invoer), rechts per periode de huidige prognose (rekent mee met CF - opbrengsten en CF - kosten) naast de vorige"""
+    from openpyxl.chart import LineChart, Reference
+    from scenario_koppeling import INV_RN
+    ws = wb.create_sheet('CF vorig en huidig')
     ws.sheet_view.showGridLines = False
-    for k, v in {'A': 2, 'B': 10, 'C': 8, 'D': 16, 'E': 16, 'F': 16, 'G': 16}.items():
+    for k, v in {'A': 9, 'B': 8, 'C': 6, 'D': 14, 'E': 14, 'F': 14, 'G': 16, 'H': 3, 'I': 8, 'J': 6, 'K': 14, 'L': 14,
+                 'M': 16, 'N': 16, 'O': 16, 'P': 3}.items():
         ws.column_dimensions[k].width = v
-    cell(ws, 'B2', 'Vorige prognose', F_TITLE)
-    cell(ws, 'B3', 'Wordt gevuld door Nieuw kwartaal starten (de cashflow van het afgesloten kwartaal, als waarden) of door '
-                   'Oud FO inlezen (kolom CF vorig kwartaal van het oude FO). Tab Invoer kolom J komt hieruit.', F_NOTE)
-    cell(ws, 'B5', 'Bewaard op', F_BOLD)
+    cell(ws, 'A1', '=HYPERLINK("#Start!A1","← Start")', Font(name='Heijmans-BoldCon', size=10, color='FF003366', underline='single'))
+    cell(ws, 'B2', 'Cashflow · vorige en huidige prognose', F_TITLE)
+    cell(ws, 'B3', 'Links de vorige prognose zoals bewaard (Nieuw kwartaal starten of Oud FO inlezen). De gele kolom G mag je '
+                   'aanpassen: dat is de stippellijn in de grafiek op het Dashboard. Rechts de huidige prognose per periode; die '
+                   'rekent mee met CF - opbrengsten en CF - kosten (aanpassen doe je daar).', F_NOTE)
+    cell(ws, 'B5', 'Bewaard:', F_BOLD)
     cell(ws, 'D5', bron or None, F_BASE, None, 'dd-mm-yyyy hh:mm', Alignment(horizontal='left'))
-    for i, h in enumerate(['Jaar', 'Q', 'Kosten', 'Omzet', 'CF', 'CF (x 1000)']):
-        cell(ws, '%s7' % L(2 + i), h, F_HEAD, FILL_HEAD)
+    groen = PatternFill('solid', fgColor='FF15803D')
+    for c in 'BCDEFG':
+        cell(ws, '%s6' % c, 'VORIGE PROGNOSE · bewaard' if c == 'B' else None, F_SECTION, FILL_SECTION)
+    for c in 'IJKLMNO':
+        cell(ws, '%s6' % c, 'HUIDIGE PROGNOSE · rekent mee, met de vorige ernaast' if c == 'I' else None, F_SECTION, groen)
+    for c, h in zip('BCDEFG', ['Jaar', 'Q', 'Kosten (€)', 'Omzet (€)', 'CF cumulatief (€)', 'CF cumulatief (× 1.000) · aanpasbaar']):
+        cell(ws, '%s7' % c, h, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', wrap_text=True, vertical='center'))
+    for c, h in zip('IJKLMNO', ['Jaar', 'Q', 'Kosten (€)', 'Omzet (€)', 'CF cumulatief huidig (× 1.000)',
+                                'CF cumulatief vorige (× 1.000)', 'Verschil (× 1.000)']):
+        cell(ws, '%s7' % c, h, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', wrap_text=True, vertical='center'))
+    ws.row_dimensions[7].height = 44
+    rand = Border(bottom=THIN)
     for i, r in enumerate(range(8, 68)):
         rij = (vooraf or [])[i] if vooraf and i < len(vooraf) else None
         vals = [None] * 6
         if rij:
             vals = [rij['B'], rij.get('C') or None, None, None, None, rij.get('J')]
         for j in range(6):
-            cell(ws, '%s%d' % (L(2 + j), r), vals[j], F_BASE, None, NUM if j >= 2 else None)
+            cell(ws, '%s%d' % (L(2 + j), r), vals[j], F_BASE, FILL_INPUT if j == 5 else FILL_SAP if j >= 2 else None,
+                 NUMK if j == 5 else NUM if j >= 2 else None)
+    for r in range(8, INV_RN + 1):
+        cell(ws, 'I%d' % r, '=IF(Invoer!$B%d="","",Invoer!$B%d)' % (r, r), F_BOLD, None, None, None, rand)
+        cell(ws, 'J%d' % r, '=IF(Invoer!$B%d="","",Invoer!$C%d&"")' % (r, r), F_BASE, None, None, None, rand)
+        cell(ws, 'K%d' % r, '=IF($I%d="","",N(Invoer!$D%d))' % (r, r), F_BASE, None, NUM, None, rand)
+        cell(ws, 'L%d' % r, '=IF($I%d="","",N(Invoer!$F%d))' % (r, r), F_BASE, None, NUM, None, rand)
+        cell(ws, 'M%d' % r, '=IF($I%d="","",N(Invoer!$I%d))' % (r, r), F_BOLD, None, NUMK, None, rand)
+        cell(ws, 'N%d' % r, '=IF(OR($I%d="",Invoer!$J%d=""),"",Invoer!$J%d)' % (r, r, r), F_BASE, None, NUMK, None, rand)
+        cell(ws, 'O%d' % r, '=IF(OR(M%d="",N%d=""),"",M%d-N%d)' % (r, r, r, r), F_BOLD, None, NUMK, None, rand)
+        cell(ws, 'R%d' % r, '=IF(M%d="",NA(),M%d)' % (r, r), F_HELP, None, NUMK)
+        cell(ws, 'S%d' % r, '=IF(N%d="",NA(),N%d)' % (r, r), F_HELP, None, NUMK)
+        cell(ws, 'Q%d' % r, '=IF($I%d="","",IF($J%d="",$I%d&"",$J%d&" ’"&RIGHT($I%d,2)))' % (r, r, r, r, r), F_HELP)
+    ws.conditional_formatting.add('O8:O%d' % INV_RN, FormulaRule(formula=['AND(ISNUMBER(O8),O8<-0.5)'], font=Font(bold=True, color='FFB91C1C')))
+    ws.conditional_formatting.add('O8:O%d' % INV_RN, FormulaRule(formula=['AND(ISNUMBER(O8),O8>0.5)'], font=Font(bold=True, color='FF15803D')))
+    cell(ws, 'Q7', 'label (hulp)', F_HELP)
+    cell(ws, 'R7', 'Huidig', F_HELP)
+    cell(ws, 'S7', 'Vorige', F_HELP)
+    for c in 'QRS':
+        ws.column_dimensions[c].width = 8
+    ws.column_dimensions['T'].width = 3
+    # grafiek: cumulatieve cashflow huidig en vorige
+    g = LineChart()
+    g.title = 'Cumulatieve cashflow · huidig en vorige (× 1.000)'
+    g.add_data(Reference(ws, min_col=18, min_row=7, max_row=INV_RN), titles_from_data=True)
+    g.add_data(Reference(ws, min_col=19, min_row=7, max_row=INV_RN), titles_from_data=True)
+    g.set_categories(Reference(ws, min_col=17, min_row=8, max_row=INV_RN))
+    g.series[0].graphicalProperties.line.solidFill = '003366'
+    g.series[0].graphicalProperties.line.width = 28000
+    g.series[1].graphicalProperties.line.solidFill = '5B9BD5'
+    g.series[1].graphicalProperties.line.dashStyle = 'dash'
+    g.series[1].graphicalProperties.line.width = 22000
+    g.y_axis.number_format = '#,##0'
+    g.y_axis.majorGridlines = None
+    g.x_axis.delete = g.y_axis.delete = False
+    g.legend.position = 'b'
+    g.height, g.width = 9, 22
+    g.visible_cells_only = False          # de hulpkolommen Q-S zijn verborgen, de grafiek toont ze wel
+    ws.add_chart(g, 'U6')
+    for c in 'QRS':
+        ws.column_dimensions[c].hidden = True
+    ws.freeze_panes = 'A8'
     return ws
 
 
