@@ -24,7 +24,7 @@ en de PowerPoint komt uit hetzelfde bestand.
 | `CF - opbrengsten` | per woningtype: planning bouwtermijnen, verkoop en transport in aantallen (verkooptempo en tabel Transport), grondprijsaanpassing; kadastrale kosten en rente (handmatig); overige opbrengsten, correctie, DAEB |
 | `CF - kosten` | bouwtermijnen kosten per type (eigen planning HWB, standaard gelijk aan de opbrengsten) en per kostenpost Handmatig, Voorstel of Transport |
 | `Dashboard`, `Scenario's` | cashflow, kerncijfers, grafieken en scenario's: rekenen automatisch mee |
-| `CF vorig en huidig` | links de vorige prognose zoals bewaard (kolom G, CF cumulatief, mag je aanpassen: dat is de stippellijn); rechts per periode de huidige prognose (kosten, omzet, CF cumulatief, rekent mee met de CF-tabbladen) naast de vorige, het verschil en een grafiek |
+| `CF vorig en huidig` | links de vorige prognose zoals bewaard (kolom G, CF cumulatief, mag je aanpassen: dat is de stippellijn); in het midden per periode de huidige prognose (rekent mee met de CF-tabbladen) naast de vorige en het verschil; rechts de **realisatie**: per afgesloten periode de gerealiseerde kosten en omzet uit SAP (FO - actuals) naast de vorige prognose, met het verschil en een controle of de cashflow gelijk is aan de realisatie. Plus een grafiek huidig/vorige |
 | `2. Ontw PEW` | PEW huidig/vorig uit SAP, meest recente FD (invullen), toelichting |
 | `CF - hulp VENA` | de definitieve cashflow per maand, in het VENA-format; per maand het kwartaal en de status (actuals / nu / prognose), het huidige kwartaal groen, en in B6 bij welke maand het huidige kwartaal hoort |
 
@@ -102,7 +102,7 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
   - Leeg = automatisch: de grafiek loopt mee met CF - opbrengsten en CF - kosten, vanaf het eerste kwartaal met opbrengsten of kosten (minstens €500), maar niet vóór Q1 van het eerste jaar (cel D3), tot één kwartaal na het laatste.
   - Haal je in de CF-tabbladen een kwartaal leeg, dan schuift de grafiek mee.
   - De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
-- **Vorige en huidige prognose:** op het Dashboard (V93 en verder) per periode van de grafiek: de cashflow vorige en huidig per periode, cumulatief, en het verschil.
+- **Vorige, huidig en realisatie** op het Dashboard (V93–V101): eindsaldo en laagste stand vorige ↔ huidig, kosten en omzet van het laatste afgesloten kwartaal vorige prognose ↔ gerealiseerd, en of de afgesloten periodes aansluiten op SAP. Details per periode: tab CF vorig en huidig.
 - **Tabbladkleuren:** Start donkerblauw, exports grijs, invoer en rekenwerk geel (Prijslijst, CF - opbrengsten, CF - kosten, 2. Ontw PEW), uitkomsten groen (Dashboard, Scenario's, CF - hulp VENA).
 - **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont FOUT of LET OP voor de rij; cel C1 telt ze.
 - **Kans grondtermijn:** vul op `Prijslijst` in kolom Y een ander grond-% van de koopsom in (bijvoorbeeld 50%).

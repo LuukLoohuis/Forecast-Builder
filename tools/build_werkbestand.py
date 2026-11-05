@@ -786,21 +786,45 @@ def main():
     # controle 'rij met cijfers maar zonder jaar': alleen de periodes (niet de totaalregels eronder)
     sh.set_formula('W43', 'IF(SUMPRODUCT((Invoer!$B$7:$B$%d="")*(Invoer!$C$7:$ZZ$%d<>""))=0,"OK",'
                           '"LET OP: rij met cijfers maar zonder jaar telt niet mee")' % (scenario_koppeling.INV_RN, scenario_koppeling.INV_RN))
-    sh.set_value('V93', 'CASHFLOW · VORIGE EN HUIDIGE PROGNOSE (€, de periode van de grafiek)', st_k)
-    for c, h in zip(['V', 'W', 'X', 'Y', 'Z', 'AA'], ['Periode', 'Vorige/kw', 'Huidig/kw', 'Vorige cum.', 'Huidig cum.', 'Verschil cum.']):
-        sh.set_value('%s94' % c, h, st_h)
-    for n in range(60):
-        r = 95 + n
-        pos = 'Model!$BY$336+%d' % n
-        leeg = '%s>Model!$BY$337' % pos
-        cum = lambda col, p_: 'INDEX(Model!$%s$8:$%s$67,%s)' % (col, col, p_)
-        sh.set_formula('V%d' % r, 'IF(%s,"",INDEX(Model!$E$8:$E$67,%s))' % (leeg, pos), st_l)
-        sh.set_formula('W%d' % r, 'IF(OR(%s,Model!$BY$14=0),"",(%s-IF(%s=1,0,%s))*1000000)'
-                       % (leeg, cum('AW', pos), pos, cum('AW', pos + '-1')), st_v)
-        sh.set_formula('X%d' % r, 'IF(%s,"",(%s-IF(%s=1,0,%s))*1000000)' % (leeg, cum('AV', pos), pos, cum('AV', pos + '-1')), st_v)
-        sh.set_formula('Y%d' % r, 'IF(OR(%s,Model!$BY$14=0),"",%s*1000000)' % (leeg, cum('AW', pos)), st_v)
-        sh.set_formula('Z%d' % r, 'IF(%s,"",%s*1000000)' % (leeg, cum('AV', pos)), st_v)
-        sh.set_formula('AA%d' % r, 'IF(OR(%s,Model!$BY$14=0),"",Z%d-Y%d)' % (leeg, r, r), st_v)
+    # samenvatting: vorige ↔ huidige prognose en prognose ↔ realisatie (details per periode op tab CF vorig en huidig)
+    T = "'CF vorig en huidig'!"
+    rng = lambda c: '%s$%s$8:$%s$%d' % (T, c, c, scenario_koppeling.INV_RN)
+    idx = 'MATCH(p_actuals,Invoer!$A$8:$A$%d,0)' % scenario_koppeling.INV_RN
+    sh.set_value('V93', 'VORIGE ↔ HUIDIGE PROGNOSE ↔ REALISATIE (€)', st_k)
+    for c, h in zip(['V', 'W', 'X', 'Y'], ['', 'Vorige prognose', 'Huidig / gerealiseerd', 'Verschil']):
+        sh.set_value('%s94' % c, h or None, st_h)
+    regels = [
+        ('Eindsaldo cashflow', 'IFERROR(LOOKUP(2,1/ISNUMBER(%s),%s)*1000,"")' % (rng('N'), rng('N')),
+         'IFERROR(LOOKUP(2,1/ISNUMBER(%s),%s)*1000,"")' % (rng('M'), rng('M'))),
+        ('Laagste stand (max. financiering)', 'IF(COUNT(%s)=0,"",MIN(%s)*1000)' % (rng('N'), rng('N')),
+         'IF(COUNT(%s)=0,"",MIN(%s)*1000)' % (rng('M'), rng('M'))),
+        (None, None, None),
+        ('Kosten in dat kwartaal · vorige prognose ↔ gerealiseerd', 'IFERROR(INDEX(%s,%s),"")' % (rng('V'), idx),
+         'IFERROR(INDEX(%s,%s),"")' % (rng('U'), idx)),
+        ('Omzet in dat kwartaal · vorige prognose ↔ gerealiseerd', 'IFERROR(INDEX(%s,%s),"")' % (rng('Y'), idx),
+         'IFERROR(INDEX(%s,%s),"")' % (rng('X'), idx)),
+    ]
+    for i, (lab, fw, fx) in enumerate(regels):
+        r = 95 + i
+        if lab is None:
+            sh.set_formula('V%d' % r, '"Laatste afgesloten kwartaal (actuals): "&IF(N(p_actuals)=0,"nog geen actuals",'
+                                      '"Q"&(p_actuals-4*INT((p_actuals-1)/4))&" "&INT((p_actuals-1)/4))', st_l)
+            for c in 'WXY':
+                sh.set_value('%s%d' % (c, r), None, st_v)
+            continue
+        sh.set_value('V%d' % r, lab, st_l)
+        sh.set_formula('W%d' % r, fw, st_v)
+        sh.set_formula('X%d' % r, fx, st_v)
+        sh.set_formula('Y%d' % r, 'IF(OR(W%d="",X%d=""),"",X%d-W%d)' % (r, r, r, r), st_v)
+    r = 95 + len(regels)
+    sh.set_value('V%d' % r, 'Afgesloten periodes: cashflow = realisatie (SAP)', st_l)
+    sh.set_formula('X%d' % r, 'IF(COUNTIF(%s,"LET OP*")=0,"OK",COUNTIF(%s,"LET OP*")&" periode(s) wijken af")' % (rng('AA'), rng('AA')),
+                   sh.style_of('W41'))
+    sh.set_formula('V%d' % (r + 1), 'HYPERLINK("#\'CF vorig en huidig\'!A1","→ details per periode: CF vorig en huidig")', st_l)
+    # oude tabel (periode per rij) weg
+    for rr in range(r + 2, 155):
+        for c in ['V', 'W', 'X', 'Y', 'Z', 'AA']:
+            sh.set_value('%s%d' % (c, rr), None)
     dst.put(part_of['Dashboard'], sh.t)
 
     # ---- cellen aanvullen --------------------------------------------------------------------------------

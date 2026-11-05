@@ -601,9 +601,43 @@ def maak_vorige_prognose(wb, vooraf=None, bron=''):
     g.legend.position = 'b'
     g.height, g.width = 9, 22
     g.visible_cells_only = False          # de hulpkolommen Q-S zijn verborgen, de grafiek toont ze wel
-    ws.add_chart(g, 'U6')
+    ws.add_chart(g, 'AC6')
     for c in 'QRS':
         ws.column_dimensions[c].hidden = True
+    # realisatie: afgesloten periodes (t/m de laatste actuals): gerealiseerd uit SAP (FO - actuals; omzet staat daar
+    # negatief) naast de vorige prognose, en de controle of de cashflow in die periodes gelijk is aan de realisatie
+    grijs = PatternFill('solid', fgColor='FF4B5563')
+    for c in ['U', 'V', 'W', 'X', 'Y', 'Z', 'AA']:
+        cell(ws, '%s6' % c, 'REALISATIE · afgesloten periodes (SAP, FO - actuals) naast de vorige prognose' if c == 'U' else None,
+             F_SECTION, grijs)
+    for c, h in zip(['U', 'V', 'W', 'X', 'Y', 'Z', 'AA'],
+                    ['Kosten gerealiseerd (€)', 'Kosten vorige prognose (€)', 'Verschil kosten (€)', 'Omzet gerealiseerd (€)',
+                     'Omzet vorige prognose (€)', 'Verschil omzet (€)', 'Cashflow = realisatie?']):
+        cell(ws, '%s7' % c, h, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', wrap_text=True, vertical='center'))
+    for c, w in zip(['T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB'], [3, 14, 14, 13, 14, 14, 13, 22, 3]):
+        ws.column_dimensions[c].width = w
+    A_ = "'FO - actuals'!"
+    for r in range(8, INV_RN + 1):
+        afg = 'AND($I%d<>"",OR(N(Invoer!$A%d)=0,N(Invoer!$A%d)<=p_actuals))' % (r, r, r)
+        crit = lambda soort: ('%s$Q:$Q,"%s",%s$P:$P,$I%d' % (A_, soort, A_, r)) + (',%s$R:$R,$J%d' % (A_, r))
+        som = lambda soort: 'IF($J%d="",SUMIFS(%s$K:$K,%s$Q:$Q,"%s",%s$P:$P,$I%d),SUMIFS(%s$K:$K,%s))' % (
+            r, A_, A_, soort, A_, r, A_, crit(soort))
+        vor = lambda c: ('IF(COUNTIFS($B$8:$B$67,$I%d,$C$8:$C$67,$J%d&"",$%s$8:$%s$67,"<>")=0,"",'
+                         'SUMIFS($%s$8:$%s$67,$B$8:$B$67,$I%d,$C$8:$C$67,$J%d&""))' % (r, r, c, c, c, c, r, r))
+        cell(ws, 'U%d' % r, '=IF(%s,%s,"")' % (afg, som('Kosten')), F_BOLD, None, NUM, None, rand)
+        cell(ws, 'V%d' % r, '=IF(%s,%s,"")' % (afg, vor('D')), F_BASE, None, NUM, None, rand)
+        cell(ws, 'W%d' % r, '=IF(OR(U%d="",V%d=""),"",U%d-V%d)' % (r, r, r, r), F_BOLD, None, NUM, None, rand)
+        cell(ws, 'X%d' % r, '=IF(%s,-%s,"")' % (afg, som('Omzet')), F_BOLD, None, NUM, None, rand)
+        cell(ws, 'Y%d' % r, '=IF(%s,%s,"")' % (afg, vor('E')), F_BASE, None, NUM, None, rand)
+        cell(ws, 'Z%d' % r, '=IF(OR(X%d="",Y%d=""),"",X%d-Y%d)' % (r, r, r, r), F_BOLD, None, NUM, None, rand)
+        cell(ws, 'AA%d' % r, '=IF(NOT(%s),"",IF(AND(ABS(N(U%d)-N(K%d))<1,ABS(N(X%d)-N(L%d))<1),"OK",'
+                             '"LET OP: cashflow wijkt af van de realisatie"))' % (afg, r, r, r, r), F_BOLD, None, None, None, rand)
+    for c in ('W', 'Z'):
+        ws.conditional_formatting.add('%s8:%s%d' % (c, c, INV_RN), FormulaRule(formula=['AND(ISNUMBER(%s8),ABS(%s8)>=1)' % (c, c)],
+                                      font=Font(bold=True, color='FF92400E'), fill=LETOP_FILL))
+    status_rules(ws, 'AA8:AA%d' % INV_RN)
+    cell(ws, 'U5', 'Afgesloten = t/m de laatste actuals (Start, rij 12). Kosten vorige prognose en omzet vorige prognose zijn er '
+                   'pas na Nieuw kwartaal starten.', F_NOTE)
     ws.freeze_panes = 'A8'
     return ws
 
