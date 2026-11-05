@@ -72,7 +72,7 @@ SHEETS = [  # (naam, tabkleur, zichtbaar)
     ("Projectlijst", "1F4E9A", True),
     ("AK-dekking", "1F4E9A", True), ("Controle", RED, True), ("Invoer", "1F4E9A", True), ("Historie", GREEN, False),
     ("Handleiding", MID, True),
-    ("Concept", GREY, False), ("VERW_Project", GREY, False), ("CALC_Versies", GREY, False),
+    ("Concept", GREY, False), ("Kwartalen", GREY, False), ("VERW_Project", GREY, False), ("CALC_Versies", GREY, False),
     ("SCEN", GREY, False), ("STG_ZPMW03", GREY, False), ("STG_Woningetalage", GREY, False),
     ("Bron_ZPMW03", "000000", False), ("Bron_Woningetalage", "000000", False), ("Bron_AK", "000000", False), ("Bron_AKR", "000000", False), ("STG_AKR", GREY, False), ("Lijsten", GREY, False),
 ]
@@ -180,6 +180,9 @@ def z_derived():
         ("M_BorQ4", neg("BOR_RJ_Q4"), "BOR Q4 RJ"),
     ]
     for q in range(1, 5):
+        d.append((f"M_OmzRJ_Q{q}", neg(f"BOB_RJ_Q{q}"), f"Omzet RJ Q{q}"))
+        d.append((f"M_BorRJ_Q{q}", neg(f"BOR_RJ_Q{q}"), f"BOR RJ Q{q}"))
+        d.append((f"M_KostRJ1_Q{q}", f'=IFERROR(+[Kosten_RJ1_Q{q}],"n.b.")', f"Kosten RJ+1 Q{q}"))
         d.append((f"M_OmzRJ1_Q{q}", neg(f"BOB_RJ1_Q{q}"), f"Omzet RJ+1 Q{q}"))
         d.append((f"M_BorRJ1_Q{q}", neg(f"BOR_RJ1_Q{q}"), f"BOR RJ+1 Q{q}"))
     for o in range(2, 9):
@@ -849,6 +852,9 @@ def verw_columns():
              ("OmzFY1", "M_OmzFY1", "Omzet FY RJ+1"), ("BorFY1", "M_BorFY1", "BOR FY RJ+1"),
              ("OmzQ4", "M_OmzQ4", "Omzet Q4 RJ"), ("BorQ4", "M_BorQ4", "BOR Q4 RJ")]
     money += [(f"OmzRJ1_Q{q}", f"M_OmzRJ1_Q{q}", f"Omzet RJ+1 Q{q}") for q in range(1, 5)]
+    money += [(f"OmzRJ_Q{q}", f"M_OmzRJ_Q{q}", f"Omzet RJ Q{q}") for q in range(1, 5)]
+    money += [(f"BorRJ_Q{q}", f"M_BorRJ_Q{q}", f"BOR RJ Q{q}") for q in range(1, 5)]
+    money += [(f"KostRJ1_Q{q}", f"M_KostRJ1_Q{q}", f"Kosten RJ+1 Q{q}") for q in range(1, 5)]
     money += [(f"BorRJ1_Q{q}", f"M_BorRJ1_Q{q}", f"BOR RJ+1 Q{q}") for q in range(1, 5)]
     money += [(f"OmzRJ{o}", f"M_OmzRJ{o}", f"Omzet RJ+{o}") for o in range(2, 9)] + [("OmzONV", "M_OmzONV", "Omzet onverdeeld")]
     money += [(f"BorRJ{o}", f"M_BorRJ{o}", f"BOR RJ+{o}") for o in range(2, 9)] + [("BorONV", "M_BorONV", "BOR onverdeeld")]
@@ -1032,7 +1038,7 @@ def build_calc(wb, ws):
                 ws[f"{CC[pre+rb]}{r}"] = (f'=IF(COUNTIFS({crit})>0,SUMIFS(A_Waarde,{crit}),'
                                           f'IF(AND(Sel_Doeljaar=P_RJ,COUNT(V_AKYTD)>0),SUM(V_AKYTD)+IF(AKR_N>0,AK_NietToegewezen,0),"n.b."))')
             if pre == "AV_" and rb == "AK-dekking":   # geen aanvullende invoer: AK % x kosten uit de upload
-                ak = ('IF(Sel_Doeljaar=P_RJ,IF(COUNT(V_AK0)=0,"n.b.",SUM(V_AK0)+IF(AKR_N>0,AK_NietToegewezen,0)),'
+                ak = ('IF(Sel_Doeljaar=P_RJ,IF(COUNT(V_AK0)=0,"n.b.",SUM(V_AK0)+IF(AND(AKR_N>0,AK_Methode<>"Kosten"),AK_NietToegewezen,0)),'
                       'IF(Sel_Doeljaar=P_RJ+1,IF(COUNT(V_AK1)=0,"n.b.",SUM(V_AK1)),"n.b."))')
                 ws[f"{CC[pre+rb]}{r}"] = f'=IF(COUNTIFS({crit})>0,SUMIFS(A_Waarde,{crit}),{ak})'
     # Geselecteerd en vorige versie
@@ -1141,7 +1147,7 @@ def build_vastleggen(wb, ws):
     k_ak = next(k for k, t in enumerate(KT) if t[1] == K_AK and t[0] == 0)
     ws[f"AB{r}"] = 0
     ws[f"AC{r}"] = k_ak
-    ws[f"AD{r}"] = "=IF(AKR_N>0,AK_NietToegewezen,0)"
+    ws[f"AD{r}"] = '=IF(AND(AKR_N>0,AK_Methode<>"Kosten"),AK_NietToegewezen,0)'
     ws[f"AE{r}"] = f'=IF(AND(ISNUMBER(AD{r}),AD{r}<>0),1,0)'
     ws[f"AF{r}"] = f'=IF(AE{r}=1,SUM($AE${C0}:AE{r}),"")'
     for c in ("AB", "AC", "AD", "AE", "AF"):
@@ -2451,7 +2457,8 @@ def build_projectdetail(wb, ws, first_name):
         ws[f"Q{rr}"].font = font(9, True, NAVY)
     widths(ws, {"B": 20, "C": 13, "D": 10, "E": 10, "F": 13, "G": 10, "H": 10, "I": 10, "J": 9, "K": 9, "L": 9, "M": 9,
                 "N": 9, "O": 9, "P": 9, "Q": 9, "R": 9, "S": 9, "T": 9, "U": 7, "V": 7})
-    landscape(ws, f"A1:S{r+22}")
+    re_ = detail_kwartalen(ws, r + 24)
+    landscape(ws, f"A1:S{re_}")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -3658,6 +3665,8 @@ def build_controle(wb, ws):
          'IF({v}=0,"OK","WAARSCHUWING")', "Tabblad Kansen en risico's: zonder jaar telt de regel niet mee."),
         ("AK", "Projecten zonder AK % (niet in de SAP-dump en geen eigen %)", '=COUNTIFS(Map_WBS,"?*",Map_AKMee,"<>Nee",Map_AKPct,"",Map_AKSap,"")',
          "0", 'IF({v}=0,"OK","WAARSCHUWING")', "Lees de AK-percentages in (Bronnen inlezen, stap 3) of vul op Projectlijst een eigen AK % in. Hoort er geen AK bij? Zet 'AK-dekking' op Nee."),
+        ("AK", "Projecten met negatieve AK-dekking (negatieve kosten)", '=COUNTIF(V_AK0,"<0")', "0", 'IF({v}=0,"OK","WAARSCHUWING")',
+         "Negatieve kosten (correctie of afboeking) geven een negatieve AK-dekking. Klopt dat? Zo niet: op AK-dekking 'Negatieve kosten' op 'Als 0' zetten, of de export laten corrigeren."),
         ("AK", "AK geboekt zonder (bekend) project (grootboekdump)", '=IF(AKR_N=0,0,AK_NietToegewezen)', "info", '"INFO"',
          "Boekingen zonder WBS of op een WBS buiten de projectlijst. Telt mee in de RDFO (regio), niet per project."),
         ("AK", "Grootboekdump AK: kolom Bedrag of Boekjaar niet gevonden", '=IF(AKR_Rijen=0,0,(STG_AKR!$B$3=0)+(STG_AKR!$C$3=0))', "0",
@@ -3721,8 +3730,11 @@ def build_controle(wb, ws):
         ("Historie", "Vastgelegde versies zonder realisatie (blijft n.b.)", "=COUNTIFS(CALC_Versies!$C$5:$C$9,\">0\",CALC_Versies!$D$5:$D$9,0)", "info", '"INFO"',
          "Budget/Q1/Q2 hebben geen vastgelegde actuals; die worden niet als 0 getoond."),
     ]
-    header(ws, 8, 2, ["Nr", "Categorie", "Controle", "Resultaat", "Norm", "Status", "Toelichting / actie", "Bekeken?\n(x = akkoord)"], height=30)
-    r0 = 9
+    TD0, TDN = 9, 12               # "Te doen": de eerste 12 controles met FOUT of WAARSCHUWING
+    TH = TD0 + TDN + 4             # kopregel van de volledige lijst (ingeklapt)
+    section(ws, TH - 1, 2, "Alle controles (klik op + links om ze te openen)", 8)
+    header(ws, TH, 2, ["Nr", "Categorie", "Controle", "Resultaat", "Norm", "Status", "Toelichting / actie", "Bekeken?\n(x = akkoord)"], height=30)
+    r0 = TH + 1
     # technische aansluitcontroles (rekenkundig; vragen alleen actie bij FOUT) onderaan, ingeklapt
     tech_cat = {"Weging", "Bandbreedte", "Rapport", "Historie", "Aansluiting"}
     tech_txt = ("RDFO-BOR upload", "Dubbele regels in Vastlegging", "Ongeldige status", "Ongeldige versie", "Concept-regels",
@@ -3763,11 +3775,35 @@ def build_controle(wb, ws):
             ws[f"{c}{r}"].alignment = Alignment(vertical="top", wrap_text=c in "DH", horizontal="right" if c in "EF" else None)
         ws[f"E{r}"].number_format = 'General'
     rl = r0 + len(checks) - 1
-    for r in tech_rows:
-        ws.row_dimensions[r].outlineLevel = 1
+    # volledige lijst ingeklapt; technische controles een niveau dieper
+    for r in range(TH, rl + 1):
+        ws.row_dimensions[r].outlineLevel = 2 if r in tech_rows else 1
         ws.row_dimensions[r].hidden = True
+        ws[f"J{r}"] = f'=IF(G{r}="FOUT",ROW(),IF(G{r}="WAARSCHUWING",ROW()+1000,""))' if r > TH else None
+        helper_style(ws[f"J{r}"])
+    ws.row_dimensions[TH - 1].collapsed = True
     ws.row_dimensions[tech_hdr].collapsed = True
+    ws.column_dimensions["J"].hidden = True
     ws.sheet_properties.outlinePr.summaryBelow = False
+    # Te doen: eerst de fouten, dan de waarschuwingen
+    put(ws, f"B{TD0 - 2}", "Te doen", bold=True, color=NAVY, size=12)
+    header(ws, TD0 - 1, 2, ["Status", "Categorie", "Controle", "Resultaat", "Wat moet je doen"], height=22)
+    ws.merge_cells(start_row=TD0 - 1, start_column=6, end_row=TD0 - 1, end_column=9)
+    key = f"$J${r0}:$J${rl}"
+    for k in range(1, TDN + 1):
+        r = TD0 + k - 1
+        rx = f"MOD(SMALL({key},{k}),1000)"
+        for c, src in zip("BCDEF", "GCDEH"):
+            ws[f"{c}{r}"] = f'=IFERROR(INDEX(${src}:${src},{rx})&"","")'
+            ws[f"{c}{r}"].font = font(9, c == "B", GREY if c == "C" else "000000")
+            ws[f"{c}{r}"].alignment = Alignment(vertical="top", wrap_text=c in "DF")
+            ws[f"{c}{r}"].border = Border(bottom=thin)
+        ws.merge_cells(start_row=r, start_column=6, end_row=r, end_column=9)
+        ws.row_dimensions[r].height = 30
+    ws.conditional_formatting.add(f"B{TD0}:B{TD0 + TDN - 1}", FormulaRule(formula=[f'B{TD0}="FOUT"'], fill=fill("F8D7DA"), font=Font(color=RED, bold=True)))
+    ws.conditional_formatting.add(f"B{TD0}:B{TD0 + TDN - 1}", FormulaRule(formula=[f'B{TD0}="WAARSCHUWING"'], fill=fill(ORANGE_LT), font=Font(color="9C5700", bold=True)))
+    ws[f"B{TD0 + TDN}"] = (f'=IF(COUNT({key})=0,"✔ Niets te doen.",IF(COUNT({key})>{TDN},"+ "&(COUNT({key})-{TDN})&" meer: open de volledige lijst hieronder.",""))')
+    ws[f"B{TD0 + TDN}"].font = font(9, True, GREEN)
     ws["D4"] = f'=COUNTIF($G${r0}:$G${rl},"FOUT")'
     ws["D5"] = f'=COUNTIF($G${r0}:$G${rl},"WAARSCHUWING")'
     add_name(wb, "CT_Bekeken", f"Controle!$I${r0}:$I${rl}")
@@ -3776,10 +3812,10 @@ def build_controle(wb, ws):
     ws["F4"] = (f'="✖ "&D4&" oplossen   ·   ▲ "&D5&" nakijken   ·   ✔ "&(COUNTIF($G${r0}:$G${rl},"OK")+COUNTIF($G${r0}:$G${rl},"BEKEKEN"))'
                 f'&" in orde"')
     ws["F4"].font = font(13, True, NAVY)
-    ws["F5"] = ('=IF(D4+D5=0,"Alles in orde: je kunt de prognose vastleggen.",IF(D4>0,"Eerst de rode regels oplossen (kolom H zegt wat te doen), '
-                'dan pas vastleggen.","Bekijk de oranje regels; akkoord? Zet een x in kolom I."))')
+    ws["F5"] = ('=IF(D4+D5=0,"Alles in orde: je kunt de prognose vastleggen.",IF(D4>0,"Eerst de rode regels in Te doen oplossen, '
+                'dan pas vastleggen.","Bekijk de oranje regels in Te doen; akkoord? Zet een x bij Bekeken in de volledige lijst."))')
     ws["F5"].font = font(9, False, GREY, True)
-    put(ws, "F6", "Alleen regels met FOUT of WAARSCHUWING worden getoond (knop 'Toon alle controles').", color=GREY, italic=True, size=8)
+    put(ws, "F6", "Hieronder alleen wat aandacht vraagt. Alle controles staan ingeklapt onder 'Alle controles'.", color=GREY, italic=True, size=8)
     for c in ("D4", "D5"):
         ws[c].font = font(14, True, NAVY)
         ws[c].alignment = Alignment(horizontal="left")
@@ -3833,7 +3869,7 @@ def build_controle(wb, ws):
         ws[f"{cA}{r2+27}"].font = font(8, False, GREEN, True)
     widths(ws, {"B": 30, "C": 22, "D": 44, "E": 16, "F": 30, "G": 26, "H": 34, "I": 16})
     ws.column_dimensions["B"].width = 18
-    ws.freeze_panes = "A9"
+    ws.freeze_panes = "A7"
     landscape(ws, f"A1:H{r2+28}")
 
 
@@ -3847,7 +3883,6 @@ BUTTONS = [
     ("Start", "D9", "D11", "3  Maak PowerPoint", "RDFO_MaakPowerPoint", "geel"),
     ("Start", "E9", "E11", "Toon / verberg rekenbladen", "RDFO_ToonRekenbladen", "blauw"),
     ("Controle", "G2", "H3", "Bronnen opnieuw inlezen", "RDFO_BronnenInlezen", "geel"),
-    ("Controle", "I2", "I3", "Toon alle controles", "RDFO_ControleWissel", "blauw"),
     ("Start", "G22", "G23", "Bestand leegmaken", "RDFO_LeegMaken", "blauw"),
     ("Start", "G26", "G27", "Oude prognoses overzetten", "RDFO_OudePrognosesOverzetten", "blauw"),
     ("Projectlijst", "L1", "N2", "Nieuwe projecten toevoegen", "RDFO_ProjectenToevoegen", "blauw"),
@@ -4209,8 +4244,20 @@ def build_ak(wb, ws):
     latere kwartalen = kosten van dat kwartaal / 1,05 x AK %. Jaar = som van de vier kwartalen."""
     base_sheet(ws, zoom=90)
     title(ws, "AK-dekking per kwartaal", None, 25)
-    ws["B2"] = ('="Per kwartaal: t/m Q"&AK_PeilQ&" de geboekte AK uit het grootboek, daarna kosten van het kwartaal / "&FIXED(P_AKFactor,2)'
-                '&" x AK %. Jaar = Q1 + Q2 + Q3 + Q4."')
+    ws["B2"] = ('=IF(AK_Methode="Kosten","Zoals de oude RDFO: per kwartaal kosten / "&FIXED(P_AKFactor,2)&" x AK % (t/m Q"&AK_PeilQ&": Kosten LJ). '
+                'Geboekte AK uit het grootboek staat apart als realisatie.","Per kwartaal: t/m Q"&AK_PeilQ&" de geboekte AK uit het grootboek, daarna kosten / "'
+                '&FIXED(P_AKFactor,2)&" x AK %.")&" Jaar = Q1 + Q2 + Q3 + Q4."')
+    # instellingen (rechtsboven): rekenmethode en negatieve kosten
+    for rr, (lab, val, lijst, nm) in enumerate((("Methode AK-dekking", "Kosten", '"Kosten,Geboekt + rest"', "AK_Methode"),
+                                                ("Negatieve kosten", "Meetellen", '"Meetellen,Als 0"', "AK_Negatief")), start=5):
+        put(ws, f"N{rr}", lab, bold=True, color=NAVY)
+        ws[f"P{rr}"] = val
+        input_style(ws[f"P{rr}"])
+        ws.merge_cells(f"P{rr}:Q{rr}")
+        dv_list(ws, f"P{rr}", lijst)
+        add_name(wb, nm, f"{AKS}!$P${rr}")
+    put(ws, "N7", "Kosten = zoals de oude RDFO (standaard). Geboekt + rest = t/m de peildatum de geboekte AK.", color=GREY, italic=True, size=8)
+    put(ws, "N8", "Negatieve kosten: Meetellen = negatieve AK (zoals de oude RDFO); Als 0 = telt niet mee.", color=GREY, italic=True, size=8)
     ws["B2"].font = font(9, False, GREY, True)
     ws["Z2"] = "=MAX(0,MIN(4,ROUNDUP(P_PeilMaand/3,0)))"
     helper_style(ws["Z2"])
@@ -4232,13 +4279,13 @@ def build_ak(wb, ws):
         put(ws, f"B{r}", lbl, bold=kind == "tot")
         for q, c in enumerate(QC, start=1):
             if kind is None:
-                ws[f"{c}{r}"] = f'=IF({q}<=AK_PeilQ,IF(AKR_NJaar>0,"geboekt","kosten LJ"),"prognose")'
+                ws[f"{c}{r}"] = f'=IF(AND(AK_Methode<>"Kosten",{q}<=AK_PeilQ,AKR_NJaar>0),"geboekt",IF({q}<=AK_PeilQ,"kosten LJ","prognose"))'
                 ws[f"{c}{r}"].font = font(8, True, GREY)
                 ws[f"{c}{r}"].alignment = Alignment(horizontal="right")
             elif kind == "proj":
                 ws[f"{c}{r}"] = f"=SUM({rngc(c)})"
             elif kind == "zonder":
-                ws[f"{c}{r}"] = (f'=IF(OR(AKR_NJaar=0,{q}>AK_PeilQ),0,SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ,AKR_Bekend,0,AKR_Kw,'
+                ws[f"{c}{r}"] = (f'=IF(OR(AKR_NJaar=0,{q}>AK_PeilQ,AK_Methode="Kosten"),0,SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ,AKR_Bekend,0,AKR_Kw,'
                                  f'IF({q}=AK_PeilQ,">=","")&{q}))')
             else:
                 ws[f"{c}{r}"] = f"={c}7+{c}8"
@@ -4270,8 +4317,8 @@ def build_ak(wb, ws):
         kost = f"INDEX({rngc(col(12 + q))},{rr})"
         pct = f"INDEX({rngc('D')},{rr})"
         ws[f"B{r}"] = (f'=IF($F$11="","",IFERROR(IF(INDEX({rngc("C")},{rr})<>"Ja","Q{q}: dit project telt niet mee voor AK (Projectlijst)",'
-                       f'IF(AND({q}<=AK_PeilQ,AKR_NJaar>0),"Q{q} geboekt: € "&FIXED(N({ak}),0)&" (som van de boekingen op dit WBS-element in het grootboek)",'
-                       f'"Q{q} "&IF({q}<=AK_PeilQ,"berekend (geen grootboek, kosten uit Kosten LJ)","prognose")&": kosten € "&FIXED(N({kost}),0)&" / "&FIXED(P_AKFactor,2)&" x "&FIXED(N({pct})*100,1)&"% = € "&FIXED(N({ak}),0))),'
+                       f'IF(AND(AK_Methode<>"Kosten",{q}<=AK_PeilQ,AKR_NJaar>0),"Q{q} geboekt: € "&FIXED(N({ak}),0)&" (som van de boekingen op dit WBS-element in het grootboek)",'
+                       f'"Q{q} "&IF({q}<=AK_PeilQ,"berekend (kosten t/m peildatum = Kosten LJ)","prognose")&": kosten € "&FIXED(N({kost}),0)&" / "&FIXED(P_AKFactor,2)&" x "&FIXED(N({pct})*100,1)&"% = € "&FIXED(N({ak}),0))),'
                        f'"Project niet gevonden"))')
         ws[f"B{r}"].font = font(9, False, NAVY)
     ws["B16"] = (f'=IF($F$11="","",IFERROR("Jaar: € "&FIXED(N(INDEX({rngc("J")},{rr})),0)&"   ·   budget "&IF(ISNUMBER(INDEX({rngc("K")},{rr})),"€ "&FIXED(INDEX({rngc("K")},{rr}),0),"n.b.")'
@@ -4291,7 +4338,7 @@ def build_ak(wb, ws):
             ws.cell(row=AK0R - 2, column=c).fill = fill(colr)
     hdr = ["WBS-element", "Project", "AK mee-\nnemen", "AK %", "Bron AK %",
            '=P_RJ&" Q1"', '=P_RJ&" Q2"', '=P_RJ&" Q3"', '=P_RJ&" Q4"', '="Jaar"&CHAR(10)&P_RJ', '="Budget"&CHAR(10)&P_RJ', "Verschil",
-           "Kosten Q1\n(basis)", "Kosten Q2\n(basis)", "Kosten Q3\n(basis)", "Kosten Q4\n(basis)", "AK t/m\npeildatum",
+           "Kosten Q1\n(basis)", "Kosten Q2\n(basis)", "Kosten Q3\n(basis)", "Kosten Q4\n(basis)", "AK geboekt\nt/m peildatum",
            '="Kosten"&CHAR(10)&(P_RJ+1)', '="AK"&CHAR(10)&(P_RJ+1)', '="Kosten"&CHAR(10)&(P_RJ+2)', '="AK"&CHAR(10)&(P_RJ+2)',
            '="Kosten"&CHAR(10)&(P_RJ+3)', '="AK"&CHAR(10)&(P_RJ+3)', '="Kosten"&CHAR(10)&(P_RJ+4)', '="AK"&CHAR(10)&(P_RJ+4)']
     header(ws, AK0R - 1, 1, hdr, height=34)
@@ -4314,17 +4361,18 @@ def build_ak(wb, ws):
             # daarna = kwartaalkosten, of Kosten RJ gelijk verdeeld als de export geen kwartalen heeft
             ws[f"{kc}{r}"] = (f'=IF(C{r}<>"Ja","",IF({q}<=AK_PeilQ,IF(Z{r}<>0,AA{r}*{raw[q]}/Z{r},AA{r}/MAX(1,AK_PeilQ)),'
                               f'IF(AB{r}<>0,{raw[q]},AC{r}/MAX(1,4-AK_PeilQ))))')
-            ws[f"{c}{r}"] = (f'=IF(C{r}<>"Ja","",IF(AND({q}<=AK_PeilQ,AKR_NJaar>0),SUMIFS(AKR_Bedrag,AKR_WBS,$A{r},AKR_Jaar,P_RJ,AKR_Kw,'
-                             f'IF({q}=AK_PeilQ,">=","")&{q}),IF(D{r}="","",{kc}{r}/P_AKFactor*D{r})))')
+            ws[f"{c}{r}"] = (f'=IF(C{r}<>"Ja","",IF(AND(AK_Methode<>"Kosten",{q}<=AK_PeilQ,AKR_NJaar>0),SUMIFS(AKR_Bedrag,AKR_WBS,$A{r},AKR_Jaar,P_RJ,AKR_Kw,'
+                             f'IF({q}=AK_PeilQ,">=","")&{q}),IF(D{r}="","",IF(AK_Negatief="Als 0",MAX(0,{kc}{r}/P_AKFactor*D{r}),{kc}{r}/P_AKFactor*D{r}))))')
         ws[f"J{r}"] = f'=IF(C{r}<>"Ja","",N(F{r})+N(G{r})+N(H{r})+N(I{r}))'
         cr = f'L_WBS,A{r},L_Actief,1,L_Versie,"Budget",L_Versiejaar,P_VJ,L_Doeljaar,P_RJ,L_Kengetal,"{K_AK}"'
         ws[f"K{r}"] = f'=IF(OR(A{r}="",C{r}<>"Ja"),"",IF(COUNTIFS({cr})=0,"n.b.",SUMIFS(L_Waarde,{cr})))'
         ws[f"L{r}"] = f'=IF(AND(ISNUMBER(J{r}),ISNUMBER(K{r})),J{r}-K{r},"")'
-        ws[f"Q{r}"] = (f'=IF(C{r}<>"Ja","",IF(AK_PeilQ>=1,N(F{r}),0)+IF(AK_PeilQ>=2,N(G{r}),0)+IF(AK_PeilQ>=3,N(H{r}),0)'
-                       f'+IF(AK_PeilQ>=4,N(I{r}),0))')
+        # realisatie t/m peildatum: geboekte AK (grootboek); zonder boekingen de berekende kwartalen t/m de peildatum
+        ws[f"Q{r}"] = (f'=IF(C{r}<>"Ja","",IF(AKR_NJaar>0,SUMIFS(AKR_Bedrag,AKR_WBS,$A{r},AKR_Jaar,P_RJ),'
+                       f'IF(AK_PeilQ>=1,N(F{r}),0)+IF(AK_PeilQ>=2,N(G{r}),0)+IF(AK_PeilQ>=3,N(H{r}),0)+IF(AK_PeilQ>=4,N(I{r}),0)))')
         for k, (kc, ac, src) in enumerate((("R", "S", "KostFY1"), ("T", "U", "KostRJ2"), ("V", "W", "KostRJ3"), ("X", "Y", "KostRJ4"))):
             ws[f"{kc}{r}"] = f'=IF(C{r}<>"Ja","",N({V(src, vr)}))'
-            ws[f"{ac}{r}"] = f'=IF(OR(C{r}<>"Ja",D{r}=""),"",{kc}{r}/P_AKFactor*D{r})'
+            ws[f"{ac}{r}"] = f'=IF(OR(C{r}<>"Ja",D{r}=""),"",IF(AK_Negatief="Als 0",MAX(0,{kc}{r}/P_AKFactor*D{r}),{kc}{r}/P_AKFactor*D{r}))'
         for c in ("Z", "AA", "AB", "AC"):
             helper_style(ws[f"{c}{r}"])
             ws[f"{c}{r}"].number_format = FMT_EUR
@@ -4338,7 +4386,7 @@ def build_ak(wb, ws):
                 cell.number_format = FMT_EUR
     # kleur: geboekt (blauw) of prognose (geel)
     for rng_, r0 in ((f"F{AK0R}:I{last}", AK0R), ("F7:I9", 7)):
-        ws.conditional_formatting.add(rng_, FormulaRule(formula=[f"AND(COLUMN(F{r0})-COLUMN($F{r0})+1<=AK_PeilQ,AKR_NJaar>0)"],
+        ws.conditional_formatting.add(rng_, FormulaRule(formula=[f'AND(AK_Methode<>"Kosten",COLUMN(F{r0})-COLUMN($F{r0})+1<=AK_PeilQ,AKR_NJaar>0)'],
                                                          fill=fill("DCE6F2")))
         ws.conditional_formatting.add(rng_, FormulaRule(formula=["TRUE"], fill=fill("FFF7D6")))
     put(ws, f"F{AK0R-3}", "blauw = geboekt (grootboek) · geel = berekend: kosten / factor x AK % (t/m peildatum zonder grootboek: Kosten LJ)", color=GREY, italic=True, size=8)
@@ -4431,6 +4479,104 @@ def build_reserves(wb, ws):
     ws.column_dimensions["Z"].hidden = True
     ws.freeze_panes = "C14"
     landscape(ws, f"A1:L{rt + 1}")
+
+
+DET_KW = {}
+KW0 = 6                                  # eerste regel op Kwartalen (concept en vastgelegd)
+KWL_N = 20000                            # capaciteit vastgelegde kwartaalregels
+KW_KG = ["Omzet", "BOR", "Kosten", "AK-dekking"]
+
+
+def build_kwartalen(wb, ws, rows):
+    """Kwartaalbedragen per project per prognose. Links (A-R): de huidige upload, uitgesplitst per kwartaal van het
+    versiejaar. Rechts (T-AO): bij elke vastlegging een kopie (waarden), zodat je per prognose terugziet wat er per kwartaal stond.
+    Bij een correctie zet de macro de oude regels op niet-actief (W = 0)."""
+    base_sheet(ws, zoom=80)
+    put(ws, "A1", "Kwartalen — prognose per project per kwartaal (niet invullen; de macro 'Prognose vastleggen' kopieert links naar rechts)",
+        bold=True, color=NAVY)
+    put(ws, "A3", '=IF(P_UploadVersie="Budget","Huidige upload: kwartalen van "&P_UploadVJ&" (budget = jaar na de peildatum)",'
+                  '"Huidige upload: kwartalen van "&P_UploadVJ)', size=8)
+    hdr = ["WBS-element", "Project"] + [f"{k} Q{q}" for k in KW_KG for q in range(1, 5)]
+    header(ws, KW0 - 1, 1, hdr, height=30)
+    V = lambda n, vr: f"N(VERW_Project!${VCOLS[n]}{vr})"  # noqa: E731
+    bud = 'P_UploadVersie="Budget"'
+    for i in range(MAP1 - MAP0 + 1):
+        r, vr, ak = KW0 + i, V0 + i, AK0R + i
+        ws[f"A{r}"] = f'=VERW_Project!$A{vr}&""'
+        ws[f"B{r}"] = f'=IF(A{r}="","",VERW_Project!$C{vr})'
+        for q in range(1, 5):
+            vals = [f"IF({bud},{V(f'OmzRJ1_Q{q}', vr)},{V(f'OmzRJ_Q{q}', vr)})",
+                    f"IF({bud},{V(f'BorRJ1_Q{q}', vr)},{V(f'BorRJ_Q{q}', vr)})",
+                    f"IF({bud},{V(f'KostRJ1_Q{q}', vr)},{V(f'KostQ{q}', vr)})",
+                    (f"IF({bud},IF({AKS}!$D{ak}=\"\",0,IF(AK_Negatief=\"Als 0\",MAX(0,{V(f'KostRJ1_Q{q}', vr)}/P_AKFactor*{AKS}!$D{ak}),"
+                     f"{V(f'KostRJ1_Q{q}', vr)}/P_AKFactor*{AKS}!$D{ak})),N({AKS}!${'FGHI'[q - 1]}{ak}))")]
+            for k, f in enumerate(vals):
+                c = col(3 + k * 4 + (q - 1))
+                ws[f"{c}{r}"] = f'=IF($A{r}="","",{f})'
+                ws[f"{c}{r}"].number_format = FMT_EUR
+                ws[f"{c}{r}"].font = font(8)
+    add_name(wb, "KWC", f"Kwartalen!$A${KW0}:$R${KW0 + MAP1 - MAP0}")
+    # vastgelegd (waarden)
+    lh = ["Versie", "Versiejaar", "Peildatum", "Actief", "WBS-element", "Project"] + [f"{k} Q{q}" for k in KW_KG for q in range(1, 5)]
+    header(ws, KW0 - 1, 20, lh, height=30)
+    put(ws, "T3", "Vastgelegd (waarden; Actief 0 = vervangen door een correctie)", bold=True, size=8)
+    r = KW0
+    if rows:
+        pat = [0.22, 0.24, 0.25, 0.29]
+        fy = {}
+        for row in rows:
+            d = dict(zip(LCOLS, row))
+            if d["Doeljaar"] == d["Versiejaar"] and d["Kengetal"] in (K_OMZ, K_BOR):
+                fy.setdefault((d["Versie"], d["Versiejaar"], d["WBS"], d["Projectnaam"], d["Peildatum"]), {})[d["Kengetal"]] = d["Waarde"]
+        for (v, vj, wbs, naam, peil), kg in fy.items():
+            omz, bor = kg.get(K_OMZ, 0) or 0, kg.get(K_BOR, 0) or 0
+            vals = ([omz * p for p in pat] + [bor * p for p in pat] + [(omz - bor) * p for p in pat] +
+                    [(omz - bor) * p / 1.05 * 0.05 for p in pat])
+            for j, x in enumerate([v, vj, peil, 1, wbs, naam] + [round(x, 2) for x in vals]):
+                ws.cell(row=r, column=20 + j, value=x).font = font(8)
+            ws.cell(row=r, column=22).number_format = FMT_DATE
+            r += 1
+    last = KW0 + KWL_N - 1
+    for j, n in enumerate(["Versie", "VJ", "Peil", "Actief", "WBS", "Naam"]):
+        add_name(wb, f"KWL_{n}", f"Kwartalen!${col(20 + j)}${KW0}:${col(20 + j)}${last}")
+    add_name(wb, "KWL_Vals", f"Kwartalen!$Z${KW0}:$AO${last}")
+    add_name(wb, "KWL", f"Kwartalen!$T${KW0}:$AO${last}")
+    widths(ws, {"A": 16, "B": 24, "T": 8, "U": 8, "V": 10, "W": 6, "X": 16, "Y": 24})
+    ws.freeze_panes = f"C{KW0}"
+
+
+def detail_kwartalen(ws, r0):
+    """Projectdetail: per kengetal de prognoses (Budget, Q1-Q4, huidige upload) met de vier kwartalen naast elkaar."""
+    section(ws, r0, 2, '="Prognose per kwartaal "&Sel_Doeljaar&" — wat stond er in elke prognose? ("&P_Eenheid&")"', 8)
+    r = r0 + 2
+    vers = VERSIES + ["Huidig"]
+    DET_KW["r"] = r + 1   # eerste regel (Budget) van het blok Omzet; Huidig = r + 1 + len(VERSIES)
+    for k, kg in enumerate(KW_KG):
+        header(ws, r, 2, [kg, "Q1", "Q2", "Q3", "Q4", "Jaar", "Δ vs vorige"], height=20)
+        for i, v in enumerate(vers):
+            rr = r + 1 + i
+            put(ws, f"B{rr}", v if v != "Huidig" else "Huidige upload", bold=v == "Huidig")
+            for q in range(1, 5):
+                c = col(2 + q)
+                j = k * 4 + q
+                if v == "Huidig":
+                    f = (f'IF(Sel_Doeljaar<>P_UploadVJ,"n.b.",IFERROR(INDEX(KWC,MATCH(Det_WBS,INDEX(KWC,0,1),0),{2 + j})/P_Factor,"n.b."))')
+                else:
+                    crit = f'KWL_WBS,Det_WBS,KWL_Versie,"{v}",KWL_VJ,Sel_Doeljaar,KWL_Actief,1'
+                    f = f'IF(COUNTIFS({crit})=0,"n.b.",SUMIFS(INDEX(KWL_Vals,0,{j}),{crit})/P_Factor)'
+                ws[f"{c}{rr}"] = "=" + f
+            ws[f"G{rr}"] = f'=IF(COUNT(C{rr}:F{rr})=0,"n.b.",SUM(C{rr}:F{rr}))'
+            ws[f"H{rr}"] = f'=IF(AND(ISNUMBER(G{rr}),ISNUMBER(G{rr - 1})),G{rr}-G{rr - 1},"")' if i else '=""'
+            for c in "BCDEFGH":
+                cell = ws[f"{c}{rr}"]
+                cell.number_format = FMT_EUR if c != "B" else "General"
+                cell.font = font(9, c == "G" or v == "Huidig", "000000")
+                cell.border = Border(bottom=thin)
+            ws.conditional_formatting.add(f"H{rr}", FormulaRule(formula=[f"AND(ISNUMBER(H{rr}),H{rr}<0)"], font=Font(color=BAD)))
+        r += len(vers) + 2
+    put(ws, f"B{r}", "Per prognose staat wat er op dat moment per kwartaal in de bron stond (vastgelegd bij 'Prognose vastleggen' of "
+        "overgezet uit de oude RDFO). n.b. = die prognose is (nog) niet vastgelegd.", color=GREY, italic=True, size=8)
+    return r
 
 
 KR_CTX = {}
@@ -4637,6 +4783,7 @@ def make_template(wb):
     clear(wb["Kansen en risico's"], "ABCDEFG", KR0, KR1)
     clear(wb["Projectlijst"], list("ABCDEFGHILMNPQ") + ["U", "V", "W", "X"] + [col(25 + j) for j in range(14)], PK0, PK1)
     wb["AK-dekking"]["F11"].value = None
+    clear(wb["Kwartalen"], [col(20 + j) for j in range(22)], KW0, KW0 + 400)
     # demo-opties horen niet in de template: statussen 'Fictieve aanname' en 'Voorbeeld' en de instelling demowaarden weg
     lij = wb["Lijsten"]
     lij["H6"].value = lij["H7"].value = None
@@ -4728,6 +4875,7 @@ def build(out, test_results=None, template=False):
     build_projectkeuze(wb, sh["Projectlijst"], hist)
     FIRST_NAME[:] = [list(mapping.values())[0][2]]
     build_ak(wb, sh["AK-dekking"])
+    build_kwartalen(wb, sh["Kwartalen"], rows)
     build_kansen(wb, sh["Kansen en risico's"])
     build_reserves(wb, sh["Reserves"])
     build_stg_akr(wb, sh["STG_AKR"])

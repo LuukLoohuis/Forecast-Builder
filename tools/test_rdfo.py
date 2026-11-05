@@ -151,7 +151,7 @@ def new_upload(wb):
 p, info, w2 = scenario("t02_nieuwe_upload", new_upload)
 same = all(abs(v(w2, rd(k, c)) - v(w0, rd(k, c))) < TOL for k in ("omz_proj", "bor_tot", "won_fy") for c in "CDEF")
 moved = abs((v(w2, rd("omz_proj", "H")) - v(w0, rd("omz_proj", "H"))) * 1000 - DELTA) < TOL
-warn = v(w2, "Controle!D4") == 0 and any(w2["Controle"][f"G{r}"].value == "WAARSCHUWING" and "snapshot" in str(w2["Controle"][f"D{r}"].value) for r in range(9, 90))
+warn = v(w2, "Controle!D4") == 0 and any(w2["Controle"][f"G{r}"].value == "WAARSCHUWING" and "snapshot" in str(w2["Controle"][f"D{r}"].value) for r in range(9, 200))
 record("Nieuwe bronupload verandert Budget/Q1/Q2/Q3 niet; alleen upload-concept beweegt", same and moved and warn and info.get("total_errors") == 0,
        f"Budget–Q3 ongewijzigd: {same}; upload +{(v(w2, rd('omz_proj', 'H')) - v(w0, rd('omz_proj', 'H'))):,.1f} (verwacht +{DELTA/1000:,.1f}); "
        f"Controle meldt afwijking upload vs vastgelegde Q3 als WAARSCHUWING: {warn}")
@@ -179,9 +179,26 @@ def paste(wb, rows, times=1):
     return r0
 
 
+kw_block = [[w3["Kwartalen"].cell(row=r, column=c).value for c in range(1, 19)]
+            for r in range(B.KW0, B.KW0 + B.MAP1 - B.MAP0 + 1) if w3["Kwartalen"].cell(row=r, column=1).value not in (None, "")]
+
+
+def paste_kw(wb, versie="Q4", vj=2026):
+    """Zelfde stap als de macro: kwartaalbedragen van de upload als waarden naar het vastgelegde deel van Kwartalen."""
+    ws = wb["Kwartalen"]
+    r = B.KW0
+    while ws.cell(row=r, column=20).value not in (None, ""):
+        r += 1
+    for row in kw_block:
+        for j, x in enumerate([versie, vj, None, 1, row[0], row[1]] + row[2:]):
+            ws.cell(row=r, column=20 + j, value=x)
+        r += 1
+
+
 def q4_frozen(wb, times=1, select=True):
     q4_params(wb)
     paste(wb, block, times)
+    paste_kw(wb)
     if select:
         set_name(wb, "Sel_Versie", "Q4")
 
@@ -192,6 +209,18 @@ ok = n == v(w0, "Concept!E3") and revs == {0} and abs(v(w4, rd("omz_proj", "G"))
     and v(w4, "CALC_Versies!B11") == "Vastgesteld" and abs(v(w4, rd("omz_proj", "N"))) < TOL
 record("Kwartaalvastlegging Q4: Concept → Historie (dezelfde kopieerstap als de macro)", ok,
        f"{n} regels, revisie {sorted(revs)}; Q4-kolom = {v(w4, rd('omz_proj', 'G')):,.1f}; Budget–Q3 ongewijzigd; geselecteerd = {v(w4, 'CALC_Versies!B11')}")
+
+# prognose per kwartaal op Projectdetail: vastgelegde Q4 = huidige upload, per kwartaal; Budget..Q3 gevuld (demo)
+pd_ = w4["Projectdetail"]
+r_b = B.DET_KW["r"]
+q4r, hr = [pd_.cell(row=r_b + 4, column=c).value for c in range(3, 8)], [pd_.cell(row=r_b + 5, column=c).value for c in range(3, 8)]
+bud = [pd_.cell(row=r_b, column=c).value for c in range(3, 8)]
+ok_kw = (len(kw_block) > 5 and all(isinstance(x, (int, float)) for x in q4r) and all(abs(a - b) < 0.01 for a, b in zip(q4r, hr))
+         and all(isinstance(x, (int, float)) for x in bud) and abs(sum(q4r[:4]) - q4r[4]) < 0.01)
+record("Prognose per kwartaal per project terug te zien (Projectdetail): vastgelegde Q4 = upload per kwartaal", ok_kw,
+       f"{pd_['C4'].value}: Budget {[round(x) if isinstance(x, (int, float)) else x for x in bud]}; "
+       f"Q4 vastgelegd {[round(x) if isinstance(x, (int, float)) else x for x in q4r]} = huidig {[round(x) if isinstance(x, (int, float)) else x for x in hr]}")
+
 
 
 def q4_then_new_upload(wb):
@@ -279,13 +308,15 @@ def new_and_dropped(wb):
 
 p, info, w10 = scenario("t07_nieuw_vervallen", new_and_dropped)
 wc = w10["Controle"]
-txt = {wc[f"D{r}"].value: (wc[f"E{r}"].value, wc[f"G{r}"].value) for r in range(9, 90)}
+txt = {wc[f"D{r}"].value: (wc[f"E{r}"].value, wc[f"G{r}"].value) for r in range(9, 200)}
 nieuw = txt["Nieuwe projecten: WBS uit ZPMW03 nog niet op Projectlijst"]
 verv = txt["Vervallen: project op Projectlijst staat niet (meer) in ZPMW03"]
-lists = [wc.cell(row=r, column=c).value for r in range(60, 130) for c in range(2, 10)]
-ok = nieuw == (1, "FOUT") and verv == (1, "WAARSCHUWING") and "G.900099.8.9090" in lists and "Boswaard, Parkeergebouw" in lists
+lists = [wc.cell(row=r, column=c).value for r in range(100, 260) for c in range(2, 10)]
+todo = [(wc[f"B{r}"].value, wc[f"D{r}"].value) for r in range(9, 21) if wc[f"B{r}"].value]
+ok = (nieuw == (1, "FOUT") and verv == (1, "WAARSCHUWING") and "G.900099.8.9090" in lists and "Boswaard, Parkeergebouw" in lists
+      and todo and todo[0][0] == "FOUT" and any("Vervallen" in str(d) for _, d in todo))
 record("Nieuwe en vervallen projecten verschijnen als uitzondering (niet stil weg)", ok,
-       f"nieuw: {nieuw}; vervallen: {verv}; uitzonderingslijst bevat G.900099 en Boswaard, Parkeergebouw")
+       f"nieuw: {nieuw}; vervallen: {verv}; Te doen bovenaan: {todo[:3]}; uitzonderingslijst bevat G.900099 en Boswaard, Parkeergebouw")
 
 
 # ------------------------------------------------------------------ doeljaar 2027 en demo-aannames
@@ -299,49 +330,41 @@ p, info, w12 = scenario("t09_demo_aannames", lambda wb: set_name(wb, "P_Demo", "
 ebit = v(w12, rd("ebit", "H")) - v(w12, rd("bor_tot", "H"))
 ak_c = B.VCOLS["AK0"]
 ak_som = sum(w0["VERW_Project"][f"{ak_c}{r}"].value or 0 for r in range(B.V0, B.V1 + 1)
-             if isinstance(w0["VERW_Project"][f"{ak_c}{r}"].value, (int, float))) / 1000 + (v(w0, "STG_AKR!I3") or 0) / 1000
+             if isinstance(w0["VERW_Project"][f"{ak_c}{r}"].value, (int, float))) / 1000   # methode Kosten: AK zonder project telt niet mee
 ok = abs(v(w12, rd("ak", "H")) + 1400) < TOL and abs(ebit - (-1400 + 300 + 150)) < TOL and v(w12, "Controle!D5") >= 1 \
     and ak_som > 0 and abs(v(w0, rd("ak", "H")) - ak_som) < TOL
 record("Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld)", ok,
-       f"P_Demo=Nee: AK-dekking = geboekte AK + kosten restant / 1,05 x AK % = {v(w0, rd('ak', 'H')):,.0f}; P_Demo=Ja: fictieve AK-dekking {v(w12, rd('ak', 'H')):,.0f} gaat voor, met Controle-waarschuwing")
+       f"P_Demo=Nee: AK-dekking = kosten / 1,05 x AK % (zoals de oude RDFO) = {v(w0, rd('ak', 'H')):,.0f}; P_Demo=Ja: fictieve AK-dekking {v(w12, rd('ak', 'H')):,.0f} gaat voor, met Controle-waarschuwing")
 
 akw = w0["AK-dekking"]
 A = lambda ref: akw[ref].value  # noqa: E731
 q = [A(f"{c}9") or 0 for c in "FGHI"]
 jaar = A("J9") or 0
-ok = (abs(sum(q) - jaar) < 1 and abs(jaar / 1000 - v(w0, rd("ak", "H"))) < TOL and abs((A("G8") or 0) - 25000) < 1
-      and A("F6") == "geboekt" and A("I6") == "prognose" and str(A("B15") or "").startswith("Q4 prognose: kosten"))
-record("AK-dekking per kwartaal: Q1+Q2+Q3+Q4 = jaar = RDFO; geboekt t/m peildatum, daarna prognose", ok,
-       f"kwartalen {[round(x) for x in q]} = jaar {jaar:,.0f}; zonder project Q2 {A('G8')}; rekenvoorbeeld: {A('B12')} | {A('B15')}")
-
-# AK zonder grootboekdump: afgelopen kwartalen uit Kosten LJ (niet nul); regioregel 'zonder project' wordt mee vastgelegd
-def zonder_grootboek(wb):
-    ws = wb["Bron_AKR"]
-    for row in ws.iter_rows(min_row=2):
-        for c in row:
-            c.value = None
-
-
-p, info, wak = scenario("t_ak_zonder_grootboek", zonder_grootboek)
-ak2 = wak["AK-dekking"]
-fouten, n_proj, verl = 0, 0, []
+# standaard (methode Kosten, zoals de oude RDFO): per project jaar = (Kosten LJ + kosten na peildatum) / 1,05 x AK %
+fouten, n_proj = 0, 0
 for r in range(B.AK0R, B.AK0R + B.MAP1 - B.MAP0 + 1):
-    if ak2[f"C{r}"].value != "Ja" or not isinstance(ak2[f"D{r}"].value, (int, float)):
+    if akw[f"C{r}"].value != "Ja" or not isinstance(akw[f"D{r}"].value, (int, float)):
         continue
     n_proj += 1
-    ytd, na, rest = (ak2[f"{c}{r}"].value or 0 for c in ("AA", "AB", "AC"))
-    verwacht = (ytd + (na if na else rest)) / 1.05 * ak2[f"D{r}"].value
-    if abs((ak2[f"J{r}"].value or 0) - verwacht) > 1:
+    ytd, na, rest = (akw[f"{c}{r}"].value or 0 for c in ("AA", "AB", "AC"))
+    if abs((akw[f"J{r}"].value or 0) - (ytd + (na if na else rest)) / 1.05 * akw[f"D{r}"].value) > 1:
         fouten += 1
-        verl.append(ak2[f"B{r}"].value)
-q_ytd = sum(ak2[f"{c}9"].value or 0 for c in "FGH")
-regio = [r for r in range(B.C0, B.C1 + 1) if w0["Concept"][f"J{r}"].value == "REGIO"]
-ok = (fouten == 0 and n_proj > 5 and q_ytd > 0 and ak2["F6"].value == "kosten LJ" and len(regio) == 1
-      and abs(w0["Concept"][f"P{regio[0]}"].value - 25000) < 1 and w0["Concept"][f"O{regio[0]}"].value == B.K_AK)
-record("AK zonder grootboek = (Kosten LJ + kosten rest) / 1,05 x AK %; AK zonder project wordt mee vastgelegd", ok,
-       f"{n_proj} projecten, {fouten} afwijkend {verl[:3]}; Q1–Q3 samen {q_ytd:,.0f} (niet 0); jaar {ak2['J9'].value:,.0f}; "
-       f"regioregel in Concept: {len(regio)} x, waarde {w0['Concept'][f'P{regio[0]}'].value if regio else '-'}")
+ok = (abs(sum(q) - jaar) < 1 and abs(jaar / 1000 - v(w0, rd("ak", "H"))) < TOL and A("G8") == 0 and fouten == 0 and n_proj > 5
+      and A("P5") == "Kosten" and A("F6") == "kosten LJ" and A("I6") == "prognose" and str(A("B15") or "").startswith("Q4 prognose: kosten"))
+record("AK-dekking zoals de oude RDFO: per project (Kosten LJ + kosten rest) / 1,05 x AK %; Q1+Q2+Q3+Q4 = jaar = RDFO", ok,
+       f"{n_proj} projecten, {fouten} afwijkend; kwartalen {[round(x) for x in q]} = jaar {jaar:,.0f}; rekenvoorbeeld: {A('B15')}")
 
+
+# methode 'Geboekt + rest': t/m peildatum de geboekte AK; AK zonder project telt mee en wordt mee vastgelegd
+p, info, wak = scenario("t_ak_geboekt", lambda wb: set_name(wb, "AK_Methode", "Geboekt + rest"))
+ak2 = wak["AK-dekking"]
+regio = [r for r in range(B.C0, B.C1 + 1) if wak["Concept"][f"J{r}"].value == "REGIO"]
+q2 = [ak2[f"{c}9"].value or 0 for c in "FGHI"]
+ok = (ak2["F6"].value == "geboekt" and abs((ak2["G8"].value or 0) - 25000) < 1 and len(regio) == 1
+      and abs(wak["Concept"][f"P{regio[0]}"].value - 25000) < 1 and abs(sum(q2) - (ak2["J9"].value or 0)) < 1
+      and str(ak2["B12"].value or "").startswith("Q1 geboekt"))
+record("AK-methode 'Geboekt + rest': geboekte AK t/m peildatum; AK zonder project telt mee en wordt mee vastgelegd", ok,
+       f"kwartalen {[round(x) for x in q2]} = jaar {ak2['J9'].value:,.0f}; zonder project Q2 {ak2['G8'].value}; regioregel {len(regio)} x; {ak2['B12'].value}")
 
 # ------------------------------------------------------------------ stoplicht
 ws = w0["Bandbreedte"]
@@ -500,7 +523,7 @@ for nme in zx.namelist():
     if nme.startswith("xl/drawings/drawing"):
         macros_in_buttons |= {m.split("!")[1] for m in __import__("re").findall(r'macro="([^"]+)"', zx.read(nme).decode()) if "!" in m}
 ct = zx.read("[Content_Types].xml").decode()
-ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 8 and n_btn == len(B.BUTTONS)
+ok = ("modRDFO.bas" in mods and macros_in_buttons <= subs and len(macros_in_buttons) == 7 and n_btn == len(B.BUTTONS)
       and "macroEnabled.main+xml" in ct)
 record("Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's", ok,
        f"{len(mods)} VBA-modules (oletools); {n_btn} knoppen → {sorted(macros_in_buttons)}. Let op: uitvoering in Excel zelf is hier niet getest.")

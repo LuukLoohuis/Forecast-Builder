@@ -11,7 +11,7 @@ Option Explicit
 Private Const HISTORIE_LAATSTE_RIJ As Long = 5005
 Private Const BRON_CAPACITEIT As Long = 500
 Private Const IMPORTLOG_KOLOM As Long = 24        ' kolom X op Historie
-Private Const VERBORGEN As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
+Private Const VERBORGEN As String = "Historie,SCEN,Concept,Kwartalen,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
 
 ' ---------------------------------------------------------------- huisstijl
 Private Function NAVY() As Long
@@ -111,7 +111,6 @@ Public Sub RDFO_BronnenInlezen()
     nieuw = 0
     If nZ >= 0 Then nieuw = ProjectenErbij(True)
     If nieuw > 0 Then Application.CalculateFull
-    ControleAlleenProblemen
     Application.ScreenUpdating = True
     ThisWorkbook.Worksheets("Controle").Activate
     ThisWorkbook.Worksheets("Controle").Range("A1").Select
@@ -274,31 +273,6 @@ Private Function ProjectenErbij(ByVal stil As Boolean) As Long
     ProjectenErbij = n
 End Function
 
-' ================================================================= 1c. CONTROLE: ALLEEN PROBLEMEN TONEN
-Public Sub RDFO_ControleWissel()
-    Dim st As Range, c As Range, verborgen As Boolean
-    Set st = Nm("CT_Status")
-    For Each c In st.Cells
-        If c.EntireRow.Hidden Then verborgen = True: Exit For
-    Next c
-    If verborgen Then
-        st.EntireRow.Hidden = False
-    Else
-        ControleAlleenProblemen
-    End If
-End Sub
-
-Private Sub ControleAlleenProblemen()
-    ' Verbergt de controles met status OK, INFO of BEKEKEN; alleen FOUT en WAARSCHUWING blijven zichtbaar.
-    Dim c As Range, t As String
-    Application.ScreenUpdating = False
-    For Each c In Nm("CT_Status").Cells
-        t = CStr(c.Text)
-        c.EntireRow.Hidden = Not (t = "FOUT" Or t = "WAARSCHUWING")
-    Next c
-    Application.ScreenUpdating = True
-End Sub
-
 ' ================================================================= 1d. OUDE PROGNOSES OVERZETTEN (eenmalig)
 ' Leest uit een oud RDFO-bestand de tabbladen Budget en Prognose Q1..Q4 (opzet: rij 2 'BOB 2026' / 'BOR 2026' / 'AK dekking 2026',
 ' rij 3 Q1..Q4 + Totaal, kopregel met 'WBS-element' in kolom A, bedragen x 1.000) en legt ze vast in Historie als vastgestelde versies.
@@ -307,6 +281,7 @@ Public Sub RDFO_OudePrognosesOverzetten()
     Dim kopRij As Long, r As Long, c As Long, jaar As Long, leeg As Long, n As Long, totN As Long
     Dim cBOB As Long, cBOR As Long, cAK As Long, wbsCode As String, wsH As Worksheet, r0 As Long, peil As Date
     Dim waarden(1 To 3) As Double, heeft(1 To 3) As Boolean, kg As Variant, k As Long, mi As Variant, naam As String, typ As String
+    Dim qK(1 To 4) As Long, kw(1 To 16) As Variant, kr As Long, g As Long, q As Long, heeftKw As Boolean
 
     f = Application.GetOpenFilename("Excel-bestanden (*.xlsx;*.xlsm;*.xls),*.xlsx;*.xlsm;*.xls", , _
                                     "Kies het Excel-bestand met de oude prognoses (tabbladen Budget, Q1, Q2, Q3 of Prognose Q1 ...)")
@@ -316,6 +291,7 @@ Public Sub RDFO_OudePrognosesOverzetten()
     Set wsH = ThisWorkbook.Worksheets("Historie")
     Set wbS = Workbooks.Open(Filename:=CStr(f), ReadOnly:=True, UpdateLinks:=0)
     kg = Array("Omzet FY", "BOR FY", "AK-dekking FY")
+    kr = KwartalenVrijeRij()
     With Nm("L_WBS")
         r0 = .Cells(.Rows.Count, 1).End(xlUp).Row + 1
         If Trim(CStr(.Cells(.Rows.Count, 1).Value)) <> "" Then r0 = .Row + .Rows.Count
@@ -327,6 +303,7 @@ Public Sub RDFO_OudePrognosesOverzetten()
         If versie = "" Then GoTo Volgende
         ' kopregel en kolommen zoeken
         kopRij = 0: cBOB = 0: cBOR = 0: cAK = 0: jaar = 0
+        For g = 1 To 4: qK(g) = 0: Next g
         For r = 1 To 15
             If LCase(Trim(CStr(ws.Cells(r, 1).Value))) Like "wbs-element*" Then kopRij = r: Exit For
         Next r
@@ -335,6 +312,13 @@ Public Sub RDFO_OudePrognosesOverzetten()
                 If LCase(CStr(ws.Cells(r, c).Value)) Like "bob 20##*" And cBOB = 0 Then cBOB = TotaalKolom(ws, r, c): jaar = CLng(Mid(CStr(ws.Cells(r, c).Value), 5, 4))
                 If LCase(CStr(ws.Cells(r, c).Value)) Like "bor 20##*" And cBOR = 0 Then cBOR = TotaalKolom(ws, r, c)
                 If LCase(CStr(ws.Cells(r, c).Value)) Like "ak dekking 20##*" And cAK = 0 Then cAK = TotaalKolom(ws, r, c)
+                ' kwartaalkolommen (Q1..Q4 in de regel onder de groepskop): omzet, BOR, kosten, AK
+                If UCase(Trim(CStr(ws.Cells(r + 1, c).Value))) = "Q1" Then
+                    If LCase(CStr(ws.Cells(r, c).Value)) Like "bob 20##*" Then qK(1) = c
+                    If LCase(CStr(ws.Cells(r, c).Value)) Like "bor 20##*" Then qK(2) = c
+                    If LCase(CStr(ws.Cells(r, c).Value)) Like "kosten 20##*" Then qK(3) = c
+                    If LCase(CStr(ws.Cells(r, c).Value)) Like "ak dekking 20##*" Then qK(4) = c
+                End If
             Next c
         Next r
         If kopRij = 0 Or cBOB = 0 Or jaar = 0 Then
@@ -381,6 +365,23 @@ Public Sub RDFO_OudePrognosesOverzetten()
                         n = n + 1
                     End If
                 Next k
+                ' kwartalen bewaren (EUR x 1.000 -> EUR), zodat Projectdetail de prognose per kwartaal toont
+                heeftKw = False
+                For g = 1 To 4
+                    For q = 0 To 3
+                        kw((g - 1) * 4 + q + 1) = Empty
+                        If qK(g) > 0 Then
+                            If IsNumeric(ws.Cells(r, qK(g) + q).Value) And Not IsEmpty(ws.Cells(r, qK(g) + q).Value) Then
+                                kw((g - 1) * 4 + q + 1) = CDbl(ws.Cells(r, qK(g) + q).Value) * 1000
+                                heeftKw = True
+                            End If
+                        End If
+                    Next q
+                Next g
+                If heeftKw Then
+                    KwartaalRegel kr, versie, jaar, peil, wbsCode, naam, kw
+                    kr = kr + 1
+                End If
             End If
             r = r + 1
         Loop
@@ -493,6 +494,7 @@ Public Sub RDFO_LeegMaken()
     Nm("KT_WBS").Resize(, 6).ClearContents
     Nm("KT_WBS").Offset(0, 10).ClearContents
     Nm("PL_Details").ClearContents
+    Nm("KWL").ClearContents
     Nm("PL_Stoplicht").ClearContents
     Nm("L_ImportID").Resize(, 18).ClearContents
     Set il = ThisWorkbook.Worksheets("Historie").Range(ThisWorkbook.Worksheets("Historie").Cells(6, IMPORTLOG_KOLOM), _
@@ -582,24 +584,13 @@ Public Sub RDFO_PrognoseVastleggen()
         Exit Sub
     End If
 
+    ' alleen bij een correctie (versie al vastgelegd) is één vraag nodig: de reden
     If bestaand > 0 Then
-        antw = MsgBox("Versie " & versie & " is al vastgelegd." & vbCr & vbCr & _
-                      "Wil je een CORRECTIE vastleggen? Er komt een nieuwe revisie bij;" & vbCr & _
-                      "de oude regels blijven bewaard en tellen niet meer mee.", vbYesNo + vbQuestion, "Correctie")
-        If antw <> vbYes Then Exit Sub
-        toel = InputBox("Reden van de correctie (verplicht):", "Correctie " & versie)
-        If Trim(toel) = "" Then
-            MsgBox "Zonder toelichting wordt niets vastgelegd.", vbExclamation
-            Exit Sub
-        End If
+        toel = InputBox(versie & " is al vastgelegd. Dit wordt een correctie (de oude cijfers blijven bewaard)." & vbCr & vbCr & _
+                        "Reden van de correctie (leeg = annuleren):", "Correctie " & versie)
+        If Trim(toel) = "" Then Exit Sub
         Nm("P_ToelCorrectie").Value = toel
         Application.CalculateFull
-    Else
-        antw = MsgBox("Prognose " & versie & " vastleggen?" & vbCr & vbCr & _
-                      "Omzet " & Nm("P_UploadVJ").Value & ": € " & Format(Application.WorksheetFunction.Sum(Nm("V_OmzFY")) / 1000000, "0.0") & " mln" & vbCr & _
-                      "Woningverkopen " & Nm("P_UploadVJ").Value & ": " & Format(Application.WorksheetFunction.SumIfs(Nm("V_W_HuidigJaar"), Nm("V_Meetellen"), "Ja"), "0") & vbCr & vbCr & _
-                      "Daarna veranderen deze cijfers niet meer.", vbOKCancel + vbQuestion, "Prognose vastleggen")
-        If antw <> vbOK Then Exit Sub
     End If
 
     ' eerste vrije rij: onder de laatste gevulde WBS-cel van het grootboek (niet afhankelijk van een formule)
@@ -619,13 +610,58 @@ Public Sub RDFO_PrognoseVastleggen()
     wsH.Cells(r0, 1).Resize(n, 18).Font.Size = 8
     LogRegel Nm("P_ImportID").Value, "Vastlegging", ThisWorkbook.Name, Nm("P_Peildatum").Value, Nm("P_UploadVJ").Value, _
              CStr(Nm("P_UploadVersie").Value), n, CStr(Nm("P_StatusVastleg").Value), toel
+    KwartalenVastleggen CStr(Nm("P_UploadVersie").Value), CLng(Nm("P_UploadVJ").Value), CDate(Nm("P_Peildatum").Value)
     Nm("P_ToelCorrectie").Value = ""
     Application.CalculateFull
     Application.ScreenUpdating = True
     ThisWorkbook.Worksheets("RDFO").Activate
-    If MsgBox("Klaar: " & versie & " is vastgelegd (" & n & " regels in Historie)." & vbCr & vbCr & _
-              "Bestand nu opslaan?", vbYesNo + vbInformation, "Prognose vastleggen") = vbYes Then ThisWorkbook.Save
+    MsgBox versie & " is vastgelegd (" & n & " regels). Sla het bestand op.", vbInformation, "Prognose vastleggen"
 End Sub
+
+Private Sub KwartalenVastleggen(ByVal versie As String, ByVal vj As Long, ByVal peil As Date)
+    ' Kopieert de kwartaalbedragen van de upload (Kwartalen, links) als waarden naar het vastgelegde deel (rechts).
+    ' Eerdere regels van dezelfde versie en hetzelfde jaar worden op niet-actief gezet (correctie).
+    Dim kc As Range, act As Range, r As Long, i As Long, c As Long, waarden(1 To 16) As Variant
+    Set kc = Nm("KWC")
+    Set act = Nm("KWL_Actief")
+    For i = 1 To act.Rows.Count
+        If Trim(CStr(Nm("KWL_WBS").Cells(i, 1).Value)) = "" Then Exit For
+        If CStr(Nm("KWL_Versie").Cells(i, 1).Value) = versie And Nm("KWL_VJ").Cells(i, 1).Value = vj Then act.Cells(i, 1).Value = 0
+    Next i
+    r = i
+    For i = 1 To kc.Rows.Count
+        If Trim(CStr(kc.Cells(i, 1).Value)) <> "" Then
+            For c = 1 To 16
+                waarden(c) = kc.Cells(i, 2 + c).Value
+            Next c
+            KwartaalRegel r, versie, vj, peil, CStr(kc.Cells(i, 1).Value), CStr(kc.Cells(i, 2).Value), waarden
+            r = r + 1
+        End If
+    Next i
+End Sub
+
+Private Sub KwartaalRegel(ByVal r As Long, ByVal versie As String, ByVal vj As Long, ByVal peil As Date, ByVal wbsCode As String, _
+                          ByVal naam As String, ByRef waarden() As Variant)
+    Dim c As Long
+    If r > Nm("KWL_WBS").Rows.Count Then Err.Raise vbObjectError + 2, , "Tabblad Kwartalen is vol."
+    Nm("KWL_Versie").Cells(r, 1).Value = versie
+    Nm("KWL_VJ").Cells(r, 1).Value = vj
+    Nm("KWL_Peil").Cells(r, 1).Value = peil
+    Nm("KWL_Actief").Cells(r, 1).Value = 1
+    Nm("KWL_WBS").Cells(r, 1).Value = wbsCode
+    Nm("KWL_Naam").Cells(r, 1).Value = naam
+    For c = 1 To 16
+        Nm("KWL_Vals").Cells(r, c).Value = waarden(c)
+    Next c
+End Sub
+
+Private Function KwartalenVrijeRij() As Long
+    Dim i As Long
+    For i = 1 To Nm("KWL_WBS").Rows.Count
+        If Trim(CStr(Nm("KWL_WBS").Cells(i, 1).Value)) = "" Then KwartalenVrijeRij = i: Exit Function
+    Next i
+    KwartalenVrijeRij = i
+End Function
 
 ' ================================================================= 3. REKENBLADEN
 Public Sub RDFO_ToonRekenbladen()
