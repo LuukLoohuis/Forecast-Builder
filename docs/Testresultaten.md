@@ -4,35 +4,36 @@ Uitgevoerd met `tools/test_rdfo.py`: kopieën van de werkmap worden aangepast zo
 
 | Nr | Test | Uitkomst / bewijs | Resultaat |
 |---|---|---|---|
-| 1 | Basis: werkmap rekent zonder formulefouten en controles | 227489 formules, 0 fouten; Controle: 0 FOUT, 0 WAARSCHUWING | GESLAAGD |
+| 1 | Basis: werkmap rekent zonder formulefouten en controles | 236771 formules, 0 fouten; Controle: 0 FOUT, 0 WAARSCHUWING | GESLAAGD |
 | 2 | RDFO-versiekolommen = fictieve historie; upload = bron (onafhankelijk nagerekend) | Budget/Q1/Q2/Q3/upload (EUR x 1.000): 118,525.4 / 116,754.0 / 112,768.2 / 114,096.8 / 114,096.8 | GESLAAGD |
-| 3 | Q3-snapshot sluit aan op de bronbestanden | Q3 vastgelegd 114,096.8 = upload 114,096.8; som \|verschil\| alle 319 conceptregels = 0 | GESLAAGD |
+| 3 | Q3-snapshot sluit aan op de bronbestanden | Q3 vastgelegd 114,096.8 = upload 114,096.8; som \|verschil\| alle 318 conceptregels = 0 | GESLAAGD |
 | 4 | Ontbrekende Q4 en ontbrekende historische actuals niet als nul | Q4-kolom toont 'n.b.'; realisatie YTD Q3 = 74,162.9; vastgelegde versies zonder realisatie (blijven n.b.): 3 | GESLAAGD |
 | 5 | Nieuwe bronupload verandert Budget/Q1/Q2/Q3 niet; alleen upload-concept beweegt | Budget–Q3 ongewijzigd: True; upload +335.2 (verwacht +335.2); Controle meldt afwijking upload vs vastgelegde Q3 als WAARSCHUWING: True | GESLAAGD |
-| 6 | Kwartaalvastlegging Q4: Concept → Historie (dezelfde kopieerstap als de macro) | 319 regels, revisie [0]; Q4-kolom = 114,096.8; Budget–Q3 ongewijzigd; geselecteerd = Vastgesteld | GESLAAGD |
-| 7 | Vastgelegde Q4 is onveranderlijk: latere upload herberekent haar niet | Q4 vóór/na nieuwe upload: 114,096.8 / 114,096.8; upload-concept 114,432.0 | GESLAAGD |
-| 8 | Dubbele import veroorzaakt geen dubbeltelling | Q4 na 2x plakken: 114,096.8 (1x: 114,096.8); 319 regels als dubbel genegeerd en gemeld | GESLAAGD |
-| 9 | Correctie op vastgestelde versie = nieuwe revisie, oude regel blijft, geen dubbeltelling | Q2 opstal +100,000 EUR (correctie +100.000, niet +5,5 mln); kolomkop gemarkeerd met ●; overige versies ongewijzigd | GESLAAGD |
-| 10 | Correctie zonder toelichting wordt als FOUT gemeld | Controle: 1 FOUT | GESLAAGD |
-| 11 | Woningen worden niet dubbel gewogen (aandeelbasis blijft aandeelbasis) | Totaal 1160 = brontotaal 1160 (met nogmaals aandeel zou 1,106 zijn); deelneming Het Kompas 50%: 24 st. (bruto afgeleid 48) | GESLAAGD |
-| 12 | Verlies blijft zichtbaar (geen ABS) | Lindehaven, De Brink BOR -58.59 (x1.000) gemarkeerd 'Verlies'; RDFO BOR 10,477,198 = signed som 10,477,198 (ABS zou 10,702,738 geven) | GESLAAGD |
-| 13 | Parkeergebouw zonder woningen: geen deling door nul | Projectmatrix toont 'n.v.t.', % verkocht leeg; 0 formulefouten | GESLAAGD |
-| 14 | Alias Bedrijfsnaam/Naam maatschappij en gewijzigde kolomvolgorde | Header hernoemd + 'OP.BOB 2026' en 'Huidig jaar' van positie gewisseld: uitkomsten identiek, 0 FOUT | GESLAAGD |
-| 15 | Nieuwe en vervallen projecten verschijnen als uitzondering (niet stil weg) | nieuw: (1, 'FOUT'); vervallen: (1, 'WAARSCHUWING'); uitzonderingslijst bevat G.900099 en Boswaard, Parkeergebouw | GESLAAGD |
-| 16 | Doeljaar 2027: jaarprognoses per versie, geen realisatie (n.v.t.), to go = FY | Q3 2027 = 218,828.5; upload 2027 = 218,828.5; realisatie 'n.v.t.' | GESLAAGD |
-| 17 | Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld) | P_Demo=Nee: AK-dekking = geboekte AK + kosten restant / 1,05 x AK % = 5,899; P_Demo=Ja: fictieve AK-dekking -1,400 gaat voor, met Controle-waarschuwing | GESLAAGD |
-| 18 | AK-dekking per kwartaal: Q1+Q2+Q3+Q4 = jaar = RDFO; geboekt t/m peildatum, daarna prognose | kwartalen [1152292, 1369340, 1344340, 2033042] = jaar 5,899,015; zonder project Q2 25000; rekenvoorbeeld: Q1 geboekt: € 56,719 (som van de boekingen op dit WBS-element in het grootboek) \| Q4 prognose: kosten € 1,781,562 / 1.05 x 6.0% = € 101,804 | GESLAAGD |
-| 19 | AK zonder grootboek = (Kosten LJ + kosten rest) / 1,05 x AK %; AK zonder project wordt mee vastgelegd | 19 projecten, 0 afwijkend []; Q1–Q3 samen 3,775,650 (niet 0); jaar 5,808,692; regioregel in Concept: 1 x, waarde 25000 | GESLAAGD |
-| 20 | Stoplicht (verkoop, omgevingsvergunning, netcongestie): kleur volgt uit invoer en uitgangspunten | Watergaarde (0% verkocht, net Laag) → [1, 3, 2]; Parkeergebouw (geen woningen, net Hoog) → [0, 3, 1] (0 = leeg/n.v.t.) | GESLAAGD |
-| 21 | Stoplicht: uitgangspunten aanpassen kleurt alle lichten direct mee | Groengrens 0% en netcongestie Laag = groen → Watergaarde [3, 3, 3] | GESLAAGD |
-| 22 | Orderintake per jaar/kwartaal = bron (kolom Orderintake, PEW opbrengst) | 2026 t/m peildatum: 337,740,000 EUR in 15 projecten (onafhankelijk: 337,740,000) | GESLAAGD |
-| 23 | Outlook: omzet, woningverkopen en orderintake voor elk jaar (2025 t/m 2032) | woningverkopen 2026/2028 = 360/252; omzet 2027/2028 = 218.8/117.8 mln (= bron); 2029+ in bron 0 | GESLAAGD |
-| 24 | PowerPoint-inhoud staat klaar (tabbladen PPT en Dias) | 20 projecten in de projecttabel; kernboodschap: 'Omzet FY 2026: € 114.1 mln, -4.4 mln t.o.v. budget  ·  BOR 9.2%' | GESLAAGD |
-| 25 | PowerPoint: lege toelichtingskolom en jaren zonder cijfers vallen weg | gewicht toelichting = 0; gewichten jaarkolommen 2025-2032 = [0, 0, 1, 1, 0, 0, 0, 0] (alleen 2027 en 2028 hebben cijfers) | GESLAAGD |
-| 26 | Bandbreedte: basis = Outlook, gewogen = omzet x kans %, 0-100 = projecten met kans ≥ 50% | 2027: optimistisch 251.1 · basis 218.8 · afslag 161.2 · gewogen 118.1 (onafhankelijk 118.1) · 0-100 117.1 (onafhankelijk 117.1) mln | GESLAAGD |
-| 27 | Bandbreedte: afslag 100% en geen opschaling geeft precies het basisscenario | 2026: optimistisch/basis/afslag = 114.10 / 114.10 / 114.10 mln | GESLAAGD |
-| 28 | Doorkijk: DAEB-verdeling, funnel, kansen/risico's en reserves rekenen per jaar mee | DAEB 2027 = 8,400,000; saldo kansen/risico's 2026 = -2,930,000; PCM 2026 = 1,572,136; omzet incl. 2028 = 142,030,720 | GESLAAGD |
-| 29 | Woningen per productsegment en koperstype tellen op tot het totaal; gebieden tellen op tot de RDFO | segmenten 360 = koperstypes 360 = verkopen 360; totaal gebieden 114,096.8 = RDFO 114,096.8 | GESLAAGD |
-| 30 | Verdeelfout in de woningverdeling wordt als FOUT gemeld | Controle: 1 FOUT (basis 0) | GESLAAGD |
-| 31 | Lege templateversie: geen data, geen historie, geen formulefouten | formulefouten 0; Controle 0 FOUT; projectlijst, Historie en bronnen leeg | GESLAAGD |
-| 32 | Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's | 32 VBA-modules (oletools); 9 knoppen → ['RDFO_BronnenInlezen', 'RDFO_ControleWissel', 'RDFO_LeegMaken', 'RDFO_MaakPowerPoint', 'RDFO_OudePrognosesOverzetten', 'RDFO_PrognoseVastleggen', 'RDFO_ProjectenToevoegen', 'RDFO_ToonRekenbladen']. Let op: uitvoering in Excel zelf is hier niet getest. | GESLAAGD |
+| 6 | Kwartaalvastlegging Q4: Concept → Historie (dezelfde kopieerstap als de macro) | 318 regels, revisie [0]; Q4-kolom = 114,096.8; Budget–Q3 ongewijzigd; geselecteerd = Vastgesteld | GESLAAGD |
+| 7 | Prognose per kwartaal per project terug te zien (Projectdetail): vastgelegde Q4 = upload per kwartaal | Lindehaven, Parkzoom fase 1: Budget [1354, 1477, 1538, 1784, 6153]; Q4 vastgelegd [0, 0, 0, 1958, 1958] = huidig [0, 0, 0, 1958, 1958] | GESLAAGD |
+| 8 | Vastgelegde Q4 is onveranderlijk: latere upload herberekent haar niet | Q4 vóór/na nieuwe upload: 114,096.8 / 114,096.8; upload-concept 114,432.0 | GESLAAGD |
+| 9 | Dubbele import veroorzaakt geen dubbeltelling | Q4 na 2x plakken: 114,096.8 (1x: 114,096.8); 318 regels als dubbel genegeerd en gemeld | GESLAAGD |
+| 10 | Correctie op vastgestelde versie = nieuwe revisie, oude regel blijft, geen dubbeltelling | Q2 opstal +100,000 EUR (correctie +100.000, niet +5,5 mln); kolomkop gemarkeerd met ●; overige versies ongewijzigd | GESLAAGD |
+| 11 | Correctie zonder toelichting wordt als FOUT gemeld | Controle: 1 FOUT | GESLAAGD |
+| 12 | Woningen worden niet dubbel gewogen (aandeelbasis blijft aandeelbasis) | Totaal 1160 = brontotaal 1160 (met nogmaals aandeel zou 1,106 zijn); deelneming Het Kompas 50%: 24 st. (bruto afgeleid 48) | GESLAAGD |
+| 13 | Verlies blijft zichtbaar (geen ABS) | Lindehaven, De Brink BOR -58.59 (x1.000) gemarkeerd 'Verlies'; RDFO BOR 10,477,198 = signed som 10,477,198 (ABS zou 10,702,738 geven) | GESLAAGD |
+| 14 | Parkeergebouw zonder woningen: geen deling door nul | Projectmatrix toont 'n.v.t.', % verkocht leeg; 0 formulefouten | GESLAAGD |
+| 15 | Alias Bedrijfsnaam/Naam maatschappij en gewijzigde kolomvolgorde | Header hernoemd + 'OP.BOB 2026' en 'Huidig jaar' van positie gewisseld: uitkomsten identiek, 0 FOUT | GESLAAGD |
+| 16 | Nieuwe en vervallen projecten verschijnen als uitzondering (niet stil weg) | nieuw: (1, 'FOUT'); vervallen: (1, 'WAARSCHUWING'); Te doen bovenaan: [('FOUT', 'Nieuwe projecten: WBS uit ZPMW03 nog niet op Projectlijst'), ('WAARSCHUWING', 'Vervallen: project op Projectlijst staat niet (meer) in ZPMW03'), ('WAARSCHUWING', 'Woningetalage-Stufe 3 niet in ZPMW03')]; uitzonderingslijst bevat G.900099 en Boswaard, Parkeergebouw | GESLAAGD |
+| 17 | Doeljaar 2027: jaarprognoses per versie, geen realisatie (n.v.t.), to go = FY | Q3 2027 = 218,828.5; upload 2027 = 218,828.5; realisatie 'n.v.t.' | GESLAAGD |
+| 18 | Fictieve demo-aannames alleen zichtbaar na expliciete keuze (en dan gemeld) | P_Demo=Nee: AK-dekking = kosten / 1,05 x AK % (zoals de oude RDFO) = 5,809; P_Demo=Ja: fictieve AK-dekking -1,400 gaat voor, met Controle-waarschuwing | GESLAAGD |
+| 19 | AK-dekking zoals de oude RDFO: per project (Kosten LJ + kosten rest) / 1,05 x AK %; Q1+Q2+Q3+Q4 = jaar = RDFO | 19 projecten, 0 afwijkend; kwartalen [1258550, 1258550, 1258550, 2033042] = jaar 5,808,692; rekenvoorbeeld: Q4 prognose: kosten € 1,781,562 / 1.05 x 6.0% = € 101,804 | GESLAAGD |
+| 20 | AK-methode 'Geboekt + rest': geboekte AK t/m peildatum; AK zonder project telt mee en wordt mee vastgelegd | kwartalen [1152292, 1369340, 1344340, 2033042] = jaar 5,899,015; zonder project Q2 25000; regioregel 1 x; Q1 geboekt: € 56,719 (som van de boekingen op dit WBS-element in het grootboek) | GESLAAGD |
+| 21 | Stoplicht (verkoop, omgevingsvergunning, netcongestie): kleur volgt uit invoer en uitgangspunten | Watergaarde (0% verkocht, net Laag) → [1, 3, 2]; Parkeergebouw (geen woningen, net Hoog) → [0, 3, 1] (0 = leeg/n.v.t.) | GESLAAGD |
+| 22 | Stoplicht: uitgangspunten aanpassen kleurt alle lichten direct mee | Groengrens 0% en netcongestie Laag = groen → Watergaarde [3, 3, 3] | GESLAAGD |
+| 23 | Orderintake per jaar/kwartaal = bron (kolom Orderintake, PEW opbrengst) | 2026 t/m peildatum: 337,740,000 EUR in 15 projecten (onafhankelijk: 337,740,000) | GESLAAGD |
+| 24 | Outlook: omzet, woningverkopen en orderintake voor elk jaar (2025 t/m 2032) | woningverkopen 2026/2028 = 360/252; omzet 2027/2028 = 218.8/117.8 mln (= bron); 2029+ in bron 0 | GESLAAGD |
+| 25 | PowerPoint-inhoud staat klaar (tabbladen PPT en Dias) | 20 projecten in de projecttabel; kernboodschap: 'Omzet FY 2026: € 114.1 mln, -4.4 mln t.o.v. budget  ·  BOR 9.2%' | GESLAAGD |
+| 26 | PowerPoint: lege toelichtingskolom en jaren zonder cijfers vallen weg | gewicht toelichting = 0; gewichten jaarkolommen 2025-2032 = [0, 0, 1, 1, 0, 0, 0, 0] (alleen 2027 en 2028 hebben cijfers) | GESLAAGD |
+| 27 | Bandbreedte: basis = Outlook, gewogen = omzet x kans %, 0-100 = projecten met kans ≥ 50% | 2027: optimistisch 251.1 · basis 218.8 · afslag 161.2 · gewogen 118.1 (onafhankelijk 118.1) · 0-100 117.1 (onafhankelijk 117.1) mln | GESLAAGD |
+| 28 | Bandbreedte: afslag 100% en geen opschaling geeft precies het basisscenario | 2026: optimistisch/basis/afslag = 114.10 / 114.10 / 114.10 mln | GESLAAGD |
+| 29 | Doorkijk: DAEB-verdeling, funnel, kansen/risico's en reserves rekenen per jaar mee | DAEB 2027 = 8,400,000; saldo kansen/risico's 2026 = -2,930,000; PCM 2026 = 1,572,136; omzet incl. 2028 = 142,030,720 | GESLAAGD |
+| 30 | Woningen per productsegment en koperstype tellen op tot het totaal; gebieden tellen op tot de RDFO | segmenten 360 = koperstypes 360 = verkopen 360; totaal gebieden 114,096.8 = RDFO 114,096.8 | GESLAAGD |
+| 31 | Verdeelfout in de woningverdeling wordt als FOUT gemeld | Controle: 1 FOUT (basis 0) | GESLAAGD |
+| 32 | Lege templateversie: geen data, geen historie, geen formulefouten | formulefouten 0; Controle 0 FOUT; projectlijst, Historie en bronnen leeg | GESLAAGD |
+| 33 | Macro-bestand: VBA-project leesbaar, alle knoppen verwijzen naar bestaande macro's | 33 VBA-modules (oletools); 8 knoppen → ['RDFO_BronnenInlezen', 'RDFO_LeegMaken', 'RDFO_MaakPowerPoint', 'RDFO_OudePrognosesOverzetten', 'RDFO_PrognoseVastleggen', 'RDFO_ProjectenToevoegen', 'RDFO_ToonRekenbladen']. Let op: uitvoering in Excel zelf is hier niet getest. | GESLAAGD |

@@ -26,7 +26,7 @@ Vul de gele cellen in: op de Projectlijst per project het stoplicht (vergunning,
 
 **4. Vastzetten** — Knop op Start
 
-Klik op 'Prognose vastleggen'. Je ziet de omzet en het aantal woningen. Klik op OK. Daarna kun je meteen opslaan.
+Klik op 'Prognose vastleggen'. Er komt geen extra vraag: de cijfers en de kwartalen per project worden direct bewaard. Sla daarna het bestand op.
 
 *Let op:* Is deze versie al vastgezet? Dan vraagt het bestand waarom je hem wilt aanpassen. De oude cijfers blijven bewaard.
 
@@ -45,13 +45,14 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 | RDFO | De RDFO: budget, Q1–Q4, upload, realisatie, to go en verschillen. Onderaan: per gebied. | Alleen lezen. |
 | Outlook | De 4 jaren na het lopende jaar: omzet (ook DAEB, funnel, target), BOR, AK-dekking, kansen en risico's, reserves, bandbreedte, woningen, orderintake. | Alleen lezen. Basis voor het budget. |
 | Projecten | Per project: alle versies, realisatie, to go, BOR, marge en stoplicht. | Filteren met de pijltjes. |
+| Projectdetail | Eén project in detail. Onderaan: per prognose (Budget, Q1–Q4, huidig) de omzet, BOR, kosten en AK-dekking per kwartaal. | Project kiezen bovenaan. |
 | Woningen | Verkopen per maand en kwartaal, per project per kwartaal (dit en volgend jaar), per versie, per productsegment en koperstype. | Alleen lezen. |
 | Bandbreedte | Bovenaan de vijf scenario's per jaar met grafiek. Daaronder per project het stoplicht en de scenario's. | Alleen instellingen bovenaan; de invoer per project staat op de Projectlijst. |
 | Kansen en risico's | Invoer per kans of risico (project, jaar, kwartaal, bedrag) en een grafiek per project; staat ook in de PowerPoint. | Gele cellen invullen. |
 | Reserves | Commerciële reserve, operationele reserve en nazorg: totaal per soort en per project, met de vrijval per jaar. Onderaan het RDFO staat het totaal (in- en uitklapbaar); in de PowerPoint een eigen dia. | Alleen lezen; invullen op de Projectlijst (kolommen L–Q). |
 | Projectlijst | Alle projecten op één plek: WBS, naam, type, gebied en 4 keuzes (prognose, woningen, AK-dekking, PowerPoint). Plus eigen AK %, reserves, stoplicht en scenario; details (projectdefinitie, strapo, woningverdeling) onder de +. | Nieuwe projecten komen er bij inlezen vanzelf bij; zelf toevoegen kan onderaan. Ja/Nee kiezen. |
-| AK-dekking | Bovenaan het totaal per kwartaal (projecten + geboekt zonder project = regio), daarna een rekenvoorbeeld voor één project en de tabel per project per kwartaal. | Project kiezen voor het rekenvoorbeeld; verder alleen lezen. |
-| Controle | Bovenaan: x oplossen · y nakijken · z in orde. Alleen FOUT en WAARSCHUWING worden getoond, met in kolom H wat je moet doen. | Na elke keer inlezen bekijken; x bij akkoord. |
+| AK-dekking | Bovenaan het totaal per kwartaal, daarna een rekenvoorbeeld voor één project en de tabel per project per kwartaal. Rekent zoals de oude RDFO: kosten / 1,05 x AK %. | Methode en negatieve kosten kiezen (rechtsboven); project kiezen voor het rekenvoorbeeld. |
+| Controle | Bovenaan: x oplossen · y nakijken · z in orde, met daaronder een korte lijst 'Te doen' en wat je moet doen. De volledige lijst staat ingeklapt. | Na elke keer inlezen bekijken. |
 | Invoer | Instellingen, projectlijst en alles wat niet in SAP staat. | Gele cellen invullen. |
 | Handleiding | Deze uitleg. |  |
 
@@ -99,8 +100,9 @@ Kies op het Dashboard het jaar en de versie. Klik op 'Maak PowerPoint'.
 
 | Probleem | Oplossing |
 |---|---|
-| Hoe is de AK-dekking van een project berekend? | Kijk op het tabblad AK-dekking. Per kwartaal: t/m de peildatum de geboekte AK uit de grootboekdump (blauw), daarna kosten van dat kwartaal / 1,05 x AK % (geel). Jaar = Q1 + Q2 + Q3 + Q4. Bovenaan staat het totaal per kwartaal, inclusief AK die zonder project is geboekt. Kies bij 'Rekenvoorbeeld' een project: dan staat er per kwartaal uitgeschreven hoe het bedrag tot stand komt. |
+| Hoe is de AK-dekking van een project berekend? | Zoals de oude RDFO: per project en kwartaal kosten / 1,05 x AK % (t/m de peildatum de gerealiseerde kosten, Kosten LJ; daarna de kosten per kwartaal, of Kosten RJ verdeeld). De geboekte AK uit het grootboek staat apart als realisatie. Wil je t/m de peildatum de geboekte AK gebruiken, zet dan op AK-dekking de methode op 'Geboekt + rest'. Negatieve kosten geven een negatieve AK; zet 'Negatieve kosten' op 'Als 0' als die niet mee moeten tellen (Controle waarschuwt). Elke prognose (Q1, Q2, Q3) is een jaarbedrag. Jaar = Q1 + Q2 + Q3 + Q4. Bovenaan staat het totaal per kwartaal, inclusief AK die zonder project is geboekt. Kies bij 'Rekenvoorbeeld' een project: dan staat er per kwartaal uitgeschreven hoe het bedrag tot stand komt. |
 | Waar zie ik de reserves? | Invullen op de Projectlijst (kolommen L–Q: drie soorten reserve en % gereed eind dit en volgend jaar). Overzicht op het tabblad Reserves; onderaan het RDFO staat de regel 'Reserves totaal' (klik + links voor de soorten). In de PowerPoint komt een dia Reserves zodra er een reserve is ingevuld. |
+| Hoe zie ik wat een prognose per kwartaal was? | Op Projectdetail: kies een project; onderaan staat per kengetal (omzet, BOR, kosten, AK-dekking) een tabel met de prognoses onder elkaar (Budget, Q1–Q4, huidige upload) en de kwartalen naast elkaar. Die kwartalen worden bewaard bij 'Prognose vastleggen' en bij 'Oude prognoses overzetten' (kolommen Q1–Q4 in je oude tabbladen). |
 | Hoe voeg ik een project toe? | Meestal hoeft dat niet: bij 'Bronnen inlezen' komt elk nieuw WBS-element uit ZPMW03 vanzelf onderaan de Projectlijst (oranje, alle keuzes op Ja). Zelf toevoegen: typ onderaan de Projectlijst het WBS-element, de naam, het type en het gebied. Niet tussenvoegen of sorteren. |
 | Hoe krijg ik mijn eerdere prognoses (Budget, Q1, Q2, Q3) erin? | Eenmalig: klik op Start op 'Oude prognoses overzetten' en kies je oude RDFO-bestand. Het bestand leest elk tabblad met Budget, Q1, Q2, Q3 of Q4 in de naam (bijvoorbeeld 'Q1' of 'Prognose Q1') (omzet, BOR en AK-dekking per WBS, in EUR x 1.000) en zet ze als vastgestelde versies in de Historie. Een versie die er al in staat, wordt overgeslagen. |
 | Ik wil met een leeg bestand beginnen | Gebruik RDFO_template.xlsm (al leeg), of klik op Start op 'Bestand leegmaken' en typ LEEG. Daarna: Bronnen inlezen (projecten komen vanzelf op de Projectlijst) › type en gebied controleren. |

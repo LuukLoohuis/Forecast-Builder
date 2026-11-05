@@ -4795,7 +4795,8 @@ def make_template(wb):
     clear(hi, [col(1 + j) for j in range(len(LCOLS))], L0, L1)
     clear(hi, [col(IL_COL + j) for j in range(11) if j != 8], 6, 6 + 200)
     wb["Projectdetail"]["C4"].value = None
-    for row in wb["Controle"].iter_rows(min_row=9, max_row=80, min_col=9, max_col=9):
+    _ct = str(wb.defined_names["CT_Bekeken"].attr_text).split("!")[1].replace("$", "")
+    for row in wb["Controle"][_ct]:
         row[0].value = None
 
 

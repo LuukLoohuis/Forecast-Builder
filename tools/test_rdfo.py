@@ -45,7 +45,7 @@ def recalc(path):
 
 def name_ref(wb, name):
     sheet, cell = wb.defined_names[name].attr_text.split("!")
-    return sheet, cell.replace("$", "")
+    return sheet.strip("'"), cell.replace("$", "")
 
 
 def set_name(wb, name, value):
