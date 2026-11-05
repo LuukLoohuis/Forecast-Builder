@@ -68,7 +68,8 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
         keyo_ = '_koppeling!%s$521'
         z('B%d' % ra, ('Verkocht % · van alle woningen (uit het verkooptempo; 1e kolom: t/m nu, SF)' if std else
                        'Verkocht % · van alle woningen (1e kolom: t/m nu, SF)'), st['tekst'] if std else st['invoer_label'])
-        z('B%d' % rb, 'Getransporteerd % · van alle woningen', st['invoer_label'])
+        z('B%d' % rb, ('Getransporteerd % · van alle woningen (uit de tabel Transport)' if std else
+                       'Getransporteerd % · van alle woningen'), st['tekst'] if std else st['invoer_label'])
         z('B%d' % rg, 'Grondprijs +/- per woning (€, na SWK)', st['tekst'])
         z('D%d' % rg, None, st['invoer_getal'])
         z('B%d' % tr, 'Transport · aantal woningen (= grondtermijn)', st['tekst'])
@@ -414,25 +415,49 @@ def aansluiting(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
                 x = lambda c: 'INDEX(%s,MATCH($A%d,%s,0))' % (km(c), rr, km('A'))
                 z('K%d' % rr, '=IF(ABS(N($G%d))<0.5,"",IFERROR(%s&IF(%s&""="",""," · "&%s),"koppel aan SAP-nr"))'
                   % (rr, x('B'), x('C'), x('C')), st['vet'])
-        # op het dashboard: te boeken in SAP, naast de grafieken
+        # op het dashboard: te boeken in SAP per SAP-nummer (totaal, vet) met de kostendragers eronder
         r0 = S_.P_TYPE1 + S_.NT + 2
         for c in 'OPQRST':
-            z('%s%d' % (c, r0), 'TE BOEKEN IN SAP · n.a.v. de prijslijst (kolom Corr)' if c == 'O' else None, st['sectie'])
-        for c, h in zip('OQRS', ['Omschrijving', 'SAP-nummer', 'Kostendrager', 'Bedrag (€)']):
-            z('%s%d' % (c, r0 + 1), h, st['kop_links'] if c == 'O' else st['kop'])
-        for i in range(len(SAP_BOEKING)):
-            r, rb = r0 + 2 + i, L_['b1'] + i
-            z('O%d' % r, '=A%d' % rb, st['tekst'])
-            z('Q%d' % r, '=IF(B%d="","",B%d)' % (rb, rb), st['aantal'])
-            z('R%d' % r, '=IF(C%d="","",C%d)' % (rb, rb), st['aantal'])
-            z('S%d' % r, '=D%d' % rb, st['getal'])
-        r = r0 + 2 + len(SAP_BOEKING)
-        z('O%d' % r, 'Niet toegewezen', st['tekst'])
+            z('%s%d' % (c, r0), 'TE BOEKEN IN SAP · per SAP-nummer, met de kostendragers eronder' if c == 'O' else None, st['sectie'])
+        for c, h in zip('OPQRST', ['SAP-nr', 'Omschrijving', None, None, 'Bedrag (€)', 'Status']):
+            z('%s%d' % (c, r0 + 1), h, st['kop_links'] if c in 'OP' else st['kop'])
+        groepen = []
+        for i, (oms, nr, kd) in enumerate(SAP_BOEKING):
+            g = next((g for g in groepen if g[0] == nr), None)
+            if g:
+                g[1].append(i)
+            else:
+                groepen.append((nr, [i]))
+        bb = lambda c: '$%s$%d:$%s$%d' % (c, L_['b1'], c, L_['bn'])
+        r = r0 + 2
+        for nr, leden in groepen:
+            b0 = L_['b1'] + leden[0]
+            z('O%d' % r, '=B%d' % b0, st['label_tot'])
+            z('P%d' % r, ' + '.join(SAP_BOEKING[i][0] for i in leden) + (' · totaal' if len(leden) > 1 else ''), st['label_tot'])
+            for c in 'QR':
+                z('%s%d' % (c, r), None, st['label_tot'])
+            z('S%d' % r, '=SUMIF(%s,O%d,%s)' % (bb('B'), r, bb('D')), st['getal_tot'])
+            z('T%d' % r, None, st['label_tot'])
+            r += 1
+            if len(leden) > 1 or any(SAP_BOEKING[i][2] for i in leden):
+                for n, i in enumerate(leden):
+                    rb = L_['b1'] + i
+                    teken = '└ ' if n == len(leden) - 1 else '├ '
+                    z('P%d' % r, '="   %s"&IF(C%d="","zonder kostendrager","kostendrager "&C%d)&" · %s"' % (teken, rb, rb, SAP_BOEKING[i][0]),
+                      st['tekst'])
+                    z('S%d' % r, '=D%d' % rb, st['getal'])
+                    r += 1
+        z('P%d' % r, 'Niet toegewezen (geen of een ander SAP-nummer)', st['tekst'])
         z('S%d' % r, '=D%d' % L_['open'], st['getal'])
         z('T%d' % r, '=E%d' % L_['open'], st['vet'])
-        z('O%d' % (r + 1), 'Totaal correcties', st['label_tot'])
-        z('S%d' % (r + 1), '=D%d' % L_['totaal'], st['getal_tot'])
-        z('O%d' % (r + 3), 'Per regel: kolom K in de blokken hieronder. Koppeling aanpassen: rij %d.' % L_['k0'], st['tekst'])
+        r += 1
+        for c in 'OPQRST':
+            z('%s%d' % (c, r), 'TOTAAL CORRECTIES' if c == 'P' else None, st['label_tot'])
+        z('S%d' % r, '=D%d' % L_['totaal'], st['getal_tot'])
+        corr = '+'.join('SUM(G%d:G%d)' % (bk['regels'][0][0], bk['regels'][-1][0]) for bk in L_['blokken'] if bk['regels'])
+        z('T%d' % r, '=IF(ABS(S%d-(%s))<1,"OK = kolom Corr","FOUT: sluit niet aan op Corr")' % (r, corr or '0'), st['vet'])
+        z('O%d' % (r + 2), 'Per regel: kolom K in de blokken hieronder. SAP-nummers en kostendragers aanpassen: rij %d.' % L_['k0'],
+          st['notitie'])
     log('  Aansluiting opbrengsten: te boeken in SAP vanaf rij %d (%d regels per type, %d blokken)'
         % (L_['s0'], len(L_['regels']), len(L_['blokken'])))
 

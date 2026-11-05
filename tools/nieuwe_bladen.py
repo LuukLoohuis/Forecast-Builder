@@ -25,9 +25,9 @@ F_BASE = Font(name=FONT, size=10)
 F_BOLD = Font(name=FONT, size=10, bold=True)
 F_TITLE = Font(name='Heijmans-BoldCon', size=16, color=Color(theme=6))
 F_SECTION = Font(name='Heijmans-BoldCon', size=11, color=Color(theme=0))
-F_NOTE = Font(name=FONT, size=9, italic=True, color='FF6B7280')
-F_HELP = Font(name=FONT, size=8, color='FF9CA3AF')
-F_HEAD = Font(name=FONT, size=10, bold=True)
+F_NOTE = Font(name=FONT, size=9, italic=True, color='FF4B5563')
+F_HELP = Font(name=FONT, size=8, color='FF6B7280')
+F_HEAD = Font(name=FONT, size=10, bold=True, color='FFFFFFFF')     # wit op donkerblauw
 
 
 def fill(theme=None, tint=0.0, rgb=None):
@@ -36,11 +36,11 @@ def fill(theme=None, tint=0.0, rgb=None):
 
 
 FILL_SECTION = fill(6)                 # donkerblauw
-FILL_HEAD = fill(4)                    # Heijmans-geel (zoals de koppen in het FO)
-FILL_INPUT = fill(7, 0.6)              # handmatig (zoals 'Toelichting onderlegger')
-FILL_SAP = fill(6, 0.8)                # exports uit SAP
-FILL_TOTAL = fill(7, 0.4)
-FILL_CALC = fill(rgb='FFF3F4F6')       # berekend
+FILL_HEAD = fill(rgb='FF003366')       # koppen: donkerblauw (geel is alleen voor invoer)
+FILL_INPUT = fill(rgb='FFFFF2CC')      # invoer: geel (overal hetzelfde)
+FILL_SAP = fill(rgb='FFF3F4F6')        # uit een export (SAP / Salesforce): lichtgrijs
+FILL_TOTAL = fill(rgb='FFDCE8F5')      # totaal: lichtblauw
+FILL_CALC = PatternFill(fill_type=None)  # berekend: wit
 THIN = Side(style='thin', color='FFD1D5DB')
 B_BOTTOM = Border(bottom=THIN)
 NUM = '_ * #,##0_ ;_ * \\-#,##0_ ;_ * "-"??_ ;_ @_ '
@@ -153,7 +153,27 @@ def maak_start(wb, demo, R):
     cell(ws, 'G2', 'Legenda', F_BOLD)
     cell(ws, 'H2', 'handmatig invullen', F_BASE, FILL_INPUT)
     cell(ws, 'H3', 'export uit SAP / SF', F_BASE, FILL_SAP)
-    cell(ws, 'H4', 'berekend', F_BASE, FILL_CALC)
+    cell(ws, 'H4', 'berekend', F_BASE, FILL_CALC, border=Border(top=THIN, bottom=THIN, left=THIN, right=THIN))
+    cell(ws, 'G3', 'totaal', F_BOLD, FILL_TOTAL)
+    cell(ws, 'G4', 'kop', F_HEAD, FILL_HEAD)
+
+    # tabbladen in werkvolgorde, met een link (kolom M-N, naast de blokken)
+    ws.column_dimensions['M'].width = 26
+    ws.column_dimensions['N'].width = 16
+    for c in 'MN':
+        cell(ws, '%s2' % c, 'TABBLADEN · werkvolgorde' if c == 'M' else None, F_SECTION, FILL_SECTION)
+    soort = {'export': ('export · plakken', FILL_SAP, F_BASE), 'invoer': ('invoer', FILL_INPUT, F_BASE),
+             'uit': ('uitkomst', PatternFill('solid', fgColor='FF15803D'), Font(name=FONT, size=10, bold=True, color='FFFFFFFF'))}
+    tabs = [('FO - vorig', 'export'), ('FO - huidig', 'export'), ('FO - actuals', 'export'), ('Prijslijst dump', 'export'),
+            ('Prijslijst', 'invoer'), ('CF - opbrengsten', 'invoer'), ('CF - kosten', 'invoer'), ('2. Ontw PEW', 'invoer'),
+            ('Dashboard', 'uit'), ("Scenario's", 'uit'), ('CF - hulp VENA', 'uit')]
+    for i, (t, k) in enumerate(tabs):
+        r = 3 + i
+        cell(ws, 'M%d' % r, '=HYPERLINK("#\'%s\'!A1","→ %s")' % (t.replace("'", "''"), t),
+             Font(name=FONT, size=10, bold=True, color='FF003366', underline='single'))
+        cell(ws, 'N%d' % r, soort[k][0], soort[k][2], soort[k][1])
+        ws['M%d' % r].border = ws['N%d' % r].border = Border(bottom=THIN)
+    cell(ws, 'M%d' % (3 + len(tabs)), 'op elk tabblad brengt "← Start" je terug', F_NOTE)
 
     # 1 project en periode -----------------------------------------------------------------------
     section(ws, 5, '1 · PROJECT EN PERIODE')
@@ -335,8 +355,8 @@ def maak_start(wb, demo, R):
         'SAP actuals (FR5) → FO - actuals. Check SAP op correcties in de werkelijke opbrengsten.',
         'Salesforce prijslijst → Prijslijst dump; zet de exportdatum op tab Prijslijst (cel C1).',
         'Controleer Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW); boek de bedragen van “te boeken in SAP” (onderaan) en vraag ontbrekende documentatie op.',
-        'CF - opbrengsten: per woningtype de bouwtermijnen (planning met de ontwikkelaar), verkocht %% en getransporteerd %% per '
-        'kwartaal en eventueel de grondprijs (na SWK); correctie in rij %d.' % R['o_corr_rij'],
+        'CF - opbrengsten: per woningtype de bouwtermijnen (planning met de ontwikkelaar), verkoop (verkooptempo) en transport '
+        '(tabel Transport) in aantallen per kwartaal, eventueel de grondprijs (na SWK); correctie in rij %d.' % R['o_corr_rij'],
         'CF - kosten: de bouwtermijnen volgen de planning van de opbrengsten (overschrijven mag); per post Handmatig, Voorstel of Transport (kolom C).',
         'Alle controles in blok 4 groen; bekijk Dashboard (cashflow) en 2. Ontw PEW.',
         'Bekijk Dashboard en Scenario\'s: Invoer, Woningtypes en Scenario kosten rekenen automatisch mee met de CF-tabbladen.',

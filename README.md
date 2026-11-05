@@ -35,6 +35,18 @@ Vervallen ten opzichte van het oude FO: `Aansluiting opbrengsten` (nu op `Prijsl
 invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting onderlegger`, `1. Ontw businessc FD` en
 `5. K&R businessc`.
 
+## Vormgeving
+
+Eén vaste kleurtaal in het hele bestand:
+- **donkerblauw met witte tekst** = kop of sectie;
+- **geel met een dunne goudrand** = invullen;
+- **wit** = berekend;
+- **lichtgrijs** = uit een export (SAP/Salesforce);
+- **lichtblauw en vet** = totaal;
+- **groen / oranje / rood** = OK / LET OP / FOUT.
+
+Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad heeft linksboven "← Start" en een legenda. Start bouw en Oplevering staan als groen en blauw label boven het kwartaal, met een lijn langs de kolom; koppen en invoer houden hun eigen kleur.
+
 ## Prijslijst als dashboard
 
 - **Kaarten bovenaan:**
@@ -61,7 +73,7 @@ invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting on
   Bij gelijkspel wint het eerste type.
 - **Regels zonder koppeling met de prijslijst** (VON verhogingen, opbrengsten commercieel en parkeren): de kolom Prijslijst is daar geel; vul het bedrag in. Oud FO inlezen neemt het bedrag uit het oude FO over.
 - **Grafieken:** prijslijst en SKO per type, en het grond % huidig en met kans.
-- **Te boeken in SAP:** naast de grafieken staan de correcties per SAP-nummer en kostendrager (uit de kolom Corr). In de aansluitblokken toont kolom K per regel op welk SAP-nummer (en kostendrager) de correctie geboekt wordt.
+- **Te boeken in SAP:** naast de grafieken het totaal per SAP-nummer (bijvoorbeeld alles op 9000), met de kostendragers eronder, wat niet is toegewezen, en het totaal met een controle op de kolom Corr. In de aansluitblokken toont kolom K per regel op welk SAP-nummer (en kostendrager) de correctie geboekt wordt.
 - **2 · Aansluiting per woningtype:** SKO, prijslijst, actueel budget, Corr, PEW, verschil en status. De status per type staat in de kopregel, het termijnschema ernaast.
 
 ## Weergave

@@ -16,6 +16,7 @@ FO-bladen bestaan hier niet.
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 import openpyxl
@@ -170,7 +171,7 @@ F = Font(name='Heijmans-Light', size=10)
 FB = Font(name='Heijmans-Light', size=10, bold=True)
 FT = Font(name='Heijmans-BoldCon', size=14, color='FF003366')
 FW = Font(name='Heijmans-BoldCon', size=10, color='FFFFFFFF')
-FN = Font(name='Heijmans-Light', size=9, italic=True, color='FF6B7280')
+FN = Font(name='Heijmans-Light', size=9, italic=True, color='FF4B5563')
 NUM = '#,##0;-#,##0;"-"'
 AANT = 'General;-General;"-"'          # aantallen: geen punt of komma achter een heel getal
 NUM2 = '#,##0.00;-#,##0.00;"-"'
@@ -194,6 +195,32 @@ def zet(ws, ref, v, font=F, fill=None, fmt=None):
     return c
 
 
+def navigatie(ws, link, legenda=None):
+    """'← Start' (link naar tab Start) en een legenda met kleurvakjes: geel = invullen, wit = berekend,
+    grijs = uit een export, blauw = totaal"""
+    zet(ws, link, '=HYPERLINK("#Start!A1","← Start")', Font(name='Heijmans-BoldCon', size=10, color='FF003366', underline='single'))
+    if legenda:
+        from openpyxl.utils import column_index_from_string as cis
+        c0, r0 = re.match(r'([A-Z]+)(\d+)', legenda).groups()
+        rand = Border(left=Side(style='thin', color='FFD1D5DB'), right=Side(style='thin', color='FFD1D5DB'),
+                      top=Side(style='thin', color='FFD1D5DB'), bottom=Side(style='thin', color='FFD1D5DB'))
+        for i, (t, f) in enumerate((('invullen', GEEL), ('berekend', None), ('uit export', GRIJS), ('totaal', TOTAAL))):
+            cel = zet(ws, '%s%s' % (L(cis(c0) + i), r0), t, Font(name='Heijmans-Light', size=8, color='FF1F2937'), f)
+            cel.alignment = Alignment(horizontal='center')
+            cel.border = rand
+
+
+def statuskleuren(ws, rng):
+    """FOUT rood, LET OP oranje, OK groen (statuskolommen)"""
+    from openpyxl.formatting.rule import FormulaRule
+    c = rng.split(':')[0]
+    ws.conditional_formatting.add(rng, FormulaRule(formula=['LEFT(%s,4)="FOUT"' % c], font=Font(bold=True, color='FF991B1B'),
+                                  fill=PatternFill('solid', fgColor='FFFECACA', bgColor='FFFECACA')))
+    ws.conditional_formatting.add(rng, FormulaRule(formula=['LEFT(%s,6)="LET OP"' % c], font=Font(bold=True, color='FF92400E'),
+                                  fill=PatternFill('solid', fgColor='FFFEF3C7', bgColor='FFFEF3C7')))
+    ws.conditional_formatting.add(rng, FormulaRule(formula=['%s="OK"' % c], font=Font(bold=True, color='FF15803D')))
+
+
 def totaalrijen(ws, rijen):
     """totaalregels: lichtblauw vlak, vet en donkerblauw, met een lijn erboven"""
     lijn = Side(style='thin', color='FF003366')
@@ -210,7 +237,7 @@ def kopregels(ws, r_jaar, r_q, act='actuals', jaar=JAAR):
     zet(ws, '%s%d' % (COLS[0], r_q), act, FB, KOPLICHT)
     for i, c in enumerate(QCOLS):
         # jaartal boven elk kwartaal (Q1 vet), zodat het ook na het inklappen van eerdere kwartalen zichtbaar is
-        zet(ws, '%s%d' % (c, r_jaar), '=%s+%d' % (jaar, i // 4), FB if i % 4 == 0 else Font(name='Heijmans-Light', size=8, color='FF9CA3AF'))
+        zet(ws, '%s%d' % (c, r_jaar), '=%s+%d' % (jaar, i // 4), FB if i % 4 == 0 else Font(name='Heijmans-Light', size=8, color='FF6B7280'))
         zet(ws, '%s%d' % (c, r_q), 'Q%d' % (i % 4 + 1), FB, KOPLICHT)
 
 
@@ -228,8 +255,18 @@ def markeringen(ws, r_mark, r1, r2):
     k0 = key(QCOLS[0]).replace('COLUMN(%s%d)' % (QCOLS[0], r1), 'COLUMN(%s%d)' % (QCOLS[0], r1))
     groen = PatternFill('solid', fgColor='FFE3F2E1', bgColor='FFE3F2E1')
     blauw = PatternFill('solid', fgColor='FFDCE8F5', bgColor='FFDCE8F5')
-    ws.conditional_formatting.add(rng, FormulaRule(formula=['%s=p_startbouw' % k0], fill=groen))
-    ws.conditional_formatting.add(rng, FormulaRule(formula=['%s=p_oplevering' % k0], fill=blauw))
+    # kleur alleen in de markeringsrij; in de tabel een gekleurde lijn links en rechts van het kwartaal, zodat koppen
+    # (blauw) en invoer (geel) hun eigen kleur houden
+    rm = '%s%d:%s%d' % (QCOLS[0], r_mark, QCOLS[-1], r_mark)
+    ws.conditional_formatting.add(rm, FormulaRule(formula=['%s=p_startbouw' % k0.replace('%d)' % r1, '%d)' % r_mark)],
+                                                  fill=PatternFill('solid', fgColor='FF15803D', bgColor='FF15803D'),
+                                                  font=Font(bold=True, color='FFFFFFFF')))
+    ws.conditional_formatting.add(rm, FormulaRule(formula=['%s=p_oplevering' % k0.replace('%d)' % r1, '%d)' % r_mark)],
+                                                  fill=PatternFill('solid', fgColor='FF2563EB', bgColor='FF2563EB'),
+                                                  font=Font(bold=True, color='FFFFFFFF')))
+    lg, lb = Side(style='thin', color='FF15803D'), Side(style='thin', color='FF2563EB')
+    ws.conditional_formatting.add(rng, FormulaRule(formula=['%s=p_startbouw' % k0], border=Border(left=lg, right=lg)))
+    ws.conditional_formatting.add(rng, FormulaRule(formula=['%s=p_oplevering' % k0], border=Border(left=lb, right=lb)))
     rand = Side(style='thin', color='FF003366')
     ws.conditional_formatting.add(rng, FormulaRule(formula=['MOD(COLUMN(%s%d)-COLUMN($%s$%d),4)=0' % (QCOLS[0], r1, QCOLS[0], r1)],
                                                    border=Border(left=rand)))
@@ -300,7 +337,7 @@ def maak_opbrengsten(ws):
                 zet(ws, 'E%d' % r, '=E%d' % oz_rij(k, NTERM + i - 1), FN, None, NUM)
             zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), FB if tot_ else F, None, NUM)
             for c in COLS:
-                zet(ws, '%s%d' % (c, r), f(c), FB if tot_ else F, GRIJS, NUM)
+                zet(ws, '%s%d' % (c, r), f(c), FB if tot_ else F, None, NUM)
     # verkooptempo (aantallen; komen in het werkbestand uit verkocht %)
     kopregels(ws, VK - 1, VK)
     for c, t in zip('BCDE', ['Verkooptempo', 'Aantal', 'Verkocht', 'Te koop']):
@@ -315,9 +352,9 @@ def maak_opbrengsten(ws):
         zet(ws, 'C%d' % r, '=G%d' % won_rij(k), F, None, '0')
         w_bn = 'Prijslijst!$%s$%d:$%s$%d' % (P_BN['wt'], P_BN1, P_BN['wt'], P_BNN)
         zet(ws, 'D%d' % r, '=COUNTIFS(%s,%d,Prijslijst!%s,"Verkocht")+COUNTIFS(%s,%d,Prijslijst!%s,"Getransporteerd")'
-            % (w_bn, k, s_bn, w_bn, k, s_bn), F, GRIJS, '0')
+            % (w_bn, k, s_bn, w_bn, k, s_bn), F, None, '0')
         zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, '0')
-        zet(ws, 'G%d' % r, '=D%d' % r, F, GRIJS, '0')
+        zet(ws, 'G%d' % r, '=D%d' % r, F, None, '0')
         for c in QCOLS:
             zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
         zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
@@ -333,7 +370,7 @@ def maak_opbrengsten(ws):
         r = tt_rij(k)
         zet(ws, 'B%d' % r, '=B%d' % vk_rij(k))
         zet(ws, 'C%d' % r, '=C%d' % vk_rij(k), F, None, '0')
-        zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, GRIJS, AANT)
+        zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
         zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, AANT)
         for c in COLS:
             zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
@@ -492,7 +529,7 @@ def maak_opbrengsten(ws):
                 f = '=IFERROR((%s)/(%s),0)' % ('+'.join('%s%d' % (c, tr(k)) for k in range(1, NT + 1)), tw)
             else:
                 f = '=SUM($%s%d:%s%d)' % (COLS[0], r - 1, c, r - 1)
-            zet(ws, '%s%d' % (c, r), f, FB if i % 2 else F, GRIJS, '0.0%;-0.0%;"-"')
+            zet(ws, '%s%d' % (c, r), f, FB if i % 2 else F, None, '0.0%;-0.0%;"-"')
     # kans: grondtermijn naar een ander % van de koopsom (Prijslijst kolom Y); effect op de cashflow (alleen prognose)
     zet(ws, 'B%d' % KANS, 'KANS · grondtermijn naar het % op Prijslijst (kolom Y) · effect op de opbrengsten', FW, DONKER)
     for c in ['C', 'D', 'E', 'F'] + COLS:
@@ -558,10 +595,12 @@ def maak_opbrengsten(ws):
         ws.row_dimensions.group(plan(k, 1), hb(k) + BLOK - 2, outline_level=1)
     ws.row_dimensions.group(OZ1 - 1, OV_KOP - 2, outline_level=1, hidden=True)
     ws.sheet_properties.outlinePr.summaryBelow = False
-    ws.column_dimensions['B'].width = 46
+    ws.column_dimensions['B'].width = 52
     for c in COLS:
         ws.column_dimensions[c].width = 11
     totaalrijen(ws, [tr(k) + 8 for k in range(1, NT + 1)] + [TOT])
+    navigatie(ws, 'A1', 'D1')
+    statuskleuren(ws, '%s1:%s%d' % (CHK, TOEL, DAEB_VERKOOP + 5))
     ws.freeze_panes = 'H6'
 
 
@@ -571,7 +610,7 @@ def maak_kosten(ws):
     ws.sheet_view.showGridLines = False
     ws.column_dimensions['A'].width = 8
     OO = "'CF - opbrengsten'!"
-    zet(ws, 'B1', 'Kosten', FT)
+    zet(ws, 'B1', None)
     for k in range(1, NT + 1):
         b = kb(k)
         w = '$E$%d' % b
@@ -611,6 +650,9 @@ def maak_kosten(ws):
         geel_cf = PatternFill('solid', fgColor='FFFFF2CC', bgColor='FFFFF2CC')
         for rng_ in ('C%d:C%d' % (kterm(k, 1), kterm(k, NTERM)), '%s%d:%s%d' % (COLS[0], kterm(k, 1), COLS[-1], kterm(k, NTERM))):
             ws.conditional_formatting.add(rng_, FormulaRule(formula=['$B%d<>""' % kterm(k, 1)], fill=geel_cf))
+        # lege termijnregels (geen termijn op Prijslijst) onzichtbaar: geen 0,0% en streepjes
+        ws.conditional_formatting.add('C%d:%s%d' % (kterm(k, 1), CHK, kterm(k, NTERM)),
+                                      FormulaRule(formula=['$B%d=""' % kterm(k, 1)], font=Font(color='FFFFFFFF')))
         ra = k_aanneem(k)
         t1, tn, m1, m2 = kterm(k, 1), kterm(k, NTERM), kterm(k, NTERM + 1), kterm(k, NTERM + 2)
         zet(ws, 'B%d' % ra, 'Aanneemsom', FB)
@@ -635,7 +677,7 @@ def maak_kosten(ws):
         r = K_POST1 + i
         zet(ws, 'B%d' % r, "='2. Ontw PEW'!C%d" % (7 + i))
         zet(ws, 'D%d' % r, "=N('2. Ontw PEW'!G%d)*1000" % (7 + i), F, None, NUM)
-        zet(ws, '%s%d' % (COLS[0], r), "=SUMIFS('FO - huidig'!$M:$M,'FO - huidig'!$Y:$Y,$B%d)" % r, F, GRIJS, NUM)
+        zet(ws, '%s%d' % (COLS[0], r), "=SUMIFS('FO - huidig'!$M:$M,'FO - huidig'!$Y:$Y,$B%d)" % r, F, None, NUM)
         for c in QCOLS:
             if p == 'Aanneemsom':
                 f = '=' + '+'.join('%s%d' % (c, k_aanneem(k)) for k in range(1, NT + 1))
@@ -665,12 +707,14 @@ def maak_kosten(ws):
     for k in range(1, NT + 1):
         ws.row_dimensions.group(kterm(k, 1), k_aanneem(k) + 1, outline_level=1)
     ws.sheet_properties.outlinePr.summaryBelow = False
-    ws.column_dimensions['B'].width = 46
+    ws.column_dimensions['B'].width = 52
     for c in COLS:
         ws.column_dimensions[c].width = 11
-    for c_, w_ in (('C', 7), ('D', 13), ('E', 11), ('F', 11)):
+    for c_, w_ in (('C', 12), ('D', 13), ('E', 12), ('F', 12)):
         ws.column_dimensions[c_].width = w_
     totaalrijen(ws, [K_PEW, K_TOT] + [k_aanneem(k) for k in range(1, NT + 1)])
+    navigatie(ws, 'A1', 'D1')
+    statuskleuren(ws, '%s1:%s%d' % (CHK, TOEL, K_PER + 80))
     ws.freeze_panes = 'H3'
 
 
@@ -693,7 +737,7 @@ def maak_prijslijst(ws):
     LICHT = PatternFill('solid', fgColor='FFE9ECEF')
     BAND = {'uit': PatternFill('solid', fgColor='FF6B7280'), 'hand': PatternFill('solid', fgColor='FFD97706'),
             'gebr': PatternFill('solid', fgColor='FF003366'), 'kans': PatternFill('solid', fgColor='FF15803D')}
-    FK = Font(name='Heijmans-Light', size=9, color='FF6B7280')
+    FK = Font(name='Heijmans-Light', size=9, color='FF4B5563')
     FV = Font(name='Heijmans-BoldCon', size=18, color='FF003366')
     dun = Side(style='thin', color='FFD1D5DB')
     zet(ws, 'A1', 'Datum export:', FK)
@@ -884,7 +928,11 @@ def maak_prijslijst(ws):
         ws.column_dimensions[c].width = w
     for c in range(4, 27):
         ws.column_dimensions[L(c)].width = 13
-    ws.column_dimensions[P_TERM_NAAM].width = 30
+    ws.column_dimensions[P_TERM_NAAM].width = 44
+    for c in range(4, 27):
+        if L(c) != P_TERM_NAAM:
+            ws.column_dimensions[L(c)].width = 14
+    navigatie(ws, 'E1', 'H1')
     # per bouwnummer (zoals de oude Prijslijst)
     kb_ = ['Bouwnummer', 'Termijnen / Blok', 'Type', 'SF: Grondkosten start verkoop (incl. Kad)', 'SF: Aanneemsom start verkoop',
            'SF: VON start verkoop', 'SF: Totaal woonwensen in VON', 'SF: Totaal woonwensen in OB', 'SF: Status',
@@ -969,6 +1017,7 @@ def maak_vena(ws):
     for i in range(60):
         ws.column_dimensions[L(4 + i)].width = 11
     ws.freeze_panes = 'D1'
+    navigatie(ws, 'A1')
 
 
 def maak_cashflow_plek(ws, jaar=2026, rijen=None):

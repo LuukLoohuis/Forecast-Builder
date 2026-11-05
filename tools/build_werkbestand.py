@@ -207,20 +207,86 @@ def vba_constanten():
     return '\r\n'.join(regels)
 
 
+def harmoniseer_stijlen(t):
+    """één vormgeving in het hele bestand: koppen donkerblauw met witte tekst (ook de gele koppen uit het oude FO en het
+    scenariomodel), invoer overal hetzelfde geel met een dunne goudrand, totalen lichtblauw"""
+    fills, fonts, borders, xfs = (t.find(M + x) for x in ('fills', 'fonts', 'borders', 'cellXfs'))
+    kop, invoer = set(), set()
+    for i, f in enumerate(fills):
+        pf = f.find(M + 'patternFill')
+        fg = pf.find(M + 'fgColor') if pf is not None else None
+        if fg is None or pf.get('patternType') != 'solid':
+            continue
+        th, tint, rgb = fg.get('theme'), float(fg.get('tint') or 0), (fg.get('rgb') or '').upper()
+        nieuw = None
+        if (th == '4' and abs(tint) < 0.01) or rgb in ('FFFEB900', 'FFFFC000', 'FFFFB900'):
+            nieuw = 'FF003366'; kop.add(i)
+        elif th == '7' and abs(tint - 0.6) < 0.01 or rgb in ('FFFFF2B2', 'FFFFF2CC'):
+            nieuw = 'FFFFF2CC'; invoer.add(i)
+        elif th == '7' and abs(tint - 0.4) < 0.01:
+            nieuw = 'FFDCE8F5'
+        if nieuw:
+            for tag in ('fgColor', 'bgColor'):
+                e = pf.find(M + tag)
+                if e is None:
+                    e = etree.SubElement(pf, M + tag)
+                e.attrib.clear()
+                e.set('rgb', nieuw)
+    VOLG = ['b', 'i', 'strike', 'condense', 'extend', 'outline', 'shadow', 'u', 'vertAlign', 'sz', 'color', 'name', 'family',
+            'charset', 'scheme']
+    wit = {}
+    goud = {}
+    for xf in xfs:
+        fid = int(xf.get('fillId', 0))
+        if fid in kop:
+            fo = int(xf.get('fontId', 0))
+            if fo not in wit:
+                f = copy.deepcopy(fonts[fo])
+                for e in list(f):
+                    if e.tag in (M + 'color', M + 'b'):
+                        f.remove(e)
+                f.append(etree.Element(M + 'b'))
+                f.append(etree.Element(M + 'color', rgb='FFFFFFFF'))
+                kids = sorted(f, key=lambda e: VOLG.index(etree.QName(e).localname) if etree.QName(e).localname in VOLG else 99)
+                for e in list(f):
+                    f.remove(e)
+                for e in kids:
+                    f.append(e)
+                fonts.append(f)
+                wit[fo] = len(fonts) - 1
+            xf.set('fontId', str(wit[fo]))
+            xf.set('applyFont', '1')
+        elif fid in invoer:
+            bo = int(xf.get('borderId', 0))
+            if bo not in goud:
+                b = etree.Element(M + 'border')
+                for zijde in ('left', 'right', 'top', 'bottom'):
+                    z = etree.SubElement(b, M + zijde, style='thin')
+                    etree.SubElement(z, M + 'color', rgb='FFE9CF7A')
+                etree.SubElement(b, M + 'diagonal')
+                borders.append(b)
+                goud[bo] = len(borders) - 1
+            xf.set('borderId', str(goud[bo]))
+            xf.set('applyBorder', '1')
+    for el in (fonts, borders):
+        el.set('count', str(len(el)))
+    return len(kop), len(invoer)
+
+
 def foutkolom(sh, kol, st, styles):
     """kolom A: FOUT of LET OP uit de statuskolom van dezelfde rij (rood/oranje), C1: aantal fouten en let op"""
     rijen = sorted({split_ref(c.get('r'))[1] for c in sh.t.iter(M + 'c')
-                    if split_ref(c.get('r'))[0] == kol and c.find(M + 'f') is not None})
+                    if split_ref(c.get('r'))[0] == kol and c.find(M + 'f') is not None} - {1})     # A1 = '← Start'
     for r in rijen:
         s_ = '%s%d&""' % (kol, r)
         sh.set('A%d' % r, '=IF(LEFT(%s,4)="FOUT","FOUT",IF(LEFT(%s,6)="LET OP","LET OP",""))' % (s_, s_), st['vet'])
-    sh.set('C1', '=IF(COUNTIF(A:A,"FOUT")+COUNTIF(A:A,"LET OP")=0,"Geen fouten",COUNTIF(A:A,"FOUT")&" fout · "&'
+    sh.set('B1', '=IF(COUNTIF(A:A,"FOUT")+COUNTIF(A:A,"LET OP")=0,"Geen fouten",COUNTIF(A:A,"FOUT")&" fout · "&'
                  'COUNTIF(A:A,"LET OP")&" let op · zie kolom A")', st['vet'])
     rood = styles.add_dxf('<font><b val="1"/><color rgb="FFB91C1C"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFFECACA"/></patternFill></fill>')
     oranje = styles.add_dxf('<font><b val="1"/><color rgb="FF92400E"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFFEF3C7"/></patternFill></fill>')
     sh.add_cf('A1:A1000', 'A1="FOUT"', rood)
     sh.add_cf('A1:A1000', 'A1="LET OP"', oranje)
-    sh.add_cf('C1', 'LEFT(C1,5)<>"Geen "', rood)
+    sh.add_cf('B1', 'LEFT(B1,5)<>"Geen "', rood)
     return len(rijen)
 
 
@@ -882,6 +948,8 @@ def main():
     dst.put('[Content_Types].xml', copier.ct)
     sst.finish()
     dst.put('xl/sharedStrings.xml', sst.t)
+    n_kop, n_inv = harmoniseer_stijlen(styles.t)
+    note('Vormgeving: %d kopvullingen donkerblauw, %d invoervullingen geel met rand' % (n_kop, n_inv))
     dst.put('xl/styles.xml', styles.t)
     app = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
            '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
