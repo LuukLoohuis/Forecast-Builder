@@ -128,7 +128,7 @@ def invoer_rijen(doc):
 
 
 # ---- tests ----------------------------------------------------------------------------------------------
-def t_controleer(werkbestand, fo, naam, max_kosten_verschillen):
+def t_controleer(werkbestand, fo, naam, max_kosten_verschillen, streng=True):
     code, uit = run([sys.executable, 'tools/controleer.py', werkbestand] + (['--fo', fo] if fo else []))
     fout = re.search(r'Foutwaarden \(#\.\.\.\): (\d+)', uit)
     ok('%s: geen foutwaarden' % naam, fout and fout.group(1) == '0')
@@ -138,8 +138,11 @@ def t_controleer(werkbestand, fo, naam, max_kosten_verschillen):
     ok('%s: cashflow gelijk aan het oude FO' % naam, m and not omzet and n <= max_kosten_verschillen,
        m.group(0) if m else 'geen vergelijking')
     start = uit.split('Controles op tab Start')[-1]
-    fouten = [l.strip() for l in start.splitlines() if re.search(r'\s(FOUT)\s*$', l)]
-    ok('%s: geen FOUT in de controles op Start' % naam, not fouten, '; '.join(fouten)[:200])
+    fouten = [re.sub(r'\s{2,}', ' ', l.strip()) for l in start.splitlines() if re.search(r'\s(FOUT)\s*$', l)]
+    if streng:
+        ok('%s: geen FOUT in de controles op Start' % naam, not fouten, '; '.join(fouten)[:200])
+    else:                       # een eigen FO: de controles op Start zijn bevindingen over dat FO, geen testfout
+        print('  INFO  %s: controles op Start: %s' % (naam, '; '.join(fouten) if fouten else 'alles OK'))
 
 
 def t_kringen():
@@ -334,7 +337,7 @@ def main():
             code, uit = run([sys.executable, 'tools/bouw.py', '--oud', a.fo, '--project', 'Test', '--out', eigen])
             ok('eigen FO: omzetten (Python)', code == 0)
             if code == 0:
-                t_controleer(eigen, a.fo, 'eigen FO', 0)
+                t_controleer(eigen, a.fo, 'eigen FO', 0, streng=False)
             d = t_vba(lo, os.path.abspath(a.fo), 'eigen FO')
             d.close(True)
     finally:

@@ -932,7 +932,7 @@ def maak_prijslijst(ws):
            'SF: VON start verkoop', 'SF: Totaal woonwensen in VON', 'SF: Totaal woonwensen in OB', 'SF: Status',
            'Kadastrale kosten', 'Grondkosten start verkoop (facturatie)', 'Aanneemsom start verkoop', 'VON start verkoop',
            'Totaal woonwensen in VON', 'Aanneemsom incl. woonwensen VON', 'Totaal woonwensen in OB', 'Bouwrente',
-           'Aanvullende rente', 'Korting', 'Totaal opbrengsten', 'Woningtype (nr) · automatisch']
+           'Aanvullende rente', 'Korting', 'Totaal opbrengsten', 'Woningtype (nr) · automatisch', 'Rij in de dump (hulp)']
     zet(ws, 'A%d' % (P_BN_KOP - 1), 'PER BOUWNUMMER · bouwnummer en type invullen, de rest komt uit de Salesforce-dump',
         FW, DONKER)
     for i, t in enumerate(kb_):
@@ -940,9 +940,11 @@ def maak_prijslijst(ws):
     for r in range(P_BN1, P_BNN + 1):
         zet(ws, 'A%d' % r, None, F, GEEL)
         zet(ws, 'C%d' % r, None, F, GEEL)
+        # één zoekactie per bouwnummer (kolom V: rij in de dump), daarna INDEX per kolom
+        zet(ws, 'V%d' % r, "=IF($A%d=\"\",\"\",IFERROR(MATCH($A%d,'Prijslijst dump'!$A:$A,0),\"\"))" % (r, r), FN, None, '0')
         for j, c in enumerate('DEFGHI'):
-            zet(ws, '%s%d' % (c, r), "=IF($A%d=\"\",\"\",_xlfn.IFNA(_xlfn.XLOOKUP($A%d,'Prijslijst dump'!$A:$A,'Prijslijst dump'!%s:%s),\"\"))"
-                % (r, r, L(2 + j), L(2 + j)), F, GRIJS)
+            zet(ws, '%s%d' % (c, r), "=IF($V%d=\"\",\"\",INDEX('Prijslijst dump'!%s:%s,$V%d))" % (r, L(2 + j), L(2 + j), r),
+                F, GRIJS)
         zet(ws, 'K%d' % r, '=IFERROR((D%d-J%d)/1.21,"")' % (r, r), F, None, NUM)
         zet(ws, 'L%d' % r, '=IFERROR(E%d/1.21,"")' % r, F, None, NUM)
         zet(ws, 'M%d' % r, '=IFERROR(J%d+K%d+L%d,"")' % (r, r, r), F, None, NUM)

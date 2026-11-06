@@ -588,16 +588,13 @@ def main():
     for ref, tekst in info['pew_extra'].items():
         sjabloon.append(('2. Ontw PEW', ref, tekst))
     # sjabloonlijst op het verborgen blad _sjabloon
+    # (alleen de opzet in E:F: de macro's lezen geen sjabloonlijst meer, het sjabloon is zelf de bron)
     sh = Sheet(dst.x(part_of['_sjabloon']), sst)
-    for i, (blad, ref, inhoud) in enumerate(sjabloon, 2):
-        sh.set_value('A%d' % i, blad)
-        sh.set_value('B%d' % i, ref)
-        sh.set_value('C%d' % i, inhoud if inhoud else None)
     for i, (sleutel, waarde) in enumerate(config(oz, layout) + [('top3_rij', info.get('top3_row', 0))], 1):
         sh.set_value('E%d' % i, sleutel)
         sh.set_value('F%d' % i, waarde)
     dst.put(part_of['_sjabloon'], sh.t)
-    note('_sjabloon: %d cellen' % len(sjabloon))
+    note('_sjabloon: opzet voor de macro\'s')
 
     # ---- scenariotabbladen met formules aan het FO koppelen (geen 'Ophalen uit FO' meer nodig) ------------
     print('Scenario koppelen: Invoer, Woningtypes, Scenario kosten, Dashboard')
