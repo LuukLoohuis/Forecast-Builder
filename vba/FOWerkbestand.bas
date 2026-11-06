@@ -314,7 +314,7 @@ End Sub
 ' =====================================================================================
 
 Public Sub NieuwKwartaalStarten()
-    Dim wsH As Worksheet, wsV As Worksheet, wsA As Worksheet, h As Long, n As Long
+    Dim n As Long
     If MsgBox("Nieuw kwartaal starten:" & vbCrLf & vbCrLf & _
               "1. de cashflow wordt bewaard als vorige prognose (stippellijn in de grafiek, tabel vorige/huidig op het Dashboard);" & vbCrLf & _
               "2. de planning (start bouw per type) wordt bewaard als vorige planning;" & vbCrLf & _
@@ -322,6 +322,17 @@ Public Sub NieuwKwartaalStarten()
               "4. FO - huidig en FO - actuals worden leeggemaakt voor de nieuwe exports." & vbCrLf & vbCrLf & _
               "Je invoer op Prijslijst, CF - opbrengsten en CF - kosten blijft staan." & vbCrLf & vbCrLf & _
               "Doe dit pas als het vorige FO helemaal klaar is. Doorgaan?", vbQuestion + vbYesNo, "Nieuw kwartaal starten") <> vbYes Then Exit Sub
+    n = NieuwKwartaalUitvoeren()
+    MsgBox "Klaar: " & n & " periodes en de planning bewaard als vorige prognose; FO - huidig staat nu in FO - vorig." & vbCrLf & vbCrLf & _
+           "Volgende stappen:" & vbCrLf & _
+           "1. lees de nieuwe exports in (FO - huidig, FO - actuals en de prijslijst);" & vbCrLf & _
+           "2. werk de planning, verkoop en transport bij op CF - opbrengsten en de kosten op CF - kosten;" & vbCrLf & _
+           "3. kijk op Start of alle controles OK zijn.", vbInformation, "Nieuw kwartaal starten"
+End Sub
+
+Public Function NieuwKwartaalUitvoeren() As Long
+    ' het werk van Nieuw kwartaal starten, zonder vragen en meldingen (ook voor de test buiten Excel)
+    Dim wsH As Worksheet, wsV As Worksheet, wsA As Worksheet, h As Long, n As Long
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     Application.Calculate
@@ -348,12 +359,8 @@ Public Sub NieuwKwartaalStarten()
     Application.ScreenUpdating = True
     ThisWorkbook.Worksheets(SH_START).Activate
     WeergaveBijwerken
-    MsgBox "Klaar: " & n & " periodes en de planning bewaard als vorige prognose; FO - huidig staat nu in FO - vorig." & vbCrLf & vbCrLf & _
-           "Volgende stappen:" & vbCrLf & _
-           "1. lees de nieuwe exports in (FO - huidig, FO - actuals en de prijslijst);" & vbCrLf & _
-           "2. werk de planning, verkoop en transport bij op CF - opbrengsten en de kosten op CF - kosten;" & vbCrLf & _
-           "3. kijk op Start of alle controles OK zijn.", vbInformation, "Nieuw kwartaal starten"
-End Sub
+    NieuwKwartaalUitvoeren = n
+End Function
 
 Private Function BewaarVorigePrognose() As Long
     ' tab Invoer -> tab Vorige prognose (waarden); kolom J (CF vorig kwartaal) op tab Invoer leest daaruit

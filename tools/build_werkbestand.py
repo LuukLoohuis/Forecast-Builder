@@ -869,6 +869,11 @@ def main():
         sh.set_value('C%d' % r, onderdeel, style['C'])
         sh.set_formula('D%d' % r, f, style['D'])
         sh.set_value('F%d' % r, vorm, style['F'])
+    # vervallen vormen: het label van het nu-blok op dia 2 bestaat sinds sjabloon v17 niet meer (anders meldt de knop
+    # bij elke presentatie 'niet gevonden')
+    for r in range(8, 400):
+        if sh.get('F%d' % r) == 'KPI4_LABEL':
+            sh.set_value('F%d' % r, None)
     save('PowerPoint', sh)
 
     for name, tot in (('FO - vorig', 1500), ('FO - huidig', 1500), ('FO - actuals', 6000)):

@@ -187,6 +187,23 @@ Wat niet meegaat:
 
 ## Bouwen en controleren
 
+Alles in één keer (bouwen en testen; exit-code 0 = alles goed):
+
+```bash
+python3 tools/test_alles.py
+```
+
+De suite test op het demo-FO:
+- foutwaarden, de cashflow tegen het oude FO, de controles op Start en kringverwijzingen;
+- de macro Oud FO inlezen (in LibreOffice) tegen de Python-omzetting, per periode;
+- de macro Nieuw kwartaal starten;
+- de scenario's kans grondtermijn, parkeren naar rato, Voorstel, verkoop vóór de exportdatum en overlappende sleutels;
+- de vormnamen in het PowerPoint-sjabloon.
+
+Met `--fo pad/naar/FO.xlsx` test hij ook een eigen oud FO (alleen lokaal).
+
+Losse stappen:
+
 ```bash
 python3 tools/bouw.py
 ```
