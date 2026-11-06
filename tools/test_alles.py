@@ -320,6 +320,13 @@ def main():
         demo.calculateAll()
         vba_doc = t_vba(lo, S.DEMO, 'demo', python_doc=demo)
         t_nieuw_kwartaal(lo, vba_doc)
+        try:                                       # de PowerPoint-module moet compileren (de knop zelf vraagt PowerPoint)
+            sp = vba_doc.getScriptProvider()
+            sp.getScript('vnd.sun.star.script:VBAProject.CashflowNaarPowerPoint.KnoppenControleren'
+                         '?language=Basic&location=document').invoke((), (), ())
+            ok('PowerPoint-module compileert en de knoppen worden gezet', True)
+        except Exception as e:
+            ok('PowerPoint-module compileert en de knoppen worden gezet', False, str(e)[:200])
         vba_doc.close(True)
         t_scenarios(demo)
         demo.close(True)
