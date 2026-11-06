@@ -26,8 +26,8 @@ import scenario_koppeling  # noqa: E402
 import nieuwe_bladen  # noqa: E402
 import vba_project  # noqa: E402
 from xlsxpkg import (CT, CT_CHART, CT_CHARTCOLORS, CT_CHARTSTYLE, CT_DRAWING, CT_SHEET, M, PR, R, SST, T_DRAWING,  # noqa: E402
-                     T_SHEET, Package, Sheet, Styles, col2num, num2col, parse, rels_name, relative, replace_in_formulas,
-                     resolve, rijen_invoegen, split_ref, tobytes, unshare)
+                     T_SHEET, Package, Sheet, Styles, rels_name, relative, replace_in_formulas,
+                     resolve, split_ref, unshare)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -93,28 +93,12 @@ def indeling(oz):
 
 def config(oz, layout):
     """de opzet voor de macro's (FOWerkbestand: Cfg), op _sjabloon kolom E:F"""
-    from xlsxpkg import col2num as cn
-    ob, k, cf = oz['opbrengsten'], oz['kosten'], oz['cashflow']
+    cf = oz['cashflow']
     hulp = {b: '|'.join('%s:%d' % (c, r[0]) for c, r in kol.items()) for b, kol in oz['hulpkolommen'].items()}
-    controles = ['CF - kosten|B%d|onderdelen' % k['onderdelen'], 'CF - kosten|B%d|totaal kosten' % k['totaal'],
-                 'CF - kosten|B%d|periode in cashflow' % k['periode'],
-                 'CF - opbrengsten|B%d|termijnen' % ob['euro_kop'], 'CF - opbrengsten|B%d|totaal opbrengsten' % ob['totaal'],
-                 'CF - opbrengsten|B%d|periode in cashflow' % ob['periode']]
+    # alleen wat de macro's nog lezen (Cfg in vba/FOWerkbestand.bas): de eerste cashflowrij van het oude FO en de
+    # hulpkolommen van de exports; top3_rij komt erbij in main()
     return [
-        ('fo_bladen', '|'.join(src for _, o, src, _ in layout if o == 'fo') + '|2. Ontw PEW'),
-        ('transportrijen', '|'.join(str(t['tr']) for t in ob['types'])),
-        ('opbrengsten_kol1', cn(ob['eerste'])), ('opbrengsten_kol2', cn(ob['laatste'])),
-        ('opbrengsten_totaal', ob['totaal']), ('opbrengsten_correctie', ob['correctie']),
-        ('correctie_bereik', 'B%d:%s%d' % (ob['correctie'], ob['laatste'], ob['correctie'])),
-        ('daeb_totaal', ob.get('daeb_totaal') or 0),
-        ('daeb_bereik', 'B%d:%s%d' % (ob['daeb_sjabloon'], ob['laatste'], ob['daeb_eind'] + 1) if ob['daeb_sjabloon'] else ''),
-        ('voorstel_bereik', 'B%d:%s%d' % (k['voorstel_start'], k['status'], k['voorstel_eind'])),
-        ('controles', ';'.join(controles)),
         ('cashflow_rij1', cf['periodes'][0][2]),
-
-        ('voorstel_offset', k['voorstel_offset']),
-        ('vt_types', '|'.join('%d:%d:%d:%d' % (t['verkoop'], t['koop'], t['tr'] + 1, t['hb'] - 1) for t in ob['types'])),
-        ('vt_invoeg', '|'.join('%d:%d' % (r, n) for r, n in oz['ingevoegd'])),
     ] + [('hulp|' + b, v) for b, v in hulp.items()]
 
 
@@ -141,55 +125,6 @@ def vervallen_als_waarde(pkg, part, blad, wb):
     if n:
         pkg.put(part, t)
     return n
-
-
-def daeb_uit_verkooptempo(sh, oz, wb, st, sjabloon):
-    """FO met een eigen DAEB-blok: aantal en verkoop van de corporatie stonden op Verkooptempo (de rij met 'DAEB' in de
-    naam, anders de eerste rij na de koopwoningtypes). Verkooptempo vervalt: als regels onder de periode-rij zetten"""
-    ob = oz['opbrengsten']
-    if not ob['daeb'] or 'Verkooptempo' not in wb.sheetnames:
-        return
-    o = wb['CF - opbrengsten']
-    if any(str(o.cell(r, 2).value or '').lower().startswith('aantal daeb') for r in range(1, o.max_row + 1)):
-        return
-    v = wb['Verkooptempo']
-    kop = next((r for r in range(1, 30) if str(v.cell(r, 1).value or '').strip().lower() == 'verkooptempo'), None)
-    if not kop:
-        return
-    namen = [(r, str(v.cell(r, 1).value or '').strip()) for r in range(kop + 1, kop + 20)]
-    rij = next((r for r, nm in namen if 'daeb' in nm.lower()), None)
-    if rij is None:
-        r = kop + 1 + len(ob['types'])
-        nm = str(v.cell(r, 1).value or '').strip()
-        rij = r if nm and not nm.lower().startswith('totaal') else None
-    if rij is None:
-        return
-    acol = next((c for c in range(1, 40) if str(v.cell(kop, c).value or '').strip().lower() == 'aantal'), 3)
-    aantal = v.cell(rij, acol).value
-    # kwartaalsleutels op Verkooptempo en op CF - opbrengsten
-    def sleutels(ws, jr, qr, c1, c2):
-        out, jaar = {}, None
-        for c in range(c1, c2 + 1):
-            if isinstance(ws.cell(jr, c).value, (int, float)):
-                jaar = int(ws.cell(jr, c).value)
-            q = str(ws.cell(qr, c).value or '').strip()
-            if jaar and re.match(r'Q[1-4]$', q):
-                out[jaar * 4 + int(q[1])] = c
-        return out
-    kv = sleutels(v, kop - 1, kop, 2, 40)
-    ko = sleutels(o, ob['jaarrij'], ob['euro_kop'], col2num(ob['eerste']), col2num(ob['laatste']))
-    r1 = ob['periode'] + 2
-    for c in ['B', 'D'] + [num2col(x) for x in ko.values()]:
-        assert not sh.get('%s%d' % (c, r1)) and not sh.get('%s%d' % (c, r1 + 1)), 'rij %d/%d niet leeg' % (r1, r1 + 1)
-    z = fo_aanpassingen.Zetter(sh, 'CF - opbrengsten', sjabloon)
-    z('B%d' % r1, 'Aantal DAEB-woningen', st['tekst'])
-    z('D%d' % r1, aantal, st['invoer_getal'])
-    z('B%d' % (r1 + 1), 'Verkoop en levering DAEB (aantal woningen per kwartaal; transport = verkoop)', st['tekst'])
-    for key, c in ko.items():
-        x = v.cell(rij, kv[key]).value if key in kv else None
-        z('%s%d' % (num2col(c), r1 + 1), x if isinstance(x, (int, float)) and x else None, st['invoer_getal'])
-    note('CF - opbrengsten: DAEB-aantal (%s) en -verkoop van Verkooptempo (%s) naar rij %d-%d'
-         % (aantal, v.cell(rij, 1).value, r1, r1 + 1))
 
 
 def vba_constanten():
@@ -471,18 +406,6 @@ def pew_inhoud(fo_path):
     return {c.coordinate: c.value for row in ws.iter_rows() for c in row if c.value is not None}
 
 
-def merges_row57(fo: Package):
-    part = fo.sheet_part('CF - kosten')
-    t = fo.x(part)
-    out = []
-    for mc in t.iter(M + 'mergeCell'):
-        ref = mc.get('ref')
-        a, b = ref.split(':')
-        if split_ref(a)[1] == 57 and split_ref(b)[1] == 57 and col2num(split_ref(a)[0]) >= 8:
-            out.append(ref)
-    return sorted(out, key=lambda r: col2num(split_ref(r.split(':')[0])[0]))
-
-
 def extend_helpers(sh: Sheet, cols, first, last, row_to):
     """hulpkolommen (formules) doortrekken tot row_to, naar het voorbeeld van rij last"""
     for col in cols:
@@ -535,18 +458,14 @@ def main():
     print('Opzet van het FO lezen')
     fo_bron = a.fo
     oz0 = opzet_fo.lees(fo_bron)
-    # per woningtype 3 rijen onder de transportregel (verkocht %, getransporteerd %, grondprijs); van onder naar boven
-    ingevoegd = [] if oz0['standaard'] else sorted(((t['tr'] + 1, 3) for t in oz0['opbrengsten']['types']), reverse=True)
+    # het standaard-FO heeft de rijen voor verkocht %, getransporteerd % en grondprijs al (geen rijen invoegen)
+    assert oz0['standaard'], 'het werkbestand wordt gebouwd op het standaard-FO (tools/bouw.py)'
     fo_pkg = Package(fo_bron)
-    for at, n in ingevoegd:
-        rijen_invoegen(fo_pkg, 'CF - opbrengsten', at, n)
     fo_tmp = a.out + '.fo.tmp.xlsx'
     fo_pkg.save(fo_tmp)
     a.fo = fo_tmp
     oz = opzet_fo.lees(fo_tmp)
-    oz['ingevoegd'] = ingevoegd
-    if ingevoegd:
-        note('CF - opbrengsten: per woningtype 3 rijen ingevoegd (rij %s van het FO)' % ', '.join(str(r) for r, _ in ingevoegd[::-1]))
+    oz['ingevoegd'] = []
     ob, ko = oz['opbrengsten'], oz['kosten']
     note('CF - opbrengsten: %d woningtypes, kolommen %s..%s, totaal rij %d; CF - kosten: posten rij %d-%d, totaal rij %d'
          % (len(ob['types']), ob['eerste'], ob['laatste'], ob['totaal'], ko['posten'][0], ko['posten'][-1], ko['totaal']))
@@ -655,8 +574,6 @@ def main():
                           ('CF - kosten', lambda sh: fo_aanpassingen.kosten(sh, oz, st, sjabloon, styles, note))):
         sh = Sheet(dst.x(part_of[blad]), sst)
         functie(sh)
-        if blad == 'CF - opbrengsten':
-            daeb_uit_verkooptempo(sh, oz, fo_waarden, st, sjabloon)
         dst.put(part_of[blad], sh.t)
     # foutkolom vooraan (kolom A) en een telling bovenaan, op CF - opbrengsten en CF - kosten
     for blad, kol in (('CF - opbrengsten', oz['opbrengsten']['status']), ('CF - kosten', oz['kosten']['status'])):

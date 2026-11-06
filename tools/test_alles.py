@@ -54,7 +54,6 @@ def run(cmd, timeout=1800):
 # ---- LibreOffice ---------------------------------------------------------------------------------------
 class LO:
     def __init__(self):
-        import uno  # noqa: F401
         self.tmp = tempfile.mkdtemp(prefix='lo_test_')
         self.pipe = 'fotest%d' % os.getpid()
         self.proc = subprocess.Popen(['soffice', '--headless', '--invisible', '--norestore', '--nologo',

@@ -13,7 +13,6 @@ per termijn op het gewogen gemiddelde kwartaal.
 """
 from __future__ import annotations
 
-import re
 
 from xlsxpkg import Sheet, col2num, num2col
 

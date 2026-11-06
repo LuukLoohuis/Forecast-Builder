@@ -253,8 +253,6 @@ def markeringen(ws, r_mark, r1, r2):
     zet(ws, 'B%d' % r_mark, '="Start bouw "&Start!$E$7&" · oplevering "&Start!$E$9', FN)
     rng = '%s%d:%s%d' % (QCOLS[0], r1, QCOLS[-1], r2)
     k0 = key(QCOLS[0]).replace('COLUMN(%s%d)' % (QCOLS[0], r1), 'COLUMN(%s%d)' % (QCOLS[0], r1))
-    groen = PatternFill('solid', fgColor='FFE3F2E1', bgColor='FFE3F2E1')
-    blauw = PatternFill('solid', fgColor='FFDCE8F5', bgColor='FFDCE8F5')
     # kleur alleen in de markeringsrij; in de tabel een gekleurde lijn links en rechts van het kwartaal, zodat koppen
     # (blauw) en invoer (geel) hun eigen kleur houden
     rm = '%s%d:%s%d' % (QCOLS[0], r_mark, QCOLS[-1], r_mark)
@@ -314,7 +312,6 @@ def maak_opbrengsten(ws):
             zet(ws, '%s%d' % (VER, r), '=IF(B%d="","",ROUND($G$%d-%s%d,2))' % (r, w, CHK, r), F, None, AANT)
             zet(ws, '%s%d' % (STAT, r), '=IF(%s%d="","",IF(%s%d=0,"OK","FOUT"))' % (VER, r, VER, r), FB)
         # geel (invoer) alleen op de termijnen die er zijn: lege termijnregels blijven wit
-        from openpyxl.formatting.rule import FormulaRule
         ws.conditional_formatting.add('%s%d:%s%d' % (COLS[0], plan(k, 1), COLS[-1], plan(k, NTERM)),
                                       FormulaRule(formula=['$B%d<>""' % plan(k, 1)], fill=PatternFill('solid', fgColor='FFFFF2CC', bgColor='FFFFF2CC'), stopIfTrue=False))
         for c, t_ in zip('CDE', ['%', '€ totaal', '€ per won.']):
@@ -343,11 +340,9 @@ def maak_opbrengsten(ws):
     for c, t in zip('BCDE', ['Verkooptempo', 'Aantal', 'Verkocht', 'Te koop']):
         zet(ws, '%s%d' % (c, VK), t, FB, KOP)
     zet(ws, '%s%d' % (CHK, VK), 'Check', FB, KOP)
-    n_bn = '$%s$%d:$%s$%d' % (P_BN['type'], P_BN1, P_BN['type'], P_BNN)
     s_bn = '$%s$%d:$%s$%d' % (P_BN['status'], P_BN1, P_BN['status'], P_BNN)
     for k in range(1, NT + 1):
         r = vk_rij(k)
-        sl = pl('$C$%d' % (P_TYPE1 + k - 1))
         zet(ws, 'B%d' % r, '=%s&""' % pl('$B$%d' % (P_TYPE1 + k - 1)))
         zet(ws, 'C%d' % r, '=G%d' % won_rij(k), F, None, '0')
         w_bn = 'Prijslijst!$%s$%d:$%s$%d' % (P_BN['wt'], P_BN1, P_BN['wt'], P_BNN)
@@ -646,7 +641,6 @@ def maak_kosten(ws):
                     zet(ws, '%s%d' % (c, r), f, F, None, AANT)
             zet(ws, '%s%d' % (CHK, r), '=ROUND(SUM(%s%d:%s%d),2)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
         # geel (overschrijfbaar) alleen op de termijnen die er zijn
-        from openpyxl.formatting.rule import FormulaRule
         geel_cf = PatternFill('solid', fgColor='FFFFF2CC', bgColor='FFFFF2CC')
         for rng_ in ('C%d:C%d' % (kterm(k, 1), kterm(k, NTERM)), '%s%d:%s%d' % (COLS[0], kterm(k, 1), COLS[-1], kterm(k, NTERM))):
             ws.conditional_formatting.add(rng_, FormulaRule(formula=['$B%d<>""' % kterm(k, 1)], fill=geel_cf))

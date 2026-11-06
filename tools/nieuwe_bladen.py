@@ -15,7 +15,6 @@ from openpyxl import Workbook
 from openpyxl.formatting.rule import CellIsRule, FormulaRule
 from openpyxl.styles import Alignment, Border, Color, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter as L
-from openpyxl.worksheet.datavalidation import DataValidation
 
 from fo_aanpassingen import sap_opzet
 

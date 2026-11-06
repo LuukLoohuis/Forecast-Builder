@@ -21,7 +21,6 @@ import sys
 
 import openpyxl
 from openpyxl.utils import column_index_from_string as ci
-from openpyxl.utils import get_column_letter as L
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import opzet as opzet_fo  # noqa: E402
@@ -142,7 +141,6 @@ def omzetten(oud, uit, project=None):
         P['C1'] = pv['C1'].value
     bn = []
     if kop:
-        r2 = kop + 1
         for r in range(kop + 1, pv.max_row + 1):
             if pv.cell(r, 1).value in (None, ''):
                 continue

@@ -63,13 +63,9 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
             for c in ['B'] + cols:
                 assert not sh.get('%s%d' % (c, r)), 'rij %d is niet leeg' % r
         c1, cn = cols[0], cols[-1]
-        w = t['won'] or 0
-        std = bool(t.get('transport_tabel'))     # standaard-FO: verkoop als aantallen in het verkooptempo (invoer)
         keyo_ = '_koppeling!%s$521'
-        z('B%d' % ra, ('Verkocht % · van alle woningen (uit het verkooptempo; 1e kolom: t/m nu, SF)' if std else
-                       'Verkocht % · van alle woningen (1e kolom: t/m nu, SF)'), st['tekst'] if std else st['invoer_label'])
-        z('B%d' % rb, ('Getransporteerd % · van alle woningen (uit de tabel Transport)' if std else
-                       'Getransporteerd % · van alle woningen'), st['tekst'] if std else st['invoer_label'])
+        z('B%d' % ra, 'Verkocht % · van alle woningen (uit het verkooptempo; 1e kolom: t/m nu, SF)', st['tekst'])
+        z('B%d' % rb, 'Getransporteerd % · van alle woningen (uit de tabel Transport)', st['tekst'])
         z('B%d' % rg, 'Grondprijs +/- per woning (€, na SWK)', st['tekst'])
         z('D%d' % rg, None, st['invoer_getal'])
         z('B%d' % tr, 'Transport · aantal woningen (= grondtermijn)', st['tekst'])
@@ -77,7 +73,7 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
             prev = cols[j - 1] if j else None
             if j == 0:
                 z('%s%d' % (c, ra), '=IF(N(%s)=0,0,N(%s%d)/%s)' % (won, c, t['verkoop'], won), st['pct_calc'])
-            elif std:
+            else:
                 # verkocht vóór het kwartaal van de prijslijstexport (Prijslijst C1; leeg = het huidige kwartaal) zit al in
                 # kolom 1 (t/m nu, Salesforce) en telt niet nog eens mee
                 sf = ('IF(N(Prijslijst!$C$1)=0,%s,YEAR(Prijslijst!$C$1)*4+ROUNDUP(MONTH(Prijslijst!$C$1)/3,0))' % P_H)
@@ -85,17 +81,10 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
                   st['pct_calc'])
                 v = t['verkoop_waarden'][j]
                 z('%s%d' % (c, t['verkoop']), v if v else None, st['invoer_getal'])
-            else:
-                v = t['verkoop_waarden'][j]
-                z('%s%d' % (c, ra), (v / w) if w and v else None, st['pct_invoer'])
-                z('%s%d' % (c, t['verkoop']), '=ROUND(%s%d*%s,6)' % (c, ra, won), st['aantal'])
             g = t['grond_waarden'][j]
-            if t.get('transport_tabel'):
-                # standaard-FO: transport in aantallen in de tabel Transport; het % rekent daaruit
-                z('%s%d' % (c, t['transport_tabel']), g if g else None, st['invoer_getal'])
-                z('%s%d' % (c, rb), '=IF(N(%s)=0,0,N(%s%d)/%s)' % (won, c, t['transport_tabel'], won), st['pct_calc'])
-            else:
-                z('%s%d' % (c, rb), (g / w) if w and g else None, st['pct_invoer'])
+            # transport in aantallen in de tabel Transport; het % rekent daaruit
+            z('%s%d' % (c, t['transport_tabel']), g if g else None, st['invoer_getal'])
+            z('%s%d' % (c, rb), '=IF(N(%s)=0,0,N(%s%d)/%s)' % (won, c, t['transport_tabel'], won), st['pct_calc'])
             eff = lambda k: 'MIN(SUM($%s%d:%s%d),SUM($%s%d:%s%d))' % (c1, rb, k, rb, c1, ra, k, ra)
             z('%s%d' % (c, tr), '=ROUND((%s%s)*%s,6)' % (eff(c), '-' + eff(prev) if prev else '', won), st['aantal'])
             z('%s%d' % (c, koop), '=%s%d' % (c, tr))
@@ -143,73 +132,15 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
     for c in cols:
         z('%s%d' % (c, corr), None, st['invoer_getal'])
     z('%s%d' % (chk, corr), '=SUM(%s%d:%s%d)' % (cols[0], corr, cols[-1], corr), st['getal'])
-    extra = None
-    if ob['daeb_sjabloon']:
-        daeb_blok(sh, oz, st, sjabloon, log)
-        extra = ob['daeb_totaal']
+    # het standaard-FO heeft een eigen DAEB-blok (al in het totaal); hier komt alleen de correctieregel erbij
     for c in cols:
         f = sh.get('%s%d' % (c, tot))
         assert isinstance(f, str) and f.startswith('='), (c, tot, f)
-        sh.set('%s%d' % (c, tot), f + '+%s%d' % (c, corr) + ('+%s%d' % (c, extra) if extra else ''))
-    if ob['types'] and ob['types'][0].get('transport_tabel'):
-        z('C2', 'Geel = invullen. Per woningtype de bouwtermijnen (planning). Verkoop (rij %d-%d) en transport (tabel Transport) '
-                'in aantallen per kwartaal; kolom 1 = verkocht t/m de exportdatum van de prijslijst (Salesforce); kwartalen vóór dat '
-                'kwartaal tellen daarom niet nog eens mee. '
-                'Verkocht %% en getransporteerd %% rekenen daaruit. Correctie: rij %d.' % (verkoop[0], verkoop[-1], corr), st['notitie'])
-    else:
-        z('C2', 'Geel = invullen. Per woningtype: bouwtermijnen (planning), verkocht %% en getransporteerd %% per kwartaal, eventueel '
-                'een grondprijsaanpassing. Het verkooptempo (rij %d-%d) en de transportregels rekenen daaruit. Correctie: rij %d.'
-          % (verkoop[0], verkoop[-1], corr), st['notitie'])
-
-
-def daeb_blok(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
-    """leeg DAEB-blok in de opzet die de macro (LeesDaebBlok) ook kende: componenten (naam in C, totaal in E) in de rijen
-    boven de koprij, 'Startbouw' mag boven een kwartaal; termijnen per component als groep, gescheiden door een lege rij,
-    tot 'Totaal ...'; daaronder aantal en verkoop van de DAEB-woningen"""
-    ob = oz['opbrengsten']
-    cols = kolommen(ob['eerste'], ob['laatste'])
-    chk = ob['check']
-    b0 = ob['daeb_sjabloon']
-    r0 = b0 + 5
-    tot = r0 + 19
-    ob.update({'daeb_kop': r0, 'daeb_totaal': tot, 'daeb_eind': tot + 3})
-    for r in range(b0, tot + 5):
-        for c in ['B', 'C', 'D', 'E', 'F'] + cols + [chk]:
-            assert not sh.get('%s%d' % (c, r)), 'rij %d van CF - opbrengsten is niet leeg' % r
-    z = Zetter(sh, 'CF - opbrengsten|DAEB', sjabloon)   # alleen terugzetten als een oud FO geen DAEB-blok heeft
-    z('C%d' % b0, 'DAEB-woningen (corporatie): vul de fee-componenten (naam + totaal), de bedragen per kwartaal, het aantal '
-                  'en de verkoop in. Leeg = geen DAEB. Zet eventueel "Startbouw" boven het kwartaal van start bouw (rij %d).'
-      % (r0 - 3), st['notitie'])
-    z('B%d' % (r0 - 3), 'Fee-component 1 · naam (C) en totaal € (E)', st['tekst'])
-    z('B%d' % (r0 - 2), 'Fee-component 2 · naam (C) en totaal € (E)', st['tekst'])
-    for r in (r0 - 3, r0 - 2):
-        z('C%d' % r, None, st['invoer_label'])
-        z('E%d' % r, None, st['invoer_getal'])
-    jr, kr = ob['jaarrij'], ob['euro_kop']
-    for c in cols:
-        z('%s%d' % (c, r0 - 1), '=IF(ISNUMBER(%s$%d),%s$%d,"")' % (c, jr, c, jr), st['hulp'])
-        z('%s%d' % (c, r0), '=%s$%d&""' % (c, kr), st['kop'])
-    z('B%d' % r0, 'Opbrengsten DAEB', st['kop_links'])
-    z('C%d' % r0, '%', st['kop'])
-    z('D%d' % r0, '€', st['kop'])
-    z('%s%d' % (ob.get('actuals') or 'J', r0), 'actuals', st['kop'])
-    for r1 in (r0 + 1, r0 + 10):
-        for i, m in enumerate(MIJLPALEN):
-            r = r1 + i
-            z('B%d' % r, m, st['invoer_label'])
-            for c in ['C', 'D'] + cols:
-                z('%s%d' % (c, r), None, st['invoer_getal'])
-            z('%s%d' % (chk, r), '=SUM(%s%d:%s%d)' % (cols[0], r, cols[-1], r), st['getal'])
-    z('B%d' % tot, 'Totaal opbrengsten DAEB', st['label_tot'])
-    for c in cols + [chk]:
-        z('%s%d' % (c, tot), '=SUM(%s%d:%s%d)' % (c, r0 + 1, c, tot - 2), st['getal_tot'])
-    z('B%d' % (tot + 2), 'Aantal DAEB-woningen', st['tekst'])
-    z('D%d' % (tot + 2), None, st['invoer_getal'])
-    z('B%d' % (tot + 3), 'Verkoop en levering DAEB (aantal woningen per kwartaal; transport = verkoop)', st['tekst'])
-    for c in cols:
-        z('%s%d' % (c, tot + 3), None, st['invoer_getal'])
-    z('%s%d' % (chk, tot + 3), '=SUM(%s%d:%s%d)' % (cols[0], tot + 3, cols[-1], tot + 3), st['getal'])
-    log('  CF - opbrengsten: leeg DAEB-blok rij %d-%d (koprij %d, totaal rij %d in het totaal)' % (b0, tot + 3, r0, tot))
+        sh.set('%s%d' % (c, tot), f + '+%s%d' % (c, corr))
+    z('C2', 'Geel = invullen. Per woningtype de bouwtermijnen (planning). Verkoop (rij %d-%d) en transport (tabel Transport) '
+            'in aantallen per kwartaal; kolom 1 = verkocht t/m de exportdatum van de prijslijst (Salesforce); kwartalen vóór dat '
+            'kwartaal tellen daarom niet nog eens mee. '
+            'Verkocht %% en getransporteerd %% rekenen daaruit. Correctie: rij %d.' % (verkoop[0], verkoop[-1], corr), st['notitie'])
 
 
 def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
