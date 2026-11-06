@@ -233,33 +233,15 @@ End Function
 '  1. Knoppen
 ' -------------------------------------------------------------------------------------
 Public Sub KnoppenControleren()
-    ' maakt alleen knoppen die nog niet bestaan, zodat verplaatste knoppen blijven staan
+    ' de knop 'Naar PowerPoint' op het Dashboard rekent eerst door (PowerPointMaken), zoals de knop op Start;
+    ' op de verborgen rekenbladen komen geen knoppen meer (Nieuw kwartaal starten bewaart ook de planning)
     Dim ws As Worksheet
     On Error Resume Next
     Set ws = ThisWorkbook.Worksheets(SH_DASH)
     If Not BestaatVorm(ws, "btnNaarPowerPoint") Then
-        MaakKnop ws, ws.Range("W35:X36"), "btnNaarPowerPoint", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 0, 0, 2
+        MaakKnop ws, ws.Range("W35:X36"), "btnNaarPowerPoint", "Naar PowerPoint", "PowerPointMaken", RGB(23, 54, 93), 0, 0, 2
     End If
-    Set ws = ThisWorkbook.Worksheets(SH_PP)
-    If Not BestaatVorm(ws, "btnNaarPowerPoint2") Then
-        MaakKnop ws, ws.Range("C4:C5"), "btnNaarPowerPoint2", "Naar PowerPoint", "NaarPowerPoint", RGB(23, 54, 93), 150, 0, 2
-    End If
-    If Not BestaatVorm(ws, "btnControle") Then
-        MaakKnop ws, ws.Range("D4:D5"), "btnControle", "Sjabloon controleren", "ControleerSjabloon", RGB(91, 97, 105), 150, 0, 2
-    End If
-    ' werkbestand: tab Invoer en Woningtypes zijn formules op de FO-tabbladen; geen knop 'Ophalen uit FO' en geen
-    ' Type invoegen/verwijderen meer (die zouden de formules overschrijven of verschuiven)
-    Set ws = Nothing
-    Set ws = ThisWorkbook.Worksheets(SH_TYPES)
-    If Not ws Is Nothing Then
-        ' los van de cellen (plaatsing 3): kolommen invoegen of verwijderen schuift de knoppen niet weg
-        If Not BestaatVorm(ws, "btnVorigFO") Then
-            MaakKnop ws, ws.Range("B4"), "btnVorigFO", "Vorige prognose uit FO", "VorigePrognoseUitFO", RGB(23, 54, 93), 150, 196, 3
-        End If
-        If Not BestaatVorm(ws, "btnBewaarVorig") Then
-            MaakKnop ws, ws.Range("B4"), "btnBewaarVorig", "Nu bewaren als vorige prognose", "PlanningBewarenAlsVorig", RGB(91, 97, 105), 196, 350, 3
-        End If
-    End If
+    ws.Shapes("btnNaarPowerPoint").OnAction = "PowerPointMaken"
     On Error GoTo 0
 End Sub
 

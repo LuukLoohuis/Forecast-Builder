@@ -724,13 +724,22 @@ def main():
     sh = Sheet(dst.x(part_of['Dashboard']), sst)
     sh.set_formula('W5', 'Start!$C$12')
     sh.set_formula('X5', 'Start!$D$12')
-    sh.set_value('V68', 'FO-KOPPELING (formules, rekent automatisch mee)')
-    sh.set_value('W69', 'dit werkbestand')
-    sh.set_value('Z69', 'tab Invoer, Woningtypes en Scenario kosten zijn formules op de FO-tabbladen')
-    sh.set_formula('W70', 'Start!$E$12')
+    # aansluiting van het scenariomodel op de CF-tabbladen (voor de controle in W54); de overige regels van het oude
+    # blok FO-KOPPELING (bestand, opgehaald op) zijn overbodig in het werkbestand
+    sh.set_value('V68', 'AANSLUITING MODEL ↔ CF-TABBLADEN')
+    for ref in ('V69', 'W69', 'Z69', 'V70', 'W70', 'V73', 'W73', 'Z73'):
+        sh.set_value(ref, None)
     sh.set_formula('W71', 'SUM(Invoer!$F$8:$F$%d)' % scenario_koppeling.INV_RN)
     sh.set_formula('W72', 'SUM(Invoer!$D$8:$D$%d)' % scenario_koppeling.INV_RN)
-    sh.set_formula('W73', 'Start!$C$10')
+    # teksten die nog naar verborgen tabbladen of de vervallen knop 'Ophalen uit FO' verwezen
+    sh.set_value('V2', 'Geel = invoer. De cijfers komen uit CF - opbrengsten en CF - kosten; hier stel je de scenario\'s, '
+                       'de rente en de grafiekperiode in.')
+    sh.set_value('Z9', 'vroegste start bouw van de woningtypes (CF - opbrengsten); vergelijk met Start rij 7')
+    sh.set_value('Z10', 'op de titeldia en in de voettekst van alle dia\'s (Start, cel C6)')
+    sh.set_value('V38', 'Zonder macro\'s: de blokken voor de dia\'s staan op het verborgen tabblad PowerPoint.')
+    sh.set_formula('W54', 'IF(AND(ABS(Model!$BY$15-N(Dashboard!$W$71))<1,ABS(SUM(Model!$H$8:$H$67)-N(Dashboard!$W$72))<1),"OK",'
+                          '"LET OP: het model wijkt af van de CF-tabbladen (opbrengsten "&FIXED(Model!$BY$15/1000000,1)&" mln tegen "'
+                          '&FIXED(N(Dashboard!$W$71)/1000000,1)&" mln)")')
     if oz.get('standaard'):
         import standaard_fo as S_
         rk = S_.KT

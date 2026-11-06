@@ -228,8 +228,9 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     z('C%d' % k['onderdelen'], 'Methode', st['kop'])
     for p in posten:
         z('C%d' % p, 'Handmatig', st['invoer'])
-        z('%s%d' % (st_k, p), '=IF(OR($C%d="Voorstel",$C%d="Transport"),IF(ABS(%s%d-D%d)<1,"OK","FOUT"),'
-                              'IF(AND(%s%d-D%d<1,%s%d-D%d>-1),"OK","FOUT"))' % (p, p, tk, p + off, p, tk, p, p, tk, p, p))
+        # FOUT pas bij meer dan €10 verschil (afrondingen uit het oude FO geven OK)
+        z('%s%d' % (st_k, p), '=IF(OR($C%d="Voorstel",$C%d="Transport"),IF(ABS(%s%d-D%d)<10,"OK","FOUT"),'
+                              'IF(ABS(%s%d-D%d)<10,"OK","FOUT"))' % (p, p, tk, p + off, p, tk, p, p))
     sh.add_list_validation('C%d:C%d' % (p1, pn), ['Handmatig', 'Voorstel', 'Transport'])
     if oz.get('standaard'):
         z('E%d' % k['onderdelen'], 'Verdeeld', st['kop'])
@@ -237,16 +238,13 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         for p in posten:
             z('E%d' % p, '=IF(OR($C%d="Voorstel",$C%d="Transport"),%s%d,SUM(%s%d:%s%d))' % (p, p, tk, p + off, cols[0], p, cols[-1], p),
               st['getal'])
-            z('F%d' % p, '=IF(B%d="","",ROUND(N(D%d)-E%d,0))' % (p, p, p), st['getal_tot'])
+            z('F%d' % p, '=IF(B%d="","",IF(ABS(N(D%d)-E%d)<10,0,ROUND(N(D%d)-E%d,0)))' % (p, p, p, p, p), st['getal_tot'])
     m = '$C$%d:$C$%d' % (p1, pn)
     for c in cols:
         hand, vs = '%s%d:%s%d' % (c, p1, c, pn), '%s%d:%s%d' % (c, v1, c, vn)
         z('%s%d' % (c, k['totaal']), '=SUM(%s)-SUMIFS(%s,%s,"Voorstel")-SUMIFS(%s,%s,"Transport")'
                                      '+SUMIFS(%s,%s,"Voorstel")+SUMIFS(%s,%s,"Transport")' % (hand, hand, m, hand, m, vs, m, vs, m))
-    z('%s%d' % (toel, k['onderdelen'] - 1), 'Kolom C: Handmatig = deze regels · Voorstel = restant gelijk verdeeld t/m '
-                                            'oplevering · Transport = restant naar rato van het transport (bv. grond). Bij '
-                                            'Voorstel/Transport: wat je in de postregel invult, gaat voor (leeg of 0 = voorstel). '
-                                            'Blok onderaan rij %d-%d; rij %d = definitief.' % (v1, vn, k['totaal']), st['notitie'])
+    # de uitleg van de methodes staat één keer, boven de kostenposten (standaard_fo, rij K_PEW + 1)
     z('%s4' % toel, 'Bouwtermijnen volgen de geplande bouwtermijnen van CF - opbrengsten; overschrijven mag.', st['notitie'])
 
     # voorstelblok
@@ -305,7 +303,7 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
                                'IF(%s$%d<=%s,IF($%s%d=0,0,$F%d/$%s%d),0))))'
               % (c, hk, P_H, c, p, c, p, c, p, p, N_, r, r, c, ht, N_, r, c, hk, eind, N_, r, r, N_, r), st['getal'])
         z('%s%d' % (tk, r), '=SUM(%s%d:%s%d)' % (cols[0], r, cols[-1], r), st['getal_tot'])
-        z('%s%d' % (st_k, r), '=IF(B%d="","",IF(D%d-E%d<-1,"OVERSCHRIJDING",IF(ABS(%s%d-D%d)<1,"OK","FOUT")))'
+        z('%s%d' % (st_k, r), '=IF(B%d="","",IF(D%d-E%d<-1,"OVERSCHRIJDING",IF(ABS(%s%d-D%d)<10,"OK","FOUT")))'
           % (r, r, r, tk, r, r), st['vet'])
     r = vn + 1
     z('B%d' % r, 'Totaal voorstel', st['label_tot'])
@@ -334,6 +332,9 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
 
 SAP_KOPPELING = {'grond + ontwikkelkosten': (9010, None), 'aanneemsom': (9000, None), 'kao opties': (9000, 5230),
                  'kopersmeerwerk': (9200, 5250), 'kadastrale kosten': (9030, None), 'aanvullende rente': (9110, None)}
+SAP_REGEL = {'Grond + ontwikkelkosten': 'Grond + Ontwikkelkosten', 'Aanneemsom': 'Aanneemsom', 'KAO-opties': 'KAO opties',
+             'Meer-/minderwerk kopers': 'Kopersmeerwerk', 'Kadastrale kosten': 'Kadastrale kosten',
+             'Aanvullende rente': 'Aanvullende rente'}       # boekingsregel -> regel in de koppeling
 SAP_BOEKING = [('Grond + ontwikkelkosten', 9010, None), ('Aanneemsom', 9000, None), ('KAO-opties', 9000, 5230),
                ('Meer-/minderwerk kopers', 9200, 5250), ('Kadastrale kosten', 9030, None), ('Aanvullende rente', 9110, None)]
 
@@ -370,11 +371,19 @@ def aansluiting(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
     sectie(L_['s0'], 'TE BOEKEN IN SAP · per SAP-nummer en kostendrager (uit de kolom Corr hierboven)')
     for c, h in zip('ABCD', ['Omschrijving', 'SAP-nummer', 'Kostendrager', 'Bedrag (€)']):
         z('%s%d' % (c, L_['s0'] + 1), h, st['kop_links'] if c == 'A' else st['kop'])
+    # SAP-nummer en kostendrager staan op één plek: de koppeling hieronder; de boekingsregels nemen ze daaruit over
+    ml_ = lambda c: '$%s$%d:$%s$%d' % (c, L_['m1'], c, max(L_['m1'], L_['mn']))
     for i, (oms, nr, kd) in enumerate(SAP_BOEKING):
         r = L_['b1'] + i
-        z('A%d' % r, oms, st['invoer_label'])
-        z('B%d' % r, nr, st['invoer'])
-        z('C%d' % r, kd, st['invoer'])
+        z('A%d' % r, oms, st['tekst'])
+        regel = SAP_REGEL.get(oms)
+        if regel and regel in L_['regels']:
+            for c in 'BC':
+                x = 'INDEX(%s,MATCH("%s",%s,0))' % (ml_(c), regel, ml_('A'))
+                z('%s%d' % (c, r), '=IFERROR(IF(%s="","",%s),"")' % (x, x), st['aantal'])
+        else:
+            z('B%d' % r, nr, st['invoer'])
+            z('C%d' % r, kd, st['invoer'])
         z('D%d' % r, '=SUMPRODUCT((%s&""=B%d&"")*(%s&""=C%d&"")*%s)' % (rng('B'), r, rng('C'), r, rng('D')), st['getal_tot'])
     r = L_['open']
     z('A%d' % r, 'Niet toegewezen (geen of een ander SAP-nummer)', st['tekst'])
@@ -382,7 +391,7 @@ def aansluiting(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
     z('E%d' % r, '=IF(ABS(D%d)<1,"OK","LET OP: koppel de regel aan een SAP-nummer (hieronder)")' % r, st['vet'])
     z('A%d' % (r + 1), 'Totaal correcties', st['label_tot'])
     z('D%d' % (r + 1), '=SUM(%s)' % rng('D'), st['getal_tot'])
-    sectie(L_['k0'], 'KOPPELING · regel → SAP-nummer en kostendrager (aanpasbaar)')
+    sectie(L_['k0'], 'KOPPELING · regel → SAP-nummer en kostendrager · hier aanpassen (de boekingen hierboven volgen)')
     for c, h in zip('ABC', ['Regel', 'SAP-nummer', 'Kostendrager']):
         z('%s%d' % (c, L_['k0'] + 1), h, st['kop_links'] if c == 'A' else st['kop'])
     for i, lab in enumerate(L_['regels']):

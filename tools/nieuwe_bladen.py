@@ -139,6 +139,12 @@ def status_rules(ws, rng):
 #  Start
 # ================================================================================================
 
+def _dash_niet_ok():
+    """aantal controles op het Dashboard (W41-W55) dat niet OK en niet n.v.t. is"""
+    w = 'Dashboard!$W$41:$W$55'
+    return '(SUMPRODUCT(--(%s<>""))-COUNTIF(%s,"OK*")-COUNTIF(%s,"n.v.t.*"))' % (w, w, w)
+
+
 def maak_start(wb, demo, R):
     ws = wb.create_sheet('Start')
     ws.sheet_view.showGridLines = False
@@ -286,9 +292,9 @@ def maak_start(wb, demo, R):
     ven_k = "SUMPRODUCT((%s>=1)*(%s<=60)*%s)" % (R['k_per_abs'], R['k_per_abs'], R['k_tot_abs'])
     checks = [
         ('Invoer compleet', '=COUNTIF(H15:H18,"OK")&" van 4 OK"', '=IF(COUNTIF(H15:H18,"OK")=4,"OK","LET OP")', 'blok 2'),
-        ('Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW)',
+        ('Aansluiting prijslijst ↔ SKO ↔ PEW (per woningtype)',
          "=COUNTIF(%sJ1:J300,\"FOUT\")&\" fout\"" % R['aansl'],
-         "=IF(COUNTIF(%sJ1:J300,\"FOUT\")=0,\"OK\",\"FOUT\")" % R['aansl'], '%s kolom J' % R['aansl'][1:-2]),
+         "=IF(COUNTIF(%sJ1:J300,\"FOUT\")=0,\"OK\",\"FOUT\")" % R['aansl'], 'Prijslijst, blok 2 (kolom J)'),
         ('Opbrengsten volledig ingepland (bouwtermijnen, transport, verkoop)',
          "=COUNTIF(%s,\"FOUT\")&\" fout\"" % R['o_status'],
          "=IF(COUNTIF(%s,\"FOUT\")=0,\"OK\",\"FOUT\")" % R['o_status'], 'CF - opbrengsten, kolom %s' % R['o_status_kol']),
@@ -299,18 +305,19 @@ def maak_start(wb, demo, R):
         ('Posten waar werkelijk > PEW (voorstel verdeelt dan niets)',
          "=COUNTIF(%s,\"OVERSCHRIJDING\")&\" post(en)\"" % R['k_voorstel_status'],
          "=IF(COUNTIF(%s,\"OVERSCHRIJDING\")=0,\"OK\",\"LET OP\")" % R['k_voorstel_status'], 'CF - kosten, voorstel'),
-        ('Handmatige correctie opbrengsten', "=FIXED(SUM(%s),0)" % R['o_corr'],
-         "=IF(SUM(%s)=0,\"OK\",\"INFO\")" % R['o_corr'], 'CF - opbrengsten, rij %d' % R['o_corr_rij']),
+        ('Controles van het scenariomodel (periodes, verkoop, bouwtermijnen, DAEB)',
+         "=%s&\" niet OK\"" % _dash_niet_ok(),
+         "=IF(%s=0,\"OK\",\"LET OP\")" % _dash_niet_ok(), 'Dashboard, blok CONTROLES (W41-W55)'),
         ('Cashflow sluit aan op PEW', "=Invoer!D%d&\" / \"&Invoer!F%d" % (R['inv_ok'], R['inv_ok']),
          "=IF(AND(Invoer!D%d=\"OK\",Invoer!F%d=\"OK\"),\"OK\",\"FOUT\")" % (R['inv_ok'], R['inv_ok']),
-         'Invoer, rij %d' % R['inv_ok']),
-        ('Verkocht en getransporteerd ingepland (% per woningtype)',
+         'blok 3 hierboven (kosten en opbrengsten ↔ PEW)'),
+        ('Verkoop en transport ingepland (aantallen per woningtype)',
          "=(%s)&\" fout, \"&(%s)&\" let op\"" % (_tel(R['vt_status'], 'FOUT*'), _tel(R['vt_status'], 'LET OP*')),
          "=IF((%s)>0,\"FOUT\",IF((%s)>0,\"LET OP\",\"OK\"))" % (_tel(R['vt_status'], 'FOUT*'), _tel(R['vt_status'], 'LET OP*')),
-         'CF - opbrengsten, onder de bouwplanning per type'),
+         'CF - opbrengsten, verkooptempo en tabel Transport'),
         ('SAP-correcties toegewezen aan een SAP-nummer',
          "=FIXED(%s,0)&\" niet toegewezen\"" % R['sap_open'],
-         "=IF(ABS(N(%s))<1,\"OK\",\"LET OP\")" % R['sap_open'], 'Aansluiting opbrengsten, onderaan'),
+         "=IF(ABS(N(%s))<1,\"OK\",\"LET OP\")" % R['sap_open'], 'Prijslijst, Te boeken in SAP (naast de grafieken)'),
         ('CF - hulp VENA = definitieve cashflow',
          "=FIXED(ABS(N('CF - hulp VENA'!C3)-%s)+ABS(N('CF - hulp VENA'!C4)-%s),0)&\" verschil\"" % (ven_o, ven_k),
          "=IF(ABS(N('CF - hulp VENA'!C3)-%s)+ABS(N('CF - hulp VENA'!C4)-%s)<1,\"OK\",\"FOUT\")" % (ven_o, ven_k),
@@ -318,15 +325,15 @@ def maak_start(wb, demo, R):
         ('Niet-gemapte CODA-posten met bedrag (FO - huidig)',
          "=SUMPRODUCT(ISNUMBER(--'FO - huidig'!X17:X1500)*('FO - huidig'!Y17:Y1500=\"\")*ISNUMBER('FO - huidig'!R17:R1500)*('FO - huidig'!R17:R1500<>0))&\" regel(s)\"",
          "=IF(SUMPRODUCT(ISNUMBER(--'FO - huidig'!X17:X1500)*('FO - huidig'!Y17:Y1500=\"\")*ISNUMBER('FO - huidig'!R17:R1500)*('FO - huidig'!R17:R1500<>0))=0,\"OK\",\"FOUT\")",
-         'Behind the scens, kolom A-C'),
-        ('DAEB-fees op Woningtypes (type %d, blok 5) = DAEB-blok op CF - opbrengsten' % R['daeb_type'],
+         'FO - huidig kolom Y leeg: CODA-post zonder groepering'),
+        ('DAEB-fees = DAEB-blok op CF - opbrengsten',
          "=IF(%s=\"\",\"geen DAEB\",FIXED(SUM(%s),0)&\" van \"&FIXED(_koppeling!$C$418,0))" % (R['daeb_naam'], R['daeb_fees']),
          "=IF(%s=\"\",\"OK\",IF(%s=\"\",\"LET OP: aantal DAEB-woningen ontbreekt\","
          "IF(ABS(SUM(%s)-_koppeling!$C$418)<1,\"OK\",\"LET OP\")))" % (R['daeb_naam'], R['daeb_aantal'], R['daeb_fees']),
          'CF - opbrengsten %s' % R['daeb_rijen']),
-        ('Woningtypes dekken de opbrengsten (aantal × koopsom ÷ eigen opbrengsten)',
+        ('Scenariomodel dekt de opbrengsten (aantal × koopsom ÷ opbrengsten)',
          "=FIXED(N(Dashboard!W13)*100,1)&\"%\"",
-         "=IF(N(Dashboard!W13)=0,\"LET OP\",\"INFO\")", 'Dashboard W13 · Woningtypes'),
+         "=IF(N(Dashboard!W13)=0,\"LET OP\",\"INFO\")", 'Dashboard W13'),
         ('Verschil met oud FO (alleen zinvol direct na Oud FO inlezen)',
          "=COUNTIF('Controle oud FO'!M9:M60,\"VERSCHIL\")&\" periode(s)\"",
          "=IF(COUNTIF('Controle oud FO'!M9:M60,\"VERSCHIL\")=0,\"OK\",\"INFO\")", 'tab Controle oud FO'),
@@ -350,18 +357,21 @@ def maak_start(wb, demo, R):
     r = total_row + 2
     section(ws, r, '5 · STAPPEN PER KWARTAAL')
     stappen = [
-        'Klik Nieuw kwartaal starten: FO - huidig gaat naar FO - vorig, de cashflow wordt bewaard als vorige prognose.',
-        'SAP PEW-export (FR4) van de huidige periode → FO - huidig (Plakken of Inlezen).',
-        'SAP actuals (FR5) → FO - actuals. Check SAP op correcties in de werkelijke opbrengsten.',
-        'Salesforce prijslijst → Prijslijst dump; zet de exportdatum op tab Prijslijst (cel C1).',
-        'Controleer Aansluiting opbrengsten (SKO ↔ prijslijst ↔ PEW); boek de bedragen van “te boeken in SAP” (onderaan) en vraag ontbrekende documentatie op.',
+        'Klik Nieuw kwartaal starten: de cashflow en de planning worden de vorige prognose, FO - huidig gaat naar FO - vorig.',
+        'Lees de exports in (knoppen rechts): SAP PEW (FR4) → FO - huidig, SAP actuals (FR5) → FO - actuals, '
+        'Salesforce → Prijslijst dump; zet de exportdatum op Prijslijst (cel C1).',
+        'Prijslijst: per woningtype het type of blok (kolom C) en eventueel handmatige bedragen; controleer de aansluiting '
+        '(blok 2) en boek “te boeken in SAP” (naast de grafieken). Eventueel een kans grondtermijn (kolom Y).',
         'CF - opbrengsten: per woningtype de bouwtermijnen (planning met de ontwikkelaar), verkoop (verkooptempo) en transport '
-        '(tabel Transport) in aantallen per kwartaal, eventueel de grondprijs (na SWK); correctie in rij %d.' % R['o_corr_rij'],
-        'CF - kosten: de bouwtermijnen volgen de planning van de opbrengsten (overschrijven mag); per post Handmatig, Voorstel of Transport (kolom C).',
-        'Alle controles in blok 4 groen; bekijk Dashboard (cashflow) en 2. Ontw PEW.',
-        'Bekijk Dashboard en Scenario\'s: Invoer, Woningtypes en Scenario kosten rekenen automatisch mee met de CF-tabbladen.',
-        'Klik PowerPoint maken.',
-        'Na het FO: correcties bijwerken en CF - hulp VENA inlezen in SAP/VENA.',
+        '(tabel Transport) in aantallen per kwartaal; parkeren/commercieel verdelen; correctie in rij %d.' % R['o_corr_rij'],
+        'CF - kosten: de bouwtermijnen volgen de planning van de opbrengsten (overschrijven mag); per post Handmatig, Voorstel of '
+        'Transport (kolom C) tot "Nog te verdelen" 0 is.',
+        '2. Ontw PEW: meest recente FD en de toelichting invullen.',
+        'Alle controles in blok 4 op OK.',
+        'Bekijk Dashboard, Scenario\'s en CF vorig en huidig (vorige ↔ huidige prognose ↔ realisatie).',
+        'Klik PowerPoint maken en vul de kaarten van dia 10 (blok 6) aan.',
+        'Na het FO: de correcties boeken in SAP en CF - hulp VENA inlezen in VENA.',
+        'Bewaar het werkbestand; volgend kwartaal begin je weer bij stap 1.',
     ]
     for i, s in enumerate(stappen, 1):
         cell(ws, 'B%d' % (r + i), '%d.  %s' % (i, s))
