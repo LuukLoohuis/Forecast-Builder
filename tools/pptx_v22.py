@@ -23,7 +23,11 @@ A = '{%s}' % NS['a']
 
 PALET = {'002060': '003366', 'F2B800': 'FEB900', 'EDA100': 'FEB900', '12864E': '15803D', '2F9E63': '15803D',
          '5A8F3D': '15803D', 'C0392F': 'B91C1C', 'F08A00': '003366',
-         '7B2FBE': '2563EB', 'E0218A': 'B45309', '00897B': '0F766E'}
+         '7B2FBE': '2563EB', 'E0218A': 'B45309', '00897B': '0F766E',
+         # woningtypes 1-10 (type 4 is het geel hierboven): rustige reeks die bij het palet past
+         '2A78D6': '2563EB', 'EB6834': 'B45309', '1BAF7A': '0F766E', 'E87BA4': '64748B', '008300': '15803D',
+         '4A3AA7': '1E3A8A', '8A9A1B': 'D97706', '1F8A8A': '0891B2', '8C6D3F': '92400E',
+         '00B0F0': '003366', 'C2185B': '003366'}        # cumulatieve lijn in de verkoop- en transportgrafiek
 TEKST_GEEL = 'B45309'                       # gele tekst (EDA100/F2B800) in Excel: donker amber, geel op wit is onleesbaar
 MIN_SZ = 800                                    # 8 pt
 NAVY, GRIJS, LIJN = '003366', '4B5563', 'E4E5E6'
@@ -88,7 +92,7 @@ def run_kleur(tc, kleur=None, sz=None, b=None, algn=None):
         ppr.set('algn', algn)
 
 
-def maak_tabel(bron, slide, naam, x, y, kolommen, rijen, rijhoogte=0.72, kop_sz=800, sz=900):
+def maak_tabel(bron, slide, naam, x, y, kolommen, rijen, rijhoogte=0.72, kop_sz=800, sz=900, vet=None, streep=None):
     """tabel in de opmaak van SC_TABEL (dia 5): kopregel navy vet, eerste kolom grijs, bedragen rechts"""
     gf = copy.deepcopy(bron._element)
     nv = gf.find('.//{%s}cNvPr' % NS['p'])
@@ -131,7 +135,13 @@ def maak_tabel(bron, slide, naam, x, y, kolommen, rijen, rijhoogte=0.72, kop_sz=
             if ri == 0:
                 run_kleur(tc, GRIJS if ci == 0 else NAVY, kop_sz, True, 'l' if ci == 0 else 'r')
             else:
-                run_kleur(tc, GRIJS if ci == 0 else NAVY, sz, ci > 0, 'l' if ci == 0 else 'r')
+                dik = ri in vet if vet is not None else ci > 0       # vet: alleen de totaalregels, anders alle bedragen
+                run_kleur(tc, NAVY if (vet is not None and ri in vet) or ci else GRIJS, sz, dik, 'l' if ci == 0 else 'r')
+                if streep == ri:                                     # dikkere lijn boven deze regel (Resultaat)
+                    ln = tc.find(A + 'tcPr').find(A + 'lnT')
+                    ln.set('w', '15875')
+                    for c in ln.iter(A + 'srgbClr'):
+                        c.set('val', NAVY)
         tbl.append(tr)
     xfrm = gf.find('{%s}xfrm' % NS['p'])
     xfrm.find(A + 'off').set('x', str(int(cm(x))))
@@ -216,8 +226,8 @@ def dia_pew(p, sc_tabel):
              ['Totaal opbrengsten', '79.336', '79.336', '0'],
              ['Resultaat', '3.482', '3.482', '0'],
              ['Resultaat %', '4,4%', '4,4%', '0,0%']]
-    maak_tabel(sc_tabel, s, 'PEW_TABEL', 1.6, 3.6, [6.2, 3.1, 3.1, 3.1], rijen)
-    tekstvak(s, 'PEW_TOP3', 1.6, 9.7, 15.5, 2.4,
+    maak_tabel(sc_tabel, s, 'PEW_TABEL', 1.6, 3.6, [6.2, 3.1, 3.1, 3.1], rijen, rijhoogte=0.8, vet={4, 5, 6}, streep=6)
+    tekstvak(s, 'PEW_TOP3', 1.6, 10.3, 15.5, 2.0,
              'Top 3 kosten Q3 2026 (actuals)\n1. Aanneemsom: € 1.234.567\n2. Honoraria: € 234.567\n3. Grondkosten: € 34.567',
              sz=9, kleur='111F39')
     return s
@@ -259,9 +269,11 @@ def dia_vr(p, pew, sc_tabel):
              ['Kosten Q3 ’26', '€0,1M', '€0,1M', '€0,0M'],
              ['Omzet Q3 ’26', '€0,0M', '€0,0M', '€0,0M'],
              ['Afgesloten periodes = SAP', '', 'OK', '']]
-    maak_tabel(sc_tabel, nieuw, 'VR_TABEL', 1.6, 3.6, [6.7, 2.9, 3.3, 2.6], rijen, rijhoogte=0.9)
+    maak_tabel(sc_tabel, nieuw, 'VR_TABEL', 1.6, 3.6, [6.7, 2.9, 3.3, 2.6], rijen, rijhoogte=1.0)
     toel = vorm(nieuw, 'VR_TOELICHTING')
-    toel.top = cm(9.7)
+    toel.top, toel.height = cm(10.1), cm(0.8)
+    kaart = vorm(nieuw, 'VR_KAART')                  # de kaart eindigt gelijk met de drie kaarten rechts
+    kaart.height = vorm(nieuw, 'Shape 15').top + vorm(nieuw, 'Shape 15').height - kaart.top
     for r in toel._element.iter(A + 'rPr'):
         r.set('b', '0')
     # positie: direct na de cashflow (dia 3)
@@ -290,6 +302,36 @@ def palet_en_letters(p):
             palet(lay._element)
 
 
+def afwerking(p):
+    """voorbeeldteksten zonder projectnaam, het dianummer leesbaar (8 pt grijs), korte ondertitel op de dia per type"""
+    zet_tekst(vorm(p.slides[0], 'COVER_PROJECT').text_frame._txBody, 'Project')
+    pt = next(s for s in p.slides if any(sh.name == 'PT_SUBTITEL' for sh in s.shapes))
+    zet_tekst(vorm(pt, 'PT_SUBTITEL').text_frame._txBody,
+              't/m Q4 ’26 €0,0 mln → daarna €15,4 mln · grijs = gerealiseerd (volgens planning)')
+    for lay in p.slide_layouts:
+        if lay.name == 'ORION':
+            lay.name = 'FO'
+        for shp in lay.shapes:
+            if shp.name == 'VOET_TEKST':
+                zet_tekst(shp.text_frame._txBody, 'PROJECT  |  Q3 2026')
+    for boom in [s.shapes for s in p.slides] + [lay.shapes for lay in p.slide_layouts if lay.name == 'FO']:
+        for shp in boom:
+            if not shp.name.startswith('Slide Number'):
+                continue
+            el = shp._element
+            for r in list(el.iter(A + 'defRPr')) + list(el.iter(A + 'rPr')):
+                r.set('sz', str(MIN_SZ))
+                for f in r.findall(A + 'solidFill'):
+                    r.remove(f)
+                fill = etree.SubElement(r, A + 'solidFill')
+                r.remove(fill)
+                r.insert(0, fill)
+                etree.SubElement(fill, A + 'srgbClr').set('val', '7A7A7A')
+            rechts = shp.left + shp.width                   # breed genoeg voor twee cijfers, rechts uitgelijnd
+            shp.width, shp.height = cm(0.9), cm(0.4)
+            shp.left = rechts - shp.width
+
+
 def maak(p):
     sc_tabel = vorm(p.slides[4], 'SC_TABEL')
     dia3_kans(p)
@@ -297,4 +339,5 @@ def maak(p):
     pew = dia_pew(p, sc_tabel)
     dia_vr(p, pew, sc_tabel)
     palet_en_letters(p)
+    afwerking(p)
     return p

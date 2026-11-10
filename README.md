@@ -48,6 +48,7 @@ Eén vaste kleurtaal in het hele bestand:
 
 Grafieken en opmaak gebruiken hetzelfde palet als het PowerPoint-sjabloon v22 (navy `003366`, geel `FEB900`, groen
 `15803D`, rood `B91C1C`; gele tekst donker amber `B45309`), zodat het Dashboard en de slides er hetzelfde uitzien.
+De woningtypes hebben één vaste, rustige kleurreeks (blauw, amber, petrol, geel, …), gelijk in de grafieken, de legenda's en op de slides.
 
 Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad heeft linksboven "← Start" en een legenda. Start bouw en Oplevering staan als groen en blauw label boven het kwartaal, met een lijn langs de kolom; koppen en invoer houden hun eigen kleur.
 

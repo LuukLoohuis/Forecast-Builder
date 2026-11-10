@@ -280,6 +280,15 @@ def t_palet_werkbestand():
        ', '.join('%s in %s' % (k, '/'.join(sorted(v))) for k, v in sorted(oud.items())))
 
 
+def t_dianummers():
+    """de teksten in het werkbestand noemen geen verouderde dianummers (sinds v22 is dia 4 nieuw)"""
+    import zipfile
+    with zipfile.ZipFile(SJABLOON) as z:
+        sst = z.read('xl/sharedStrings.xml').decode('utf-8')
+    oud = [t for t in ('dia 1 en 10', 'kopie van dia 8', 'kopie van dia 9', 'Dashboard en dia 5', 'titel dia 6') if t in sst]
+    ok('werkbestand: geen verouderde dianummers in de teksten', not oud, ', '.join(oud))
+
+
 def t_pptx():
     from pptx import Presentation
     namen = set()
@@ -348,6 +357,7 @@ def main():
     print('== 6 PowerPoint-sjabloon')
     t_pptx()
     t_palet_werkbestand()
+    t_dianummers()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')
     lo = LO()
     try:

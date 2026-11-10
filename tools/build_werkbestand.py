@@ -831,14 +831,25 @@ def main():
             sh.set('%s%d' % (c, r_oud), None)
     sh.set('E160', 'leeg = Kwartaal_Template_cashflow_v22.pptx (of v21) in dezelfde map als dit bestand')
     powerpoint_v22(sh, style, 118 + len(rows))
+    tekst_vervang(sh, 'GE5', 'een kopie van dia 9', 'een kopie van de dia per woningtype')
     save('PowerPoint', sh)
-    # Model: typekleuren van de legenda's in het palet van sjabloon v22
+    # Model: typekleuren van de legenda's in het palet van sjabloon v22 (zelfde mapping als de grafieken)
+    import pptx_v22
     sh = sheet('Model')
     for r in (321, 323):
         f = sh.get('BY%d' % r)
-        assert f and 'EDA100' in f, f
-        sh.set_formula('BY%d' % r, f.replace('EDA100', 'FEB900'))
+        assert f and 'EDA100' in f and '2A78D6' in f, f
+        sh.set_formula('BY%d' % r, re.sub(r'"([0-9A-F]{6}),"', lambda m: '"%s,"' % pptx_v22.PALET.get(m.group(1), m.group(1)), f))
+    # dianummers in de labels: sinds v22 is dia 4 nieuw, alles daarna schoof een op
+    for ref, oud, nieuw in (('BX154', 'dia 4', 'dia 5'), ('BX213', 'dia 4', 'dia 5'), ('BX248', 'dia 4', 'dia 5'),
+                            ('BX283', 'dia 4', 'dia 5'), ('BX290', 'dia 4', 'dia 5'), ('BX319', 'dia 6', 'dia 7')):
+        tekst_vervang(sh, ref, oud, nieuw)
     save('Model', sh)
+    for blad, ref, oud, nieuw in (('Dashboard', 'E156', 'kopie van dia 8 in het sjabloon', 'kopie van de dia per woningtype'),
+                                  ('Woningtypes', 'B42', 'Dashboard en dia 5', 'Dashboard en de dia Bouwtermijnen')):
+        sh = sheet(blad)
+        tekst_vervang(sh, ref, oud, nieuw)
+        save(blad, sh)
 
     for name, tot in (('FO - vorig', 1500), ('FO - huidig', 1500), ('FO - actuals', 6000)):
         sh = sheet(name)
@@ -995,6 +1006,12 @@ def main():
     print('Klaar: ' + a.pptx_out)
 
 
+def tekst_vervang(sh, ref, oud, nieuw):
+    t = sh.get(ref)
+    assert isinstance(t, str) and oud in t and not t.startswith('='), (ref, t)
+    sh.set_value(ref, t.replace(oud, nieuw), sh.style_of(ref))
+
+
 def powerpoint_v22(sh, style, r0):
     """tab PowerPoint voor sjabloon v22: kansblok op dia 3, dia 4 'vorige ↔ huidig ↔ realisatie' (teksten en VR_TABEL),
     PEW_TABEL en PEW_SUBTITEL op de dia Update PEW, geen scenariolijnen 1-3 in de cashflowgrafiek, accentkleuren"""
@@ -1052,6 +1069,9 @@ def powerpoint_v22(sh, style, r0):
             sh.set('E%d' % r, richting, style['E'])
         sh.set_value('F%d' % r, vorm, style['F'])
     for r in range(8, r0):
+        dia = sh.get('B%d' % r)                 # dianummer per tekstregel: vanaf de oude dia 4 een hoger (nieuwe dia 4)
+        if dia and str(dia).strip().isdigit() and int(dia) >= 4:
+            sh.set_value('B%d' % r, int(dia) + 1, sh.style_of('B%d' % r))
         vorm = sh.get('F%d' % r)
         if vorm == 'CF_BE_WAARDE':          # dia 3: het vierde blok is de kans grondtermijn (break-even staat al op dia 2)
             sh.set_value('C%d' % r, 'Blokje kans grondtermijn')

@@ -209,7 +209,7 @@ def maak_start(wb, demo, R):
     cell(ws, 'B10', 'Cijfers per')
     cell(ws, 'C10', '=IF(F6="","",EOMONTH(DATE(INT(F6/100),MOD(F6,100),1),0))', F_BASE, FILL_INPUT, 'dd-mm-yyyy')
     cell(ws, 'G10', 'standaard: einde boekingsperiode; overschrijven mag', F_NOTE)
-    cell(ws, 'B11', 'Tekst in PowerPoint (dia 1 en 10)')
+    cell(ws, 'B11', 'Tekst in PowerPoint (titeldia, dia 4 en Update PEW)')
     cell(ws, 'C11', '=IF(C10="","","Cijfers per "&DAY(C10)&" "&CHOOSE(MONTH(C10),%s)&" "&YEAR(C10))' % MAANDEN,
          F_BASE, FILL_CALC)
     cell(ws, 'B12', 'Actuals t/m · jaar en kwartaal')
