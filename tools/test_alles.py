@@ -282,9 +282,10 @@ def t_palet_werkbestand():
 
 def t_dianummers():
     """de teksten in het werkbestand noemen geen verouderde dianummers (sinds v22 is dia 4 nieuw)"""
-    import zipfile
-    with zipfile.ZipFile(SJABLOON) as z:
-        sst = z.read('xl/sharedStrings.xml').decode('utf-8')
+    import openpyxl                      # de cellen zelf (in sharedStrings blijven vervangen teksten ongebruikt staan)
+    wb = openpyxl.load_workbook(SJABLOON, read_only=True)
+    sst = '\n'.join(str(c) for ws in wb.worksheets for rij in ws.iter_rows(values_only=True) for c in rij
+                    if isinstance(c, str))
     oud = [t for t in ('dia 1 en 10', 'kopie van dia 8', 'kopie van dia 9', 'Dashboard en dia 5', 'titel dia 6') if t in sst]
     ok('werkbestand: geen verouderde dianummers in de teksten', not oud, ', '.join(oud))
 
