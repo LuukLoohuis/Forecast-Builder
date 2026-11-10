@@ -672,9 +672,13 @@ def maak_kosten(ws):
         zet(ws, 'B%d' % r, "='2. Ontw PEW'!C%d" % (7 + i))
         zet(ws, 'D%d' % r, "=N('2. Ontw PEW'!G%d)*1000" % (7 + i), F, None, NUM)
         zet(ws, '%s%d' % (COLS[0], r), "=SUMIFS('FO - huidig'!$M:$M,'FO - huidig'!$Y:$Y,$B%d)" % r, F, None, NUM)
-        for c in QCOLS:
+        for i_, c in enumerate(QCOLS, 1):
             if p == 'Aanneemsom':
-                f = '=' + '+'.join('%s%d' % (c, k_aanneem(k)) for k in range(1, NT + 1))
+                # in het huidige kwartaal: het verschil tussen de planning t/m nu (kolom G) en het werkelijk betaalde
+                # (kolom G van de post); zo telt wat al betaald is niet nog eens mee met de geplande termijnen
+                f = '=' + '+'.join('%s%d' % (c, k_aanneem(k)) for k in range(1, NT + 1)) + \
+                    '+IF(%s*4+%d=p_huidig,%s-$%s%d,0)' % (JAAR, i_, '+'.join('$%s%d' % (COLS[0], k_aanneem(k))
+                                                                       for k in range(1, NT + 1)), COLS[0], r)
             elif p == 'Kopersmeerwerk':
                 f = '=' + '+'.join('%s%d' % (c, k_aanneem(k) + 1) for k in range(1, NT + 1))
             else:

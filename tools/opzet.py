@@ -56,6 +56,14 @@ def _opbrengsten(f, v):
     vk = next(r for r in range(2, maxr) if _t(get(r, 2)).lower() == 'verkooptempo')
     kop = [r for r in range(2, vk) if _t(get(r - 1, 6)).lower() == '# won']
     omz = [r for r in range(vk, maxr) if _t(get(r - 1, 6)).lower() == '# won']
+    if kop and len(omz) < len(kop):
+        # terugval: een omzetblok zonder '# won' in kolom F (wel het aantal in G erboven), herkend aan de kop '%' / '€',
+        # na het verkooptempo en vóór het financiële blok ('Financieel' / 'Termijnen 1 in €')
+        eind = next((r for r in range(vk, maxr) if _t(get(r, 2)).lower().startswith('financieel')
+                     or (_t(get(r, 2)).lower().startswith('termijnen') and '€' in _t(get(r, 2)))), maxr)
+        extra = [r for r in range(vk + 1, eind) if r not in omz and _t(get(r, 2)) and _t(get(r, 3)).startswith('%')
+                 and _t(get(r, 4)) == '€' and isinstance(get(r - 1, 7), (int, float))]
+        omz = sorted(omz + extra)
     if not kop or len(kop) != len(omz):
         raise Fout('CF - opbrengsten: %d bouwplanningsblokken en %d omzetblokken' % (len(kop), len(omz)))
     qk = _kopkolommen(v, kop[0])

@@ -668,7 +668,8 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     Dim nPlan As Long, oRij(1 To 30) As Long, nO As Long, lab As String, term(1 To 20) As Long, aantT As Long
     Dim kmw25 As Long, kmw75 As Long, kad As Long, ovr(1 To 10) As Long, nOv As Long, a0 As Long
     Dim oudW(1 To 5) As Double, plW(1 To 5) As Variant, sleutel As String, kopP As Long, kType As Long
-    Dim bn() As Long, nBn As Long, x As Variant, basis As Double, tr As Long, t As Long, ov2() As Double, ov1() As Double
+    Dim bn() As Long, nBn As Long, x As Variant, basis As Double, tr As Long, t As Long, ov2() As Double, ov1() As Double, ovp() As Double, ovc() As Double, _
+        euR(1 To 20) As Long, nEu As Long, eind As Long, heeftOv1 As Boolean, heeftOv2 As Boolean
     Dim regels As Variant, ond As Long, kr As Long, kb As Long, ksl As Variant, kc2 As Long
 
     Set wO = ZoekBlad(wbO, "CF - opbrengsten")
@@ -734,6 +735,24 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             End If
         End If
     Next r
+    If nKop > 0 And nOmz < nKop Then
+        ' terugval: een omzetblok zonder '# won' in kolom F (wel het aantal in G erboven), herkend aan de kop '%' / EUR,
+        ' na het verkooptempo en voor het financiele blok ('Financieel' / 'Termijnen 1 in EUR')
+        eind = maxR
+        For r = vk + 1 To maxR
+            lab = LCase$(Tk(wO.Cells(r, 2).Value))
+            If Left$(lab, 10) = "financieel" Or (Left$(lab, 9) = "termijnen" And InStr(lab, ChrW(8364)) > 0) Then eind = r: Exit For
+        Next r
+        nOmz = 0
+        For r = vk + 1 To eind - 1
+            If LCase$(Tk(wO.Cells(r - 1, 6).Value)) = "# won" Then
+                nOmz = nOmz + 1: omz(nOmz) = r
+            ElseIf Len(Tk(wO.Cells(r, 2).Value)) > 0 And Left$(Tk(wO.Cells(r, 3).Value), 1) = "%" And _
+                   Tk(wO.Cells(r, 4).Value) = ChrW(8364) And IsGetalW(wO.Cells(r - 1, 7).Value) Then
+                nOmz = nOmz + 1: omz(nOmz) = r
+            End If
+        Next r
+    End If
     If nKop = 0 Or nKop <> nOmz Then
         OmzettenOudFO = lg & "- CF - opbrengsten: " & nKop & " bouwplanningsblokken en " & nOmz & " omzetblokken; niet omgezet." & vbCrLf
         Exit Function
@@ -813,7 +832,14 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             End If
         Next r
     End If
-    ReDim ov1(1 To C_Q1 + NQ): ReDim ov2(1 To C_Q1 + NQ)
+    ReDim ov1(1 To C_Q1 + NQ): ReDim ov2(1 To C_Q1 + NQ): ReDim ovp(1 To C_Q1 + NQ): ReDim ovc(1 To C_Q1 + NQ)
+    ' EUR-blokken per type ('Termijnen n in EUR'): een type met woningen maar zonder bedragen daar (parkeren, commercieel)
+    ' heeft zijn omzet onder 'Overige opbrengsten in EUR'; dan prijs 0 (de kosten blijven)
+    nEu = 0
+    For r = euro To IIf(per > 0, per, maxR)
+        lab = LCase$(Tk(wO.Cells(r, 2).Value))
+        If Left$(lab, 9) = "termijnen" And InStr(lab, ChrW(8364)) > 0 And nEu < 20 Then nEu = nEu + 1: euR(nEu) = r
+    Next r
     For i = 1 To nKop
         If i > NT Then Exit For
         hb = kops(i)
@@ -925,6 +951,17 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                     If k > 0 Then ov2(k) = ov2(k) + Nk(wO.Cells(ovr(j), c).Value) * basis
                 Next c
             Next j
+            If i <= nEu Then
+                basis = 0: r = euR(i) + 1
+                Do While Len(Tk(wO.Cells(r, 2).Value)) > 0 And r < euR(i) + 30
+                    For c = 7 To laatste: basis = basis + Abs(Nk(wO.Cells(r, c).Value)): Next c
+                    r = r + 1
+                Loop
+                If basis = 0 Then
+                    For j = 2 To 5: wP.Cells(P_TYPE1 + i - 1, 13 + j).Value = 0: Next j
+                    lg = lg & "- type " & i & ": geen bedragen in het " & ChrW(8364) & "-blok van het oude FO; de omzet staat onder Overige opbrengsten (prijs 0, de kosten blijven)" & vbCrLf
+                End If
+            End If
             lg = lg & "- type " & i & " (" & wP.Cells(P_TYPE1 + i - 1, 2).Value & "): " & aantT & " termijnen, " & won & " woningen" & vbCrLf
             ' kosten: budget aanneemsom, KAO, % per termijn en eigen planning als die afwijkt
             KostenOmzetten wbO, wO, i, kops(i), term, aantT, d, sl, laatste, k1, lg
@@ -935,18 +972,39 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     For j = euro To maxR
         If LCase$(Tk(wO.Cells(j, 2).Value)) Like "overige opbrengsten in*" Then r = j: Exit For
     Next j
+    ' parkeren en commercieel naar hun eigen regel; de rest opgeteld als 'Overige opbrengsten (uit het oude FO)'
     If r > 0 Then
         For j = r + 1 To r + 3
             If Len(Tk(wO.Cells(j, 2).Formula)) = 0 Then Exit For
+            lab = LCase$(Tk(wO.Cells(j, 2).Value) & " " & wO.Cells(j, 2).Formula)
             For c = 7 To laatste
                 k = KolStd(CLng(sl(c)), k1)
-                If k > 0 Then ov1(k) = ov1(k) + Nk(wO.Cells(j, c).Value)
+                If k > 0 Then
+                    If InStr(lab, "parkeer") > 0 Then
+                        ovp(k) = ovp(k) + Nk(wO.Cells(j, c).Value)
+                    ElseIf InStr(lab, "commerc") > 0 Then
+                        ovc(k) = ovc(k) + Nk(wO.Cells(j, c).Value)
+                    Else
+                        ov1(k) = ov1(k) + Nk(wO.Cells(j, c).Value)
+                    End If
+                End If
             Next c
         Next j
     End If
+    ' de regel parkeren is bezet als er verschillen per type zijn; commercieel als er andere overige opbrengsten zijn
+    For k = C_ACT To C_Q1 + NQ - 1
+        If ov2(k) <> 0 Then heeftOv2 = True
+        If ov1(k) <> 0 Then heeftOv1 = True
+    Next k
+    For k = C_ACT To C_Q1 + NQ - 1
+        If heeftOv2 Then ov1(k) = ov1(k) + ovp(k): ovp(k) = 0
+        If heeftOv1 Then ov1(k) = ov1(k) + ovc(k): ovc(k) = 0
+    Next k
     For k = C_ACT To C_Q1 + NQ - 1
         If ov1(k) <> 0 Then wD.Cells(OV1_RIJ, k).Value = ov1(k): wD.Cells(OV1_RIJ, 2).Value = "Overige opbrengsten (uit het oude FO)": wD.Cells(OV1_RIJ - 2, 3).Value = "handmatig"
+        If ovc(k) <> 0 Then wD.Cells(OV1_RIJ, k).Value = ovc(k): wD.Cells(OV1_RIJ, 2).Value = "Opbrengsten commercieel (uit het oude FO)": wD.Cells(OV1_RIJ - 2, 3).Value = "handmatig"
         If ov2(k) <> 0 Then wD.Cells(OV2_RIJ, k).Value = ov2(k): wD.Cells(OV2_RIJ, 2).Value = "Overige / verschillen per type (uit het oude FO)": wD.Cells(OV2_RIJ - 2, 3).Value = "handmatig"
+        If ovp(k) <> 0 Then wD.Cells(OV2_RIJ, k).Value = ovp(k): wD.Cells(OV2_RIJ, 2).Value = "Opbrengsten parkeren (uit het oude FO)": wD.Cells(OV2_RIJ - 2, 3).Value = "handmatig"
     Next k
     ' aansluiting: SKO per regel (kolom B van de vergelijkingsblokken)
     If Not wA Is Nothing Then
@@ -978,8 +1036,19 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     ' DAEB
     DaebOmzetten wbO, wO, kops, nKop, sl, laatste, k1, lg
     ' kostenposten (prognose; Aanneemsom en Kopersmeerwerk volgen de termijnen)
-    Dim wKo As Worksheet, posten As Long, toel As Long
+    Dim wKo As Worksheet, posten As Long, toel As Long, pAct As Long, q As Long, weg As Double, verschoven As Double
     Set wKo = ZoekBlad(wbO, "CF - kosten")
+    ' laatste afgesloten kwartaal volgens de SAP-export (FO - actuals is al ingelezen): jaar (P) en maand (O), zoals Python
+    Dim wAc As Worksheet, jA As Variant, mA As Variant
+    Set wAc = ThisWorkbook.Worksheets("FO - actuals")
+    For r = 2 To wAc.UsedRange.Row + wAc.UsedRange.Rows.Count - 1
+        jA = wAc.Cells(r, 16).Value: mA = wAc.Cells(r, 15).Value
+        If IsNumeric(jA) And IsNumeric(mA) And Len(Trim$(CStr(jA))) > 0 And Len(Trim$(CStr(mA))) > 0 Then
+            If CLng(mA) >= 1 And CLng(mA) <= 12 Then
+                If CLng(jA) * 4 + (CLng(mA) - 1) \ 3 + 1 > pAct Then pAct = CLng(jA) * 4 + (CLng(mA) - 1) \ 3 + 1
+            End If
+        End If
+    Next r
     If Not wKo Is Nothing Then
         ond = RijMet(wKo, 2, 2, 300, "onderdelen")
         If ond > 0 Then
@@ -996,12 +1065,31 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                 If lab <> "aanneemsom" And lab <> "kopersmeerwerk" Then
                     wK.Range(wK.Cells(K_POST1 + posten, C_Q1), wK.Cells(K_POST1 + posten, C_Q1 + NQ - 1)).ClearContents
                     RijOver wKo, r, ksl, 7, kc2, wK, K_POST1 + posten, k1, True, 0, lg
+                    ' prognose in een kwartaal dat volgens de SAP-export al is afgesloten (de cashflow neemt daar de
+                    ' actuals): naar het eerste prognosekwartaal, anders telt die prognose nergens mee
+                    If pAct >= k1 And KolStd(pAct + 1, k1) > 0 Then
+                        weg = 0
+                        For q = k1 To pAct
+                            k = KolStd(q, k1)
+                            If IsGetalW(wK.Cells(K_POST1 + posten, k).Value) Then
+                                weg = weg + CDbl(wK.Cells(K_POST1 + posten, k).Value)
+                                wK.Cells(K_POST1 + posten, k).ClearContents
+                            End If
+                        Next q
+                        If weg <> 0 Then
+                            k = KolStd(pAct + 1, k1)
+                            wK.Cells(K_POST1 + posten, k).Value = Nk(wK.Cells(K_POST1 + posten, k).Value) + weg
+                            verschoven = verschoven + weg
+                        End If
+                    End If
                 End If
                 posten = posten + 1
                 r = r + 1
             Loop
         End If
     End If
+    If verschoven <> 0 Then lg = lg & "- CF - kosten: " & Format(verschoven, "0") & " gepland in kwartalen die volgens de SAP-export al zijn afgesloten (t/m Q" & _
+                               ((pAct - 1) Mod 4 + 1) & " " & ((pAct - 1) \ 4) & ") verschoven naar het eerste prognosekwartaal" & vbCrLf
     ' PEW: meest recente FD en toelichting
     PewOmzetten wbO, lg
     OmzettenOudFO = lg

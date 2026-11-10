@@ -188,6 +188,21 @@ def omzetten(oud, uit, project=None):
     of = wf['CF - opbrengsten']
     sl = (oz.get('prijslijst') or {}).get('sleutels') or []
     ov2 = {}
+    # €-blokken per type ('Termijnen n in €') in het oude FO: een type met woningen maar zonder bedragen daar (bijvoorbeeld
+    # parkeren of commercieel) heeft zijn omzet onder 'Overige opbrengsten in €'; dan krijgt het type prijs 0 (de kosten
+    # blijven) en komt de omzet via de regels parkeren / commercieel
+    oc_ = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
+    eu_rijen = [r for r in range(ob['euro_kop'], ob['totaal'])
+                if _t(o_v.cell(r, 2).value).lower().startswith('termijnen') and '€' in _t(o_v.cell(r, 2).value)]
+
+    def eu_som(i):
+        if i >= len(eu_rijen):
+            return None
+        r, som = eu_rijen[i] + 1, 0
+        while _t(o_v.cell(r, 2).value) and r < eu_rijen[i] + 30:
+            som += sum(abs(_n(o_v.cell(r, c).value)) for c in oc_)
+            r += 1
+        return som
     for t in ob['types']:
         k = t['k']
         tr_ = S.P_TYPE1 + k - 1
@@ -235,6 +250,11 @@ def omzetten(oud, uit, project=None):
                 if pl_[x] is not None:
                     log.append('type %d (%s): %s uit het oude FO (%.0f) wijkt af van de prijslijst (%.0f): handmatig gezet'
                                % (k, naam, x, oud[x], pl_[x]))
+        if t['won'] and eu_som(k - 1) == 0:
+            for x in ('grond', 'aanneemkao', 'kmw', 'kadrente'):
+                P['%s%d' % (S.P_HAND[x], tr_)] = 0
+            log.append('type %d (%s): geen bedragen in het €-blok van het oude FO; de omzet staat onder Overige opbrengsten '
+                       '(prijs 0, de kosten blijven)' % (k, naam))
         # termijnschema
         a = S.p_aans(k)
         for i, r in enumerate(termijnen, 1):
@@ -296,18 +316,31 @@ def omzetten(oud, uit, project=None):
             if lab in S.P_REGELS_HAND and isinstance(av_.cell(r, 4).value, (int, float)) and av_.cell(r, 4).value:
                 P['D%d' % (a0 + 2 + S.P_REGELS.index(lab))] = av_.cell(r, 4).value
     # ---- overige opbrengsten (project) ------------------------------------------------------------------
-    ov1 = {}
+    # parkeren en commercieel naar hun eigen regel; de rest opgeteld als 'Overige opbrengsten (uit het oude FO)'
+    ov1, ovp, ovc = {}, {}, {}
     ov = next((r for r in range(ob['euro_kop'], ob['totaal']) if _t(o_v.cell(r, 2).value).lower().startswith('overige opbrengsten in')), None)
     oc = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
     if ov:
         for r in range(ov + 1, ov + 4):
-            if not _t(of.cell(r, 2).value):
+            lab = _t(of.cell(r, 2).value).lower()
+            if not lab:
                 break
+            doel = ovp if 'parkeer' in lab or 'parkeren' in lab else ovc if 'commerc' in lab else ov1
             for c in oc:
                 k2 = d.kol(okeys.get(c, 0))
                 if k2 and _n(o_v.cell(r, c).value):
-                    ov1[k2] = ov1.get(k2, 0) + _n(o_v.cell(r, c).value)
-    for rr, som, lab in ((S.OV1, ov1, 'Overige opbrengsten (uit het oude FO)'), (S.OV2, ov2, 'Overige / verschillen per type (uit het oude FO)')):
+                    doel[k2] = doel.get(k2, 0) + _n(o_v.cell(r, c).value)
+    if ovp and ov2:                     # de regel parkeren is al bezet door de verschillen per type
+        for k2, v in ovp.items():
+            ov1[k2] = ov1.get(k2, 0) + v
+        ovp = {}
+    if ovc and ov1:
+        for k2, v in ovc.items():
+            ov1[k2] = ov1.get(k2, 0) + v
+        ovc = {}
+    regels = ((S.OV1, ov1, 'Overige opbrengsten (uit het oude FO)'), (S.OV1, ovc, 'Opbrengsten commercieel (uit het oude FO)'),
+              (S.OV2, ov2, 'Overige / verschillen per type (uit het oude FO)'), (S.OV2, ovp, 'Opbrengsten parkeren (uit het oude FO)'))
+    for rr, som, lab in regels:
         if som:
             O['B%d' % rr] = lab
             O['C%d' % (rr - 2)] = 'handmatig'          # de regel in de cashflow neemt de handmatige bedragen
@@ -320,6 +353,7 @@ def omzetten(oud, uit, project=None):
     kv = wv['CF - kosten']
     kkeys = sleutels(kv, ko['onderdelen'] - 1, ko['onderdelen'], ci(ko['eerste']), ci(ko['laatste']))
     kc = range(ci(ko['eerste']), ci(ko['laatste']) + 1)
+    verschoven = 0
     for i, r in enumerate(ko['posten'][:S.NPOST]):
         naam = _t(kv.cell(r, 2).value)
         rr = S.K_POST1 + i
@@ -330,6 +364,19 @@ def omzetten(oud, uit, project=None):
             continue
         w = {c: kv.cell(r, c).value for c in kc if c != (ci(ko['werkelijk']) if ko['werkelijk'] else -1)}
         d.rij('CF - kosten', rr, w, kkeys, alleen_q=True)
+        # prognose in een kwartaal dat volgens de SAP-export al is afgesloten (de cashflow neemt daar de actuals):
+        # naar het eerste prognosekwartaal, anders telt die prognose nergens mee
+        if act_max >= d.k1 and d.kol(act_max + 1):
+            for q in range(d.k1, act_max + 1):
+                v = K.cell(rr, d.kol(q)).value
+                if isinstance(v, (int, float)) and v:
+                    K.cell(rr, d.kol(q)).value = None
+                    naar = K.cell(rr, d.kol(act_max + 1))
+                    naar.value = (naar.value or 0) + v
+                    verschoven += v
+    if verschoven:
+        log.append('CF - kosten: %.0f gepland in kwartalen die volgens de SAP-export al zijn afgesloten (t/m Q%d %d) '
+                   'verschoven naar het eerste prognosekwartaal' % (verschoven, (act_max - 1) % 4 + 1, (act_max - 1) // 4))
     # ---- PEW: meest recente FD en toelichting ----------------------------------------------------------------
     pw_ = oz['pew']
     a, b = wf['2. Ontw PEW'], wb['2. Ontw PEW']
