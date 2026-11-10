@@ -88,6 +88,8 @@ Option Explicit
 '       CF - kosten (Voorstel = voorstelblok, VOORSTEL_RIJEN lager); het transport per type komt uit de regel
 '       'koopsom' (die volgt de transportregel); 1. Cashflow heet nu 'Cashflow'; tab CF kosten heet 'Scenario kosten';
 '       sjabloon v21 (v20 met vormnamen voor de datum op dia 1 en de kaarten van dia 10).
+'       Sjabloon v22 (tools/pptx_v22.py): palet van het werkboek, tekst minimaal 8 pt, dia 3 zonder scenario 1-3 en met de
+'       kans grondtermijn, nieuwe dia 4 'vorige <-> huidig <-> realisatie' (VR_TABEL), PEW_TABEL als echte tabel met PEW_TOP3.
 '       Daarna: Invoer, Woningtypes, Scenario kosten en de FO-cellen op het Dashboard zijn formules op de FO-tabbladen
 '       (tools/scenario_koppeling.py); OphalenUitFO blijft bestaan voor een los FO, maar heeft geen knop meer.
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
@@ -113,10 +115,10 @@ Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
 Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFIEK: kwartaalindex 1 jan eerste jaar (Model, t_first)
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
-Private Const CEL_SJABLOON As String = "D130"
-Private Const CEL_NAAM As String = "D131"
-Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v21.pptx"
-Private Const SJABLOON_VORIG As String = "Kwartaal_Template_cashflow_v20.pptx"   ' als v21 er niet staat
+Private Const CEL_SJABLOON As String = "D160"
+Private Const CEL_NAAM As String = "D161"
+Private Const SJABLOON_STANDAARD As String = "Kwartaal_Template_cashflow_v22.pptx"
+Private Const SJABLOON_VORIG As String = "Kwartaal_Template_cashflow_v21.pptx"   ' als v22 er niet staat
 Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat (start bouw per type en de kwartalen van de fee-termijnen) " & _
     "bewaren als vorige prognose (blok 4 en 6 op tab Woningtypes)?" & vbCrLf & vbCrLf & _
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
@@ -226,7 +228,9 @@ End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    Tabellen = Array(Array("SC_TABEL", "GP7", 9, 4, 0), Array("VT_TABEL", "GP18", MAX_TYPES + 1, 8, 1))
+    ' sinds v22: VR_TABEL (dia 4, vorige <-> huidig <-> realisatie) en PEW_TABEL (dia Update PEW) als echte tabellen
+    Tabellen = Array(Array("SC_TABEL", "GP7", 9, 4, 0), Array("VT_TABEL", "GP18", MAX_TYPES + 1, 8, 1), _
+                     Array("VR_TABEL", "ID7", 6, 4, 0), Array("PEW_TABEL", "II7", 8, 4, 0))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -375,14 +379,23 @@ Fout:
 End Sub
 
 Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
-    ' het hele overzicht van 2. Ontw PEW (met toelichting) als afbeelding in het lege vak PEW_TABEL op de dia Update PEW,
-    ' met daaronder de top 3 kosten van het reviewkwartaal (tab Start, blok 7)
+    ' sjabloon v22: de top 3 kosten van het reviewkwartaal (tab Start, blok 7) in PEW_TOP3 (de tabel vult Tabellen).
+    ' Oudere sjablonen: het overzicht van 2. Ontw PEW als afbeelding in het lege vak PEW_TABEL, met de top 3 eronder
     Dim vak As Object, dia As Object, sr As Object, pic As Object, tb As Object, wsS As Worksheet
     Dim marge As Single, hT3 As Single, ruimte As Single, tekst As String, r As Long, k As Long, v As Variant
     Set vak = ZoekVorm(pres, "PEW_TABEL")
     If vak Is Nothing Then Exit Sub
     Set dia = vak.Parent
     On Error GoTo Mis
+    ' sjabloon v22: PEW_TABEL is een echte tabel (gevuld door Tabellen); hier alleen de top 3 kosten in PEW_TOP3
+    If vak.HasTable Then
+        Set tb = ZoekVorm(pres, "PEW_TOP3")
+        If tb Is Nothing Then Exit Sub
+        tekst = Top3Tekst()
+        tb.TextFrame.TextRange.Text = tekst
+        If Len(tekst) > 0 Then tb.TextFrame.TextRange.Paragraphs(1).Font.Bold = True
+        Exit Sub
+    End If
     marge = 6
     hT3 = 58
     ThisWorkbook.Worksheets("2. Ontw PEW").Range("C4:K30").CopyPicture Appearance:=1, Format:=-4147
@@ -396,16 +409,8 @@ Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
     pic.Left = vak.Left + (vak.Width - pic.Width) / 2
     pic.Top = vak.Top + marge
     ' top 3 kosten
-    Set wsS = ThisWorkbook.Worksheets("Start")
-    r = CLng(Val(FOWerkbestand.WerkbestandCfg("top3_rij", "0")))
-    If r > 0 Then
-        tekst = "Top 3 kosten " & CStr(wsS.Range("E12").Value) & " (actuals)"
-        For k = 0 To 2
-            v = wsS.Cells(r + k, 4).Value
-            If Len(CStr(wsS.Cells(r + k, 3).Value)) > 0 And IsNumeric(v) Then
-                tekst = tekst & vbCr & (k + 1) & ". " & CStr(wsS.Cells(r + k, 3).Value) & ":  " & ChrW(8364) & " " & Format(v, "#,##0")
-            End If
-        Next k
+    tekst = Top3Tekst()
+    If Len(tekst) > 0 Then
         Set tb = dia.Shapes.AddTextbox(1, vak.Left + 2 * marge, vak.Top + vak.Height - hT3 - marge, vak.Width - 4 * marge, hT3)
         With tb.TextFrame.TextRange
             .Text = tekst
@@ -418,6 +423,22 @@ Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
 Mis:
     fouten = fouten & "- 2. Ontw PEW op de dia Update PEW: " & Err.Description & vbCrLf
 End Sub
+
+Private Function Top3Tekst() As String
+    ' top 3 kosten van het reviewkwartaal (tab Start, blok 7), een regel per kostensoort; leeg zonder top 3
+    Dim wsS As Worksheet, r As Long, k As Long, v As Variant, tekst As String
+    Set wsS = ThisWorkbook.Worksheets("Start")
+    r = CLng(Val(FOWerkbestand.WerkbestandCfg("top3_rij", "0")))
+    If r <= 0 Then Exit Function
+    tekst = "Top 3 kosten " & CStr(wsS.Range("E12").Value) & " (actuals)"
+    For k = 0 To 2
+        v = wsS.Cells(r + k, 4).Value
+        If Len(CStr(wsS.Cells(r + k, 3).Value)) > 0 And IsNumeric(v) Then
+            tekst = tekst & vbCr & (k + 1) & ". " & CStr(wsS.Cells(r + k, 3).Value) & ":  " & ChrW(8364) & " " & Format(v, "#,##0")
+        End If
+    Next k
+    Top3Tekst = tekst
+End Function
 
 Private Function AantalPeriodes() As Long
     AantalPeriodes = AantalRijen(CEL_N, MAX_RIJEN)
@@ -609,9 +630,9 @@ Private Function RichtingKleur(richting As String) As Long
         Case "daeb"
             RichtingKleur = RGB(122, 83, 0)
         Case "slechter", "onder norm"
-            RichtingKleur = RGB(192, 57, 47)
+            RichtingKleur = RGB(185, 28, 28)
         Case "beter", "op norm"
-            RichtingKleur = RGB(18, 134, 78)
+            RichtingKleur = RGB(21, 128, 61)
         Case Else
             RichtingKleur = RGB(122, 122, 122)
     End Select
@@ -1395,8 +1416,8 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
         ' rijlabels passend bij het aantal rijen (met DAEB-fees en kopregels zijn er meer): er staat hooguit één label per drie rijen
         letter = 7.5
         If n > 0 Then letter = 2.4 * ch.PlotArea.InsideHeight / n
-        If letter > 7.5 Then letter = 7.5
-        If letter < 5 Then letter = 5
+        If letter > 8 Then letter = 8
+        If letter < 7 Then letter = 7
         ch.Axes(1).TickLabels.Font.Size = letter
         On Error GoTo Mislukt
     End If

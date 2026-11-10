@@ -368,7 +368,7 @@ def maak_start(wb, demo, R):
         '2. Ontw PEW: meest recente FD en de toelichting invullen.',
         'Alle controles in blok 4 op OK.',
         'Bekijk Dashboard, Scenario\'s en CF vorig en huidig (vorige ↔ huidige prognose ↔ realisatie).',
-        'Klik PowerPoint maken en vul de kaarten van dia 10 (blok 6) aan.',
+        'Klik PowerPoint maken en vul de kaarten van de dia Update PEW (blok 6) aan.',
         'Na het FO: de correcties boeken in SAP en CF - hulp VENA inlezen in VENA.',
         'Bewaar het werkbestand; volgend kwartaal begin je weer bij stap 1.',
     ]
@@ -376,7 +376,7 @@ def maak_start(wb, demo, R):
         cell(ws, 'B%d' % (r + i), '%d.  %s' % (i, s))
         ws.merge_cells('B%d:H%d' % (r + i, r + i))
 
-    # 6 dia 10 --------------------------------------------------------------------------------------
+    # 6 dia Update PEW --------------------------------------------------------------------------------------
     r = r + len(stappen) + 2
     section(ws, r, '6 · DIA 10 · UPDATE PEW')
     for i, h in enumerate(['Kaart', 'Waarde', 'Toelichting']):

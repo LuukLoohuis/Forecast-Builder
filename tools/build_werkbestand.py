@@ -446,7 +446,7 @@ def main():
     ap.add_argument('--scenario', default=os.path.join(ROOT, 'input', 'Cashflow_scenario_leeg_3.xlsm'))
     ap.add_argument('--pptx', default=os.path.join(ROOT, 'input', 'Kwartaal_Template_cashflow_v20.pptx'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'output', 'FO_Parkzoom_werkbestand.xlsm'))
-    ap.add_argument('--pptx-out', default=os.path.join(ROOT, 'output', 'Kwartaal_Template_cashflow_v21.pptx'))
+    ap.add_argument('--pptx-out', default=os.path.join(ROOT, 'output', 'Kwartaal_Template_cashflow_v22.pptx'))
     ap.add_argument('--project', help='projectnaam (standaard uit de bestandsnaam van het FO)')
     ap.add_argument('--oud', help='het oude FO waaruit het standaard-FO is omgezet (voor de controle)')
     ap.add_argument('--demo', action='store_true', help='teksten van het demo-FO (dia 10)')
@@ -788,7 +788,22 @@ def main():
     for r in range(8, 400):
         if sh.get('F%d' % r) == 'KPI4_LABEL':
             sh.set_value('F%d' % r, None)
+    # instellingen (sjabloon, naam nieuwe presentatie) van rij 130-131 naar 160-161: de tekstregels lopen nu door tot
+    # voorbij rij 130 (de macro leest ze tot de eerste lege regel)
+    for r_oud, r_nieuw in ((130, 160), (131, 161)):
+        for c in 'CDE':
+            sh.set('%s%d' % (c, r_nieuw), sh.get('%s%d' % (c, r_oud)), sh.style_of('%s%d' % (c, r_oud)))
+            sh.set('%s%d' % (c, r_oud), None)
+    sh.set('E160', 'leeg = Kwartaal_Template_cashflow_v22.pptx (of v21) in dezelfde map als dit bestand')
+    powerpoint_v22(sh, style, 118 + len(rows))
     save('PowerPoint', sh)
+    # Model: typekleuren van de legenda's in het palet van sjabloon v22
+    sh = sheet('Model')
+    for r in (321, 323):
+        f = sh.get('BY%d' % r)
+        assert f and 'EDA100' in f, f
+        sh.set_formula('BY%d' % r, f.replace('EDA100', 'FEB900'))
+    save('Model', sh)
 
     for name, tot in (('FO - vorig', 1500), ('FO - huidig', 1500), ('FO - actuals', 6000)):
         sh = sheet(name)
@@ -939,13 +954,112 @@ def main():
                    'invoer_totaal': inv_tot, 'daeb_type': scenario_koppeling.DAEB_TYPE}, fh, indent=1, default=str)
     print('Klaar: ' + a.out)
 
-    # ---- PowerPoint-sjabloon v21: alleen vormnamen erbij -------------------------------------------------------
+    # ---- PowerPoint-sjabloon v22: v20 + vormnamen (v21) + strakker (pptx_v22) -----------------------------------
     maak_sjabloon(a.pptx, a.pptx_out)
     print('Klaar: ' + a.pptx_out)
 
 
+def powerpoint_v22(sh, style, r0):
+    """tab PowerPoint voor sjabloon v22: kansblok op dia 3, dia 4 'vorige ↔ huidig ↔ realisatie' (teksten en VR_TABEL),
+    PEW_TABEL en PEW_SUBTITEL op de dia Update PEW, geen scenariolijnen 1-3 in de cashflowgrafiek, accentkleuren"""
+    from openpyxl.utils import get_column_letter as L
+    D = 'Dashboard!'
+    W = lambda c, r: '%s$%s$%d' % (D, c, r)
+    P = lambda c, r: "'2. Ontw PEW'!$%s$%d" % (c, r)
+
+    def M(x, teken='−'):          # bedrag als tekst: −€850k / €3,4M; leeg = –
+        plus = '"+"' if teken == '+' else '""'
+        return ('IF(%s="","–",IF(%s<0,"−",%s)&"€"&IF(ABS(%s)<1000000,FIXED(ABS(%s)/1000,0)&"k",'
+                'FIXED(ABS(%s)/1000000,1)&"M"))' % (x, x, plus, x, x, x))
+    KW = '"Q"&(p_actuals-4*INT((p_actuals-1)/4))&" ’"&RIGHT(INT((p_actuals-1)/4),2)'
+    sap_ok = 'LEFT(%s&"",2)="OK"' % W('X', 100)
+    de, df = W('Y', 95), W('Y', 96)
+    pew_d = '(%s-%s)' % (P('G', 29), P('F', 29))
+    rows = [
+        (3, 'Blokje kans grondtermijn · label', 'KANS GRONDTERMIJN', '', 'CF_KANS_LABEL'),
+        (4, 'Kopje', 'VORIGE PROGNOSE ↔ HUIDIG ↔ REALISATIE', '', 'VR_KICKER'),
+        (4, 'Titel', '="Eindsaldo "&IF(%s="",%s,IF(ABS(%s)<50000,"gelijk aan de vorige prognose",IF(%s<0,"−","+")&"€"&'
+                     'FIXED(ABS(%s)/1000000,1)&" mln t.o.v. vorige prognose"))&IF(N(p_actuals)=0,""," · "&%s&'
+                     'IF(%s," sluit aan op SAP"," wijkt af van SAP"))' % (W('W', 95), M(W('X', 95)), de, de, de, KW, sap_ok),
+         '', 'VR_TITEL'),
+        (4, 'Ondertitel', 'Vorige prognose = de cashflow van vorig kwartaal · gerealiseerd = SAP-actuals van het laatst '
+                          'afgesloten kwartaal', '', 'VR_SUBTITEL'),
+        (4, 'Kaart 1 · label', 'EINDSALDO', '', 'VR_K1_LABEL'),
+        (4, 'Kaart 1', '=' + M(W('X', 95)), '', 'VR_K1_WAARDE'),
+        (4, '  verschil', '=IF(%s="","geen vorige prognose",IF(ABS(N(%s))<50000,"gelijk aan de vorige prognose",%s&'
+                          '" t.o.v. vorige prognose"))' % (W('W', 95), de, M(de, '+')),
+         '=IF(OR(%s="",ABS(N(%s))<50000),"",IF(%s<0,"slechter","beter"))' % (W('W', 95), de, de), 'VR_K1_SUB'),
+        (4, 'Kaart 2 · label', 'MAX. FINANCIERING', '', 'VR_K2_LABEL'),
+        (4, 'Kaart 2', '=' + M(W('X', 96)), '', 'VR_K2_WAARDE'),
+        (4, '  verschil', '=IF(%s="","geen vorige prognose",IF(ABS(N(%s))<50000,"gelijk aan de vorige prognose",%s&'
+                          'IF(%s>0," minder diep"," dieper")&" dan vorige prognose"))' % (W('W', 96), df, M('ABS(%s)' % df), df),
+         '=IF(OR(%s="",ABS(N(%s))<50000),"",IF(%s<0,"slechter","beter"))' % (W('W', 96), df, df), 'VR_K2_SUB'),
+        (4, 'Kaart 3 · label', '=IF(N(p_actuals)=0,"REALISATIE","REALISATIE "&UPPER(%s))' % KW, '', 'VR_K3_LABEL'),
+        (4, 'Kaart 3', '=IF(N(p_actuals)=0,"nog geen actuals",IF(%s,"sluit aan","wijkt af"))' % sap_ok,
+         '=IF(N(p_actuals)=0,"",IF(%s,"beter","slechter"))' % sap_ok, 'VR_K3_WAARDE'),
+        (4, '  toelichting', '=IF(N(p_actuals)=0,"",IF(%s,"afgesloten periodes = SAP-actuals",%s&""))' % (sap_ok, W('X', 100)),
+         '', 'VR_K3_SUB'),
+        (4, 'Toelichting', 'Details per kwartaal: tab CF vorig en huidig in het werkbestand.', '', 'VR_TOELICHTING'),
+        (4, 'Cijfers per (tab Start)', '=Start!$C$11', '', 'VR_DATUM'),
+        (11, 'Ondertitel', '="Resultaat "&IF(%s<0,"−","")&"€"&FIXED(ABS(%s)/1000,1)&" mln ("&FIXED(%s*100,1)&"%%) · "&'
+                           'IF(ABS(%s)<50,"gelijk aan vorig kwartaal",IF(%s>0,"+","−")&"€"&FIXED(ABS(%s)/1000,1)&'
+                           '" mln t.o.v. vorig kwartaal")' % (P('G', 29), P('G', 29), P('G', 30), pew_d, pew_d, pew_d),
+         '', 'PEW_SUBTITEL'),
+    ]
+    for i, (dia, onderdeel, f, richting, vorm) in enumerate(rows):
+        r = r0 + i
+        assert sh.cell('C%d' % r, create=False) is None or not len(sh.cell('C%d' % r))
+        sh.set_value('B%d' % r, dia, style['B'])
+        sh.set_value('C%d' % r, onderdeel, style['C'])
+        sh.set('D%d' % r, f, style['D'])
+        if richting:
+            sh.set('E%d' % r, richting, style['E'])
+        sh.set_value('F%d' % r, vorm, style['F'])
+    for r in range(8, r0):
+        vorm = sh.get('F%d' % r)
+        if vorm == 'CF_BE_WAARDE':          # dia 3: het vierde blok is de kans grondtermijn (break-even staat al op dia 2)
+            sh.set_value('C%d' % r, 'Blokje kans grondtermijn')
+            sh.set('D%d' % r, '=IF(AND(N(%s)=0,N(%s)=0),"geen kans ingesteld",IF(%s<0,"−","+")&"€"&FIXED(ABS(%s)/1000000,1)'
+                              '&"M eerder")' % (W('Z', 85), W('Z', 86), W('Z', 85), W('Z', 85)))
+            sh.set_value('F%d' % r, 'CF_KANS_WAARDE')
+        elif vorm in ('VP_STAT1_ACCENT', 'VP_STAT3_ACCENT'):
+            sh.set_value('D%d' % r, '003366')            # tekst (sh.set zou er een getal van maken)
+        elif vorm == 'VP_STAT2_ACCENT':
+            sh.set('D%d' % r, '=IF(Model!$BY$326=1,"FEB900","003366")')
+    # cashflowgrafiek (dia 3): geen scenariolijnen 1-3 (die staan op de scenariodia's); de gele lijn blijft
+    for c, n in (('HP', 1), ('HQ', 2), ('HR', 3)):
+        sh.set_value('%s7' % c, 'Scenario %d (uit)' % n)
+    # VR_TABEL (dia 4): ID7:IG12
+    vr = [['', 'Vorige prognose', 'Huidig / gerealiseerd', 'Verschil'],
+          ['Eindsaldo cashflow', '=' + M(W('W', 95)), '=' + M(W('X', 95)), '=' + M(de, '+')],
+          ['Laagste stand (max. financiering)', '=' + M(W('W', 96)), '=' + M(W('X', 96)), '=' + M(df, '+')]]
+    for lab, r in (('Kosten', 98), ('Omzet', 99)):
+        vr.append(['=IF(N(p_actuals)=0,"%s laatste kwartaal","%s "&%s)' % (lab, lab, KW), '=' + M(W('W', r)),
+                   '=' + M(W('X', r)), '=IF(OR(%s="",%s=""),"–",%s)' % (W('W', r), W('X', r),
+                                                                     M('(%s-%s)' % (W('X', r), W('W', r)), '+'))])
+    vr.append(['Afgesloten periodes = SAP', '', '=%s&""' % W('X', 100), ''])
+    # PEW_TABEL (dia Update PEW): II7:IL14, x € 1.000 zoals op 2. Ontw PEW
+    G = lambda x: '=FIXED(%s,0)' % x
+    GD = lambda x: '=IF(ROUND(%s,0)>0,"+","")&FIXED(%s,0)' % (x, x)
+    pew = [['x € 1.000', 'Vorig', 'Huidig', 'Δ']]
+    for rij in (7, 8):
+        pew.append(['=%s&""' % P('C', rij), G(P('F', rij)), G(P('G', rij)), GD('%s-%s' % (P('G', rij), P('F', rij)))])
+    ov = lambda c: '(%s-%s-%s)' % (P(c, 20), P(c, 7), P(c, 8))
+    pew.append(['Overige kosten', G(ov('F')), G(ov('G')), GD('%s-%s' % (ov('G'), ov('F')))])
+    for lab, rij in (('Totaal kosten', 20), ('Totaal opbrengsten', 27), ('Resultaat', 29)):
+        pew.append([lab, G(P('F', rij)), G(P('G', rij)), GD('%s-%s' % (P('G', rij), P('F', rij)))])
+    pew.append(['Resultaat %', '=FIXED(%s*100,1)&"%%"' % P('F', 30), '=FIXED(%s*100,1)&"%%"' % P('G', 30),
+                '=IF(ROUND((%s-%s)*100,1)>0,"+","")&FIXED((%s-%s)*100,1)&"%%"' % (P('G', 30), P('F', 30), P('G', 30), P('F', 30))])
+    for kol0, tabel, titel in ((238, vr, 'tabel dia 4 (VR_TABEL) · vorige ↔ huidig ↔ realisatie, uit Dashboard V93:Y100'),
+                               (243, pew, 'tabel dia Update PEW (PEW_TABEL) · uit 2. Ontw PEW, x € 1.000')):
+        sh.set_value('%s5' % L(kol0), titel, style['C'])
+        for i, rij in enumerate(tabel):
+            for j, v in enumerate(rij):
+                sh.set('%s%d' % (L(kol0 + j), 7 + i), v, style['D'] if str(v).startswith('=') else style['C'])
+
+
 def maak_sjabloon(src, out):
-    """v21 = v20 met namen voor de vormen die de macro nu ook vult (lay-out ongewijzigd)"""
+    """v22 = v20 met namen voor de vormen die de macro vult (v21), daarna strakker gemaakt (tools/pptx_v22.py)"""
     from pptx import Presentation
     p = Presentation(src)
     namen = []
@@ -960,6 +1074,8 @@ def maak_sjabloon(src, out):
     assert len(namen) == 9, [n for _, n in namen]
     for shp, nm in namen:
         shp.name = nm
+    import pptx_v22
+    pptx_v22.maak(p)
     p.save(out)
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ BUILD = os.path.join(ROOT, 'tools', 'build_werkbestand.py')
 
 def bouwen(std, out, extra):
     subprocess.run([sys.executable, BUILD, '--fo', std, '--out', out,
-                    '--pptx-out', os.path.join(ROOT, 'output', 'Kwartaal_Template_cashflow_v21.pptx')] + extra, check=True)
+                    '--pptx-out', os.path.join(ROOT, 'output', 'Kwartaal_Template_cashflow_v22.pptx')] + extra, check=True)
 
 
 def main():

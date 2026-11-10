@@ -37,7 +37,7 @@ import standaard_fo as S  # noqa: E402
 OUT = os.path.join(ROOT, 'output')
 SJABLOON = os.path.join(OUT, 'FO_werkbestand_sjabloon.xlsm')
 DEMO_WB = os.path.join(OUT, 'FO_Parkzoom_werkbestand.xlsm')
-PPTX = os.path.join(OUT, 'Kwartaal_Template_cashflow_v21.pptx')
+PPTX = os.path.join(OUT, 'Kwartaal_Template_cashflow_v22.pptx')
 uitslag = []
 
 
@@ -293,6 +293,25 @@ def t_pptx():
     mist = sorted(nodig - namen)
     ok('PowerPoint-sjabloon: alle vormen die de macro vult zijn er', not mist, '%d vormen' % len(nodig) +
        (', mist: %s' % ', '.join(mist[:8]) if mist else ''))
+    # v22: tabellen, palet en lettergrootte
+    tab = {sh.name: sh.has_table for sl in pres.slides for sh in sl.shapes if sh.name in ('VR_TABEL', 'PEW_TABEL', 'SC_TABEL')}
+    ok('PowerPoint-sjabloon: VR_TABEL, PEW_TABEL en SC_TABEL zijn tabellen', len(tab) == 3 and all(tab.values()), str(tab))
+    import pptx_v22
+    oud_palet, klein = set(), []
+    for i, sl in enumerate(pres.slides, 1):
+        for sh in sl.shapes:
+            delen = [sh._element] + ([sh.chart._chartSpace] if sh.has_chart else [])
+            for d in delen:
+                oud_palet |= {c.get('val').upper() for c in d.iter(pptx_v22.A + 'srgbClr')} & set(pptx_v22.PALET)
+                if sh.name.startswith('Slide Number') or sh.name == 'BT_GRAFIEK':
+                    continue
+                for tag in ('rPr', 'defRPr', 'endParaRPr'):
+                    klein += ['dia %d %s %s' % (i, sh.name, r.get('sz')) for r in d.iter(pptx_v22.A + tag)
+                              if r.get('sz') and int(r.get('sz')) < pptx_v22.MIN_SZ]
+    ok('PowerPoint-sjabloon: alleen kleuren uit het werkboekpalet', not oud_palet, ', '.join(sorted(oud_palet)))
+    ok('PowerPoint-sjabloon: geen tekst onder 8 pt', not klein, ', '.join(klein[:5]))
+    ok('PowerPoint-sjabloon: 11 dia\'s, dia 4 = vorige ↔ huidig ↔ realisatie', len(pres.slides) == 11 and
+       any(sh.name == 'VR_TABEL' for sh in pres.slides[3].shapes))
 
 
 def main():

@@ -1,6 +1,6 @@
 # Werkinstructie · kwartaal-FO met het FO-werkbestand
 
-Alles gebeurt in één bestand. Zet het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v21.pptx`) in dezelfde map.
+Alles gebeurt in één bestand. Zet het PowerPoint-sjabloon (`Kwartaal_Template_cashflow_v22.pptx`) in dezelfde map.
 
 Kleuren:
 - **geel** (met goudrand): zelf invullen;
@@ -47,7 +47,7 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
 6. **2. Ontw PEW:** meest recente FD en toelichting.
 7. **Start blok 4:** alle controles op OK.
 8. Bekijk **Dashboard**, **Scenario's** en **CF vorig en huidig** (vorige ↔ huidige prognose ↔ realisatie).
-9. **PowerPoint maken** en de kaarten van dia 10 (Start blok 6) aanvullen.
+9. **PowerPoint maken** en de kaarten van de dia Update PEW (Start blok 6) aanvullen. Dia 4 toont vorige prognose ↔ huidig ↔ realisatie.
 10. **Na het FO:** correcties boeken in SAP en `CF - hulp VENA` inlezen in VENA.
 11. Bewaar het werkbestand; volgend kwartaal begin je weer bij stap 1.
 

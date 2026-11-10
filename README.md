@@ -8,7 +8,7 @@ en de PowerPoint komt uit hetzelfde bestand.
 |---|---|
 | `output/FO_werkbestand_sjabloon.xlsm` | het lege sjabloon: begin hier voor elk project |
 | `output/FO_Parkzoom_werkbestand.xlsm` | voorbeeld: het fictieve demo-FO omgezet |
-| `output/Kwartaal_Template_cashflow_v21.pptx` | PowerPoint-sjabloon (lay-out van v20, met namen voor de vormen die gevuld worden) |
+| `output/Kwartaal_Template_cashflow_v22.pptx` | PowerPoint-sjabloon: 11 dia's in het palet van het werkboek (gemaakt door `tools/pptx_v22.py` uit v20) |
 | `docs/werkinstructie.md` | kwartaal-FO in stappen |
 | `input/` | demo-FO, scenariomodel, PowerPoint v20 |
 | `vba/` | broncode van de macro's |
@@ -18,7 +18,7 @@ en de PowerPoint komt uit hetzelfde bestand.
 
 | Tabblad | Wat je doet / wat erop staat |
 |---|---|
-| `Start` | project, oplevering, knoppen, status van de invoer, alle controles, teksten voor dia 10 |
+| `Start` | project, oplevering, knoppen, status van de invoer, alle controles, teksten voor de dia Update PEW |
 | `FO - vorig`, `FO - huidig`, `FO - actuals`, `Prijslijst dump` | exports plakken of inlezen (SAP FO-overzicht van vorige en huidige periode, SAP actuals, Salesforce) |
 | `Prijslijst` | dashboard (zie hieronder): kaarten, woningtypes, grafieken, te boeken in SAP, aansluiting per type met het termijnschema, en onderaan de prijslijst per bouwnummer |
 | `CF - opbrengsten` | per woningtype: planning bouwtermijnen, verkoop en transport in aantallen (verkooptempo en tabel Transport), grondprijsaanpassing; kadastrale kosten en rente (handmatig); overige opbrengsten, correctie, DAEB |
@@ -129,8 +129,20 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
 
 ## PowerPoint
 
-- Op de dia "Update PEW" komt in het lege vak (`PEW_TABEL` in sjabloon v21) het overzicht van `2. Ontw PEW` als afbeelding: kosten, opbrengsten en resultaat, met de toelichting.
-- Daaronder staat de **top 3 kosten** van het reviewkwartaal.
+Sjabloon v22 (zelfde opbouw als v21, strakker):
+- **palet** van het werkboek: navy `003366`, geel `FEB900`, groen `15803D`, rood `B91C1C`; rustige scenariokleuren;
+- **leesbaarheid:** geen tekst onder 8 pt (alleen het dianummer en de tijdas van de bouwtermijnen, die de macro schaalt);
+- **dia 3 (cashflow):** zonder de lijnen van scenario 1–3 (die staan op de scenariodia's); het vierde blok is de
+  **kans grondtermijn** (extra eerder ontvangen, of "geen kans ingesteld");
+- **dia 4 (nieuw): vorige prognose ↔ huidig ↔ realisatie.** Titel met de conclusie, een tabel (`VR_TABEL`, uit
+  Dashboard V93:Y100: eindsaldo, laagste stand, kosten en omzet van het laatst afgesloten kwartaal, aansluiting SAP) en
+  drie kaarten (eindsaldo, max. financiering, realisatie);
+- **dia Update PEW (11):** een echte tabel (`PEW_TABEL`: grond, aanneemsom, overige kosten, totalen, resultaat en %,
+  vorig ↔ huidig ↔ Δ), met daaronder de **top 3 kosten** van het reviewkwartaal (`PEW_TOP3`) en een ondertitel met het
+  resultaat t.o.v. vorig kwartaal.
+
+De teksten en tabellen staan op het verborgen tabblad `PowerPoint` (tekstregels vanaf rij 8, blokken ID7 en II7). Staat
+v22 niet in de map, dan neemt de macro v21.
 
 ## Top 3 kosten
 
