@@ -24,6 +24,7 @@ A = '{%s}' % NS['a']
 PALET = {'002060': '003366', 'F2B800': 'FEB900', 'EDA100': 'FEB900', '12864E': '15803D', '2F9E63': '15803D',
          '5A8F3D': '15803D', 'C0392F': 'B91C1C', 'F08A00': '003366',
          '7B2FBE': '2563EB', 'E0218A': 'B45309', '00897B': '0F766E'}
+TEKST_GEEL = 'B45309'                       # gele tekst (EDA100/F2B800) in Excel: donker amber, geel op wit is onleesbaar
 MIN_SZ = 800                                    # 8 pt
 NAVY, GRIJS, LIJN = '003366', '4B5563', 'E4E5E6'
 

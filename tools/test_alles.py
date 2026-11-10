@@ -264,6 +264,22 @@ def t_scenarios(doc):
     bereken()
 
 
+def t_palet_werkbestand():
+    """het werkbestand heeft hetzelfde palet als het PowerPoint-sjabloon (geen oude kleuren in grafieken en opmaak)"""
+    import zipfile
+    import pptx_v22
+    oud = {}
+    with zipfile.ZipFile(SJABLOON) as z:
+        for n in z.namelist():
+            if n.endswith('.xml') and n.startswith(('xl/charts/', 'xl/drawings/', 'xl/styles', 'xl/worksheets/sheet')):
+                s = z.read(n).decode('utf-8', 'ignore').upper()
+                for k in pptx_v22.PALET:
+                    if re.search(r'(VAL|RGB)="(FF)?%s"' % k, s):
+                        oud.setdefault(k, set()).add(n.split('/')[1])
+    ok('werkbestand: zelfde palet als de slides (geen oude kleuren)', not oud,
+       ', '.join('%s in %s' % (k, '/'.join(sorted(v))) for k, v in sorted(oud.items())))
+
+
 def t_pptx():
     from pptx import Presentation
     namen = set()
@@ -331,6 +347,7 @@ def main():
     t_kringen()
     print('== 6 PowerPoint-sjabloon')
     t_pptx()
+    t_palet_werkbestand()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')
     lo = LO()
     try:

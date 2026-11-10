@@ -142,6 +142,41 @@ def vba_constanten():
     return '\r\n'.join(regels)
 
 
+def palet_werkbestand(dst):
+    """het werkbestand in hetzelfde palet als het PowerPoint-sjabloon v22 (pptx_v22.PALET): grafieken, tekeningen,
+    stijlen en de voorwaardelijke opmaak in de werkbladen. Gele tekst wordt donker amber (geel op wit is onleesbaar);
+    gele vullingen en reeksen worden het Heijmans-geel. Rekent niets anders."""
+    import pptx_v22
+    pal = pptx_v22.PALET
+    geel = {'EDA100', 'F2B800'}
+    srgb = re.compile(r'(<a:srgbClr val=")([0-9A-Fa-f]{6})(")')
+    rgb = re.compile(r'(rgb=")(FF)?([0-9A-Fa-f]{6})(")')
+    font = re.compile(r'<(?:\w+:)?font\b[^>]*?(?<!/)>.*?</(?:\w+:)?font>', re.S)
+    n = 0
+
+    def kleur(m, tekst=False):
+        nonlocal n
+        v = m.group(len(m.groups()) - 1).upper()
+        if v not in pal:
+            return m.group(0)
+        n += 1
+        nieuw = pptx_v22.TEKST_GEEL if tekst and v in geel else pal[v]
+        if len(m.groups()) == 4:
+            return m.group(1) + (m.group(2) or '') + nieuw + m.group(4)
+        return m.group(1) + nieuw + m.group(3)
+    for naam in list(dst.parts):
+        if not naam.endswith('.xml'):
+            continue
+        if naam.startswith(('xl/charts/', 'xl/drawings/')) and b'srgbClr' in dst.parts[naam]:
+            s = dst.parts[naam].decode('utf-8')
+            dst.parts[naam] = srgb.sub(kleur, s).encode('utf-8')
+        elif naam == 'xl/styles.xml' or naam.startswith('xl/worksheets/sheet'):
+            s = dst.parts[naam].decode('utf-8')
+            s = font.sub(lambda f: rgb.sub(lambda m: kleur(m, True), f.group(0)), s)
+            dst.parts[naam] = rgb.sub(kleur, s).encode('utf-8')
+    return n
+
+
 def harmoniseer_stijlen(t):
     """één vormgeving in het hele bestand: koppen donkerblauw met witte tekst (ook de gele koppen uit het oude FO en het
     scenariomodel), invoer overal hetzelfde geel met een dunne goudrand, totalen lichtblauw"""
@@ -946,6 +981,7 @@ def main():
     os.remove(tmpl)
     note('%d modules' % len(modules))
 
+    note('Palet (zoals sjabloon v22): %d kleuren omgezet' % palet_werkbestand(dst))
     dst.save(a.out)
     os.remove(fo_tmp)
     import json
