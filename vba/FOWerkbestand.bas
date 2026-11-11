@@ -1382,6 +1382,39 @@ Private Sub PewOmzetten(ByVal wbO As Workbook, ByRef lg As String)
             If toel > 0 Then wN.Cells(r, 11).Value = wO.Cells(r, toel).Value
         End If
     Next r
+    ' 2B. Ontw PEW (gemengd project): A = concept SKO DAEB, B = concept SKO niet-DAEB en de toelichting, per post
+    Dim wB As Worksheet, wB2 As Worksheet, ka As Long, kb As Long, kt As Long, kr As Long, lab As String, rr As Long, n2 As Long, t As String
+    Set wB = ZoekBlad(wbO, "2B. Ontw PEW")
+    If wB Is Nothing Then Exit Sub
+    Set wB2 = ThisWorkbook.Worksheets("2B. Ontw PEW")
+    For r = 1 To 11
+        For c = 3 To 19
+            t = LCase$(Tk(wB.Cells(r, c).Value))
+            If InStr(t, "niet-daeb") > 0 Or InStr(t, "niet daeb") > 0 Then
+                kb = c: kr = r
+            ElseIf InStr(t, "daeb") > 0 And InStr(t, "sko") > 0 Then
+                ka = c: kr = r
+            ElseIf t = "toelichting" Then
+                kt = c
+            End If
+        Next c
+    Next r
+    If ka = 0 Or kb = 0 Then Exit Sub
+    For r = kr + 1 To kr + 29
+        lab = LCase$(Tk(wB.Cells(r, 3).Value))
+        If Len(lab) > 0 And Left$(lab, 6) <> "totaal" And Left$(lab, 9) <> "resultaat" And Left$(lab, 5) <> "check" Then
+            For rr = 6 To 28
+                If LCase$(Tk(wB2.Cells(rr, 3).Value)) = lab Then
+                    If IsGetalW(wB.Cells(r, ka).Value) Then wB2.Cells(rr, 6).Value = wB.Cells(r, ka).Value
+                    If IsGetalW(wB.Cells(r, kb).Value) Then wB2.Cells(rr, 7).Value = wB.Cells(r, kb).Value
+                    If kt > 0 Then wB2.Cells(rr, 14).Value = wB.Cells(r, kt).Value
+                    n2 = n2 + 1
+                    Exit For
+                End If
+            Next rr
+        End If
+    Next r
+    lg = lg & "- 2B. Ontw PEW: A (DAEB) en B (niet-DAEB) overgenomen voor " & n2 & " posten" & vbCrLf
 End Sub
 
 Public Sub WeergaveBijwerken()
@@ -1389,6 +1422,13 @@ Public Sub WeergaveBijwerken()
     ' (tab Start) als ingeklapte kolomgroep (met + weer open te klappen)
     Dim wsO As Worksheet, wsK As Worksheet, ws As Variant, k As Long, leeg As Boolean, r1 As Long, n As Long, i As Long
     Dim k1 As Long, ka As Long
+    ' 2B. Ontw PEW (DAEB / niet-DAEB): zichtbaar bij een project met DAEB-woningen of als A of B is ingevuld
+    On Error Resume Next
+    With ThisWorkbook.Worksheets("2B. Ontw PEW")
+        .Visible = IIf(Nk(ThisWorkbook.Worksheets("Model").Range("BY135").Value) > 0 Or _
+                       Application.WorksheetFunction.Count(.Range("F7:G26")) > 0, -1, 0)
+    End With
+    On Error GoTo 0
     Set wsO = ThisWorkbook.Worksheets("CF - opbrengsten")
     Set wsK = ThisWorkbook.Worksheets("CF - kosten")
     For k = 1 To NT

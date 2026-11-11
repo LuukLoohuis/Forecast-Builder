@@ -538,6 +538,76 @@ def maak_pew(wb, inhoud, pw):
     return extra
 
 
+def maak_pew_b(wb, pw, inhoud=None):
+    """'2B. Ontw PEW' voor gemengde projecten: het PEW gesplitst in A (concept SKO DAEB) en B (concept SKO niet-DAEB),
+    naast A+B vorig en huidig van '2. Ontw PEW'. Zelfde rijen als '2. Ontw PEW'. Kolommen: E meest recente FD, F A, G B,
+    H A+B vorig, I A+B huidig, J delta vs vorig, K delta vs FD, L controle A+B = huidig, N toelichting."""
+    ws = wb.create_sheet('2B. Ontw PEW')
+    ws.sheet_view.showGridLines = False
+    ws.sheet_properties.tabColor = '003366'
+    P = "'2. Ontw PEW'!"
+    kop, r1 = pw['kop'], pw['eerste']
+    tk, to = pw['kosten_totaal'], pw['opbrengsten_totaal']
+    rk = list(range(r1, tk - 1))
+    ro = list(range(pw['opbrengsten'], to - 1))
+    res, pct = pw['resultaat'], pw['resultaat_pct']
+    for k, v in {'A': 2, 'B': 2, 'C': 34, 'D': 2, 'E': 13, 'F': 13, 'G': 13, 'H': 13, 'I': 13, 'J': 13, 'K': 13, 'L': 11,
+                 'M': 2, 'N': 58}.items():
+        ws.column_dimensions[k].width = v
+    cell(ws, 'B2', 'Ontwikkeling PEW · DAEB en niet-DAEB', F_TITLE)
+    cell(ws, 'B3', 'x € 1.000 · alleen voor gemengde projecten: vul A (concept SKO DAEB) en B (concept SKO niet-DAEB) in; '
+                   'A+B vorig en huidig komen van 2. Ontw PEW · de dia Update PEW toont dit overzicht zodra A of B is ingevuld', F_NOTE)
+    cell(ws, 'C%d' % (kop - 1), 'Financieel Overzicht (x 1000)', F_HELP)
+    for c in 'EFGHIJK':
+        cell(ws, '%s%d' % (c, kop - 1), None, F_HEAD, FILL_SECTION, None, Alignment(horizontal='center'))
+    cell(ws, 'E%d' % (kop - 1), 'Ontwikkeling PEW', F_SECTION, FILL_SECTION)
+    for c, t in (('F', 'A'), ('G', 'B'), ('H', 'A+B'), ('I', 'A+B')):
+        cell(ws, '%s%d' % (c, kop - 1), t, F_HEAD, FILL_SECTION, None, Alignment(horizontal='center'))
+    cell(ws, 'N%d' % (kop - 1), 'Toelichting', F_SECTION, FILL_SECTION)
+    koppen = {'C': None, 'E': 'Meest recente FD', 'F': 'Concept SKO DAEB', 'G': 'Concept SKO Niet-DAEB', 'H': 'Vorig', 'I': 'Huidig',
+              'J': 'Delta huidig vs vorig', 'K': 'Delta huidig vs FD', 'N': None}
+    for c, t in koppen.items():
+        cell(ws, '%s%d' % (c, kop), t, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', vertical='center', wrap_text=True))
+    cell(ws, 'L%d' % kop, 'A+B − huidig', F_HELP, None, None, Alignment(horizontal='center', vertical='center', wrap_text=True))
+    ws.row_dimensions[kop].height = 30
+    for ref, t in (('C%d' % (r1 - 1), 'KOSTEN'), ('C%d' % (ro[0] - 1), 'OPBRENGSTEN')):
+        cell(ws, ref, t, Font(name='Heijmans-BoldCon', size=10, color=Color(theme=6)))
+    bron = {'E': pw['fd'], 'H': pw['vorig'], 'I': pw['huidig']}
+    labels = {r: str(wb['2. Ontw PEW']['C%d' % r].value or '') for r in rk + ro}       # posten zoals op 2. Ontw PEW
+    for r in rk + ro:
+        cell(ws, 'C%d' % r, '=%sC%d&""' % (P, r), F_BASE, None, None, None, B_BOTTOM)
+        for c in 'EHI':
+            cell(ws, '%s%d' % (c, r), '=N(%s%s%d)' % (P, bron[c], r), F_BOLD if c == 'I' else F_BASE, None, NUM_PEW, None, B_BOTTOM)
+        ab = (inhoud or {}).get(labels.get(r, '').strip().lower(), (None, None, None))
+        for c, v in zip('FG', ab[:2]):
+            cell(ws, '%s%d' % (c, r), v, F_BASE, FILL_INPUT, NUM_PEW, None, B_BOTTOM)
+        cell(ws, 'J%d' % r, '=H%d-I%d' % (r, r), F_BASE, FILL_CALC, NUM_PEW, None, B_BOTTOM)
+        cell(ws, 'K%d' % r, '=E%d-I%d' % (r, r), F_BASE, FILL_CALC, NUM_PEW, None, B_BOTTOM)
+        cell(ws, 'L%d' % r, '=IF(AND(F%d="",G%d=""),"",ROUND(N(F%d)+N(G%d)-I%d,0))' % (r, r, r, r, r), F_HELP, None,
+             '#,##0;-#,##0;"OK"', Alignment(horizontal='center'))
+        cell(ws, 'N%d' % r, ab[2], F_NOTE, FILL_INPUT, None, Alignment(wrap_text=True, vertical='top'), B_BOTTOM)
+    for r, rr in ((tk, rk), (to, ro)):
+        cell(ws, 'C%d' % r, '=%sC%d&""' % (P, r), F_BOLD, FILL_TOTAL)
+        for c in 'EFGHIJK':
+            cell(ws, '%s%d' % (c, r), '=SUM(%s%d:%s%d)' % (c, rr[0], c, rr[-1]), F_BOLD, FILL_TOTAL, NUM_PEW)
+        cell(ws, 'N%d' % r, None, F_NOTE, FILL_TOTAL)
+    groot = Font(name='Heijmans-BoldCon', size=11, color=Color(theme=6))
+    cell(ws, 'C%d' % res, 'RESULTAAT', groot)
+    cell(ws, 'C%d' % pct, 'RESULTAAT %', groot)
+    for c in 'EFGHI':
+        cell(ws, '%s%d' % (c, res), '=%s%d-%s%d' % (c, to, c, tk), groot, None, NUM_PEW)
+        cell(ws, '%s%d' % (c, pct), '=IFERROR(%s%d/%s%d,0)' % (c, res, c, to), groot, None, '0.0%')
+    cell(ws, 'C%d' % (pct + 2), '=IF(COUNT(F%d:G%d)=0,"A en B zijn nog niet ingevuld",IF(SUMPRODUCT(--(ABS(N(+L%d:L%d))>0.5))=0,'
+                                '"Controle A + B = huidig: OK","LET OP: A + B wijkt af van huidig (kolom L)"))' % (r1, to, r1, to), F_HELP)
+    groen, rood = Font(color='FF15803D', bold=True), Font(color='FFB91C1C', bold=True)
+    ws.conditional_formatting.add('J%d:K%d' % (r1, tk), CellIsRule(operator='greaterThan', formula=['0.5'], font=groen))
+    ws.conditional_formatting.add('J%d:K%d' % (r1, tk), CellIsRule(operator='lessThan', formula=['-0.5'], font=rood))
+    ws.conditional_formatting.add('J%d:K%d' % (ro[0], to), CellIsRule(operator='lessThan', formula=['-0.5'], font=groen))
+    ws.conditional_formatting.add('J%d:K%d' % (ro[0], to), CellIsRule(operator='greaterThan', formula=['0.5'], font=rood))
+    ws.conditional_formatting.add('L%d:L%d' % (r1, to), CellIsRule(operator='notBetween', formula=['-0.5', '0.5'], font=rood))
+    ws.freeze_panes = 'D%d' % (kop + 1)
+
+
 # ================================================================================================
 #  Vorige prognose en Controle oud FO
 # ================================================================================================
@@ -742,12 +812,13 @@ def maak_sjabloon(wb):
     return ws
 
 
-def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud, oz, inv_tot, daeb_type):
+def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud, oz, inv_tot, daeb_type, pew_b=None):
     wb = Workbook()
     wb.remove(wb.active)
     R = verwijzingen(oz, inv_tot, daeb_type)
     info = maak_start(wb, demo, R)
     info['pew_extra'] = maak_pew(wb, pew_inhoud, oz['pew'])
+    maak_pew_b(wb, oz['pew'], pew_b)
     maak_vorige_prognose(wb, oud_cashflow, 'uit ' + oud_bestand)
     maak_controle(wb, oud_cashflow, oud_bestand, R['inv_laatste'])
     info['stijlen'] = maak_stijlen(wb)

@@ -320,13 +320,18 @@ def t_bereik_en_totaal():
     som = sum(x for x in tot if isinstance(x, (int, float)))
     ok('verkoop en transport: totaalrij = alle woningen per type', pp['ER8'].value == 'Totaal' and som == m['BY39'].value > 0
        and m['BY339'].value == m['BY132'].value + 1, 'totaal %s' % som)
-    # het PEW-blok voor de dia = 2. Ontw PEW; de Dashboard-grafieken verkoop/transport lezen het blok met de totaalrij
-    pw = wb['2. Ontw PEW']
-    blok = [[pp.cell(7 + i, ci('II') + j).value for j in range(7)] for i in range(23)]
-    getal = lambda t: float(str(t).replace('−', '-').replace(',', '').replace('.', '')) if t not in (None, '', '–') else 0.0
-    ok('PEW-blok voor de dia: posten en totalen gelijk aan 2. Ontw PEW', blok[2][0] == pw['C7'].value and blok[14][0] == pw['C20'].value
-       and abs(getal(blok[14][3]) - round(pw['G20'].value)) < 1 and abs(getal(blok[20][3]) - round(pw['G27'].value)) < 1,
-       '%s | %s' % (blok[14], blok[20]))
+    # tijdassen: bouwtermijnen t/m het jaar van de laatste termijn; verkoop/transport t/m Q4 van het laatste transport
+    laatste = max([x for x in (m.cell(r, ci('GK')).value for r in range(8, 141)) if isinstance(x, (int, float)) and x < 99999] or [0])
+    ok('bouwtermijnen: de tijdas stopt aan het eind van het jaar van de laatste termijn', laatste > 0
+       and m['BY99'].value == ((laatste - 1) // 4 + 1) * 4 + 1, 'laatste termijn %s, as tot %s' % (laatste, m['BY99'].value))
+    vp = [pp.cell(r, ci('ER')).value for r in range(9, 69)]
+    vp = [x for x in vp if x not in (None, '')]
+    ok('verkoop en transport: de as stopt in Q4 van het jaar van het laatste transport', vp and str(vp[-1]).startswith('Q4')
+       and m['BY340'].value <= m['BY132'].value, '%d kwartalen, laatste %s' % (len(vp), vp[-1] if vp else ''))
+    # 2B. Ontw PEW: A+B vorig/huidig = 2. Ontw PEW
+    pw, pb = wb['2. Ontw PEW'], wb['2B. Ontw PEW']
+    ok('2B. Ontw PEW: vorig, huidig en FD gelijk aan 2. Ontw PEW', all(abs((pb['%s20' % a].value or 0) - (pw['%s20' % b].value or 0)) < 0.01
+       for a, b in (('E', 'E'), ('H', 'F'), ('I', 'G'))) and abs(pb['I20'].value) > 0, '%s' % pb['I20'].value)
     import zipfile
     with zipfile.ZipFile(SJABLOON) as z:
         wbx = z.read('xl/workbook.xml').decode('utf-8')
@@ -443,10 +448,9 @@ def t_pptx():
     ok('PowerPoint-sjabloon: alle vormen die de macro vult zijn er', not mist, '%d vormen' % len(nodig) +
        (', mist: %s' % ', '.join(mist[:8]) if mist else ''))
     # v22: tabellen, palet en lettergrootte
-    tab = {sh.name: sh for sl in pres.slides for sh in sl.shapes if sh.name in ('PEW_TABEL', 'SC_TABEL')}
-    pew = tab.get('PEW_TABEL')
-    ok('PowerPoint-sjabloon: SC_TABEL is een tabel en PEW_TABEL het volledige overzicht (23 x 7)',
-       len(tab) == 2 and all(t.has_table for t in tab.values()) and len(pew.table.rows) == 23 and len(pew.table.columns) == 7)
+    ok('PowerPoint-sjabloon: SC_TABEL is een tabel; de dia Update PEW heeft het vak PEW_BEELD (geen tabel)',
+       any(sh.name == 'SC_TABEL' and sh.has_table for sl in pres.slides for sh in sl.shapes) and 'PEW_BEELD' in namen
+       and 'PEW_TOP3' in namen and 'PEW_TABEL' not in namen)
     import pptx_v22
     oud_palet, klein = set(), []
     for i, sl in enumerate(pres.slides, 1):

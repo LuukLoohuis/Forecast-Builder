@@ -398,6 +398,33 @@ def omzetten(oud, uit, project=None):
     # aantal woningen per type als waarde voor de bouw (de cel zelf is een formule zonder berekende waarde)
     h = wb.create_sheet('_omzetting')
     h.sheet_state = 'hidden'
+    # 2B. Ontw PEW (gemengd project): A = concept SKO DAEB, B = concept SKO niet-DAEB en de toelichting, per post
+    # (kolom D:G van _omzetting; de bouw zet ze op het nieuwe tabblad 2B. Ontw PEW)
+    if '2B. Ontw PEW' in wv.sheetnames:
+        bv = wv['2B. Ontw PEW']
+        ka = kb_ = kt = kr = None
+        for r in range(1, 12):
+            for c in range(3, 20):
+                t = _t(bv.cell(r, c).value).lower()
+                if 'niet-daeb' in t or 'niet daeb' in t:
+                    kb_, kr = c, r
+                elif 'daeb' in t and 'sko' in t:
+                    ka, kr = c, r
+                elif t == 'toelichting':
+                    kt = c
+        n2 = 0
+        if ka and kb_:
+            for r in range(kr + 1, kr + 30):
+                lab = _t(bv.cell(r, 3).value)
+                if not lab or lab.lower().startswith(('totaal', 'resultaat', 'check')):
+                    continue
+                va, vb = bv.cell(r, ka).value, bv.cell(r, kb_).value
+                n2 += 1
+                h.cell(n2, 4).value = lab
+                h.cell(n2, 5).value = va if isinstance(va, (int, float)) else None
+                h.cell(n2, 6).value = vb if isinstance(vb, (int, float)) else None
+                h.cell(n2, 7).value = bv.cell(r, kt).value if kt else None
+            log.append('2B. Ontw PEW: A (DAEB) en B (niet-DAEB) overgenomen voor %d posten' % n2)
     for t in ob['types']:
         h.cell(t['k'], 1).value = t['k']
         h.cell(t['k'], 2).value = t['won']

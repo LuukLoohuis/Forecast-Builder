@@ -46,7 +46,7 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
 5. **CF - kosten:**
    - per type de bouwtermijnen kosten (standaard gelijk aan de opbrengsten);
    - per post *Handmatig*, *Voorstel* (wat nog over is, gelijk verdeeld t/m oplevering) of *Transport* (naar rato van het transport), tot "Nog te verdelen" 0 is.
-6. **2. Ontw PEW:** meest recente FD en toelichting.
+6. **2. Ontw PEW:** meest recente FD en toelichting. Gemengd project (DAEB): vul op **2B. Ontw PEW** kolom A (concept SKO DAEB) en B (niet-DAEB) in; de controle onderaan moet OK zijn.
 7. **Start blok 4:** alle controles op OK.
 8. Bekijk **Dashboard**, **Scenario's** en **CF vorig en huidig** (vorige ↔ huidige prognose ↔ realisatie). Met "Grafiek vanaf / t/m" op het Dashboard kies je de periode van de grafieken; die geldt ook voor de PowerPoint.
 9. Vul op Start blok 6 de meest recente FD en de PEW-basis in (die komen in de ondertitel van de dia Update PEW) en klik **PowerPoint maken**.

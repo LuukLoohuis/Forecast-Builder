@@ -6,8 +6,8 @@
   bouwtermijnengrafiek, die de macro zelf schaalt);
 - dia 3: het vierde cijferblok wordt de kans grondtermijn (CF_KANS_LABEL / CF_KANS_WAARDE);
 - de dia 'Van verkoop naar omzet' vervalt (9 dia's);
-- dia Update PEW: PEW_TABEL is een echte tabel met het volledige overzicht van 2. Ontw PEW (alle posten, FD, vorig, huidig,
-  twee delta's, toelichting) over de hele breedte; PEW_TOP3 in één regel eronder; FD en basis in PEW_SUBTITEL.
+- dia Update PEW: een leeg vak PEW_BEELD over de hele breedte; de macro plakt er het overzicht van 2. Ontw PEW (bij DAEB
+  2B. Ontw PEW) als afbeelding in; PEW_TOP3 in één regel eronder; FD en basis in PEW_SUBTITEL.
 
 Gebruik: maak(presentation) na het hernoemen naar v21 (build_werkbestand.maak_sjabloon)."""
 import copy
@@ -32,20 +32,6 @@ PALET = {'002060': '003366', 'F2B800': 'FEB900', 'EDA100': 'FEB900', '12864E': '
 TEKST_GEEL = 'B45309'                       # gele tekst (EDA100/F2B800) in Excel: donker amber, geel op wit is onleesbaar
 MIN_SZ = 800                                    # 8 pt
 NAVY, GRIJS, LIJN = '003366', '4B5563', 'E4E5E6'
-
-# dia Update PEW: het volledige overzicht van tab 2. Ontw PEW (23 rijen x 7 kolommen, x € 1.000)
-PEW_KOLOMMEN = [5.2, 2.0, 2.0, 2.0, 1.8, 1.8, 7.3]
-PEW_RIJEN = ([None] + list(range(7, 19)) + [20, None] + list(range(22, 26)) + [27, 29, 30])   # rij op 2. Ontw PEW; None = kopje
-_K = ['Grondkosten', 'Aanneemsom', 'Kopersmeerwerk', 'Overige bouwkosten / meerwerken', 'Honoraria', 'Promotiekosten',
-      'Verhuur & verkoopkosten', 'Aansluitkosten', 'Legeskosten', 'Rente / Subsidies / bankgarantie',
-      'Commerciele / Operationele reserve', 'Direct doorbelaste projectkosten']
-PEW_VOORBEELD = ([['x € 1.000', 'Recente FD', 'Vorig', 'Huidig', 'Δ vorig', 'Δ FD', 'Toelichting'],
-                  ['KOSTEN', '', '', '', '', '', '']]
-                 + [[n, '6.261', '6.261', '6.261', '–', '–', 'Toelichting bij deze post' if i < 2 else ''] for i, n in enumerate(_K)]
-                 + [['Totaal kosten', '27.667', '27.667', '28.011', '−345', '−345', ''], ['OPBRENGSTEN', '', '', '', '', '', '']]
-                 + [[n, '30.846', '33.324', '33.481', '−157', '−2.635', ''] for n in ('Opbrengsten', 'Korting', 'Meer-/Minderwerk', 'Kopersrente')]
-                 + [['Totaal opbrengsten', '30.846', '33.324', '33.667', '−344', '−2.821', ''],
-                    ['Resultaat', '3.179', '5.657', '5.656', '', '', ''], ['Resultaat %', '10,3%', '17,0%', '16,8%', '', '', '']])
 
 
 def cm(x):
@@ -251,8 +237,12 @@ def dia_pew(p, sc_tabel):
                  'PEW_BASIS_WAARDE', 'PEW_BASIS_SUB', 'Shape 15', 'Shape 16', 'Text 17', 'PEW_RES_WAARDE', 'PEW_RES_SUB'):
         s.shapes._spTree.remove(vorm(s, naam)._element)
     vorm(s, 'PEW_DATUM').top = cm(12.85)
-    maak_tabel(sc_tabel, s, 'PEW_TABEL', 1.6, 3.15, PEW_KOLOMMEN, PEW_VOORBEELD, rijhoogte=0.38, sz=800,
-               vet={14, 20, 21, 22}, streep={14, 20, 21}, kopjes={1, 15}, tekstkol={6}, marge=0)
+    # leeg vak voor de afbeelding van 2. Ontw PEW (of 2B bij DAEB); de macro plakt hem er passend in
+    from pptx.enum.shapes import MSO_SHAPE
+    vak = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, cm(1.5), cm(3.2), cm(22.3), cm(8.6))
+    vak.name = 'PEW_BEELD'
+    vak.fill.background()
+    vak.line.fill.background()
     tekstvak(s, 'PEW_TOP3', 1.6, 12.05, 22.1, 0.5,
              'Top 3 kosten Q3 2026 (actuals): 1. Aanneemsom € 1.234.567 · 2. Honoraria € 234.567 · 3. Grondkosten € 34.567',
              sz=8, kleur='111F39')

@@ -26,6 +26,7 @@ en de PowerPoint komt uit hetzelfde bestand.
 | `Dashboard`, `Scenario's` | cashflow, kerncijfers, grafieken en scenario's: rekenen automatisch mee |
 | `CF vorig en huidig` | links de vorige prognose zoals bewaard (kolom G, CF cumulatief, mag je aanpassen: dat is de stippellijn); in het midden per periode de huidige prognose (rekent mee met de CF-tabbladen) naast de vorige en het verschil; rechts de **realisatie**: per afgesloten periode de gerealiseerde kosten en omzet uit SAP (FO - actuals) naast de vorige prognose, met het verschil en een controle of de cashflow gelijk is aan de realisatie. Plus een grafiek huidig/vorige |
 | `2. Ontw PEW` | PEW huidig/vorig uit SAP, meest recente FD (invullen), toelichting |
+| `2B. Ontw PEW` | alleen bij een gemengd project (verschijnt bij DAEB-woningen): het PEW gesplitst in A concept SKO DAEB en B concept SKO niet-DAEB (invullen) naast A+B vorig en huidig, met een controle A + B = huidig |
 | `CF - hulp VENA` | de definitieve cashflow per maand, in het VENA-format; per maand het kwartaal en de status (actuals / nu / prognose), het huidige kwartaal groen, en in B6 bij welke maand het huidige kwartaal hoort |
 
 Verborgen: de rekenbladen van het scenariomodel (`Invoer`, `Woningtypes`, `Scenario kosten`, `Model`), `PowerPoint`
@@ -134,6 +135,7 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
 ## PowerPoint
 
 - **Grafiekperiode:** "Grafiek vanaf / t/m" op het Dashboard geldt ook voor de dia's (cashflow, scenario's, verkoop en transport, van verkoop naar omzet, per woningtype). Alleen de kleine grafiek op dia 2 toont altijd de hele looptijd.
+- **Tijdassen:** de bouwtermijnen lopen t/m het jaar van de laatste termijn; verkoop en transport t/m Q4 van het jaar van de laatste verkoop of het laatste transport.
 - **Verkoop en transport:** vóór de kwartalen staat een staaf "Totaal" met alle woningen per type, op de dia én in de Dashboard-grafieken; de titel noemt het totaal en de legenda het aantal per type.
 
 Sjabloon v22 (zelfde opbouw als v21, strakker):
@@ -144,12 +146,13 @@ Sjabloon v22 (zelfde opbouw als v21, strakker):
 - **9 dia's:** titel, kerncijfers, cashflow, verkoopscenario's, scenario's, bouwtermijnen, verkoop en transport, per
   woningtype, Update PEW. "Van verkoop naar omzet" is vervallen; vorige ↔ huidig ↔ realisatie staat alleen in het
   werkbestand (Dashboard en tab `CF vorig en huidig`);
-- **dia Update PEW (9):** het volledige overzicht van `2. Ontw PEW` als echte tabel (`PEW_TABEL`, 23 × 7): alle posten
-  met meest recente FD, vorig, huidig, de twee delta's (rood = ongunstig, groen = gunstig) en de toelichting. De
-  ondertitel noemt het resultaat, het verschil met vorig kwartaal, de meest recente FD en de PEW-basis (Start blok 6);
-  de **top 3 kosten** staan in één regel onder de tabel (`PEW_TOP3`).
+- **dia Update PEW (9):** het overzicht van `2. Ontw PEW` als **afbeelding** (vak `PEW_BEELD`), precies zoals het op
+  het tabblad staat, met de toelichting; pas de notities aan in de gele kolom op het tabblad. Bij een gemengd project
+  (DAEB-woningen, en A of B ingevuld) komt het overzicht van `2B. Ontw PEW` op de dia. De ondertitel noemt het
+  resultaat, het verschil met vorig kwartaal, bij DAEB de marge niet-DAEB en DAEB, de meest recente FD en de PEW-basis
+  (Start blok 6); de **top 3 kosten** staan in één regel eronder (`PEW_TOP3`).
 
-De teksten en tabellen staan op het verborgen tabblad `PowerPoint` (tekstregels vanaf rij 8, PEW-blok II7). Staat
+De teksten en tabellen staan op het verborgen tabblad `PowerPoint` (tekstregels vanaf rij 8). Staat
 v22 niet in de map, dan neemt de macro v21.
 
 ## Top 3 kosten

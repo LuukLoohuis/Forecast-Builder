@@ -89,7 +89,7 @@ Option Explicit
 '       'koopsom' (die volgt de transportregel); 1. Cashflow heet nu 'Cashflow'; tab CF kosten heet 'Scenario kosten';
 '       sjabloon v21 (v20 met vormnamen voor de datum op dia 1 en de kaarten van dia 10).
 '       Sjabloon v22 (tools/pptx_v22.py): palet van het werkboek, tekst minimaal 8 pt, dia 3 zonder scenario 1-3 en met de
-'       kans grondtermijn, PEW_TABEL als echte tabel met het volledige PEW-overzicht en PEW_TOP3; 9 dia's (zonder 'Van verkoop naar omzet').
+'       kans grondtermijn; 9 dia's (zonder 'Van verkoop naar omzet'); op de dia Update PEW het overzicht van 2. Ontw PEW (of 2B bij DAEB) als afbeelding in PEW_BEELD, met PEW_TOP3.
 '       Daarna: Invoer, Woningtypes, Scenario kosten en de FO-cellen op het Dashboard zijn formules op de FO-tabbladen
 '       (tools/scenario_koppeling.py); OphalenUitFO blijft bestaan voor een los FO, maar heeft geen knop meer.
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
@@ -230,10 +230,7 @@ End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    ' sinds v22: PEW_TABEL (dia Update PEW) is een echte tabel met het volledige overzicht van 2. Ontw PEW (23 x 7);
-    ' het blok acht kolommen rechts ervan (IQ7) geeft per delta de richting (kleur)
-    Tabellen = Array(Array("SC_TABEL", "GP7", 9, 4, 0), Array("VT_TABEL", "GP18", MAX_TYPES + 1, 8, 1), _
-                     Array("PEW_TABEL", "II7", 23, 7, 0))
+    Tabellen = Array(Array("SC_TABEL", "GP7", 9, 4, 0), Array("VT_TABEL", "GP18", MAX_TYPES + 1, 8, 1))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -382,36 +379,43 @@ Fout:
 End Sub
 
 Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
-    ' sjabloon v22: de top 3 kosten van het reviewkwartaal (tab Start, blok 7) in PEW_TOP3 (de tabel vult Tabellen).
-    ' Oudere sjablonen: het overzicht van 2. Ontw PEW als afbeelding in het lege vak PEW_TABEL, met de top 3 eronder
-    Dim vak As Object, dia As Object, sr As Object, pic As Object, tb As Object, wsS As Worksheet
-    Dim marge As Single, hT3 As Single, ruimte As Single, tekst As String, r As Long, k As Long, v As Variant
-    Set vak = ZoekVorm(pres, "PEW_TABEL")
+    ' het overzicht van 2. Ontw PEW als afbeelding in het vak PEW_BEELD op de dia Update PEW (zoals het op het tabblad staat,
+    ' met de toelichting); bij een gemengd project (DAEB-woningen, en A of B ingevuld op 2B. Ontw PEW) het overzicht van
+    ' 2B. Ontw PEW. De top 3 kosten van het reviewkwartaal (tab Start, blok 7) komt in PEW_TOP3.
+    Dim vak As Object, dia As Object, sr As Object, pic As Object, tb As Object, bron As Range, wsB As Worksheet
+    Dim marge As Single, hT3 As Single, tekst As String, nieuw As Boolean
+    Set vak = ZoekVorm(pres, "PEW_BEELD")
+    nieuw = Not vak Is Nothing
+    If vak Is Nothing Then Set vak = ZoekVorm(pres, "PEW_TABEL")            ' sjabloon v21
     If vak Is Nothing Then Exit Sub
     Set dia = vak.Parent
     On Error GoTo Mis
-    ' sjabloon v22: PEW_TABEL is een echte tabel (gevuld door Tabellen); hier alleen de top 3 kosten in PEW_TOP3
-    If vak.HasTable Then
-        Set tb = ZoekVorm(pres, "PEW_TOP3")
-        If tb Is Nothing Then Exit Sub
-        tb.TextFrame.TextRange.Text = Replace(Replace(Top3Tekst(), " (actuals)" & vbCr, " (actuals): "), vbCr, " " & ChrW(183) & " ")
-        Exit Sub
+    Set bron = ThisWorkbook.Worksheets("2. Ontw PEW").Range("C4:K30")
+    On Error Resume Next
+    Set wsB = ThisWorkbook.Worksheets("2B. Ontw PEW")
+    On Error GoTo Mis
+    If Not wsB Is Nothing Then
+        If Val(CStr(ThisWorkbook.Worksheets(SH_MODEL).Range("BY135").Value)) > 0 And _
+           Application.WorksheetFunction.Count(wsB.Range("F7:G26")) > 0 Then Set bron = wsB.Range("C4:N30")
     End If
-    marge = 6
-    hT3 = 58
-    ThisWorkbook.Worksheets("2. Ontw PEW").Range("C4:K30").CopyPicture Appearance:=1, Format:=-4147
+    marge = IIf(nieuw, 0, 6)
+    hT3 = IIf(nieuw, 0, 58)
+    bron.CopyPicture Appearance:=1, Format:=-4147
     DoEvents
     Set sr = dia.Shapes.PasteSpecial(DataType:=2)                  ' als afbeelding (verbeterde metafile)
     Set pic = sr(1)
     pic.LockAspectRatio = True
     pic.Width = vak.Width - 2 * marge
-    ruimte = vak.Height - hT3 - 2 * marge
-    If pic.Height > ruimte Then pic.Height = ruimte
+    If pic.Height > vak.Height - hT3 - 2 * marge Then pic.Height = vak.Height - hT3 - 2 * marge
     pic.Left = vak.Left + (vak.Width - pic.Width) / 2
     pic.Top = vak.Top + marge
+    pic.Name = "PEW_AFBEELDING"
     ' top 3 kosten
     tekst = Top3Tekst()
-    If Len(tekst) > 0 Then
+    Set tb = ZoekVorm(pres, "PEW_TOP3")
+    If Not tb Is Nothing Then
+        tb.TextFrame.TextRange.Text = Replace(Replace(tekst, " (actuals)" & vbCr, " (actuals): "), vbCr, " " & ChrW(183) & " ")
+    ElseIf Len(tekst) > 0 Then
         Set tb = dia.Shapes.AddTextbox(1, vak.Left + 2 * marge, vak.Top + vak.Height - hT3 - marge, vak.Width - 4 * marge, hT3)
         With tb.TextFrame.TextRange
             .Text = tekst
@@ -1262,20 +1266,6 @@ Private Sub VulTabel(pres As Object, vorm As String, kop As Range, nRijen As Lon
         Loop
     End If
     If vorm = "VT_TABEL" Then SchikDia5 pres, tbl
-    If vorm = "PEW_TABEL" Then
-        ' delta's rood (ongunstig) of groen (gunstig), volgens het richtingsblok acht kolommen rechts van de tabel
-        Dim richting As String
-        On Error Resume Next
-        For r = 1 To nRijen - 1
-            For c = 4 To 5
-                richting = LCase$(Trim$(CelTekst(kop.Offset(r, c + 8))))
-                If Len(richting) > 0 And r + 1 <= tbl.Rows.Count Then
-                    tbl.Cell(r + 1, c + 1).Shape.TextFrame.TextRange.Font.Color.RGB = RichtingKleur(richting)
-                End If
-            Next c
-        Next r
-        On Error GoTo Mislukt
-    End If
     Exit Sub
 Mislukt:
     fouten = fouten & vorm & ": " & Err.Description & vbCrLf

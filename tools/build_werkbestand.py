@@ -49,6 +49,7 @@ LAYOUT = [
     ("Scenario's", 'sc', "Scenario's", 'shScenarios'),
     ('CF vorig en huidig', 'new', 'CF vorig en huidig', 'shVorigePrognose'),
     ('2. Ontw PEW', 'new', '2. Ontw PEW', 'shOntwPEW'),
+    ('2B. Ontw PEW', 'new', '2B. Ontw PEW', 'shOntwPEWB'),
     ('CF - hulp VENA', 'fo', 'CF - hulp VENA', 'shVENA'),
     ('PowerPoint', 'sc', 'PowerPoint', 'shPowerPoint'),
     ('Invoer', 'sc', 'Invoer', 'shInvoer'),
@@ -60,10 +61,11 @@ LAYOUT = [
     ('_sjabloon', 'new', '_sjabloon', 'shSjabloon'),
     ('_koppeling', 'new', '_koppeling', 'shKoppeling'),
 ]
-VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', 'Notities FO gesprek', 'Verkooptempo',
+VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', '2B. Ontw PEW', 'Notities FO gesprek', 'Verkooptempo',
              'Toelichting onderlegger', '1. Ontw businessc FD', '5. K&R businessc'}    # 2. Ontw PEW komt in een nieuw jasje
 VERBORGEN = {'Invoer', 'Woningtypes', 'Scenario kosten', 'Model',   # rekenbladen van het scenariomodel: alles is formule
-             'PowerPoint', 'Controle oud FO', 'Behind the scens'}
+             'PowerPoint', 'Controle oud FO', 'Behind the scens',
+             '2B. Ontw PEW'}                                         # zichtbaar zodra het project DAEB-woningen heeft (macro)
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
 DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3), 'startbouw': (2027, 2),
         'dia10': [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),
@@ -441,6 +443,19 @@ def pew_inhoud(fo_path):
     return {c.coordinate: c.value for row in ws.iter_rows() for c in row if c.value is not None}
 
 
+def pew_b_inhoud(fo_path):
+    """A (DAEB), B (niet-DAEB) en toelichting per post voor '2B. Ontw PEW', door de omzetter op _omzetting (D:G) gezet"""
+    import openpyxl
+    wb = openpyxl.load_workbook(fo_path, read_only=True)
+    if '_omzetting' not in wb.sheetnames:
+        return None
+    uit = {}
+    for rij in wb['_omzetting'].iter_rows(min_col=4, max_col=7, values_only=True):
+        if rij[0]:
+            uit[str(rij[0]).strip().lower()] = (rij[1], rij[2], rij[3])
+    return uit or None
+
+
 def extend_helpers(sh: Sheet, cols, first, last, row_to):
     """hulpkolommen (formules) doortrekken tot row_to, naar het voorbeeld van rij last"""
     for col in cols:
@@ -529,7 +544,7 @@ def main():
     tmp_new = a.out + '.nieuw.tmp'
     inv_tot = scenario_koppeling.INV_RN + 2
     info = nieuwe_bladen.bouw(tmp_new, project, oud_cashflow(a.fo, oz), os.path.basename(fo_bron), pew_inhoud(a.fo), oz,
-                              inv_tot, scenario_koppeling.DAEB_TYPE)
+                              inv_tot, scenario_koppeling.DAEB_TYPE, pew_b_inhoud(a.fo))
     new = Package(tmp_new)
     os.remove(tmp_new)
 
@@ -947,6 +962,7 @@ def main():
     TABKLEUR = {'Start': 'FF003366',
                 'FO - vorig': 'FF9CA3AF', 'FO - huidig': 'FF9CA3AF', 'FO - actuals': 'FF9CA3AF', 'Prijslijst dump': 'FF9CA3AF',
                 'Prijslijst': 'FFFEB900', 'CF - opbrengsten': 'FFFEB900', 'CF - kosten': 'FFFEB900', '2. Ontw PEW': 'FFFEB900',
+                '2B. Ontw PEW': 'FFFEB900',
                 'Dashboard': 'FF15803D', "Scenario's": 'FF15803D', 'CF vorig en huidig': 'FF15803D', 'CF - hulp VENA': 'FF15803D'}
     for naam, kleur in TABKLEUR.items():
         if naam not in part_of:
@@ -1026,9 +1042,23 @@ def grafiekbereik_en_totaal(sheet, save):
         f.text = 'MAX(%s,$BY$336)' % f.text                       # (matrixformule: de tekst aanpassen, het type blijft)
         assert sh.get('BY%d' % aantal) == '=MAX(1,$BY$8-$BY$%d+1)' % start, sh.get('BY%d' % aantal)
         sh.set_formula('BY%d' % aantal, 'MAX(1,MIN($BY$8,$BY$337)-$BY$%d+1)' % start, sh.style_of('BY%d' % aantal))
-    assert not sh.get('BX339')
+    assert not sh.get('BX339') and not sh.get('BX340')
+    # verkoop en transport: de as stopt aan het eind van het jaar van de laatste verkoop / het laatste transport (BY340);
+    # de verkoopscenario's houden het ruimere venster BY132
+    klaar = 'MIN($BY$8,MAX(COUNTIF($BK$8:$BK$67,"<"&0.99999),COUNTIF($BL$8:$BL$67,"<"&0.99999))+1)'
+    idx = 'INDEX($F$8:$F$67,%s)' % klaar
+    sh.set_value('BX340', 'Verkoopgrafiek: aantal getoonde periodes (t/m Q4 van het jaar van de laatste verkoop / het laatste transport)',
+                 sh.style_of('BX338'))
+    sh.set_formula('BY340', 'IF(OR($BY$8=0,$BY$39=0),$BY$132,MAX(1,MIN($BY$132,IFERROR(%s+4*(INT((%s-1)/4)+1)-%s,$BY$8)-$BY$131+1)))'
+                   % (klaar, idx, idx), sh.style_of('BY338'))
     sh.set_value('BX339', 'Verkoopgrafiek in PowerPoint: aantal rijen (totaalrij + periodes)', sh.style_of('BX338'))
-    sh.set_formula('BY339', '$BY$132+1', sh.style_of('BY338'))
+    sh.set_formula('BY339', '$BY$340+1', sh.style_of('BY338'))
+    # bouwtermijnen: de tijdas stopt aan het eind van het jaar van de laatste termijn
+    oud = sh.get('BY101')
+    assert oud == '=IF($BY$8=0,0,INT((INDEX($F$8:$F$67,$BY$8)-1)/4))', oud
+    laatste = 'SUMPRODUCT(MAX(($GA$8:$GA$140=1)*($GK$8:$GK$140<99999)*$GK$8:$GK$140))'
+    sh.set_formula('BY101', 'IF($BY$8=0,0,IF(IFERROR(%s,0)=0,INT((INDEX($F$8:$F$67,$BY$8)-1)/4),MIN(INT((INDEX($F$8:$F$67,$BY$8)-1)/4),'
+                            'INT((%s-1)/4))))' % (laatste, laatste), sh.style_of('BY101'))
     sh.set_formula('BY324', '"Verkoop per kwartaal · "&$BY$39&" woningen"', sh.style_of('BY324'))
     sh.set_formula('BY325', '"Transport per kwartaal (notarieel) · "&$BY$39&" woningen"', sh.style_of('BY325'))
     f = sh.get('BY322')
@@ -1053,7 +1083,9 @@ def grafiekbereik_en_totaal(sheet, save):
     for c in range(k1, kn + 1):
         assert not sh.get('%s68' % L(c))
         for r in range(68, 8, -1):
-            sh.set('%s%d' % (L(c), r), sh.get('%s%d' % (L(c), r - 1)), sh.style_of('%s%d' % (L(c), r - 1)))
+            f = sh.get('%s%d' % (L(c), r - 1))
+            assert f.count('>Model!$BY$132,') == 1, f
+            sh.set('%s%d' % (L(c), r), f.replace('>Model!$BY$132,', '>Model!$BY$340,'), sh.style_of('%s%d' % (L(c), r - 1)))
     sh.set_value('ER8', 'Totaal', sh.style_of('ER8'))
     for c in range(k1 + 1, kn + 1):
         i = c - k1 - 1
@@ -1072,9 +1104,9 @@ def tekst_vervang(sh, ref, oud, nieuw):
 
 
 def powerpoint_v22(sh, style, r0, d10):
-    """tab PowerPoint voor sjabloon v22 (9 dia's): kansblok op dia 3, het volledige PEW-overzicht (PEW_TABEL, 23 x 7, met
-    een richtingsblok voor de kleur van de delta's) en PEW_SUBTITEL op de dia Update PEW, geen scenariolijnen 1-3 in de
-    cashflowgrafiek, accentkleuren; de regels van de vervallen dia 'Van verkoop naar omzet' (VO_*) gaan weg"""
+    """tab PowerPoint voor sjabloon v22 (9 dia's): kansblok op dia 3, PEW_SUBTITEL op de dia Update PEW (het overzicht
+    zelf plakt de macro als afbeelding), geen scenariolijnen 1-3 in de cashflowgrafiek, accentkleuren; de regels van de
+    vervallen dia 'Van verkoop naar omzet' (VO_*) gaan weg"""
     from openpyxl.utils import get_column_letter as L
     import pptx_v22
     D = 'Dashboard!'
@@ -1086,7 +1118,9 @@ def powerpoint_v22(sh, style, r0, d10):
         (3, 'Blokje kans grondtermijn · label', 'KANS GRONDTERMIJN', '', 'CF_KANS_LABEL'),
         (9, 'Ondertitel', '="Resultaat "&IF(%s<0,"−","")&"€"&FIXED(ABS(%s)/1000,1)&" mln ("&FIXED(%s*100,1)&"%%) · "&'
                           'IF(ABS(%s)<50,"gelijk aan vorig kwartaal",IF(%s>0,"+","−")&"€"&FIXED(ABS(%s)/1000,1)&'
-                          '" mln t.o.v. vorig kwartaal")&IF(%s="",""," · FD: "&%s)&IF(%s="",""," · basis: "&%s)'
+                          '" mln t.o.v. vorig kwartaal")&IF(AND(Model!$BY$135>0,COUNT(\'2B. Ontw PEW\'!$F$7:$G$26)>0),'
+                          '" · niet-DAEB "&FIXED(\'2B. Ontw PEW\'!$G$30*100,1)&"%% · DAEB "&FIXED(\'2B. Ontw PEW\'!$F$30*100,1)&"%%","")'
+                          '&IF(%s="",""," · FD: "&%s)&IF(%s="",""," · basis: "&%s)'
          % (P('G', 29), P('G', 29), P('G', 30), pew_d, pew_d, pew_d, fd, fd, basis, basis), '', 'PEW_SUBTITEL'),
     ]
     for i, (dia, onderdeel, f, richting, vorm) in enumerate(rows):
@@ -1134,41 +1168,6 @@ def powerpoint_v22(sh, style, r0, d10):
     # cashflowgrafiek (dia 3): geen scenariolijnen 1-3 (die staan op de scenariodia's); de gele lijn blijft
     for c, n in (('HP', 1), ('HQ', 2), ('HR', 3)):
         sh.set_value('%s7' % c, 'Scenario %d (uit)' % n)
-    # PEW_TABEL (dia Update PEW): II7:IO29 = het overzicht van 2. Ontw PEW (x € 1.000); IQ7:IW29 = richting van de delta's
-    G = lambda x: '=IF(ROUND(N(%s),0)=0,"–",IF(%s<0,"−","")&FIXED(ABS(%s),0))' % (x, x, x)
-    pct = lambda x: '=IF(N(%s)=0,"–",FIXED(%s*100,1)&"%%")' % (x, x)
-    pew = [['x € 1.000', 'Recente FD', 'Vorig', 'Huidig', 'Δ vorig', 'Δ FD', 'Toelichting']]
-    richt = [[''] * 7]
-    kop = iter(('KOSTEN', 'OPBRENGSTEN'))
-    for rij in pptx_v22.PEW_RIJEN:
-        if rij is None:
-            pew.append([next(kop)] + [''] * 6)
-            richt.append([''] * 7)
-            continue
-        lab = '=%s&""' % P('C', rij)
-        toel = '=LEFT(%s&"",75)&IF(LEN(%s&"")>75,"…","")' % (P('K', rij), P('K', rij))
-        if rij == 30:
-            pew.append([lab, pct(P('E', rij)), pct(P('F', rij)), pct(P('G', rij)), '', '', ''])
-            richt.append([''] * 7)
-        elif rij == 29:
-            pew.append([lab, G(P('E', rij)), G(P('F', rij)), G(P('G', rij)), '', '', ''])
-            richt.append([''] * 7)
-        else:
-            pew.append([lab] + [G(P(c, rij)) for c in 'EFGHI'] + [toel])
-            goed, fout = ('slechter', 'beter') if rij <= 20 else ('beter', 'slechter')     # kosten hoger = ongunstig
-            richt.append(['', '', '', ''] + ['=IF(ROUND(N(%s),0)=0,"",IF(%s<0,"%s","%s"))' % (P(c, rij), P(c, rij), goed, fout)
-                                             for c in 'HI'] + [''])
-    assert len(pew) == len(pptx_v22.PEW_VOORBEELD) == 23
-    for kol0, tabel, titel in ((243, pew, 'tabel dia Update PEW (PEW_TABEL) · het overzicht van 2. Ontw PEW, x € 1.000'),
-                               (251, richt, 'richting van de delta\'s (kleur in de tabel): beter = groen, slechter = rood')):
-        sh.set_value('%s5' % L(kol0), titel, style['C'])
-        for i, rij in enumerate(tabel):
-            for j, v in enumerate(rij):
-                ref = '%s%d' % (L(kol0 + j), 7 + i)
-                if str(v).startswith('='):
-                    sh.set_formula(ref, v, style['D'])
-                else:
-                    sh.set_value(ref, v or None, style['C'])
 
 
 def maak_sjabloon(src, out):
