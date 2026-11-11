@@ -95,7 +95,7 @@ def omzetten(oud, uit, project=None):
         cf[(j, q or None)] = {c: cfw['%s%d' % (c, r)].value for c in 'DFHJ'}
     # laatste actuals (kwartaalindex) en woningtypes zonder woningen: ingeklapt
     av = wv['FO - actuals'] if 'FO - actuals' in wv.sheetnames else None
-    act_max = 0
+    act_max = per_max = 0
     if av is not None:
         for r in range(2, av.max_row + 1):
             p_, o_ = av.cell(r, 16).value, av.cell(r, 15).value
@@ -105,6 +105,11 @@ def omzetten(oud, uit, project=None):
                 continue
             if 1 <= int(float(o_)) <= 12:
                 act_max = max(act_max, k_)
+                per_max = max(per_max, int(float(p_)) * 100 + int(float(o_)))
+    # afgesloten t/m: loopt het kwartaal van de laatste boekingsperiode nog (niet de laatste maand van het kwartaal), dan
+    # is dat het huidige kwartaal (Start rij 8) en is het kwartaal ervoor het laatste afgesloten kwartaal
+    if per_max % 100 % 3:
+        act_max -= 1
     leeg_t = [t['k'] for t in ob['types'] if not t['won']] + list(range(len(ob['types']) + 1, S.NT + 1))
     S.maak(uit, leeg=True, jaar=jaar, cashflow=cf, verborgen_types=leeg_t, verleden_tot=act_max or None)
     wb = openpyxl.load_workbook(uit)

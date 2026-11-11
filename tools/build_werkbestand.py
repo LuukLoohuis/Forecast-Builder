@@ -845,6 +845,7 @@ def main():
                             ('BX283', 'dia 4', 'dia 5'), ('BX290', 'dia 4', 'dia 5'), ('BX319', 'dia 6', 'dia 7')):
         tekst_vervang(sh, ref, oud, nieuw)
     save('Model', sh)
+    grafiekbereik_en_totaal(sheet, save)
     for blad, ref, oud, nieuw in (('Dashboard', 'E156', 'kopie van dia 8 in het sjabloon', 'kopie van de dia per woningtype'),
                                   ('Woningtypes', 'B42', 'Dashboard en dia 5', 'Dashboard en de dia Bouwtermijnen')):
         sh = sheet(blad)
@@ -1004,6 +1005,60 @@ def main():
     # ---- PowerPoint-sjabloon v22: v20 + vormnamen (v21) + strakker (pptx_v22) -----------------------------------
     maak_sjabloon(a.pptx, a.pptx_out)
     print('Klaar: ' + a.pptx_out)
+
+
+def grafiekbereik_en_totaal(sheet, save):
+    """1) 'Grafiek vanaf / t/m' van het Dashboard (Model!BY336:BY338) geldt ook voor de dia's: de blokken over de hele
+       looptijd (scenario's P, verkoop naar omzet FY, cashflow HH) beginnen bij de eerste getoonde periode, en de vensters
+       van verkoop/transport, verkoopscenario's (BY131/BY132) en de grafiek per type (BY127/BY128) blijven binnen het bereik.
+       De kleine grafiek op dia 2 houdt de hele looptijd (de macro schikt hem op positie).
+    2) verkoop en transport: eerste rij 'Totaal' met alle woningen per type, de kwartalen eronder (blok ER7 een rij lager);
+       titels met het totaal en de legenda met het aantal per type"""
+    from openpyxl.utils import get_column_letter as L, column_index_from_string as ci
+    sh = sheet('Model')
+    for start, aantal in ((131, 132), (127, 128)):
+        f = sh.cell('BY%d' % start).find(M + 'f')
+        assert f is not None and f.text and '$BY$336' not in f.text, start
+        f.text = 'MAX(%s,$BY$336)' % f.text                       # (matrixformule: de tekst aanpassen, het type blijft)
+        assert sh.get('BY%d' % aantal) == '=MAX(1,$BY$8-$BY$%d+1)' % start, sh.get('BY%d' % aantal)
+        sh.set_formula('BY%d' % aantal, 'MAX(1,MIN($BY$8,$BY$337)-$BY$%d+1)' % start, sh.style_of('BY%d' % aantal))
+    assert not sh.get('BX339')
+    sh.set_value('BX339', 'Verkoopgrafiek in PowerPoint: aantal rijen (totaalrij + periodes)', sh.style_of('BX338'))
+    sh.set_formula('BY339', '$BY$132+1', sh.style_of('BY338'))
+    sh.set_formula('BY324', '"Verkoop per kwartaal · "&$BY$39&" woningen"', sh.style_of('BY324'))
+    sh.set_formula('BY325', '"Transport per kwartaal (notarieel) · "&$BY$39&" woningen"', sh.style_of('BY325'))
+    f = sh.get('BY322')
+    for i in range(10):
+        oud = '&%s$7&"   "' % L(ci('EI') + i)
+        assert f.count(oud) == 1, oud
+        f = f.replace(oud, '&%s$7&" ("&%s$6&")   "' % (L(ci('EI') + i), L(ci('CA') + i)))
+    sh.set_formula('BY322', f, sh.style_of('BY322'))
+    save('Model', sh)
+    sh = sheet('PowerPoint')
+    for a, b in (('P', 'Y'), ('FY', 'GC'), ('HH', 'HR')):
+        for c in range(ci(a), ci(b) + 1):
+            for r in range(8, 68):
+                n, ref = r - 7, '%s%d' % (L(c), r)
+                f = sh.get(ref)
+                kop = '=IF(%d>Model!$BY$8,' % n
+                assert f and f.startswith(kop) and f.count('$67,%d)' % n) == 1, (ref, f)
+                f = '=IF(%d>Model!$BY$338,' % n + f[len(kop):].replace('$67,%d)' % n, '$67,%d+Model!$BY$336-1)' % n)
+                sh.set_formula(ref, f, sh.style_of(ref))
+    # totaalrij: de periodes een rij omlaag (van onder naar boven), daarna rij 8 = totaal per type
+    k1, kn = ci('ER'), ci('FW')
+    for c in range(k1, kn + 1):
+        assert not sh.get('%s68' % L(c))
+        for r in range(68, 8, -1):
+            sh.set('%s%d' % (L(c), r), sh.get('%s%d' % (L(c), r - 1)), sh.style_of('%s%d' % (L(c), r - 1)))
+    sh.set_value('ER8', 'Totaal', sh.style_of('ER8'))
+    for c in range(k1 + 1, kn + 1):
+        i = c - k1 - 1
+        if i < 20:              # verkocht per type (10) en getransporteerd per type (10): alle woningen van het type
+            f = 'IF(N(Model!$%s$6)=0,NA(),Model!$%s$6)' % ((L(ci('CA') + i % 10),) * 2)
+        else:
+            f = 'NA()'
+        sh.set_formula('%s8' % L(c), f, sh.style_of('%s8' % L(c)))
+    save('PowerPoint', sh)
 
 
 def tekst_vervang(sh, ref, oud, nieuw):

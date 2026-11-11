@@ -194,12 +194,17 @@ def maak_start(wb, demo, R):
     cell(ws, 'E7', '=IF(C7="","","Q"&D7&" "&C7)', F_BOLD)
     cell(ws, 'F7', '=IF(C7="",0,C7*4+D7)', F_HELP, None, ';;;')
     cell(ws, 'G7', 'zichtbaar als kolom op CF - opbrengsten en CF - kosten', F_NOTE)
-    cell(ws, 'B8', 'Eerste prognosekwartaal · jaar en kwartaal')
-    cell(ws, 'C8', '=IF(F12>0,INT(F12/4),IF(F6="","",INT(F6/100)))', F_BASE, FILL_CALC)
-    cell(ws, 'D8', '=IF(F12>0,F12+1-4*INT(F12/4),IF(F6="","",ROUNDUP(MOD(F6,100)/3,0)))', F_BASE, FILL_CALC)
+    # huidig kwartaal (invoer; standaard uit de laatste boekingsperiode van FO - actuals: loopt dat kwartaal nog, dan dat
+    # kwartaal, is het de laatste maand van een kwartaal, dan het kwartaal erna). AA8 = kwartaalindex van de standaard
+    cell(ws, 'B8', 'Huidig kwartaal · jaar en kwartaal')
+    cell(ws, 'AA8', '=IF(ISNUMBER(D17),INT(D17/100)*4+ROUNDUP(MOD(D17,100)/3,0)+IF(MOD(MOD(D17,100),3)=0,1,0),'
+                   'IF(F6="",0,INT(F6/100)*4+ROUNDUP(MOD(F6,100)/3,0)))', F_HELP, None, ';;;')
+    cell(ws, 'C8', '=IF(AA8=0,"",INT((AA8-1)/4))', F_BASE, FILL_INPUT)
+    cell(ws, 'D8', '=IF(AA8=0,"",AA8-4*INT((AA8-1)/4))', F_BASE, FILL_INPUT)
     cell(ws, 'E8', '=IF(C8="","","Q"&D8&" "&C8)', F_BOLD)
     cell(ws, 'F8', '=IF(C8="",0,C8*4+D8)', F_HELP, None, ';;;')
-    cell(ws, 'G8', 'het kwartaal na de laatste actuals (blok 2: FO - actuals); overschrijven mag', F_NOTE)
+    cell(ws, 'G8', 'het kwartaal waarin we nu zitten: hier telt wat al geboekt is in SAP plus wat je nog als prognose invult · '
+                   'standaard uit de laatste boekingsperiode (FO - actuals); overschrijven mag', F_NOTE)
     cell(ws, 'B9', 'Oplevering · jaar en kwartaal')
     cell(ws, 'C9', demo['oplevering'][0], F_BASE, FILL_INPUT)
     cell(ws, 'D9', demo['oplevering'][1], F_BASE, FILL_INPUT)
@@ -212,12 +217,12 @@ def maak_start(wb, demo, R):
     cell(ws, 'B11', 'Tekst in PowerPoint (titeldia, dia 4 en Update PEW)')
     cell(ws, 'C11', '=IF(C10="","","Cijfers per "&DAY(C10)&" "&CHOOSE(MONTH(C10),%s)&" "&YEAR(C10))' % MAANDEN,
          F_BASE, FILL_CALC)
-    cell(ws, 'B12', 'Actuals t/m · jaar en kwartaal')
-    cell(ws, 'C12', '=IFERROR(INT(D17/100),"")', F_BASE, FILL_CALC)
-    cell(ws, 'D12', '=IFERROR(ROUNDUP(MOD(D17,100)/3,0),"")', F_BASE, FILL_CALC)
+    cell(ws, 'B12', 'Afgesloten t/m · jaar en kwartaal')
+    cell(ws, 'C12', '=IF(N(F8)<2,"",INT((F8-2)/4))', F_BASE, FILL_CALC)
+    cell(ws, 'D12', '=IF(N(F8)<2,"",F8-1-4*INT((F8-2)/4))', F_BASE, FILL_CALC)
     cell(ws, 'E12', '=IF(C12="","","Q"&D12&" "&C12)', F_BOLD)
     cell(ws, 'F12', '=IF(C12="",0,C12*4+D12)', F_HELP, None, ';;;')
-    cell(ws, 'G12', 'laatste boekingsperiode in FO - actuals; t/m dit kwartaal veranderen de scenario\'s niets', F_NOTE)
+    cell(ws, 'G12', 'het kwartaal vóór het huidige: t/m dit kwartaal telt alleen SAP en veranderen de scenario\'s niets', F_NOTE)
     for r in (7, 8, 9, 12):
         for col in 'CD':
             ws['%s%d' % (col, r)].alignment = Alignment(horizontal='center')

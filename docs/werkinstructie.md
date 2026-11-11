@@ -20,7 +20,7 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
    - verkoop (verkooptempo) en transport, in aantallen;
    - kosten, DAEB en de FD-kolom van het PEW.
 3. Bekijk `Controle oud FO`: per periode de cashflow van het oude FO naast het werkbestand. Lees ook de meldingen van de macro, bijvoorbeeld bedragen die handmatig zijn gezet omdat de prijslijst ze niet verklaarde.
-4. Controleer op `Start` de projectnaam, start bouw en oplevering (rij 6, 7 en 9). Op `CF - opbrengsten` staat in D3 het eerste jaar van de kwartalen.
+4. Controleer op `Start` de projectnaam, start bouw, het **huidige kwartaal** en oplevering (rij 6 t/m 9). In het huidige kwartaal telt wat al in SAP is geboekt plus wat je nog als prognose invult; de kwartalen ervoor zijn afgesloten (alleen SAP). Op `CF - opbrengsten` staat in D3 het eerste jaar van de kwartalen.
 
 ## Elk kwartaal (gelijk aan blok 5 op Start)
 1. **Nieuw kwartaal starten:** de cashflow en de planning worden de vorige prognose, FO - huidig gaat naar FO - vorig. Je invoer op Prijslijst, CF - opbrengsten en CF - kosten blijft staan.
@@ -46,7 +46,7 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
    - per post *Handmatig*, *Voorstel* (wat nog over is, gelijk verdeeld t/m oplevering) of *Transport* (naar rato van het transport), tot "Nog te verdelen" 0 is.
 6. **2. Ontw PEW:** meest recente FD en toelichting.
 7. **Start blok 4:** alle controles op OK.
-8. Bekijk **Dashboard**, **Scenario's** en **CF vorig en huidig** (vorige ↔ huidige prognose ↔ realisatie).
+8. Bekijk **Dashboard**, **Scenario's** en **CF vorig en huidig** (vorige ↔ huidige prognose ↔ realisatie). Met "Grafiek vanaf / t/m" op het Dashboard kies je de periode van de grafieken; die geldt ook voor de PowerPoint.
 9. **PowerPoint maken** en de kaarten van de dia Update PEW (Start blok 6) aanvullen. Dia 4 toont vorige prognose ↔ huidig ↔ realisatie.
 10. **Na het FO:** correcties boeken in SAP en `CF - hulp VENA` inlezen in VENA.
 11. Bewaar het werkbestand; volgend kwartaal begin je weer bij stap 1.

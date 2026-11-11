@@ -353,6 +353,16 @@ Public Function NieuwKwartaalUitvoeren() As Long
         .Cells(RIJ_VORIG, KOL_DATUM).Value = Now
         .Cells(RIJ_VORIG, KOL_BESTAND).Value = "uit FO - huidig (nieuw kwartaal)"
         .Range(.Cells(RIJ_HUIDIG, KOL_DATUM), .Cells(RIJ_ACTUALS, KOL_BESTAND)).ClearContents
+        ' huidig kwartaal (rij 8): zelf ingevuld = een kwartaal verder; de formule volgt straks de nieuwe exports
+        If Not .Range("C8").HasFormula And Not .Range("D8").HasFormula Then
+            If IsNumeric(.Range("C8").Value) And IsNumeric(.Range("D8").Value) And Len(CStr(.Range("C8").Value)) > 0 Then
+                If CLng(.Range("D8").Value) >= 4 Then
+                    .Range("C8").Value = CLng(.Range("C8").Value) + 1: .Range("D8").Value = 1
+                Else
+                    .Range("D8").Value = CLng(.Range("D8").Value) + 1
+                End If
+            End If
+        End If
     End With
     Application.EnableEvents = True
     Application.Calculate
@@ -1039,16 +1049,19 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     Dim wKo As Worksheet, posten As Long, toel As Long, pAct As Long, q As Long, weg As Double, verschoven As Double
     Set wKo = ZoekBlad(wbO, "CF - kosten")
     ' laatste afgesloten kwartaal volgens de SAP-export (FO - actuals is al ingelezen): jaar (P) en maand (O), zoals Python
-    Dim wAc As Worksheet, jA As Variant, mA As Variant
+    Dim wAc As Worksheet, jA As Variant, mA As Variant, perMax As Long
     Set wAc = ThisWorkbook.Worksheets("FO - actuals")
     For r = 2 To wAc.UsedRange.Row + wAc.UsedRange.Rows.Count - 1
         jA = wAc.Cells(r, 16).Value: mA = wAc.Cells(r, 15).Value
         If IsNumeric(jA) And IsNumeric(mA) And Len(Trim$(CStr(jA))) > 0 And Len(Trim$(CStr(mA))) > 0 Then
             If CLng(mA) >= 1 And CLng(mA) <= 12 Then
                 If CLng(jA) * 4 + (CLng(mA) - 1) \ 3 + 1 > pAct Then pAct = CLng(jA) * 4 + (CLng(mA) - 1) \ 3 + 1
+                If CLng(jA) * 100 + CLng(mA) > perMax Then perMax = CLng(jA) * 100 + CLng(mA)
             End If
         End If
     Next r
+    ' loopt het kwartaal van de laatste boekingsperiode nog, dan is dat het huidige kwartaal en is het kwartaal ervoor afgesloten
+    If (perMax Mod 100) Mod 3 <> 0 Then pAct = pAct - 1
     If Not wKo Is Nothing Then
         ond = RijMet(wKo, 2, 2, 300, "onderdelen")
         If ond > 0 Then

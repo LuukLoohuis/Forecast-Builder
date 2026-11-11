@@ -321,14 +321,19 @@ def maak_opbrengsten(ws):
         # opbrengsten van dit type in € per kwartaal (schuiven mee met het transport)
         e0 = tr(k) + 4
         for i, (lab, f) in enumerate((
-                ('Grondtermijn · koopsom grond (€, bij transport)', lambda c: '=%s%d' % (c, eu_rij(k, 0))),
-                ('Bouwtermijnen (€)', lambda c: '=SUM(%s%d:%s%d)' % (c, eu_rij(k, 1), c, eu_rij(k, NTERM))),
+                ('Grondtermijn · koopsom grond (€, bij transport) · % van de koopsom', lambda c: '=%s%d' % (c, eu_rij(k, 0))),
+                ('Bouwtermijnen (€) · % van de koopsom', lambda c: '=SUM(%s%d:%s%d)' % (c, eu_rij(k, 1), c, eu_rij(k, NTERM))),
                 ('Kopersmeerwerk 25% (€, bij start bouw)', lambda c: '=%s%d' % (c, eu_rij(k, NTERM + 1))),
                 ('Kopersmeerwerk 75% (€, bij oplevering)', lambda c: '=%s%d' % (c, eu_rij(k, NTERM + 2))),
                 ('Totaal opbrengsten type %d (€)' % k, lambda c: '=SUM(%s%d:%s%d)' % (c, eu_rij(k, 0), c, eu_rij(k, OMZ_N - 1))))):
             r = e0 + i
             tot_ = i == 4
             zet(ws, 'B%d' % r, lab, FB if tot_ else F)
+            if i in (0, 1):         # aandeel van de koopsom (grond + bouwtermijnen) en € per woning
+                zet(ws, 'C%d' % r, '=IFERROR(D%d/($D$%d+$D$%d),0)' % (r, e0, e0 + 1), FN, None, '0.0%')
+                zet(ws, 'E%d' % r, '=IFERROR(D%d/$G$%d,0)' % (r, w), FN, None, NUM)
+            if tot_:                # totaal per woning (koopsom + meerwerk)
+                zet(ws, 'E%d' % r, '=IFERROR(D%d/$G$%d,0)' % (r, w), FB, None, NUM)
             if i in (2, 3):         # % van het kopersmeerwerk en € per woning, zoals bij de termijnen
                 zet(ws, 'C%d' % r, '=C%d' % oz_rij(k, NTERM + i - 1), FN, None, '0%')
                 zet(ws, 'E%d' % r, '=E%d' % oz_rij(k, NTERM + i - 1), FN, None, NUM)

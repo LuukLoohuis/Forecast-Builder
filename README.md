@@ -133,6 +133,9 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
 
 ## PowerPoint
 
+- **Grafiekperiode:** "Grafiek vanaf / t/m" op het Dashboard geldt ook voor de dia's (cashflow, scenario's, verkoop en transport, van verkoop naar omzet, per woningtype). Alleen de kleine grafiek op dia 2 toont altijd de hele looptijd.
+- **Verkoop en transport:** vóór de kwartalen staat een staaf "Totaal" met alle woningen per type; de titel noemt het totaal en de legenda het aantal per type.
+
 Sjabloon v22 (zelfde opbouw als v21, strakker):
 - **palet** van het werkboek: navy `003366`, geel `FEB900`, groen `15803D`, rood `B91C1C`; rustige scenariokleuren;
 - **leesbaarheid:** geen tekst onder 8 pt (alleen het dianummer en de tijdas van de bouwtermijnen, die de macro schaalt);

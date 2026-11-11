@@ -112,7 +112,9 @@ Private Const VOORSTEL_RIJEN As Long = 41             ' werkbestand: voorstel pe
 Private Const KOST_N As Long = 20                      ' aantal posten (layout.N_KF)
 Private Const KOST_COL1 As Long = 9                    ' kolom I = periode 1 (layout.KF_COL1); B naam, C schuift mee met, E gerealiseerd
 Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
-Private Const CEL_N As String = "BY8"              ' aantal periodes (tabblad Model)
+Private Const CEL_N As String = "BY338"            ' aantal getoonde periodes (tabblad Model; Dashboard: grafiek vanaf / t/m)
+Private Const CEL_N_ALLE As String = "BY8"         ' alle periodes (de kleine grafiek op dia 2)
+Private Const CEL_VP_RIJEN As String = "BY339"     ' verkoop en transport: totaalrij + getoonde periodes
 Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFIEK: kwartaalindex 1 jan eerste jaar (Model, t_first)
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
 Private Const CEL_SJABLOON As String = "D160"
@@ -221,8 +223,8 @@ Private Function Grafieken() As Variant
     '   CF heeft sinds v18 elf kolommen (BLOK_CF): de laatste drie zijn de scenario's (in sjabloon v17 ongebruikt)
     Grafieken = Array(Array("CF_GRAFIEK", BLOK_CF, KOL_CF, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
                       Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
-                      Array("VP1_GRAFIEK", "ER7", KOL_VP, CEL_VP_N), Array("VP2_GRAFIEK", "ER7", KOL_VP, CEL_VP_N), _
-                      Array("VO_GRAFIEK", "FY7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, ""), _
+                      Array("VP1_GRAFIEK", "ER7", KOL_VP, CEL_VP_RIJEN), Array("VP2_GRAFIEK", "ER7", KOL_VP, CEL_VP_RIJEN), _
+                      Array("VO_GRAFIEK", "FY7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, CEL_N_ALLE), _
                       Array("VS_GRAFIEK", BLOK_VS, KOL_VS, CEL_VP_N))
 End Function
 

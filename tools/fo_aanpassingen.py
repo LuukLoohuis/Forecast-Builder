@@ -64,8 +64,8 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
                 assert not sh.get('%s%d' % (c, r)), 'rij %d is niet leeg' % r
         c1, cn = cols[0], cols[-1]
         keyo_ = '_koppeling!%s$521'
-        z('B%d' % ra, 'Verkocht % · van alle woningen (uit het verkooptempo; 1e kolom: t/m nu, SF)', st['tekst'])
-        z('B%d' % rb, 'Getransporteerd % · van alle woningen (uit de tabel Transport)', st['tekst'])
+        z('B%d' % ra, 'Verkocht · % van de woningen van dit type (1e kolom = al verkocht volgens Salesforce; volgt uit het verkooptempo)', st['tekst'])
+        z('B%d' % rb, 'Getransporteerd · % van de woningen van dit type (volgt uit de tabel Transport)', st['tekst'])
         z('B%d' % rg, 'Grondprijs +/- per woning (€, na SWK)', st['tekst'])
         z('D%d' % rg, None, st['invoer_getal'])
         z('B%d' % tr, 'Transport · aantal woningen (= grondtermijn)', st['tekst'])
@@ -182,7 +182,7 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     s0 = k['voorstel_start']
     hj, hk, ht, hkop, hst = s0 + 2, s0 + 3, s0 + 4, s0 + 5, s0 + 6
     for c in ['B'] + kolommen('C', st_k):
-        z('%s%d' % (c, s0), 'VOORSTEL · restant budget (PEW − verwerkt) vanaf het eerste prognosekwartaal: gelijk verdeeld t/m '
+        z('%s%d' % (c, s0), 'VOORSTEL · restant budget (PEW − verwerkt) vanaf het huidige kwartaal: gelijk verdeeld t/m '
                             'oplevering (tab Start), of bij "Transport" naar rato van het transport · kies per post in kolom C' if c == 'B' else None, st['sectie'])
     # kolom voor het aantal kwartalen (of woningen) waarover verdeeld wordt: G, tenzij G een kwartaalkolom is (in het
     # standaard-FO is G de kolom Actuals; dan C)

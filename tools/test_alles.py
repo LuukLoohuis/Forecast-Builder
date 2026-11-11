@@ -290,6 +290,40 @@ def t_dianummers():
     ok('werkbestand: geen verouderde dianummers in de teksten', not oud, ', '.join(oud))
 
 
+def t_bereik_en_totaal():
+    """grafiekbereik van het Dashboard werkt door in de blokken voor PowerPoint; totaalrij verkoop/transport; afgesloten
+    kwartaal = huidig kwartaal - 1"""
+    import tempfile
+    import openpyxl
+    from openpyxl.utils import column_index_from_string as ci
+    from xlsxpkg import Package, Sheet, SST
+    tmp = tempfile.mkdtemp(prefix='bereik_')
+    k, k2, d = (os.path.join(tmp, x) for x in ('k.xlsm', 'k2.xlsm', 'd.xlsx'))
+    controleer.testkopie(DEMO_WB, k)
+    pkg = Package(k)
+    part, sst = pkg.sheet_part('Dashboard'), SST(pkg.x('xl/sharedStrings.xml'))
+    sh = Sheet(pkg.x(part), sst)
+    for ref, v in (('W89', 2026), ('X89', 3), ('W90', 2027), ('X90', 4)):
+        sh.set_value(ref, v)
+    pkg.put(part, sh.t)
+    sst.finish()
+    pkg.put('xl/sharedStrings.xml', sst.t)
+    pkg.save(k2)
+    controleer.doorrekenen(k2, d)
+    wb = openpyxl.load_workbook(d, data_only=True)
+    m, pp, st = wb['Model'], wb['PowerPoint'], wb['Start']
+    hh = [pp.cell(r, ci('HH')).value for r in range(8, 68)]
+    gevuld = [x for x in hh if x not in (None, '')]
+    ok('grafiekbereik Q3 2026 t/m Q4 2027: het cashflowblok voor PowerPoint heeft die 6 kwartalen',
+       m['BY338'].value == 6 and len(gevuld) == 6 and gevuld[0] == 'Q3' and gevuld[-1] == 'Q4', '%s rijen: %s' % (len(gevuld), gevuld))
+    tot = [pp.cell(8, ci('ER') + 1 + i).value for i in range(10)]
+    som = sum(x for x in tot if isinstance(x, (int, float)))
+    ok('verkoop en transport: totaalrij = alle woningen per type', pp['ER8'].value == 'Totaal' and som == m['BY39'].value > 0
+       and m['BY339'].value == m['BY132'].value + 1, 'totaal %s' % som)
+    ok('Start: afgesloten t/m = het kwartaal voor het huidige kwartaal', st['F8'].value and st['F12'].value == st['F8'].value - 1,
+       '%s / %s' % (st['E8'].value, st['E12'].value))
+
+
 def t_pptx():
     from pptx import Presentation
     namen = set()
@@ -359,6 +393,7 @@ def main():
     t_pptx()
     t_palet_werkbestand()
     t_dianummers()
+    t_bereik_en_totaal()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')
     lo = LO()
     try:
