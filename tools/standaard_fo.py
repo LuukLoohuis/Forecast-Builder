@@ -132,6 +132,8 @@ K_SOM = K_POSTN + 1
 K_CHECK = K_POSTN + 2
 K_TOT = K_POSTN + 5
 K_PER = K_TOT + 2
+K_AH = K_PER + 23                       # hulprijen onder het voorstelblok: geplande aanneemsom per kwartaal
+K_AF = K_PER + 24                       # en het eerste kwartaal vanaf het huidige met een geplande termijn
 POSTEN = ['Grondkosten', 'Aanneemsom', 'Kopersmeerwerk', 'Overige bouwkosten / meerwerken', 'Honoraria',
           'Promotiekosten', 'Verhuur & verkoopkosten', 'Aansluitkosten', 'Legeskosten', 'Rente / Subsidies / bankgarantie',
           'Commerciele / Operationele reserve', 'Direct doorbelaste projectkosten']
@@ -679,11 +681,12 @@ def maak_kosten(ws):
         zet(ws, '%s%d' % (COLS[0], r), "=SUMIFS('FO - huidig'!$M:$M,'FO - huidig'!$Y:$Y,$B%d)" % r, F, None, NUM)
         for i_, c in enumerate(QCOLS, 1):
             if p == 'Aanneemsom':
-                # in het huidige kwartaal: het verschil tussen de planning t/m nu (kolom G) en het werkelijk betaalde
-                # (kolom G van de post); zo telt wat al betaald is niet nog eens mee met de geplande termijnen
+                # wat al betaald is telt niet nog eens mee met de geplande termijnen: het verschil tussen de planning t/m nu
+                # (kolom G) en het werkelijk betaalde gaat af in het eerste kwartaal vanaf het huidige met een geplande
+                # termijn (hulprijen K_AH / K_AF); zonder zo'n kwartaal in het huidige kwartaal
+                vlag = 'OR(%s%d=1,AND(SUM($%s$%d:$%s$%d)=0,%s*4+%d=p_huidig))' % (c, K_AF, QCOLS[0], K_AF, QCOLS[-1], K_AF, JAAR, i_)
                 f = '=' + '+'.join('%s%d' % (c, k_aanneem(k)) for k in range(1, NT + 1)) + \
-                    '+IF(%s*4+%d=p_huidig,%s-$%s%d,0)' % (JAAR, i_, '+'.join('$%s%d' % (COLS[0], k_aanneem(k))
-                                                                       for k in range(1, NT + 1)), COLS[0], r)
+                    '+IF(%s,%s-$%s%d,0)' % (vlag, '+'.join('$%s%d' % (COLS[0], k_aanneem(k)) for k in range(1, NT + 1)), COLS[0], r)
             elif p == 'Kopersmeerwerk':
                 f = '=' + '+'.join('%s%d' % (c, k_aanneem(k) + 1) for k in range(1, NT + 1))
             else:
@@ -703,6 +706,14 @@ def maak_kosten(ws):
     zet(ws, 'B%d' % (K_TOT + 1), 'Kosten in %')
     for c in COLS:
         zet(ws, '%s%d' % (c, K_TOT + 1), '=IFERROR(%s%d/$D$%d,0)' % (c, K_TOT, K_PEW), F, None, '0%')
+    # hulprijen: geplande aanneemsom per kwartaal en het eerste kwartaal vanaf het huidige met een termijn
+    zet(ws, 'B%d' % K_AH, 'hulp · aanneemsom volgens planning (alle types)', FN)
+    zet(ws, 'B%d' % K_AF, 'hulp · eerste kwartaal vanaf het huidige met een geplande termijn (1)', FN)
+    for i_, c in enumerate(QCOLS, 1):
+        zet(ws, '%s%d' % (c, K_AH), '=' + '+'.join('%s%d' % (c, k_aanneem(k)) for k in range(1, NT + 1)), FN, None, NUM)
+        eerder = 'SUM($%s%d:%s%d)=0' % (QCOLS[0], K_AF, QCOLS[i_ - 2], K_AF) if i_ > 1 else 'TRUE'
+        zet(ws, '%s%d' % (c, K_AF), '=IF(AND(%s*4+%d>=p_huidig,%s%d<>0,%s),1,0)' % (JAAR, i_, c, K_AH, eerder), FN, None, '0')
+    ws.row_dimensions.group(K_AH, K_AF, outline_level=1, hidden=True)
     zet(ws, 'B%d' % K_PER, 'Periode in cashflow SAP')
     for c in COLS:
         zet(ws, '%s%d' % (c, K_PER), "='CF - opbrengsten'!%s%d" % (c, PER), F, None, '0')
