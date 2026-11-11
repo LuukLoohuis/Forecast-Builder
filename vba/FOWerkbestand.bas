@@ -170,6 +170,8 @@ Private Sub Plakken(rij As Long)
     On Error GoTo 0
     h = LaatsteRij(ws, nKol)
     If w > nKol Then ws.Range(ws.Cells(1, nKol + 1), ws.Cells(h, w)).ClearContents
+    Dim omgezet As String
+    If rij = RIJ_VORIG Or rij = RIJ_HUIDIG Then omgezet = ExportNormaliseren(ws, nKol): h = LaatsteRij(ws, nKol)
     HulpBijwerken ws, hulp, hulpRij, h
     If rij = RIJ_ACTUALS Then WeergaveBijwerken
     Application.EnableEvents = True
@@ -177,8 +179,110 @@ Private Sub Plakken(rij As Long)
     Application.ScreenUpdating = True
     ZetStatus rij, "klembord"
     ThisWorkbook.Worksheets(SH_START).Activate
-    MsgBox "Klaar: " & h & " rijen in '" & blad & "'. Controleer de status op tab Start.", vbInformation, TITEL
+    MsgBox "Klaar: " & h & " rijen in '" & blad & "'. Controleer de status op tab Start." & _
+           IIf(Len(omgezet) > 0, vbCrLf & vbCrLf & omgezet, ""), vbInformation, TITEL
 End Sub
+
+Public Function ExportNormaliserenTest(ByVal blad As String) As String
+    ' zonder dialogen (voor de test): de export op het tabblad naar de vaste indeling en de hulpkolommen bijwerken
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(blad)
+    ExportNormaliserenTest = ExportNormaliseren(ws, 21)
+    HulpBijwerken ws, HulpKolommen(blad), 17, LaatsteRij(ws, 21)
+    Application.Calculate
+End Function
+
+Private Function NLGetal(ByVal v As Variant, ByRef uit As Double) As Boolean
+    ' tekst in Nederlandse notatie ("3.387.028", "798.210,00", "-2.483.005", "1.234-") naar een getal
+    Dim t As String, i As Long, ch As String, neg As Boolean, schoon As String, komma As Long
+    t = Trim$(CStr(v))
+    If Len(t) = 0 Then Exit Function
+    If Right$(t, 1) = "-" Then neg = True: t = Left$(t, Len(t) - 1)
+    If Left$(t, 1) = "-" Or Left$(t, 1) = ChrW(8722) Then neg = Not neg: t = Mid$(t, 2)
+    For i = 1 To Len(t)
+        ch = Mid$(t, i, 1)
+        If ch >= "0" And ch <= "9" Then
+            schoon = schoon & ch
+        ElseIf ch = "," Then
+            komma = komma + 1
+            schoon = schoon & "."
+        ElseIf ch <> "." And ch <> " " Then
+            Exit Function
+        End If
+    Next i
+    If Len(schoon) = 0 Or komma > 1 Or schoon = "." Then Exit Function
+    uit = Val(schoon)
+    If neg Then uit = -uit
+    NLGetal = True
+End Function
+
+Private Function ExportNormaliseren(ByVal ws As Worksheet, ByVal nKol As Long) As String
+    ' SAP-export (FO - vorig / FO - huidig) naar de vaste indeling van het werkbestand: de kopregel 'Business object ...
+    ' Plan Budget ...' op rij 15 met de bedragen vanaf kolom K, de boekingsperiode in E4 en de bedragen als getal.
+    ' Een export die al zo staat blijft ongewijzigd. Geeft een zin terug over wat er is omgezet (leeg = niets).
+    Const KOP_RIJ As Long = 15
+    Const KOP_KOL As Long = 11
+    Dim h As Long, a As Variant, b() As Variant, r As Long, c As Long, rA As Long, cP As Long, dr As Long, dc As Long
+    Dim r2 As Long, c2 As Long, nG As Long, g As Double, t As String
+    h = LaatsteRij(ws, nKol + 2)
+    If h < 2 Then Exit Function
+    a = ws.Range(ws.Cells(1, 1), ws.Cells(h, nKol + 2)).Value
+    For r = 1 To IIf(h < 40, h, 40)
+        For c = 1 To 6
+            If LCase$(Left$(Trim$(CStr(a(r, c))), 15)) = "business object" Then rA = r: Exit For
+        Next c
+        If rA > 0 Then Exit For
+    Next r
+    If rA = 0 Then
+        ExportNormaliseren = "LET OP: de kopregel 'Business object' is niet gevonden; de export is niet omgezet."
+        Exit Function
+    End If
+    For c = 1 To nKol + 2
+        If LCase$(Left$(Trim$(CStr(a(rA, c))), 11)) = "plan budget" Then cP = c: Exit For
+    Next c
+    If cP = 0 Then
+        ExportNormaliseren = "LET OP: de kolom 'Plan Budget' is niet gevonden; de export is niet omgezet."
+        Exit Function
+    End If
+    dr = KOP_RIJ - rA
+    dc = KOP_KOL - cP
+    ReDim b(1 To h + IIf(dr > 0, dr, 0), 1 To nKol)
+    For r = 1 To h
+        r2 = r + dr
+        If r2 >= 1 Then
+            For c = 1 To nKol + 2
+                ' t/m de kopregel blijft kolom A (de labels) staan; de waarden en de hele tabel schuiven mee
+                If r <= rA And c = 1 Then c2 = 1 Else c2 = c + dc
+                If c2 >= 1 And c2 <= nKol Then
+                    If Not IsEmpty(a(r, c)) Then
+                        If Len(CStr(a(r, c))) > 0 Then b(r2, c2) = a(r, c)
+                    End If
+                End If
+            Next c
+        End If
+    Next r
+    ' bedragen (K t/m S) als getal
+    For r = KOP_RIJ + 1 To UBound(b, 1)
+        For c = KOP_KOL To KOP_KOL + 8
+            If VarType(b(r, c)) = vbString Then
+                If NLGetal(b(r, c), g) Then b(r, c) = g: nG = nG + 1
+            End If
+        Next c
+    Next r
+    If dr = 0 And dc = 0 And nG = 0 Then Exit Function
+    ws.Range(ws.Cells(1, 1), ws.Cells(h + 2, nKol + 2)).ClearContents
+    ws.Range(ws.Cells(1, 1), ws.Cells(UBound(b, 1), nKol)).Value = b
+    If dr <> 0 Or dc <> 0 Then
+        t = "De export stond in de SAP-indeling en is omgezet ("
+        If dr <> 0 Then t = t & Abs(dr) & IIf(dr < 0, " rij omhoog", " rij omlaag")
+        If dr <> 0 And dc <> 0 Then t = t & ", "
+        If dc <> 0 Then t = t & Abs(dc) & IIf(dc > 0, " kolom naar rechts", " kolom naar links")
+        t = t & IIf(nG > 0, "; " & nG & " bedragen naar getallen", "") & ")."
+    Else
+        t = nG & " bedragen stonden als tekst en zijn getallen geworden."
+    End If
+    ExportNormaliseren = t
+End Function
 
 Private Sub Inlezen(rij As Long)
     Dim blad As String, nKol As Long, hulp As String, hulpRij As Long, ws As Worksheet
@@ -211,14 +315,16 @@ Private Sub Inlezen(rij As Long)
     Set wbE = Nothing
     LeegMaken ws, nKol
     ws.Range(ws.Cells(1, 1), ws.Cells(nR, nC)).Value = data
+    Dim omgezet As String
+    If rij = RIJ_VORIG Or rij = RIJ_HUIDIG Then omgezet = ExportNormaliseren(ws, nKol)
     HulpBijwerken ws, hulp, hulpRij, LaatsteRij(ws, nKol)
     If rij = RIJ_ACTUALS Then WeergaveBijwerken
     Application.EnableEvents = True
     Application.Calculate
     Application.ScreenUpdating = True
     ZetStatus rij, BestandsNaam(CStr(pad))
-    MsgBox "Klaar: " & nR & " rijen in '" & blad & "' uit " & BestandsNaam(CStr(pad)) & ". Controleer de status op tab Start.", _
-           vbInformation, TITEL
+    MsgBox "Klaar: " & nR & " rijen in '" & blad & "' uit " & BestandsNaam(CStr(pad)) & ". Controleer de status op tab Start." & _
+           IIf(Len(omgezet) > 0, vbCrLf & vbCrLf & omgezet, ""), vbInformation, TITEL
     Exit Sub
 Fout:
     foutNr = Err.Number

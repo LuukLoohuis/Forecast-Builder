@@ -337,6 +337,82 @@ def t_bereik_en_totaal():
        '%s / %s' % (st['E8'].value, st['E12'].value))
 
 
+def t_export(lo, export=None):
+    """de ruwe SAP-export (een rij lager, een kolom naar links, bedragen als Nederlandse tekst, nullen leeg) wordt bij het
+    inlezen omgezet naar de vaste indeling; een export die al goed staat blijft ongewijzigd"""
+    kopie = os.path.join(lo.tmp, 'export.xlsm')
+    controleer.testkopie(DEMO_WB, kopie)
+    doc = lo.open(kopie, macros=True)
+    try:
+        sh = doc.Sheets.getByName('FO - huidig')
+        pew = doc.Sheets.getByName('2. Ontw PEW')
+        doc.calculateAll()
+        n = 0
+        for r in range(400):
+            if any(sh.getCellByPosition(c, r).getString() for c in range(21)):
+                n = r + 1
+        bereik = sh.getCellRangeByPosition(0, 0, 20, n + 1)
+        orig = [list(rij) for rij in bereik.getDataArray()]
+        pew0 = [pew.getCellByPosition(6, r).getValue() for r in (19, 26)]
+        # al goed: ongewijzigd
+        bereik.setDataArray(tuple(tuple(r) for r in orig))
+        m0 = lo.macro(doc, 'ExportNormaliserenTest', ('FO - huidig',))
+        na0 = [list(rij) for rij in bereik.getDataArray()]
+        ok('export in de vaste indeling: blijft ongewijzigd', not m0 and na0 == orig, m0 or '')
+
+        def nl(v):
+            t = ('%.2f' % abs(v)) if abs(v - round(v)) > 0.004 else '%d' % round(abs(v))
+            heel, _, dec = t.partition('.')
+            heel = '.'.join([heel[max(0, i - 3):i] for i in range(len(heel), 0, -3)][::-1])
+            return ('-' if v < 0 else '') + heel + (',' + dec if dec else '')
+        ruw = [[''] * 21 for _ in range(n + 2)]
+        for r in range(n):
+            for c in range(21):
+                v = orig[r][c]
+                if v == '' or (r > 14 and c == 0):
+                    continue
+                if r > 14 and 10 <= c <= 18 and isinstance(v, float):
+                    v = nl(v) if abs(v) > 0.004 else ''
+                elif isinstance(v, float) and r < 14:
+                    v = '%d' % v
+                c2 = 0 if (r <= 14 and c == 0) else c - 1
+                ruw[r + 1][c2] = v
+        bereik.setDataArray(tuple(tuple(r) for r in ruw))
+        m1 = lo.macro(doc, 'ExportNormaliserenTest', ('FO - huidig',))
+        doc.calculateAll()
+        na = [list(rij) for rij in bereik.getDataArray()]
+        fout = []
+        for r in range(n):
+            for c in range(21):
+                a, b = orig[r][c], na[r][c]
+                if r <= 14 and c == 1:
+                    continue
+                gelijk = (abs((a or 0) - (b or 0)) < 0.006 if isinstance(a, float) or isinstance(b, float) and a == '' else a == b)
+                if not gelijk:
+                    fout.append('%s%d: %r -> %r' % (chr(65 + c), r + 1, a, b))
+        pew1 = [pew.getCellByPosition(6, r).getValue() for r in (19, 26)]
+        ok('ruwe SAP-export: omgezet naar de vaste indeling (kopregel rij 15, periode E4, bedragen als getal)',
+           m1 and not fout and sh.getCellByPosition(0, 14).getString().startswith('Business'), (m1 or '') + ' ' + '; '.join(fout[:4]))
+        ok('ruwe SAP-export: PEW op 2. Ontw PEW gelijk aan voor het omzetten', all(abs(x - y) < 0.01 for x, y in zip(pew0, pew1))
+           and abs(pew0[0]) > 0, '%s / %s' % (pew0, pew1))
+        if export:                                   # een eigen export (blijft lokaal): totaal van de export = PEW
+            import openpyxl
+            ws = openpyxl.load_workbook(export, data_only=True).worksheets[0]
+            data = [[('' if c is None else c) for c in rij[:21]] + [''] * (21 - len(rij[:21])) for rij in ws.iter_rows(values_only=True)]
+            leeg = sh.getCellRangeByPosition(0, 0, 20, max(n, len(data)) + 5)
+            leeg.clearContents(1023)
+            sh.getCellRangeByPosition(0, 0, 20, len(data) - 1).setDataArray(tuple(tuple(r) for r in data))
+            m2 = lo.macro(doc, 'ExportNormaliserenTest', ('FO - huidig',))
+            doc.calculateAll()
+            ok('eigen export: omgezet', bool(m2) and sh.getCellByPosition(0, 14).getString().startswith('Business'), m2 or '')
+            print('        periode %s · regel 17: %s' % (sh.getCellByPosition(4, 3).getString(),
+                  [sh.getCellByPosition(c, 16).getString() for c in (1, 10, 12, 14)]))
+            print('        2. Ontw PEW huidig: kosten %.0f · opbrengsten %.0f · resultaat %.0f' % tuple(
+                pew.getCellByPosition(6, r).getValue() for r in (19, 26, 28)))
+    finally:
+        doc.close(True)
+
+
 def t_pptx():
     from pptx import Presentation
     namen = set()
@@ -394,6 +470,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--geen-bouw', action='store_true')
     ap.add_argument('--fo', help='een eigen oud FO om ook te testen (blijft lokaal)')
+    ap.add_argument('--export', help='een eigen SAP-export voor FO - huidig om te testen (blijft lokaal)')
+    ap.add_argument('--alleen-export', action='store_true', help='alleen de exporttest (snel)')
     a = ap.parse_args()
     if not a.geen_bouw:
         print('== Bouwen')
@@ -402,6 +480,13 @@ def main():
         if code:
             print(uit[-2000:])
             return 1
+    if a.alleen_export:
+        lo = LO()
+        try:
+            t_export(lo, a.export)
+        finally:
+            lo.stop()
+        return 1 if [n for n, g, _ in uitslag if not g] else 0
     print('== 1-2 Controles en kringen')
     t_controleer(DEMO_WB, None, 'demo', 4)
     t_kringen()
@@ -413,6 +498,7 @@ def main():
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')
     lo = LO()
     try:
+        t_export(lo, a.export)
         kopie = os.path.join(lo.tmp, 'demo.xlsm')
         controleer.testkopie(DEMO_WB, kopie)
         demo = lo.open(kopie)

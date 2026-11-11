@@ -29,6 +29,8 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
    - SAP actuals (FR5) → *FO - actuals*;
    - Salesforce → *Prijslijst dump*.
 
+   De SAP-export voor FO - vorig en FO - huidig mag je ongewijzigd inlezen of plakken: staat hij in de SAP-indeling (een rij lager, een kolom naar links, bedragen als tekst), dan zet de macro hem zelf om en meldt dat.
+
    Zet de exportdatum op Prijslijst (cel C1).
 3. **Prijslijst:**
    - per woningtype het type of blok (kolom C) en eventueel handmatige bedragen;
