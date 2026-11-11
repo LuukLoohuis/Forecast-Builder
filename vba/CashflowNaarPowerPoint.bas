@@ -89,7 +89,7 @@ Option Explicit
 '       'koopsom' (die volgt de transportregel); 1. Cashflow heet nu 'Cashflow'; tab CF kosten heet 'Scenario kosten';
 '       sjabloon v21 (v20 met vormnamen voor de datum op dia 1 en de kaarten van dia 10).
 '       Sjabloon v22 (tools/pptx_v22.py): palet van het werkboek, tekst minimaal 8 pt, dia 3 zonder scenario 1-3 en met de
-'       kans grondtermijn, nieuwe dia 4 'vorige <-> huidig <-> realisatie' (VR_TABEL), PEW_TABEL als echte tabel met PEW_TOP3.
+'       kans grondtermijn, PEW_TABEL als echte tabel met het volledige PEW-overzicht en PEW_TOP3; 9 dia's (zonder 'Van verkoop naar omzet').
 '       Daarna: Invoer, Woningtypes, Scenario kosten en de FO-cellen op het Dashboard zijn formules op de FO-tabbladen
 '       (tools/scenario_koppeling.py); OphalenUitFO blijft bestaan voor een los FO, maar heeft geen knop meer.
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
@@ -224,15 +224,16 @@ Private Function Grafieken() As Variant
     Grafieken = Array(Array("CF_GRAFIEK", BLOK_CF, KOL_CF, ""), Array("SC_GRAFIEK", "P7", 10, ""), _
                       Array("BT_GRAFIEK", "AA7", KOL_BT, "BY96"), _
                       Array("VP1_GRAFIEK", "ER7", KOL_VP, CEL_VP_RIJEN), Array("VP2_GRAFIEK", "ER7", KOL_VP, CEL_VP_RIJEN), _
-                      Array("VO_GRAFIEK", "FY7", 5, ""), Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, CEL_N_ALLE), _
+                      Array("KPI_GRAFIEK", BLOK_KC, KOL_KC, CEL_N_ALLE), _
                       Array("VS_GRAFIEK", BLOK_VS, KOL_VS, CEL_VP_N))
 End Function
 
 Private Function Tabellen() As Variant
     ' vormnaam op de dia, kopcel van de tabel, aantal rijen met kop, aantal kolommen, lege regels overslaan (1 = ja)
-    ' sinds v22: VR_TABEL (dia 4, vorige <-> huidig <-> realisatie) en PEW_TABEL (dia Update PEW) als echte tabellen
+    ' sinds v22: PEW_TABEL (dia Update PEW) is een echte tabel met het volledige overzicht van 2. Ontw PEW (23 x 7);
+    ' het blok acht kolommen rechts ervan (IQ7) geeft per delta de richting (kleur)
     Tabellen = Array(Array("SC_TABEL", "GP7", 9, 4, 0), Array("VT_TABEL", "GP18", MAX_TYPES + 1, 8, 1), _
-                     Array("VR_TABEL", "ID7", 6, 4, 0), Array("PEW_TABEL", "II7", 8, 4, 0))
+                     Array("PEW_TABEL", "II7", 23, 7, 0))
 End Function
 
 ' -------------------------------------------------------------------------------------
@@ -393,9 +394,7 @@ Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
     If vak.HasTable Then
         Set tb = ZoekVorm(pres, "PEW_TOP3")
         If tb Is Nothing Then Exit Sub
-        tekst = Top3Tekst()
-        tb.TextFrame.TextRange.Text = tekst
-        If Len(tekst) > 0 Then tb.TextFrame.TextRange.Paragraphs(1).Font.Bold = True
+        tb.TextFrame.TextRange.Text = Replace(Replace(Top3Tekst(), " (actuals)" & vbCr, " (actuals): "), vbCr, " " & ChrW(183) & " ")
         Exit Sub
     End If
     marge = 6
@@ -1263,6 +1262,20 @@ Private Sub VulTabel(pres As Object, vorm As String, kop As Range, nRijen As Lon
         Loop
     End If
     If vorm = "VT_TABEL" Then SchikDia5 pres, tbl
+    If vorm = "PEW_TABEL" Then
+        ' delta's rood (ongunstig) of groen (gunstig), volgens het richtingsblok acht kolommen rechts van de tabel
+        Dim richting As String
+        On Error Resume Next
+        For r = 1 To nRijen - 1
+            For c = 4 To 5
+                richting = LCase$(Trim$(CelTekst(kop.Offset(r, c + 8))))
+                If Len(richting) > 0 And r + 1 <= tbl.Rows.Count Then
+                    tbl.Cell(r + 1, c + 1).Shape.TextFrame.TextRange.Font.Color.RGB = RichtingKleur(richting)
+                End If
+            Next c
+        Next r
+        On Error GoTo Mislukt
+    End If
     Exit Sub
 Mislukt:
     fouten = fouten & vorm & ": " & Err.Description & vbCrLf

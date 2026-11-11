@@ -667,10 +667,11 @@ def maak_kosten(ws):
     kopregels(ws, K_JAAR, K_OND, act='Actuals')
     zet(ws, '%s%d' % (COLS[0], K_JAAR), 'Actuals', FB)
     zet(ws, 'B%d' % K_OND, 'Onderdelen', FB, KOP)
-    zet(ws, 'B%d' % (K_PEW + 1), 'Methode per post (kolom C): Handmatig = de bedragen die je in de regel invult · Voorstel = '
-                                 'wat nog over is (PEW − verwerkt − wat je zelf invult) gelijk verdeeld over de lege prognosekwartalen '
-                                 't/m oplevering · Transport = idem, naar rato van het aantal getransporteerde woningen. '
-                                 'De uitkomst staat in het voorstelblok onderaan; de totaalregel is de definitieve cashflow.', FN)
+    zet(ws, 'B%d' % (K_PEW + 1), 'Methode per post (kolom C) = hoe het bedrag dat nog niet is uitgegeven (PEW − al geboekt in SAP) over '
+                                 'de kwartalen gaat · HANDMATIG: je vult zelf per kwartaal de bedragen in · VOORSTEL: het restant gelijk '
+                                 'verdeeld vanaf het huidige kwartaal t/m oplevering (vul je zelf een kwartaal in, dan wordt de rest '
+                                 'verdeeld) · TRANSPORT: het restant naar rato van het aantal woningen dat per kwartaal wordt '
+                                 'getransporteerd. De uitkomst staat in het voorstelblok onderaan; de totaalregel is de definitieve cashflow.', FN)
     zet(ws, 'D%d' % K_OND, '€', FB, KOP)
     zet(ws, '%s%d' % (CHK, K_OND), 'Check', FB, KOP)
     zet(ws, '%s%d' % (TOEL, K_OND), 'Toelichting', FB, KOP)

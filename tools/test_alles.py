@@ -286,7 +286,7 @@ def t_dianummers():
     wb = openpyxl.load_workbook(SJABLOON, read_only=True)
     sst = '\n'.join(str(c) for ws in wb.worksheets for rij in ws.iter_rows(values_only=True) for c in rij
                     if isinstance(c, str))
-    oud = [t for t in ('dia 1 en 10', 'kopie van dia 8', 'kopie van dia 9', 'Dashboard en dia 5', 'titel dia 6') if t in sst]
+    oud = [t for t in ('dia 1 en 10', 'dia 4 en Update PEW', 'kopie van dia 8', 'kopie van dia 9', 'Dashboard en dia 5', 'DIA 10') if t in sst]
     ok('werkbestand: geen verouderde dianummers in de teksten', not oud, ', '.join(oud))
 
 
@@ -320,6 +320,19 @@ def t_bereik_en_totaal():
     som = sum(x for x in tot if isinstance(x, (int, float)))
     ok('verkoop en transport: totaalrij = alle woningen per type', pp['ER8'].value == 'Totaal' and som == m['BY39'].value > 0
        and m['BY339'].value == m['BY132'].value + 1, 'totaal %s' % som)
+    # het PEW-blok voor de dia = 2. Ontw PEW; de Dashboard-grafieken verkoop/transport lezen het blok met de totaalrij
+    pw = wb['2. Ontw PEW']
+    blok = [[pp.cell(7 + i, ci('II') + j).value for j in range(7)] for i in range(23)]
+    getal = lambda t: float(str(t).replace('−', '-').replace(',', '').replace('.', '')) if t not in (None, '', '–') else 0.0
+    ok('PEW-blok voor de dia: posten en totalen gelijk aan 2. Ontw PEW', blok[2][0] == pw['C7'].value and blok[14][0] == pw['C20'].value
+       and abs(getal(blok[14][3]) - round(pw['G20'].value)) < 1 and abs(getal(blok[20][3]) - round(pw['G27'].value)) < 1,
+       '%s | %s' % (blok[14], blok[20]))
+    import zipfile
+    with zipfile.ZipFile(SJABLOON) as z:
+        wbx = z.read('xl/workbook.xml').decode('utf-8')
+    namen = re.findall(r'<definedName name="(g_(?:vk_\w+|v\d+|t\d+))"[^>]*>([^<]*)<', wbx)
+    ok('Dashboard: de grafieken verkoop en transport lezen het blok met de totaalrij', len(namen) >= 30
+       and all(t.startswith('OFFSET(PowerPoint!$') and 'BY$339' in t for _, t in namen), '%d namen' % len(namen))
     ok('Start: afgesloten t/m = het kwartaal voor het huidige kwartaal', st['F8'].value and st['F12'].value == st['F8'].value - 1,
        '%s / %s' % (st['E8'].value, st['E12'].value))
 
@@ -354,8 +367,10 @@ def t_pptx():
     ok('PowerPoint-sjabloon: alle vormen die de macro vult zijn er', not mist, '%d vormen' % len(nodig) +
        (', mist: %s' % ', '.join(mist[:8]) if mist else ''))
     # v22: tabellen, palet en lettergrootte
-    tab = {sh.name: sh.has_table for sl in pres.slides for sh in sl.shapes if sh.name in ('VR_TABEL', 'PEW_TABEL', 'SC_TABEL')}
-    ok('PowerPoint-sjabloon: VR_TABEL, PEW_TABEL en SC_TABEL zijn tabellen', len(tab) == 3 and all(tab.values()), str(tab))
+    tab = {sh.name: sh for sl in pres.slides for sh in sl.shapes if sh.name in ('PEW_TABEL', 'SC_TABEL')}
+    pew = tab.get('PEW_TABEL')
+    ok('PowerPoint-sjabloon: SC_TABEL is een tabel en PEW_TABEL het volledige overzicht (23 x 7)',
+       len(tab) == 2 and all(t.has_table for t in tab.values()) and len(pew.table.rows) == 23 and len(pew.table.columns) == 7)
     import pptx_v22
     oud_palet, klein = set(), []
     for i, sl in enumerate(pres.slides, 1):
@@ -370,8 +385,9 @@ def t_pptx():
                               if r.get('sz') and int(r.get('sz')) < pptx_v22.MIN_SZ]
     ok('PowerPoint-sjabloon: alleen kleuren uit het werkboekpalet', not oud_palet, ', '.join(sorted(oud_palet)))
     ok('PowerPoint-sjabloon: geen tekst onder 8 pt', not klein, ', '.join(klein[:5]))
-    ok('PowerPoint-sjabloon: 11 dia\'s, dia 4 = vorige ↔ huidig ↔ realisatie', len(pres.slides) == 11 and
-       any(sh.name == 'VR_TABEL' for sh in pres.slides[3].shapes))
+    vervallen = sorted(n for n in namen if n.startswith(('VR_', 'VO_')))
+    ok('PowerPoint-sjabloon: 9 dia\'s, zonder vorige-huidig-realisatie en van verkoop naar omzet', len(pres.slides) == 9
+       and not vervallen, ', '.join(vervallen[:5]))
 
 
 def main():

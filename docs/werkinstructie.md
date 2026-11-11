@@ -47,7 +47,7 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
 6. **2. Ontw PEW:** meest recente FD en toelichting.
 7. **Start blok 4:** alle controles op OK.
 8. Bekijk **Dashboard**, **Scenario's** en **CF vorig en huidig** (vorige ↔ huidige prognose ↔ realisatie). Met "Grafiek vanaf / t/m" op het Dashboard kies je de periode van de grafieken; die geldt ook voor de PowerPoint.
-9. **PowerPoint maken** en de kaarten van de dia Update PEW (Start blok 6) aanvullen. Dia 4 toont vorige prognose ↔ huidig ↔ realisatie.
+9. Vul op Start blok 6 de meest recente FD en de PEW-basis in (die komen in de ondertitel van de dia Update PEW) en klik **PowerPoint maken**.
 10. **Na het FO:** correcties boeken in SAP en `CF - hulp VENA` inlezen in VENA.
 11. Bewaar het werkbestand; volgend kwartaal begin je weer bij stap 1.
 

@@ -214,7 +214,7 @@ def maak_start(wb, demo, R):
     cell(ws, 'B10', 'Cijfers per')
     cell(ws, 'C10', '=IF(F6="","",EOMONTH(DATE(INT(F6/100),MOD(F6,100),1),0))', F_BASE, FILL_INPUT, 'dd-mm-yyyy')
     cell(ws, 'G10', 'standaard: einde boekingsperiode; overschrijven mag', F_NOTE)
-    cell(ws, 'B11', 'Tekst in PowerPoint (titeldia, dia 4 en Update PEW)')
+    cell(ws, 'B11', 'Tekst in PowerPoint (titeldia en Update PEW)')
     cell(ws, 'C11', '=IF(C10="","","Cijfers per "&DAY(C10)&" "&CHOOSE(MONTH(C10),%s)&" "&YEAR(C10))' % MAANDEN,
          F_BASE, FILL_CALC)
     cell(ws, 'B12', 'Afgesloten t/m · jaar en kwartaal')
@@ -383,7 +383,7 @@ def maak_start(wb, demo, R):
 
     # 6 dia Update PEW --------------------------------------------------------------------------------------
     r = r + len(stappen) + 2
-    section(ws, r, '6 · DIA 10 · UPDATE PEW')
+    section(ws, r, '6 · DIA UPDATE PEW · meest recente FD en PEW-basis (komen in de ondertitel van de dia)')
     for i, h in enumerate(['Kaart', 'Waarde', 'Toelichting']):
         cell(ws, '%s%d' % (L(2 + i), r + 1), h, F_HEAD, FILL_HEAD)
     dia10 = demo.get('dia10') or [('Meest recente FD', None, None), ('Huidige PEW-basis', None, None),
