@@ -956,13 +956,13 @@
    "totaalkol": "AW",
    "toelichting": "AZ",
    "werkelijk": "G",
-   "voorstel_start": 130,
-   "voorstel_offset": 26,
-   "voorstel_eind": 149,
-   "sleutelrij": 133,
-   "max": 129,
-   "voorstel_eerste": 137,
-   "voorstel_laatste": 148
+   "voorstel_start": 154,
+   "voorstel_offset": 50,
+   "voorstel_eind": 173,
+   "sleutelrij": 157,
+   "max": 153,
+   "voorstel_eerste": 161,
+   "voorstel_laatste": 172
   },
   "pew": {
    "kop": 5,
