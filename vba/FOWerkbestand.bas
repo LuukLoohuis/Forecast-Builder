@@ -1444,11 +1444,12 @@ Private Sub PewOmzetten(ByVal wbO As Workbook, ByRef lg As String)
     For r = 1 To 11
         For c = 3 To 19
             t = LCase$(Tk(wB.Cells(r, c).Value))
-            If InStr(t, "niet-daeb") > 0 Or InStr(t, "niet daeb") > 0 Then
+            ' alleen kolomkoppen ('Concept SKO ...'), niet een toelichting die toevallig 'niet-DAEB' noemt
+            If InStr(t, "sko") > 0 And (InStr(t, "niet-daeb") > 0 Or InStr(t, "niet daeb") > 0) And kb = 0 Then
                 kb = c: kr = r
-            ElseIf InStr(t, "daeb") > 0 And InStr(t, "sko") > 0 Then
+            ElseIf InStr(t, "sko") > 0 And InStr(t, "daeb") > 0 And InStr(t, "niet") = 0 And ka = 0 Then
                 ka = c: kr = r
-            ElseIf t = "toelichting" Then
+            ElseIf t = "toelichting" And kt = 0 Then
                 kt = c
             End If
         Next c

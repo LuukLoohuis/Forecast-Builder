@@ -406,11 +406,12 @@ def omzetten(oud, uit, project=None):
         for r in range(1, 12):
             for c in range(3, 20):
                 t = _t(bv.cell(r, c).value).lower()
-                if 'niet-daeb' in t or 'niet daeb' in t:
+                # alleen kolomkoppen ('Concept SKO ...'), niet een toelichting die toevallig 'niet-DAEB' noemt
+                if 'sko' in t and ('niet-daeb' in t or 'niet daeb' in t) and not kb_:
                     kb_, kr = c, r
-                elif 'daeb' in t and 'sko' in t:
+                elif 'sko' in t and 'daeb' in t and 'niet' not in t and not ka:
                     ka, kr = c, r
-                elif t == 'toelichting':
+                elif t == 'toelichting' and not kt:
                     kt = c
         n2 = 0
         if ka and kb_:

@@ -1099,7 +1099,9 @@ def grafiekbereik_en_totaal(sheet, save):
     assert not sh.get('BX342')
     sh.set_value('BX342', 'Verkoopgrafiek: eerste getoonde periode (eerste verkoop of transport, niet vóór het grafiekbereik)',
                  sh.style_of('BX338'))
-    sh.set_formula('BY342', 'MAX($BY$131,IFERROR(MATCH(TRUE,INDEX((N(+$BG$8:$BG$67)>0)+(N(+$BH$8:$BH$67)>0)>0,0),0),$BY$131))',
+    eerste = 'IFERROR(MATCH(TRUE,INDEX((N(+$BG$8:$BG$67)>0)+(N(+$BH$8:$BH$67)>0)>0,0),0),99999)'
+    daeb = 'IF(N($BY$328)>0,$BY$328,99999),IF(N($BY$329)>0,$BY$329,99999)'          # DAEB-markering (verkocht / geleverd)
+    sh.set_formula('BY342', 'MAX($BY$131,IF(MIN(%s,%s)>=99999,$BY$131,MIN(%s,%s)))' % (eerste, daeb, eerste, daeb),
                    sh.style_of('BY338'))
     # DAEB-woningen altijd apart (gaan vaak in één keer over): markering in plaats van een staaf
     assert sh.get('BY326') == '=IF(AND($BY$135>0,$BY$135>0.5*$BY$39),1,0)', sh.get('BY326')
@@ -1125,8 +1127,9 @@ def grafiekbereik_en_totaal(sheet, save):
     laatste = 'SUMPRODUCT(MAX(($GA$8:$GA$140=1)*($GK$8:$GK$140<99999)*$GK$8:$GK$140))'
     sh.set_formula('BY101', 'IF($BY$8=0,0,IF(IFERROR(%s,0)=0,INT((INDEX($F$8:$F$67,$BY$8)-1)/4),MIN(INT((INDEX($F$8:$F$67,$BY$8)-1)/4),'
                             'INT((%s-1)/4))))' % (laatste, laatste), sh.style_of('BY101'))
-    sh.set_formula('BY324', '"Verkoop per kwartaal · "&$BY$39&" woningen"', sh.style_of('BY324'))
-    sh.set_formula('BY325', '"Transport per kwartaal (notarieel) · "&$BY$39&" woningen"', sh.style_of('BY325'))
+    aantal = 'IF($BY$326=1,($BY$39-$BY$135)&" koop + "&$BY$135&" DAEB",$BY$39&" woningen")'
+    sh.set_formula('BY324', '"Verkoop per kwartaal · "&%s' % aantal, sh.style_of('BY324'))
+    sh.set_formula('BY325', '"Transport per kwartaal (notarieel) · "&%s' % aantal, sh.style_of('BY325'))
     f = sh.get('BY322')
     for i in range(10):
         oud = '&%s$7&"   "' % L(ci('EI') + i)
@@ -1165,7 +1168,9 @@ def grafiekbereik_en_totaal(sheet, save):
     for c in range(k1 + 1, kn + 1):
         i = c - k1 - 1
         if i < 20:              # verkocht per type (10) en getransporteerd per type (10): alle woningen van het type
-            f = 'IF(N(Model!$%s$6)=0,NA(),Model!$%s$6)' % ((L(ci('CA') + i % 10),) * 2)
+            # DAEB apart (markering): niet in de totaalstaaf
+            f = 'IF(OR(N(Model!$%s$6)=0,AND(Model!$BY$326=1,N(Model!$%s$5)=1)),NA(),Model!$%s$6)' % (
+                L(ci('CA') + i % 10), L(ci('FM') + i % 10), L(ci('CA') + i % 10))
         else:
             f = 'NA()'
         sh.set_formula('%s8' % L(c), f, sh.style_of('%s8' % L(c)))
