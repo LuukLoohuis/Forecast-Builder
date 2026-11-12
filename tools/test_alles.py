@@ -354,8 +354,9 @@ def t_bereik_en_totaal():
     import standaard_fo as S
     ob = wb['CF - opbrengsten']
     dump = wb['Prijslijst dump']
-    sf_t = sum(1 for r in range(2, dump.max_row + 1) if str(dump.cell(r, 7).value or '').strip() == 'Getransporteerd')
-    sf_v = sum(1 for r in range(2, dump.max_row + 1) if str(dump.cell(r, 7).value or '').strip() in ('Verkocht', 'Getransporteerd'))
+    sts = [str(dump.cell(r, 7).value or '').strip().lower() for r in range(2, dump.max_row + 1)]
+    sf_t = sum(1 for x in sts if x.startswith('getransporteer'))          # Getransporteerd of Getransporteert
+    sf_v = sf_t + sts.count('verkocht')                                   # In optie / Te koop tellen niet als verkocht
     tv, tt = ob['D%d' % S.VK_TOT].value, ob['D%d' % S.TT_TOT].value
     ok('verkoop en transport: één tabel per type, t/m nu uit Salesforce (verkocht en getransporteerd)',
        str(ob['B%d' % S.VK].value).startswith('VERKOOP EN TRANSPORT') and str(ob['B%d' % S.vk_rij(1)].value).endswith('verkocht')

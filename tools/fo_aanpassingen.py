@@ -113,9 +113,9 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
             sl = pl['sleutels'][t['k'] - 1].replace('"', '""')
             tel = lambda s_: 'COUNTIFS(Prijslijst!$%s$5:$%s$2000,"%s",Prijslijst!$%s$5:$%s$2000,"%s")' % (
                 pl['type'], pl['type'], sl, pl['status'], pl['status'], s_)
-            z('D%d' % t['verkoop'], '=%s+%s' % (tel('Verkocht'), tel('Getransporteerd')), sh.style_of('D%d' % t['verkoop']))
+            z('D%d' % t['verkoop'], '=%s+%s' % (tel('Verkocht'), tel('Getransporteer*')), sh.style_of('D%d' % t['verkoop']))
             if t.get('transport_tabel'):
-                z('D%d' % t['transport_tabel'], '=%s' % tel('Getransporteerd'), sh.style_of('D%d' % t['transport_tabel']))
+                z('D%d' % t['transport_tabel'], '=%s' % tel('Getransporteer*'), sh.style_of('D%d' % t['transport_tabel']))
         # bouwtermijnen van dit omzetblok: begrensd door het transport van dit type (ook als een termijnrij per
         # vergissing naar de verkooprij van een ander type verwees)
         n = 0

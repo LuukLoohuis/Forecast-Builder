@@ -415,8 +415,8 @@ def maak_opbrengsten(ws):
     FI = Font(name='Heijmans-Light', size=10, color='FF4B5563')
     for k in range(1, NT + 1):
         for r, lab, sf in ((vk_rij(k), '=%s&" · verkocht"' % pl('$B$%d' % (P_TYPE1 + k - 1)),
-                            '%s+%s' % (tel(k, 'Verkocht'), tel(k, 'Getransporteerd'))),
-                           (tt_rij(k), '    getransporteerd', tel(k, 'Getransporteerd'))):
+                            '%s+%s' % (tel(k, 'Verkocht'), tel(k, 'Getransporteer*'))),
+                           (tt_rij(k), '    getransporteerd', tel(k, 'Getransporteer*'))):
             zet(ws, 'B%d' % r, lab, FB if r == vk_rij(k) else FI)
             zet(ws, 'C%d' % r, '=G%d' % won_rij(k), F, None, '0')
             zet(ws, 'D%d' % r, '=' + sf, F, GRIJS, '0')
@@ -438,7 +438,7 @@ def maak_opbrengsten(ws):
     st_ = lambda x: 'COUNTIF(Prijslijst!%s,"%s")' % (s_bn, x)
     zet(ws, 'B%d' % (TT_TOT + 1), '=HYPERLINK("#\'Prijslijst dump\'!A1","t/m nu uit Salesforce (Prijslijst dump): "&%s&" verkocht · "&'
                                   '%s&" getransporteerd · "&%s&" in optie · "&%s&" te koop  →")'
-        % (st_('Verkocht'), st_('Getransporteerd'), st_('In optie'), st_('Te koop')),
+        % (st_('Verkocht'), st_('Getransporteer*'), st_('In optie'), st_('Te koop')),
         Font(name='Heijmans-Light', size=9, italic=True, color='FF003366', underline='single'))
     ws.conditional_formatting.add('F%d:F%d' % (VK + 1, TT_TOT), DataBarRule(start_type='num', start_value=0, end_type='num',
                                                                              end_value=1, color='FF003366', showValue=True))

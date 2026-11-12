@@ -173,7 +173,8 @@ omschrijving op.
 - Bouwtermijnen = aantal woningen dat de termijn haalt (planning), begrensd door het transport, × % × (aanneemsom + KAO) per woning.
 - Kopersmeerwerk: 25% met de eerste termijn (start bouw), 75% met de laatste termijn (oplevering).
 - Kadastrale kosten en aanvullende rente: aantal woningen per kwartaal, met de hand.
-- Verkocht t/m nu = status "Verkocht" of "Getransporteerd" in de prijslijst.
+- Verkocht t/m nu = status "Verkocht" of "Getransporteerd" in de prijslijst; "In optie" en "Te koop" tellen niet mee.
+- Getransporteerd t/m nu = status "Getransporteerd" (ook gespeld als "Getransporteert").
 - Getransporteerd kan niet vóór verkocht: schuift de verkoop op, dan schuift het transport mee.
 
 **Kosten**
