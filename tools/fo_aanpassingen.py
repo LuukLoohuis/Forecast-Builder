@@ -82,8 +82,10 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
                 v = t['verkoop_waarden'][j]
                 z('%s%d' % (c, t['verkoop']), v if v else None, st['invoer_getal'])
             g = t['grond_waarden'][j]
-            # transport in aantallen in de tabel Transport; het % rekent daaruit
-            z('%s%d' % (c, t['transport_tabel']), g if g else None, st['invoer_getal'])
+            # transport in aantallen in de tabel; het % rekent daaruit. Kolom 1 (t/m nu) = Salesforce (formule in het
+            # sjabloon), de kwartalen erna uit het FO
+            if j > 0:
+                z('%s%d' % (c, t['transport_tabel']), g if g else None, st['invoer_getal'])
             z('%s%d' % (c, rb), '=IF(N(%s)=0,0,N(%s%d)/%s)' % (won, c, t['transport_tabel'], won), st['pct_calc'])
             eff = lambda k: 'MIN(SUM($%s%d:%s%d),SUM($%s%d:%s%d))' % (c1, rb, k, rb, c1, ra, k, ra)
             z('%s%d' % (c, tr), '=ROUND((%s%s)*%s,6)' % (eff(c), '-' + eff(prev) if prev else '', won), st['aantal'])
@@ -111,7 +113,9 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
             sl = pl['sleutels'][t['k'] - 1].replace('"', '""')
             tel = lambda s_: 'COUNTIFS(Prijslijst!$%s$5:$%s$2000,"%s",Prijslijst!$%s$5:$%s$2000,"%s")' % (
                 pl['type'], pl['type'], sl, pl['status'], pl['status'], s_)
-            z('D%d' % t['verkoop'], '=%s+%s' % (tel('Verkocht'), tel('Getransporteerd')), st['aantal'])
+            z('D%d' % t['verkoop'], '=%s+%s' % (tel('Verkocht'), tel('Getransporteerd')), sh.style_of('D%d' % t['verkoop']))
+            if t.get('transport_tabel'):
+                z('D%d' % t['transport_tabel'], '=%s' % tel('Getransporteerd'), sh.style_of('D%d' % t['transport_tabel']))
         # bouwtermijnen van dit omzetblok: begrensd door het transport van dit type (ook als een termijnrij per
         # vergissing naar de verkooprij van een ander type verwees)
         n = 0
@@ -137,8 +141,8 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
         f = sh.get('%s%d' % (c, tot))
         assert isinstance(f, str) and f.startswith('='), (c, tot, f)
         sh.set('%s%d' % (c, tot), f + '+%s%d' % (c, corr))
-    z('C2', 'Geel = invullen. Per woningtype de bouwtermijnen (planning). Verkoop (rij %d-%d) en transport (tabel Transport) '
-            'in aantallen per kwartaal; kolom 1 = verkocht t/m de exportdatum van de prijslijst (Salesforce); kwartalen vóór dat '
+    z('C2', 'Geel = invullen. Per woningtype de bouwtermijnen (planning). Verkoop en transport (tabel vanaf rij %d-%d, per '
+            'type verkocht en getransporteerd) in aantallen per kwartaal; kolom 1 = t/m de exportdatum van de prijslijst (Salesforce-status); kwartalen vóór dat '
             'kwartaal tellen daarom niet nog eens mee. '
             'Verkocht %% en getransporteerd %% rekenen daaruit. Correctie: rij %d.' % (verkoop[0], verkoop[-1], corr), st['notitie'])
 

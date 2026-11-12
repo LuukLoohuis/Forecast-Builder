@@ -343,6 +343,17 @@ def t_bereik_en_totaal():
                     and abs(c_ - m['BY20'].value) < 1 and abs(e_ + f_ - o_) < 1 and ws.cell(R + 10, 4).value == 'OK')
     ok('CF-overzicht onderaan beide CF-tabbladen: totalen = Invoer, eindsaldo = Model, actuals + prognose = totaal, PEW OK',
        all(goed), str(goed))
+    # verkoop en transport: één tabel per type; t/m nu uit de Salesforce-status
+    import standaard_fo as S
+    ob = wb['CF - opbrengsten']
+    dump = wb['Prijslijst dump']
+    sf_t = sum(1 for r in range(2, dump.max_row + 1) if str(dump.cell(r, 7).value or '').strip() == 'Getransporteerd')
+    sf_v = sum(1 for r in range(2, dump.max_row + 1) if str(dump.cell(r, 7).value or '').strip() in ('Verkocht', 'Getransporteerd'))
+    tv, tt = ob['D%d' % S.VK_TOT].value, ob['D%d' % S.TT_TOT].value
+    ok('verkoop en transport: één tabel per type, t/m nu uit Salesforce (verkocht en getransporteerd)',
+       str(ob['B%d' % S.VK].value).startswith('VERKOOP EN TRANSPORT') and str(ob['B%d' % S.vk_rij(1)].value).endswith('verkocht')
+       and 'getransporteerd' in str(ob['B%d' % S.tt_rij(1)].value) and tv == sf_v and tt == sf_t
+       and ob['G%d' % S.TT_TOT].value == tt, 'verkocht %s (SF %s), getransporteerd %s (SF %s)' % (tv, sf_v, tt, sf_t))
     # 2B. Ontw PEW: A+B vorig/huidig = 2. Ontw PEW
     pw, pb = wb['2. Ontw PEW'], wb['2B. Ontw PEW']
     ok('2B. Ontw PEW: vorig, huidig en FD gelijk aan 2. Ontw PEW', all(abs((pb['%s20' % a].value or 0) - (pw['%s20' % b].value or 0)) < 0.01

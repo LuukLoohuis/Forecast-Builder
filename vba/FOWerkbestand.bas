@@ -1055,11 +1055,13 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                 wD.Range(wD.Cells(hb + j, C_ACT), wD.Cells(hb + j, C_Q1 + NQ - 1)).ClearContents
                 RijOver wO, term(j) - d, sl, 7, laatste, wD, hb + j, k1, False, 0, lg
             Next j
-            wD.Range(wD.Cells(VK_RIJ + i, C_Q1), wD.Cells(VK_RIJ + i, C_Q1 + NQ - 1)).ClearContents
-            wD.Range(wD.Cells(TT_RIJ + i, C_ACT), wD.Cells(TT_RIJ + i, C_Q1 + NQ - 1)).ClearContents
-            RijOver wO, vk + i, sl, 7, laatste, wD, VK_RIJ + i, k1, True, 0, lg      ' verkoop in aantallen (verkooptempo)
-            RijOver wO, oRij(1), sl, 7, laatste, wD, TT_RIJ + i, k1, False, 0, lg      ' transport in aantallen
-            If sleutel = "" Then wD.Cells(VK_RIJ + i, 4).Value = Nk(wO.Cells(vk + i, 4).Value)
+            ' tabel verkoop en transport: per type verkocht (VK_RIJ + 2i - 1) en getransporteerd (VK_RIJ + 2i); kolom 1
+            ' (t/m nu) is een formule op de Salesforce-status, de kwartalen komen uit het oude FO
+            wD.Range(wD.Cells(VK_RIJ + 2 * i - 1, C_Q1), wD.Cells(VK_RIJ + 2 * i - 1, C_Q1 + NQ - 1)).ClearContents
+            wD.Range(wD.Cells(VK_RIJ + 2 * i, C_Q1), wD.Cells(VK_RIJ + 2 * i, C_Q1 + NQ - 1)).ClearContents
+            RijOver wO, vk + i, sl, 7, laatste, wD, VK_RIJ + 2 * i - 1, k1, True, 0, lg      ' verkoop in aantallen (verkooptempo)
+            RijOver wO, oRij(1), sl, 7, laatste, wD, VK_RIJ + 2 * i, k1, True, 0, lg         ' transport in aantallen
+            If sleutel = "" Then wD.Cells(VK_RIJ + 2 * i - 1, 4).Value = Nk(wO.Cells(vk + i, 4).Value)
             If kad > 0 Then RijOver wO, kad, sl, 7, laatste, wD, OZ1 + OBLOK * (i - 1) + 1 + NTERM + 3, k1, False, 0, lg
             For j = 1 To nOv
                 basis = Nk(wO.Cells(ovr(j), 5).Value)
@@ -1437,6 +1439,7 @@ Public Sub WeergaveBijwerken()
         r1 = 6 + BLOK * (k - 1)
         wsO.Range(wsO.Rows(r1 + 1), wsO.Rows(r1 + BLOK - 2)).EntireRow.Hidden = leeg
         wsO.Rows(KANS_RIJ + k).Hidden = leeg
+        wsO.Range(wsO.Rows(VK_RIJ + 2 * k - 1), wsO.Rows(VK_RIJ + 2 * k)).EntireRow.Hidden = leeg
         With ThisWorkbook.Worksheets(SH_AANSL)
             .Rows(P_TYPE1 + k - 1).Hidden = leeg
             .Range(.Rows(P_AANS1 + P_BLOK * (k - 1)), .Rows(P_AANS1 + P_BLOK * k - 2)).EntireRow.Hidden = leeg

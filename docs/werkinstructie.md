@@ -39,7 +39,7 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
    - eventueel een kans grondtermijn (kolom Y).
 4. **CF - opbrengsten**, per woningtype:
    - planning bouwtermijnen (met de ontwikkelaar);
-   - **verkoop** (verkooptempo) en **transport** (tabel Transport) in **aantallen woningen per kwartaal**. Kolom 1 van het verkooptempo is verkocht t/m de exportdatum (Salesforce); kwartalen daarvóór tellen niet nog eens mee;
+   - **verkoop en transport** in één tabel, per woningtype een regel *verkocht* en een regel *getransporteerd*, in **aantallen woningen per kwartaal**. De kolom *t/m nu* komt uit de Salesforce-status in de prijslijst (Verkocht / Getransporteerd t/m de exportdatum); je plant de kwartalen daarna. Links per regel aantal · t/m nu · nog · voortgang, onderaan het totaal.
    - kadastrale kosten en rente (aantal woningen per kwartaal);
    - parkeren/commercieel: verdeling naar rato van de bouwtermijnen of handmatig;
    - eventueel de correctieregel.

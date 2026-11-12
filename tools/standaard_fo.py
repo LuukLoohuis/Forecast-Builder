@@ -56,19 +56,20 @@ def tr(k):
     return hb(k) + NTERM + 1
 
 
-VK = won_rij(NT + 1) + 2                # koprij verkooptempo
-def vk_rij(k):
-    return VK + k
+VK = won_rij(NT + 1) + 2                # koprij tabel verkoop en transport (per type: verkocht, getransporteerd)
+def vk_rij(k):                          # verkocht (aantal woningen per kwartaal)
+    return VK + 2 * k - 1
 
 
 OMZ_N = NTERM + 4                       # grond, termijnen, kmw 25%, kmw 75%, kadastrale kosten + rente
 OBLOK = OMZ_N + 3
-TT = vk_rij(NT) + 2                    # koprij tabel Transport (aantal woningen per kwartaal, invullen)
-def tt_rij(k):
-    return TT + k
+def tt_rij(k):                          # getransporteerd (aantal woningen per kwartaal), direct onder verkocht
+    return VK + 2 * k
 
 
-VT_PCT = tt_rij(NT) + 2                # alle woningen: verkocht %/kw, cumulatief, getransporteerd %/kw, cumulatief
+VK_TOT = VK + 2 * NT + 1               # totaal verkocht (alle types)
+TT_TOT = VK + 2 * NT + 2               # totaal getransporteerd
+VT_PCT = TT_TOT + 2                # alle woningen: verkocht %/kw, cumulatief, getransporteerd %/kw, cumulatief
 KANS = VT_PCT + 5                      # kans grondtermijn: kop, per type (netto effect), daarna de totaalregels:
 KT = KANS + NT + 1                     # KT grond huidig, +1 grond met kans, +2 extra grond, +3 minder bouwtermijnen,
                                        # +4 netto per kwartaal, +5 netto cumulatief, +6/+7 CF cum. huidig/met kans (verborgen)
@@ -401,42 +402,40 @@ def maak_opbrengsten(ws):
             zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), FB if tot_ else F, None, NUM)
             for c in COLS:
                 zet(ws, '%s%d' % (c, r), f(c), FB if tot_ else F, None, NUM)
-    # verkooptempo (aantallen; komen in het werkbestand uit verkocht %)
-    kopregels(ws, VK - 1, VK)
-    for c, t in zip('BCDE', ['Verkooptempo', 'Aantal', 'Verkocht', 'Te koop']):
+    # verkoop en transport: één tabel, per type een regel verkocht en een regel getransporteerd (aantallen woningen per
+    # kwartaal). Kolom G (t/m nu) komt uit de Salesforce-status in de prijslijst; de kwartalen erna zijn invoer.
+    from openpyxl.formatting.rule import DataBarRule
+    kopregels(ws, VK - 1, VK, act='t/m nu')
+    for c, t in zip('BCDEF', ['VERKOOP EN TRANSPORT · aantal woningen', 'Aantal', 't/m nu (SF)', 'Nog', 'Voortgang']):
         zet(ws, '%s%d' % (c, VK), t, FB, KOP)
     zet(ws, '%s%d' % (CHK, VK), 'Check', FB, KOP)
     s_bn = '$%s$%d:$%s$%d' % (P_BN['status'], P_BN1, P_BN['status'], P_BNN)
+    w_bn = 'Prijslijst!$%s$%d:$%s$%d' % (P_BN['wt'], P_BN1, P_BN['wt'], P_BNN)
+    tel = lambda k, st_: 'COUNTIFS(%s,%d,Prijslijst!%s,"%s")' % (w_bn, k, s_bn, st_)
+    FI = Font(name='Heijmans-Light', size=10, color='FF4B5563')
     for k in range(1, NT + 1):
-        r = vk_rij(k)
-        zet(ws, 'B%d' % r, '=%s&""' % pl('$B$%d' % (P_TYPE1 + k - 1)))
-        zet(ws, 'C%d' % r, '=G%d' % won_rij(k), F, None, '0')
-        w_bn = 'Prijslijst!$%s$%d:$%s$%d' % (P_BN['wt'], P_BN1, P_BN['wt'], P_BNN)
-        zet(ws, 'D%d' % r, '=COUNTIFS(%s,%d,Prijslijst!%s,"Verkocht")+COUNTIFS(%s,%d,Prijslijst!%s,"Getransporteerd")'
-            % (w_bn, k, s_bn, w_bn, k, s_bn), F, None, '0')
-        zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, '0')
-        zet(ws, 'G%d' % r, '=D%d' % r, F, None, '0')
-        for c in QCOLS:
-            zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
-        zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
-        zet(ws, '%s%d' % (VER, r), '=ROUND(C%d-%s%d,2)' % (r, CHK, r), F, None, AANT)
-    # transport: aantal woningen per kwartaal (invullen); 'getransporteerd %' per type rekent hieruit
-    for c, t in zip('BCDE', ['Transport', 'Aantal', 'Getransp.', 'Nog te transp.']):
-        zet(ws, '%s%d' % (c, TT), t, FB, KOP)
-    zet(ws, '%s%d' % (COLS[0], TT), 'actuals', FB, KOP)
-    for i, c in enumerate(QCOLS):
-        zet(ws, '%s%d' % (c, TT), 'Q%d' % (i % 4 + 1), FB, KOP)
-    zet(ws, '%s%d' % (CHK, TT), 'Check', FB, KOP)
-    for k in range(1, NT + 1):
-        r = tt_rij(k)
-        zet(ws, 'B%d' % r, '=B%d' % vk_rij(k))
-        zet(ws, 'C%d' % r, '=C%d' % vk_rij(k), F, None, '0')
-        zet(ws, 'D%d' % r, '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
-        zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, AANT)
-        for c in COLS:
-            zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
-        zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
-        zet(ws, '%s%d' % (VER, r), '=ROUND(C%d-%s%d,2)' % (r, CHK, r), F, None, AANT)
+        for r, lab, sf in ((vk_rij(k), '=%s&" · verkocht"' % pl('$B$%d' % (P_TYPE1 + k - 1)),
+                            '%s+%s' % (tel(k, 'Verkocht'), tel(k, 'Getransporteerd'))),
+                           (tt_rij(k), '    getransporteerd', tel(k, 'Getransporteerd'))):
+            zet(ws, 'B%d' % r, lab, FB if r == vk_rij(k) else FI)
+            zet(ws, 'C%d' % r, '=G%d' % won_rij(k), F, None, '0')
+            zet(ws, 'D%d' % r, '=' + sf, F, GRIJS, '0')
+            zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, '0')
+            zet(ws, 'F%d' % r, '=IF(N(C%d)=0,"",D%d/C%d)' % (r, r, r), F, None, '0%')
+            zet(ws, 'G%d' % r, '=D%d' % r, F, GRIJS, AANT)
+            for c in QCOLS:
+                zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
+            zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
+            zet(ws, '%s%d' % (VER, r), '=ROUND(C%d-%s%d,2)' % (r, CHK, r), F, None, AANT)
+        ws['B%d' % tt_rij(k)].border = Border(bottom=Side(style='thin', color='FFD1D5DB'))
+    for r, lab, rijen in ((VK_TOT, 'Totaal · verkocht', [vk_rij(k) for k in range(1, NT + 1)]),
+                          (TT_TOT, 'Totaal · getransporteerd', [tt_rij(k) for k in range(1, NT + 1)])):
+        zet(ws, 'B%d' % r, lab, FB, TOTAAL)
+        for c in ['C', 'D', 'E'] + COLS + [CHK]:
+            zet(ws, '%s%d' % (c, r), '=' + '+'.join('%s%d' % (c, x) for x in rijen), FB, TOTAAL, '0' if c in 'CDE' else AANT)
+        zet(ws, 'F%d' % r, '=IF(N(C%d)=0,"",D%d/C%d)' % (r, r, r), FB, TOTAAL, '0%')
+    ws.conditional_formatting.add('F%d:F%d' % (VK + 1, TT_TOT), DataBarRule(start_type='num', start_value=0, end_type='num',
+                                                                             end_value=1, color='FF003366', showValue=True))
     # omzetblokken (aantallen woningen per termijn per kwartaal)
     for k in range(1, NT + 1):
         o = oz_kop(k)
@@ -1178,6 +1177,8 @@ def inklappen(wb, types, jaar, verleden_tot):
         p = wb['Prijslijst']
         for r in [P_TYPE1 + t - 1, KANS + t] + list(range(p_aans(t), p_aans(t) + P_BLOK - 1)):
             (o if r == KANS + t else p).row_dimensions[r].hidden = True
+        for r in (vk_rij(t), tt_rij(t)):
+            o.row_dimensions[r].hidden = True
         for r in range(kterm(t, 1), k_aanneem(t) + 2):
             k.row_dimensions[r].hidden = True
     if verleden_tot:

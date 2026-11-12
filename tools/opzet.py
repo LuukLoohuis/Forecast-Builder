@@ -53,7 +53,11 @@ def _opbrengsten(f, v):
     get = lambda r, c: v.cell(r, c).value
     form = lambda r, c: f.cell(r, c).value
     maxr = f.max_row
-    vk = next(r for r in range(2, maxr) if _t(get(r, 2)).lower() == 'verkooptempo')
+    vk = next(r for r in range(2, maxr) if _t(get(r, 2)).lower() == 'verkooptempo'
+              or _t(get(r, 2)).lower().startswith('verkoop en transport'))
+    # standaard-FO: één tabel, per type verkocht (vk + 2i + 1) en getransporteerd (vk + 2i + 2); oud FO: verkooptempo vk + 1 + i
+    per_type = _t(get(vk, 2)).lower().startswith('verkoop en transport')
+    vrij = (lambda i: vk + 2 * i + 1) if per_type else (lambda i: vk + 1 + i)
     kop = [r for r in range(2, vk) if _t(get(r - 1, 6)).lower() == '# won']
     omz = [r for r in range(vk, maxr) if _t(get(r - 1, 6)).lower() == '# won']
     if kop and len(omz) < len(kop):
@@ -93,9 +97,9 @@ def _opbrengsten(f, v):
         if won is None and '_omzetting' in v.parent.sheetnames:       # standaard-FO na omzetten: aantal als hint
             won = v.parent['_omzetting'].cell(i + 1, 2).value
         types.append({'k': i + 1, 'hb': hb, 'plan': plan, 'd': d, 'tr': tr, 'omzet_kop': oh, 'omzet': orows,
-                      'koop': orows[0], 'verkoop': vk + 1 + i, 'won': won if isinstance(won, (int, float)) else 0,
+                      'koop': orows[0], 'verkoop': vrij(i), 'won': won if isinstance(won, (int, float)) else 0,
                       # waarden die Excel in het FO heeft opgeslagen: verkocht en grondtermijn (= transport) per kolom
-                      'verkoop_waarden': [_getal(get(vk + 1 + i, c)) for c in range(7, max(qk) + 1)],
+                      'verkoop_waarden': [_getal(get(vrij(i), c)) for c in range(7, max(qk) + 1)],
                       'grond_waarden': [_getal(get(orows[0], c)) for c in range(7, max(qk) + 1)]})
     euro = next(r for r in range(omz[-1], maxr) if _t(get(r, 2)).lower().startswith('termijnen') and '€' in _t(get(r, 2)))
     periode = next(r for r in range(euro, maxr + 1) if _t(get(r, 2)).lower().startswith('periode in cashflow'))
@@ -126,7 +130,7 @@ def _opbrengsten(f, v):
     # standaard-FO: tabel 'Transport' (aantal woningen per kwartaal) onder het verkooptempo
     tt = next((r for r in range(vk + 1, omz[0]) if _t(get(r, 2)).lower() == 'transport'), None)
     for i, t in enumerate(types):
-        t['transport_tabel'] = tt + 1 + i if tt else None
+        t['transport_tabel'] = vk + 2 * i + 2 if per_type else (tt + 1 + i if tt else None)
     return {'eerste': L(eerste), 'laatste': L(laatste), 'check': L(check), 'verschil': L(check + 1), 'status': L(check + 2),
             'actuals': act,
             'types': types, 'verkoop_kop': vk, 'euro_kop': euro, 'totaal': totaal, 'periode': periode,

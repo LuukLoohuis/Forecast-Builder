@@ -21,7 +21,7 @@ en de PowerPoint komt uit hetzelfde bestand.
 | `Start` | project, oplevering, knoppen, status van de invoer, alle controles, teksten voor de dia Update PEW |
 | `FO - vorig`, `FO - huidig`, `FO - actuals`, `Prijslijst dump` | exports plakken of inlezen (SAP FO-overzicht van vorige en huidige periode, SAP actuals, Salesforce) |
 | `Aansluiting opbrengsten` | (was: Prijslijst) de aansluiting tussen Salesforce (`Prijslijst dump`) en SAP, als dashboard (zie hieronder): kaarten, woningtypes, grafieken, te boeken in SAP, aansluiting per type met het termijnschema, en onderaan de prijslijst per bouwnummer |
-| `CF - opbrengsten` | per woningtype: planning bouwtermijnen, verkoop en transport in aantallen (verkooptempo en tabel Transport), grondprijsaanpassing; kadastrale kosten en rente (handmatig); overige opbrengsten, correctie, DAEB |
+| `CF - opbrengsten` | per woningtype: planning bouwtermijnen, verkoop en transport in aantallen (één tabel, per type verkocht en getransporteerd; t/m nu uit de Salesforce-status), grondprijsaanpassing; kadastrale kosten en rente (handmatig); overige opbrengsten, correctie, DAEB |
 | *onderaan beide CF-tabbladen* | **CF-overzicht**: per kwartaal opbrengsten, kosten, saldo en cumulatief zoals de definitieve cashflow, met totaal · actuals · prognose en een controle tegen het PEW; grijs = afgesloten, geel = huidig kwartaal, wit = prognose |
 | `CF - kosten` | bouwtermijnen kosten per type (eigen planning HWB, standaard gelijk aan de opbrengsten) en per kostenpost Handmatig, Voorstel of Transport |
 | `Dashboard`, `Scenario's` | cashflow, kerncijfers, grafieken en scenario's: rekenen automatisch mee |
