@@ -301,7 +301,9 @@ Private Sub Inlezen(rij As Long)
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     Application.DisplayAlerts = False
-    Set wbE = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True)
+    ' Local:=True: een SAP-export is vaak tekst (.xls als HTML/tab, of .csv). Zonder Local leest VBA die met Engelse
+    ' instellingen en wordt "157.397,00" het getal 157,397 (punt = decimaal). Met Local gelden de Nederlandse instellingen.
+    Set wbE = Workbooks.Open(CStr(pad), UpdateLinks:=0, ReadOnly:=True, Local:=True)
     Application.DisplayAlerts = True
     ' het werkblad met de meeste gegevens
     Set wsE = wbE.Worksheets(1)
