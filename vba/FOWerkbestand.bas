@@ -171,6 +171,13 @@ Private Sub Plakken(rij As Long)
     On Error GoTo 0
     h = LaatsteRij(ws, nKol)
     If w > nKol Then ws.Range(ws.Cells(1, nKol + 1), ws.Cells(h, w)).ClearContents
+    ' bedragen die als tekst in Nederlandse notatie zijn geplakt ("157.397,00") als getal
+    If h > 1 Then
+        Dim plak As Variant, nPl As Long
+        plak = ws.Range(ws.Cells(1, 1), ws.Cells(h, nKol)).Value
+        NLGetallenOmzetten plak, nPl
+        If nPl > 0 Then ws.Range(ws.Cells(1, 1), ws.Cells(h, nKol)).Value = plak
+    End If
     Dim omgezet As String
     If rij = RIJ_VORIG Or rij = RIJ_HUIDIG Then omgezet = ExportNormaliseren(ws, nKol): h = LaatsteRij(ws, nKol)
     HulpBijwerken ws, hulp, hulpRij, h
@@ -192,6 +199,45 @@ Public Function ExportNormaliserenTest(ByVal blad As String) As String
     HulpBijwerken ws, HulpKolommen(blad), 17, LaatsteRij(ws, 21)
     Application.Calculate
 End Function
+
+Private Function IsNLGetalTekst(ByVal v As Variant) As Boolean
+    ' tekst die zeker een getal in Nederlandse notatie is: duizendtallen met een punt ("157.397", "3.387.028") en/of
+    ' decimalen met een komma ("157.397,00", "12,5"), eventueel met een minteken voor of achter. Gewone cijfers zonder
+    ' scheidingsteken ("202609", "5100") en tekst met letters niet.
+    Dim t As String, delen() As String, groepen() As String, i As Long
+    If VarType(v) <> vbString Then Exit Function
+    t = Replace(Replace(Trim$(CStr(v)), ChrW(160), ""), " ", "")
+    If Len(t) = 0 Then Exit Function
+    If Left$(t, 1) = "-" Or Left$(t, 1) = ChrW(8722) Then t = Mid$(t, 2)
+    If Right$(t, 1) = "-" Then t = Left$(t, Len(t) - 1)
+    If InStr(t, ".") = 0 And InStr(t, ",") = 0 Then Exit Function
+    delen = Split(t, ",")
+    If UBound(delen) > 1 Then Exit Function
+    If UBound(delen) = 1 Then
+        If Len(delen(1)) = 0 Or Not (delen(1) Like String(Len(delen(1)), "#")) Then Exit Function
+    End If
+    groepen = Split(delen(0), ".")
+    For i = 0 To UBound(groepen)
+        If Len(groepen(i)) = 0 Or Not (groepen(i) Like String(Len(groepen(i)), "#")) Then Exit Function
+        If i = 0 And UBound(groepen) > 0 And Len(groepen(i)) > 3 Then Exit Function
+        If i > 0 And Len(groepen(i)) <> 3 Then Exit Function
+    Next i
+    IsNLGetalTekst = True
+End Function
+
+Private Sub NLGetallenOmzetten(ByRef data As Variant, Optional ByRef n As Long)
+    ' in een matrix (uit een export) alle teksten in Nederlandse getalnotatie omzetten naar getallen, vóórdat ze op een
+    ' tabblad komen: Excel leest tekst die je vanuit VBA in een cel zet met Engelse instellingen (157.397 -> 157,397)
+    Dim r As Long, c As Long, g As Double
+    If Not IsArray(data) Then Exit Sub
+    For r = LBound(data, 1) To UBound(data, 1)
+        For c = LBound(data, 2) To UBound(data, 2)
+            If IsNLGetalTekst(data(r, c)) Then
+                If NLGetal(data(r, c), g) Then data(r, c) = g: n = n + 1
+            End If
+        Next c
+    Next r
+End Sub
 
 Private Function NLGetal(ByVal v As Variant, ByRef uit As Double) As Boolean
     ' tekst in Nederlandse notatie ("3.387.028", "798.210,00", "-2.483.005", "1.234-") naar een getal
@@ -262,7 +308,8 @@ Private Function ExportNormaliseren(ByVal ws As Worksheet, ByVal nKol As Long) A
             Next c
         End If
     Next r
-    ' bedragen (K t/m S) als getal
+    ' bedragen (K t/m S) als getal, en in alle kolommen tekst in Nederlandse getalnotatie (anders maakt Excel er bij het
+    ' terugschrijven met Engelse instellingen 157,397 van)
     For r = KOP_RIJ + 1 To UBound(b, 1)
         For c = KOP_KOL To KOP_KOL + 8
             If VarType(b(r, c)) = vbString Then
@@ -270,6 +317,7 @@ Private Function ExportNormaliseren(ByVal ws As Worksheet, ByVal nKol As Long) A
             End If
         Next c
     Next r
+    NLGetallenOmzetten b, nG
     If dr = 0 And dc = 0 And nG = 0 Then Exit Function
     ws.Range(ws.Cells(1, 1), ws.Cells(h + 2, nKol + 2)).ClearContents
     ws.Range(ws.Cells(1, 1), ws.Cells(UBound(b, 1), nKol)).Value = b
@@ -316,6 +364,7 @@ Private Sub Inlezen(rij As Long)
     data = wsE.Range(wsE.Cells(1, 1), wsE.Cells(nR, nC)).Value
     wbE.Close SaveChanges:=False
     Set wbE = Nothing
+    NLGetallenOmzetten data                     ' vóór het schrijven, anders leest Excel "157.397" als 157,397
     LeegMaken ws, nKol
     ws.Range(ws.Cells(1, 1), ws.Cells(nR, nC)).Value = data
     Dim omgezet As String
