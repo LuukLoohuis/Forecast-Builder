@@ -212,7 +212,7 @@ def t_nieuw_kwartaal(lo, doc):
 
 
 def t_scenarios(doc):
-    p, o, k = (doc.Sheets.getByName(n) for n in ('Prijslijst', 'CF - opbrengsten', 'CF - kosten'))
+    p, o, k = (doc.Sheets.getByName(n) for n in ('Aansluiting opbrengsten', 'CF - opbrengsten', 'CF - kosten'))
 
     def bereken():
         doc.calculateAll()
@@ -328,6 +328,21 @@ def t_bereik_en_totaal():
     vp = [x for x in vp if x not in (None, '')]
     ok('verkoop en transport: de as stopt in Q4 van het jaar van het laatste transport', vp and str(vp[-1]).startswith('Q4')
        and m['BY340'].value <= m['BY132'].value, '%d kwartalen, laatste %s' % (len(vp), vp[-1] if vp else ''))
+    # tabblad Aansluiting opbrengsten (was Prijslijst); CF-overzicht onderaan beide CF-tabbladen
+    ok('tabblad Prijslijst heet Aansluiting opbrengsten (Prijslijst dump blijft)', 'Aansluiting opbrengsten' in wb.sheetnames
+       and 'Prijslijst' not in wb.sheetnames and 'Prijslijst dump' in wb.sheetnames)
+    inv = wb['Invoer']
+    tot = next(r for r in range(8, 120) if inv.cell(r, 3).value == 'Totaal')
+    goed = []
+    for blad in ('CF - opbrengsten', 'CF - kosten'):
+        ws = wb[blad]
+        R = next(r for r in range(2, ws.max_row + 1) if str(ws.cell(r, 2).value or '').startswith('CASHFLOW · ZO WORDT'))
+        o_, k_, c_ = (ws.cell(R + i, 4).value for i in (5, 6, 8))
+        e_, f_ = ws.cell(R + 5, 5).value, ws.cell(R + 5, 6).value
+        goed.append(abs(o_ - inv.cell(tot, 6).value) < 1 and abs(k_ - inv.cell(tot, 4).value) < 1
+                    and abs(c_ - m['BY20'].value) < 1 and abs(e_ + f_ - o_) < 1 and ws.cell(R + 10, 4).value == 'OK')
+    ok('CF-overzicht onderaan beide CF-tabbladen: totalen = Invoer, eindsaldo = Model, actuals + prognose = totaal, PEW OK',
+       all(goed), str(goed))
     # 2B. Ontw PEW: A+B vorig/huidig = 2. Ontw PEW
     pw, pb = wb['2. Ontw PEW'], wb['2B. Ontw PEW']
     ok('2B. Ontw PEW: vorig, huidig en FD gelijk aan 2. Ontw PEW', all(abs((pb['%s20' % a].value or 0) - (pw['%s20' % b].value or 0)) < 0.01
@@ -448,9 +463,12 @@ def t_pptx():
     ok('PowerPoint-sjabloon: alle vormen die de macro vult zijn er', not mist, '%d vormen' % len(nodig) +
        (', mist: %s' % ', '.join(mist[:8]) if mist else ''))
     # v22: tabellen, palet en lettergrootte
-    ok('PowerPoint-sjabloon: SC_TABEL is een tabel; de dia Update PEW heeft het vak PEW_BEELD (geen tabel)',
+    ok('PowerPoint-sjabloon: SC_TABEL is een tabel; de dia Update PEW heeft het vak PEW_BEELD (geen tabel, geen top 3)',
        any(sh.name == 'SC_TABEL' and sh.has_table for sl in pres.slides for sh in sl.shapes) and 'PEW_BEELD' in namen
-       and 'PEW_TOP3' in namen and 'PEW_TABEL' not in namen)
+       and 'PEW_TOP3' not in namen and 'PEW_TABEL' not in namen)
+    rood = [sh.name for sl in pres.slides for sh in sl.shapes if sh.has_chart and sh.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK')
+            and sh.chart._chartSpace.xpath('.//c:ser[contains(string(c:tx), "umulatief %")]//a:srgbClr[@val="B91C1C"]')]
+    ok('verkoop en transport: cumulatieve %-lijn rood op beide grafieken', len(rood) == 2, ', '.join(rood))
     import pptx_v22
     oud_palet, klein = set(), []
     for i, sl in enumerate(pres.slides, 1):

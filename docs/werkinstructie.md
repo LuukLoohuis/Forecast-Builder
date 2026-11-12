@@ -23,7 +23,7 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
 4. Controleer op `Start` de projectnaam, start bouw, het **huidige kwartaal** en oplevering (rij 6 t/m 9). In het huidige kwartaal telt wat al in SAP is geboekt plus wat je nog als prognose invult; de kwartalen ervoor zijn afgesloten (alleen SAP). Op `CF - opbrengsten` staat in D3 het eerste jaar van de kwartalen.
 
 ## Elk kwartaal (gelijk aan blok 5 op Start)
-1. **Nieuw kwartaal starten:** de cashflow en de planning worden de vorige prognose, FO - huidig gaat naar FO - vorig. Je invoer op Prijslijst, CF - opbrengsten en CF - kosten blijft staan.
+1. **Nieuw kwartaal starten:** de cashflow en de planning worden de vorige prognose, FO - huidig gaat naar FO - vorig. Je invoer op Aansluiting opbrengsten, CF - opbrengsten en CF - kosten blijft staan.
 2. **Exports inlezen** (knoppen op Start):
    - SAP PEW (FR4) → *FO - huidig*;
    - SAP actuals (FR5) → *FO - actuals*;
@@ -31,8 +31,8 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
 
    De SAP-export voor FO - vorig en FO - huidig mag je ongewijzigd inlezen of plakken: staat hij in de SAP-indeling (een rij lager, een kolom naar links, bedragen als tekst), dan zet de macro hem zelf om en meldt dat.
 
-   Zet de exportdatum op Prijslijst (cel C1).
-3. **Prijslijst:**
+   Zet de exportdatum op Aansluiting opbrengsten (cel C1).
+3. **Aansluiting opbrengsten:**
    - per woningtype het type of blok (kolom C) en eventueel handmatige bedragen;
    - controleer de aansluiting (blok 2, kolom J);
    - boek "te boeken in SAP" (naast de grafieken: per SAP-nummer met de kostendragers);
@@ -43,6 +43,7 @@ Op `Start` (kolom M) staan alle tabbladen in werkvolgorde met een link; elk tabb
    - kadastrale kosten en rente (aantal woningen per kwartaal);
    - parkeren/commercieel: verdeling naar rato van de bouwtermijnen of handmatig;
    - eventueel de correctieregel.
+   Onderaan beide CF-tabbladen staat het **CF-overzicht**: zo wordt de cashflow per kwartaal (actuals en prognose).
 5. **CF - kosten:**
    - per type de bouwtermijnen kosten (standaard gelijk aan de opbrengsten);
    - per post *Handmatig*, *Voorstel* (wat nog over is, gelijk verdeeld t/m oplevering) of *Transport* (naar rato van het transport), tot "Nog te verdelen" 0 is.

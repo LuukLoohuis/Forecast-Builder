@@ -132,6 +132,7 @@ K_SOM = K_POSTN + 1
 K_CHECK = K_POSTN + 2
 K_TOT = K_POSTN + 5
 K_PER = K_TOT + 2
+K_OVZ = K_PER + 47                      # CF-overzicht onderaan CF - kosten (onder het voorstelblok)
 K_AH = K_PER + 23                       # hulprijen onder het voorstelblok: geplande aanneemsom per kwartaal
 K_AF = K_PER + 24                       # en het eerste kwartaal vanaf het huidige met een geplande termijn
 POSTEN = ['Grondkosten', 'Aanneemsom', 'Kopersmeerwerk', 'Overige bouwkosten / meerwerken', 'Honoraria',
@@ -232,6 +233,64 @@ def totaalrijen(ws, rijen):
             cel.fill = TOTAAL
             cel.font = Font(name='Heijmans-Light', size=10, bold=True, color='FF003366')
             cel.border = Border(top=lijn)
+
+
+def cf_overzicht(ws, R):
+    """CF-overzicht onderaan CF - opbrengsten en CF - kosten (beide hetzelfde): per kwartaal de definitieve cashflow zoals
+    in Invoer en VENA (opbrengsten, kosten, saldo, cumulatief), met links totaal · actuals · prognose. Kolom G = alles
+    vóór het eerste jaar. Status per kolom: actuals (afgesloten, SAP) / nu (huidig kwartaal: SAP + prognose) / prognose.
+    De namen cf_idx, cf_omzet, cf_kosten, cf_omzet_tot en cf_kosten_tot zet de bouw (Invoer)."""
+    grijs = PatternFill('solid', fgColor='FFF3F4F6')
+    geel = PatternFill('solid', fgColor='FFFFF2CC')
+    for c in ['B', 'C', 'D', 'E', 'F'] + COLS:
+        zet(ws, '%s%d' % (c, R), None, FW, DONKER)
+    zet(ws, 'B%d' % R, 'CASHFLOW · ZO WORDT DE CF  (definitief, zoals in de cashflow en VENA)', FW, DONKER)
+    zet(ws, 'B%d' % (R + 1), 'grijs = afgesloten kwartalen (SAP-actuals) · geel = huidig kwartaal (geboekt in SAP + prognose '
+                             'voor de rest van het kwartaal) · wit = prognose', FN)
+    kopregels(ws, R + 2, R + 3, act='eerder')
+    for c, t in (('B', '€'), ('D', 'Totaal'), ('E', 'Actuals'), ('F', 'Prognose')):
+        zet(ws, '%s%d' % (c, R + 3), t, FB, KOPLICHT)
+    rs, ro, rk, rsal, rc, rchk = R + 4, R + 5, R + 6, R + 7, R + 8, R + 10
+    zet(ws, 'B%d' % rs, 'status', FN)
+    zet(ws, '%s%d' % (COLS[0], rs), 'actuals', FN)
+    for i, c in enumerate(QCOLS, 1):
+        q = '%s*4+%d' % (JAAR, i)
+        zet(ws, '%s%d' % (c, rs), '=IF(%s<p_huidig,"actuals",IF(%s=p_huidig,"nu","prognose"))' % (q, q), FN)
+        zet(ws, '%s%d' % (c, ro), '=SUMIF(cf_idx,%s,cf_omzet)' % q, F, None, NUM)
+        zet(ws, '%s%d' % (c, rk), '=SUMIF(cf_idx,%s,cf_kosten)' % q, F, None, NUM)
+    eerste, laatste = QCOLS[0], QCOLS[-1]
+    zet(ws, '%s%d' % (COLS[0], ro), '=N(cf_omzet_tot)-SUM(%s%d:%s%d)' % (eerste, ro, laatste, ro), F, None, NUM)
+    zet(ws, '%s%d' % (COLS[0], rk), '=N(cf_kosten_tot)-SUM(%s%d:%s%d)' % (eerste, rk, laatste, rk), F, None, NUM)
+    for r, lab, font in ((ro, 'Opbrengsten', FB), (rk, 'Kosten', FB), (rsal, 'Saldo (opbrengsten − kosten)', FB),
+                         (rc, 'Cumulatief saldo', FB)):
+        zet(ws, 'B%d' % r, lab, font)
+    for c in COLS:
+        zet(ws, '%s%d' % (c, rsal), '=%s%d-%s%d' % (c, ro, c, rk), FB, None, NUM)
+        prev = COLS[COLS.index(c) - 1] if c != COLS[0] else None
+        zet(ws, '%s%d' % (c, rc), ('=%s%d+%s%d' % (prev, rc, c, rsal)) if prev else '=%s%d' % (c, rsal), FB, None, NUM)
+    vol = '$%s$%d:$%s$%d' % (COLS[0], rs, laatste, rs)
+    for r in (ro, rk, rsal):
+        rr = '$%s$%d:$%s$%d' % (COLS[0], r, laatste, r)
+        zet(ws, 'D%d' % r, '=SUM(%s)' % rr, FB, TOTAAL, NUM)
+        zet(ws, 'E%d' % r, '=SUMIF(%s,"actuals",%s)' % (vol, rr), FB, TOTAAL, NUM)
+        zet(ws, 'F%d' % r, '=D%d-E%d' % (r, r), FB, TOTAAL, NUM)
+    zet(ws, 'C%d' % rc, 'eindsaldo', FN)
+    zet(ws, 'D%d' % rc, '=%s%d' % (laatste, rc), FB, TOTAAL, NUM)
+    dun = Side(style='thin', color='FF003366')
+    for c in ['B', 'C', 'D', 'E', 'F'] + COLS:
+        ws['%s%d' % (c, rsal)].border = Border(top=dun)
+    zet(ws, 'B%d' % rchk, 'Controle: totaal = PEW (opbrengsten · kosten)', FN)
+    zet(ws, 'D%d' % rchk, "=IF(AND(ABS(D%d-N('2. Ontw PEW'!G27)*1000)<10,ABS(D%d-N('2. Ontw PEW'!G20)*1000)<10),\"OK\","
+                          "\"LET OP: opbrengsten \"&TEXT(D%d-N('2. Ontw PEW'!G27)*1000,\"#,##0\")&\" · kosten \"&"
+                          "TEXT(D%d-N('2. Ontw PEW'!G20)*1000,\"#,##0\")&\" t.o.v. PEW\")" % (ro, rk, ro, rk), FB)
+    rng = '%s%d:%s%d' % (COLS[0], rs, laatste, rc)
+    ws.conditional_formatting.add(rng, FormulaRule(formula=['%s$%d="actuals"' % (COLS[0], rs)], fill=grijs))
+    ws.conditional_formatting.add(rng, FormulaRule(formula=['%s$%d="nu"' % (COLS[0], rs)], fill=geel))
+    ws.conditional_formatting.add('%s%d:%s%d' % (COLS[0], rc, laatste, rc),
+                                  FormulaRule(formula=['%s%d<-0.5' % (COLS[0], rc)], font=Font(color='FFB91C1C', bold=True)))
+    ws.conditional_formatting.add('D%d' % rchk, FormulaRule(formula=['LEFT(D%d,2)="OK"' % rchk], font=Font(color='FF15803D', bold=True)))
+    ws.conditional_formatting.add('D%d' % rchk, FormulaRule(formula=['LEFT(D%d,6)="LET OP"' % rchk], font=Font(color='FFB45309', bold=True)))
+    zet(ws, 'I1', '=HYPERLINK("#B%d","↓ CF-overzicht (wat wordt de cashflow)")' % R, Font(name='Heijmans-BoldCon', size=10, color='FF003366', underline='single'))
 
 
 def kopregels(ws, r_jaar, r_q, act='actuals', jaar=JAAR):
@@ -601,6 +660,9 @@ def maak_opbrengsten(ws):
     for c in COLS:
         ws.column_dimensions[c].width = 11
     totaalrijen(ws, [tr(k) + 8 for k in range(1, NT + 1)] + [TOT])
+    cf_overzicht(ws, DAEB_VERKOOP + 4)
+    ws.column_dimensions['E'].width = 12
+    ws.column_dimensions['F'].width = 12
     navigatie(ws, 'A1', 'D1')
     statuskleuren(ws, '%s1:%s%d' % (CHK, TOEL, DAEB_VERKOOP + 5))
     ws.freeze_panes = 'H6'
@@ -728,6 +790,7 @@ def maak_kosten(ws):
     for c_, w_ in (('C', 12), ('D', 13), ('E', 12), ('F', 12)):
         ws.column_dimensions[c_].width = w_
     totaalrijen(ws, [K_PEW, K_TOT] + [k_aanneem(k) for k in range(1, NT + 1)])
+    cf_overzicht(ws, K_OVZ)
     navigatie(ws, 'A1', 'D1')
     statuskleuren(ws, '%s1:%s%d' % (CHK, TOEL, K_PER + 80))
     ws.freeze_panes = 'H3'

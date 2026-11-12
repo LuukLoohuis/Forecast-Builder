@@ -89,7 +89,7 @@ Option Explicit
 '       'koopsom' (die volgt de transportregel); 1. Cashflow heet nu 'Cashflow'; tab CF kosten heet 'Scenario kosten';
 '       sjabloon v21 (v20 met vormnamen voor de datum op dia 1 en de kaarten van dia 10).
 '       Sjabloon v22 (tools/pptx_v22.py): palet van het werkboek, tekst minimaal 8 pt, dia 3 zonder scenario 1-3 en met de
-'       kans grondtermijn; 9 dia's (zonder 'Van verkoop naar omzet'); op de dia Update PEW het overzicht van 2. Ontw PEW (of 2B bij DAEB) als afbeelding in PEW_BEELD, met PEW_TOP3.
+'       kans grondtermijn; 9 dia's (zonder 'Van verkoop naar omzet'); op de dia Update PEW het overzicht van 2. Ontw PEW (of 2B bij DAEB) als afbeelding in PEW_BEELD (geen top 3 meer).
 '       Daarna: Invoer, Woningtypes, Scenario kosten en de FO-cellen op het Dashboard zijn formules op de FO-tabbladen
 '       (tools/scenario_koppeling.py); OphalenUitFO blijft bestaan voor een los FO, maar heeft geen knop meer.
 '  SchikDiaScenarios    dia 4: weg zonder scenario's; lege kaarten en legenda-regels weg, de rest verdeelt de breedte
@@ -381,7 +381,7 @@ End Sub
 Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
     ' het overzicht van 2. Ontw PEW als afbeelding in het vak PEW_BEELD op de dia Update PEW (zoals het op het tabblad staat,
     ' met de toelichting); bij een gemengd project (DAEB-woningen, en A of B ingevuld op 2B. Ontw PEW) het overzicht van
-    ' 2B. Ontw PEW. De top 3 kosten van het reviewkwartaal (tab Start, blok 7) komt in PEW_TOP3.
+    ' 2B. Ontw PEW.
     Dim vak As Object, dia As Object, sr As Object, pic As Object, tb As Object, bron As Range, wsB As Worksheet
     Dim marge As Single, hT3 As Single, tekst As String, nieuw As Boolean
     Set vak = ZoekVorm(pres, "PEW_BEELD")
@@ -399,7 +399,7 @@ Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
            Application.WorksheetFunction.Count(wsB.Range("F7:G26")) > 0 Then Set bron = wsB.Range("C4:N30")
     End If
     marge = IIf(nieuw, 0, 6)
-    hT3 = IIf(nieuw, 0, 58)
+    hT3 = 0
     bron.CopyPicture Appearance:=1, Format:=-4147
     DoEvents
     Set sr = dia.Shapes.PasteSpecial(DataType:=2)                  ' als afbeelding (verbeterde metafile)
@@ -410,20 +410,9 @@ Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
     pic.Left = vak.Left + (vak.Width - pic.Width) / 2
     pic.Top = vak.Top + marge
     pic.Name = "PEW_AFBEELDING"
-    ' top 3 kosten
-    tekst = Top3Tekst()
+    ' sinds deze versie geen top 3 kosten meer op de dia (staat op Start, blok 7); een oud vak PEW_TOP3 leegmaken
     Set tb = ZoekVorm(pres, "PEW_TOP3")
-    If Not tb Is Nothing Then
-        tb.TextFrame.TextRange.Text = Replace(Replace(tekst, " (actuals)" & vbCr, " (actuals): "), vbCr, " " & ChrW(183) & " ")
-    ElseIf Len(tekst) > 0 Then
-        Set tb = dia.Shapes.AddTextbox(1, vak.Left + 2 * marge, vak.Top + vak.Height - hT3 - marge, vak.Width - 4 * marge, hT3)
-        With tb.TextFrame.TextRange
-            .Text = tekst
-            .Font.Size = 8
-            .Font.Color.RGB = RGB(17, 31, 57)
-            .Paragraphs(1).Font.Bold = True
-        End With
-    End If
+    If Not tb Is Nothing Then tb.Delete
     Exit Sub
 Mis:
     fouten = fouten & "- 2. Ontw PEW op de dia Update PEW: " & Err.Description & vbCrLf

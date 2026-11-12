@@ -241,6 +241,8 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     for c in ['C', 'D', 'E', 'F'] + [x for x in ['G'] if x not in cols] + cols + [tk]:
         z('%s%d' % (c, r), '=SUM(%s%d:%s%d)' % (c, v1, c, vn) if c not in ('C', N_) else None, st['getal_tot'])
     k.update({'voorstel_eerste': v1, 'voorstel_laatste': vn, 'voorstel_eind': r, 'sleutelrij': hk})
+    assert next((x for x in range(r + 1, r + 8) if 'CASHFLOW' in str(sh.get('B%d' % x) or '')), 0) > r, \
+        'CF-overzicht hoort onder het voorstelblok (rij %d)' % r
     # opmaak: gekozen methode zichtbaar maken
     grijs = styles.add_dxf('<font><strike val="1"/><color rgb="FF9CA3AF"/></font>')
     geel = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFDE68A"/></patternFill></fill>')

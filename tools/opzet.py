@@ -167,6 +167,10 @@ def _kosten(f, v, opb):
                 rows.append(r)
                 r += 1
         t['kosten'] = rows
+    # het voorstelblok komt onder het laatste gevulde blok; het CF-overzicht (standaard-FO) staat daar vast onder
+    ovz = next((r for r in range(2, maxr + 1) if _t(get(r, 2)).startswith('CASHFLOW · ZO WORDT')), None)
+    if ovz:
+        maxr = max(r for r in range(2, ovz) if any(_t(form(r, c)) for c in range(2, 8)))
     start = maxr + 1
     return {'eerste': L(eerste), 'eerste_q': L(eerste_q), 'laatste': L(laatste), 'onderdelen': ond, 'posten': posten,
             'totaal': totaal, 'pct': totaal + 1, 'periode': periode, 'pew_totaal': pew, 'check': check, 'som': som,

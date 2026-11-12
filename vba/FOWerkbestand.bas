@@ -15,6 +15,7 @@ Option Explicit
 ' =====================================================================================
 
 Private Const SH_START As String = "Start"
+Private Const SH_AANSL As String = "Aansluiting opbrengsten"   ' was: Prijslijst (de aansluiting Salesforce <-> SAP)
 Private Const SH_CF As String = "Invoer"              ' cashflow per periode (vervangt 1. Cashflow; kop 'Jaar' in B7)
 Private Const SH_CF_OUD As String = "1. Cashflow"     ' in een oud FO
 Private Const SH_VORIGE As String = "CF vorig en huidig"
@@ -356,7 +357,7 @@ Private Function LaatsteRij(ByVal ws As Worksheet, ByVal nKol As Long) As Long
 End Function
 
 Private Function TypeVan(ByVal ws As Worksheet, ByVal r As Long, ByVal kType As Long, ByVal kBlok As Long, ByRef sl() As String, ByVal nS As Long) As Long
-    ' zoals kolom U op Prijslijst: elk bouwnummer bij precies een type; exact op Type, dan Type in een lijst (met ;),
+    ' zoals kolom U op Aansluiting opbrengsten: elk bouwnummer bij precies een type; exact op Type, dan Type in een lijst (met ;),
     ' dan exact op Termijnen / blok, dan blok in een lijst, dan '*'; bij gelijkspel het eerste type
     Dim k As Long, kol As Variant, w As String, x As Variant
     For Each kol In Array(kType, kBlok)
@@ -426,7 +427,7 @@ Public Sub NieuwKwartaalStarten()
               "2. de planning (start bouw per type) wordt bewaard als vorige planning;" & vbCrLf & _
               "3. FO - huidig wordt FO - vorig;" & vbCrLf & _
               "4. FO - huidig en FO - actuals worden leeggemaakt voor de nieuwe exports." & vbCrLf & vbCrLf & _
-              "Je invoer op Prijslijst, CF - opbrengsten en CF - kosten blijft staan." & vbCrLf & vbCrLf & _
+              "Je invoer op Aansluiting opbrengsten, CF - opbrengsten en CF - kosten blijft staan." & vbCrLf & vbCrLf & _
               "Doe dit pas als het vorige FO helemaal klaar is. Doorgaan?", vbQuestion + vbYesNo, "Nieuw kwartaal starten") <> vbYes Then Exit Sub
     n = NieuwKwartaalUitvoeren()
     MsgBox "Klaar: " & n & " periodes en de planning bewaard als vorige prognose; FO - huidig staat nu in FO - vorig." & vbCrLf & vbCrLf & _
@@ -794,7 +795,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         Exit Function
     End If
     Set wK = ThisWorkbook.Worksheets("CF - kosten")
-    Set wP = ThisWorkbook.Worksheets("Prijslijst")
+    Set wP = ThisWorkbook.Worksheets(SH_AANSL)
     Set wD = ThisWorkbook.Worksheets("CF - opbrengsten")
 
     ' ---- exports: de export als waarden, de hulpkolommen houden hun formule -----------------------------------
@@ -1436,7 +1437,7 @@ Public Sub WeergaveBijwerken()
         r1 = 6 + BLOK * (k - 1)
         wsO.Range(wsO.Rows(r1 + 1), wsO.Rows(r1 + BLOK - 2)).EntireRow.Hidden = leeg
         wsO.Rows(KANS_RIJ + k).Hidden = leeg
-        With ThisWorkbook.Worksheets("Prijslijst")
+        With ThisWorkbook.Worksheets(SH_AANSL)
             .Rows(P_TYPE1 + k - 1).Hidden = leeg
             .Range(.Rows(P_AANS1 + P_BLOK * (k - 1)), .Rows(P_AANS1 + P_BLOK * k - 2)).EntireRow.Hidden = leeg
         End With

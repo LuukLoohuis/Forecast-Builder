@@ -488,10 +488,8 @@ def maak_pew(wb, inhoud, pw):
     for r in (tk, to):
         for c in ['C'] + kols + [toel]:
             cell(ws, '%s%d' % (c, r), None, F_BOLD if c != toel else F_NOTE, FILL_TOTAL, NUM_PEW if c in kols else None)
-    for i, r in enumerate(res):
-        for c in ['C'] + kols[:ih + 1]:
-            cell(ws, '%s%d' % (c, r), None, Font(name='Heijmans-BoldCon', size=11, color=Color(theme=6)), None,
-                 NUM_PEW if i == 0 else '0.0%')
+    # RESULTAAT als band: donkerblauw met witte cijfers, RESULTAAT % lichtblauw; de delta's ernaast in groen/rood
+    resultaat_band(ws, res, kols[:ih + 1], delta, kols[iv], kols[ih], kols[0] if invoer else None)
     for r in chk:
         for c in ['C'] + kols[:ih + 1]:
             cell(ws, '%s%d' % (c, r), None, F_HELP, None, '#,##0.0;-#,##0.0;"OK"' if c != 'C' else None)
@@ -536,6 +534,44 @@ def maak_pew(wb, inhoud, pw):
     ws.add_chart(ch, '%s%d' % (L(ci(toel) + 2), kop - 1))
     ws.freeze_panes = 'D%d' % (kop + 1)
     return extra
+
+
+def resultaat_band(ws, res, kols, delta, vorig, huidig, fd):
+    """RESULTAAT en RESULTAAT % op de PEW-tabbladen (en dus op de dia): RESULTAAT als donkerblauwe band met witte, grote
+    cijfers; RESULTAAT % lichtblauw; de delta's (vorig - huidig en FD - huidig, zoals de andere regels) wit met groen
+    (gunstig: resultaat hoger) of rood (ongunstig)"""
+    groot = Font(name='Heijmans-BoldCon', size=12, color='FFFFFFFF')
+    pct_f = Font(name='Heijmans-BoldCon', size=11, color=Color(theme=6))
+    boven = Border(top=Side(style='medium', color='FF003366'))
+    for i, r in enumerate(res):
+        ws.row_dimensions[r].height = 22 if i == 0 else 18
+        for c in ['C'] + kols:
+            cel = ws['%s%d' % (c, r)]
+            if c == 'C' and not cel.value:
+                cel.value = 'RESULTAAT' if i == 0 else 'RESULTAAT %'
+            cel.font = groot if i == 0 else pct_f
+            cel.fill = FILL_HEAD if i == 0 else FILL_TOTAL
+            cel.number_format = NUM_PEW if i == 0 else '0.0%'
+            cel.alignment = Alignment(horizontal='left' if c == 'C' else 'right', vertical='center', indent=1 if c == 'C' else 0)
+            if i == 0:
+                cel.border = boven
+        bronnen = [vorig, fd]
+        for c, b in zip(delta, bronnen):
+            if not b:
+                continue
+            cel = ws['%s%d' % (c, r)]
+            if cel.value in (None, ''):
+                cel.value = '=%s%d-%s%d' % (b, r, huidig, r)
+            cel.font = Font(name='Heijmans-BoldCon', size=12 if i == 0 else 11)
+            cel.number_format = NUM_PEW if i == 0 else '+0.0%;-0.0%;"-"'
+            cel.alignment = Alignment(horizontal='right', vertical='center')
+            if i == 0:
+                cel.border = boven
+        if delta:
+            d = '%s%d:%s%d' % (delta[0], r, delta[-1], r)
+            drempel = '0.5' if i == 0 else '0.0005'
+            ws.conditional_formatting.add(d, CellIsRule(operator='lessThan', formula=['-' + drempel], font=Font(color='FF15803D', bold=True)))
+            ws.conditional_formatting.add(d, CellIsRule(operator='greaterThan', formula=[drempel], font=Font(color='FFB91C1C', bold=True)))
 
 
 def maak_pew_b(wb, pw, inhoud=None):
@@ -591,12 +627,13 @@ def maak_pew_b(wb, pw, inhoud=None):
         for c in 'EFGHIJK':
             cell(ws, '%s%d' % (c, r), '=SUM(%s%d:%s%d)' % (c, rr[0], c, rr[-1]), F_BOLD, FILL_TOTAL, NUM_PEW)
         cell(ws, 'N%d' % r, None, F_NOTE, FILL_TOTAL)
-    groot = Font(name='Heijmans-BoldCon', size=11, color=Color(theme=6))
-    cell(ws, 'C%d' % res, 'RESULTAAT', groot)
-    cell(ws, 'C%d' % pct, 'RESULTAAT %', groot)
     for c in 'EFGHI':
-        cell(ws, '%s%d' % (c, res), '=%s%d-%s%d' % (c, to, c, tk), groot, None, NUM_PEW)
-        cell(ws, '%s%d' % (c, pct), '=IFERROR(%s%d/%s%d,0)' % (c, res, c, to), groot, None, '0.0%')
+        cell(ws, '%s%d' % (c, res), '=%s%d-%s%d' % (c, to, c, tk), F_BOLD, None, NUM_PEW)
+        cell(ws, '%s%d' % (c, pct), '=IFERROR(%s%d/%s%d,0)' % (c, res, c, to), F_BOLD, None, '0.0%')
+    for c, f in (('J', '=H%d-I%d'), ('K', '=E%d-I%d')):
+        for r in (res, pct):
+            ws['%s%d' % (c, r)] = f % (r, r)
+    resultaat_band(ws, [res, pct], list('EFGHI'), ['J', 'K'], 'H', 'I', 'E')
     cell(ws, 'C%d' % (pct + 2), '=IF(COUNT(F%d:G%d)=0,"A en B zijn nog niet ingevuld",IF(SUMPRODUCT(--(ABS(N(+L%d:L%d))>0.5))=0,'
                                 '"Controle A + B = huidig: OK","LET OP: A + B wijkt af van huidig (kolom L)"))' % (r1, to, r1, to), F_HELP)
     groen, rood = Font(color='FF15803D', bold=True), Font(color='FFB91C1C', bold=True)

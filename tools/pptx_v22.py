@@ -7,7 +7,8 @@
 - dia 3: het vierde cijferblok wordt de kans grondtermijn (CF_KANS_LABEL / CF_KANS_WAARDE);
 - de dia 'Van verkoop naar omzet' vervalt (9 dia's);
 - dia Update PEW: een leeg vak PEW_BEELD over de hele breedte; de macro plakt er het overzicht van 2. Ontw PEW (bij DAEB
-  2B. Ontw PEW) als afbeelding in; PEW_TOP3 in één regel eronder; FD en basis in PEW_SUBTITEL.
+  2B. Ontw PEW) als afbeelding in; FD en basis in PEW_SUBTITEL (geen top 3 kosten meer op de dia);
+- verkoop en transport: de cumulatieve %-lijn, labels en rechter as rood (B91C1C), as tot 115%.
 
 Gebruik: maak(presentation) na het hernoemen naar v21 (build_werkbestand.maak_sjabloon)."""
 import copy
@@ -39,6 +40,50 @@ def cm(x):
 
 
 # ---------------------------------------------------------------------------------------------------------------
+ROOD = 'B91C1C'
+C = '{%s}' % NS['c']
+
+
+def pct_rood(cs):
+    """grafiek verkoop / transport: de cumulatieve %-lijn, zijn labels en de rechter as (0-100%) rood, zodat ze afsteken
+    tegen de staven en de navy titels; rechter as tot 115% zodat het label '100%' niet tegen de titel valt.
+    Geeft het aantal rood gemaakte reeksen terug."""
+    n = 0
+    for ser in cs.iter(C + 'ser'):
+        tx = ser.find(C + 'tx')
+        naam = ''.join(tx.itertext()) if tx is not None else ''
+        if 'cumulatief %' in naam.lower():
+            for c in ser.iter(A + 'srgbClr'):
+                c.set('val', ROOD)
+            n += 1
+    for ax in cs.iter(C + 'valAx'):
+        pos = ax.find(C + 'axPos')
+        if pos is None or pos.get('val') != 'r':
+            continue
+        sc = ax.find(C + 'scaling')
+        mx = sc.find(C + 'max')
+        if mx is not None and mx.get('val') == '1':
+            mx.set('val', '1.15')
+            mu = ax.find(C + 'majorUnit')
+            if mu is None:
+                mu = etree.Element(C + 'majorUnit')
+                na = ax.find(C + 'minorUnit')
+                if na is None:
+                    na = ax.find(C + 'dispUnits')
+                if na is None:
+                    na = ax.find(C + 'extLst')
+                if na is not None:
+                    na.addprevious(mu)
+                else:
+                    ax.append(mu)
+            mu.set('val', '0.25')
+        tp = ax.find(C + 'txPr')
+        if tp is not None:
+            for c in tp.iter(A + 'srgbClr'):
+                c.set('val', ROOD)
+    return n
+
+
 def palet(el):
     for c in el.iter(A + 'srgbClr'):
         v = (c.get('val') or '').upper()
@@ -239,15 +284,10 @@ def dia_pew(p, sc_tabel):
     vorm(s, 'PEW_DATUM').top = cm(12.85)
     # leeg vak voor de afbeelding van 2. Ontw PEW (of 2B bij DAEB); de macro plakt hem er passend in
     from pptx.enum.shapes import MSO_SHAPE
-    vak = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, cm(1.5), cm(3.2), cm(22.3), cm(8.6))
+    vak = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, cm(1.5), cm(3.2), cm(22.3), cm(9.4))
     vak.name = 'PEW_BEELD'
     vak.fill.background()
     vak.line.fill.background()
-    tekstvak(s, 'PEW_TOP3', 1.6, 12.05, 22.1, 0.5,
-             'Top 3 kosten Q3 2026 (actuals): 1. Aanneemsom € 1.234.567 · 2. Honoraria € 234.567 · 3. Grondkosten € 34.567',
-             sz=8, kleur='111F39')
-    for r in vorm(s, 'PEW_TOP3')._element.iter(A + 'rPr'):
-        r.set('b', '0')
     return s
 
 
@@ -274,6 +314,8 @@ def palet_en_letters(p):
                 palet(cs)
                 if shp.name != 'BT_GRAFIEK':           # de tijdas van de bouwtermijnen schaalt de macro zelf
                     min_letter(cs)
+                if shp.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK'):
+                    assert pct_rood(cs) == 2, shp.name
     for m in p.slide_masters:
         palet(m._element)
         for lay in m.slide_layouts:

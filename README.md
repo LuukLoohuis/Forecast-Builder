@@ -20,8 +20,9 @@ en de PowerPoint komt uit hetzelfde bestand.
 |---|---|
 | `Start` | project, oplevering, knoppen, status van de invoer, alle controles, teksten voor de dia Update PEW |
 | `FO - vorig`, `FO - huidig`, `FO - actuals`, `Prijslijst dump` | exports plakken of inlezen (SAP FO-overzicht van vorige en huidige periode, SAP actuals, Salesforce) |
-| `Prijslijst` | dashboard (zie hieronder): kaarten, woningtypes, grafieken, te boeken in SAP, aansluiting per type met het termijnschema, en onderaan de prijslijst per bouwnummer |
+| `Aansluiting opbrengsten` | (was: Prijslijst) de aansluiting tussen Salesforce (`Prijslijst dump`) en SAP, als dashboard (zie hieronder): kaarten, woningtypes, grafieken, te boeken in SAP, aansluiting per type met het termijnschema, en onderaan de prijslijst per bouwnummer |
 | `CF - opbrengsten` | per woningtype: planning bouwtermijnen, verkoop en transport in aantallen (verkooptempo en tabel Transport), grondprijsaanpassing; kadastrale kosten en rente (handmatig); overige opbrengsten, correctie, DAEB |
+| *onderaan beide CF-tabbladen* | **CF-overzicht**: per kwartaal opbrengsten, kosten, saldo en cumulatief zoals de definitieve cashflow, met totaal · actuals · prognose en een controle tegen het PEW; grijs = afgesloten, geel = huidig kwartaal, wit = prognose |
 | `CF - kosten` | bouwtermijnen kosten per type (eigen planning HWB, standaard gelijk aan de opbrengsten) en per kostenpost Handmatig, Voorstel of Transport |
 | `Dashboard`, `Scenario's` | cashflow, kerncijfers, grafieken en scenario's: rekenen automatisch mee |
 | `CF vorig en huidig` | links de vorige prognose zoals bewaard (kolom G, CF cumulatief, mag je aanpassen: dat is de stippellijn); in het midden per periode de huidige prognose (rekent mee met de CF-tabbladen) naast de vorige en het verschil; rechts de **realisatie**: per afgesloten periode de gerealiseerde kosten en omzet uit SAP (FO - actuals) naast de vorige prognose, met het verschil en een controle of de cashflow gelijk is aan de realisatie. Plus een grafiek huidig/vorige |
@@ -33,7 +34,7 @@ Verborgen: de rekenbladen van het scenariomodel (`Invoer`, `Woningtypes`, `Scena
 (welke tekst naar welke vorm), `Controle oud FO` (verschijnt na Oud FO inlezen) en `Behind the scens`
 (koppeling CODA-post → groep).
 
-Vervallen ten opzichte van het oude FO: `Aansluiting opbrengsten` (nu op `Prijslijst`), `Verkooptempo`, `Woningtypes` als
+Vervallen ten opzichte van het oude FO: `Aansluiting opbrengsten` (nu op `Aansluiting opbrengsten`), `Verkooptempo`, `Woningtypes` als
 invoer, `1. Cashflow`, `3. Restant bdgt`, `Notities FO gesprek`, `Toelichting onderlegger`, `1. Ontw businessc FD` en
 `5. K&R businessc`.
 
@@ -53,7 +54,7 @@ De woningtypes hebben één vaste, rustige kleurreeks (blauw, amber, petrol, gee
 
 Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad heeft linksboven "← Start" en een legenda. Start bouw en Oplevering staan als groen en blauw label boven het kwartaal, met een lijn langs de kolom; koppen en invoer houden hun eigen kleur.
 
-## Prijslijst als dashboard
+## Aansluiting opbrengsten als dashboard
 
 - **Kaarten bovenaan:**
   - aantal woningen;
@@ -77,7 +78,7 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
   5. `*`.
 
   Bij gelijkspel wint het eerste type.
-- **Regels zonder koppeling met de prijslijst** (VON verhogingen, opbrengsten commercieel en parkeren): de kolom Prijslijst is daar geel; vul het bedrag in. Oud FO inlezen neemt het bedrag uit het oude FO over.
+- **Regels zonder koppeling met de prijslijst** (VON verhogingen, opbrengsten commercieel en parkeren): de kolom Aansluiting opbrengsten is daar geel; vul het bedrag in. Oud FO inlezen neemt het bedrag uit het oude FO over.
 - **Grafieken:** prijslijst en SKO per type, en het grond % huidig en met kans.
 - **Te boeken in SAP:** naast de grafieken het totaal per SAP-nummer (bijvoorbeeld alles op 9000), met de kostendragers eronder, wat niet is toegewezen, en het totaal met een controle op de kolom Corr. In de aansluitblokken toont kolom K per regel op welk SAP-nummer (en kostendrager) de correctie geboekt wordt.
 - **2 · Aansluiting per woningtype:** SKO, prijslijst, actueel budget, Corr, PEW, verschil en status. De status per type staat in de kopregel, het termijnschema ernaast.
@@ -93,7 +94,7 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
 
   De macro werkt dit bij na Oud FO inlezen, Nieuw kwartaal en het inlezen van actuals.
 - **Verkoop:** in het verkooptempo vul je per woningtype het aantal verkochte woningen per kwartaal in; "verkocht %" in het woningtypeblok rekent daaruit.
-  - Kolom 1 is verkocht t/m de exportdatum van de prijslijst (Salesforce, Prijslijst C1).
+  - Kolom 1 is verkocht t/m de exportdatum van de prijslijst (Salesforce, Aansluiting opbrengsten C1).
   - Kwartalen vóór het kwartaal van die export tellen niet nog eens mee; die verkopen zitten al in kolom 1.
   - Verkoop en transport mogen per woningtype verschillen: transport kan later dan verkoop.
 - **Transport:** onder het verkooptempo staat de tabel Transport. Daar vul je per woningtype het aantal woningen in dat per kwartaal getransporteerd wordt; "getransporteerd %" in het woningtypeblok rekent daaruit.
@@ -108,9 +109,9 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
   - Haal je in de CF-tabbladen een kwartaal leeg, dan schuift de grafiek mee.
   - De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
 - **Vorige, huidig en realisatie** op het Dashboard (V93–V101): eindsaldo en laagste stand vorige ↔ huidig, kosten en omzet van het laatste afgesloten kwartaal vorige prognose ↔ gerealiseerd, en of de afgesloten periodes aansluiten op SAP. Details per periode: tab CF vorig en huidig.
-- **Tabbladkleuren:** Start donkerblauw, exports grijs, invoer en rekenwerk geel (Prijslijst, CF - opbrengsten, CF - kosten, 2. Ontw PEW), uitkomsten groen (Dashboard, Scenario's, CF - hulp VENA).
+- **Tabbladkleuren:** Start donkerblauw, exports grijs, invoer en rekenwerk geel (Aansluiting opbrengsten, CF - opbrengsten, CF - kosten, 2. Ontw PEW), uitkomsten groen (Dashboard, Scenario's, CF - hulp VENA).
 - **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont FOUT of LET OP voor de rij; cel C1 telt ze.
-- **Kans grondtermijn:** vul op `Prijslijst` in kolom Y een ander grond-% van de koopsom in (bijvoorbeeld 50%).
+- **Kans grondtermijn:** vul op `Aansluiting opbrengsten` in kolom Y een ander grond-% van de koopsom in (bijvoorbeeld 50%).
   - De kans geldt alleen voor woningen die nog getransporteerd worden. Bij al getransporteerde woningen ligt de verdeling grond/bouwtermijnen vast (CF - opbrengsten, kolom C van de kansregels).
   - Per type staat het netto effect per kwartaal: meer grondtermijn bij transport, minder bouwtermijnen daarna.
   - De totaalregels tonen:
@@ -128,15 +129,16 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
     - **handmatig**: de bedragen in € die je in de gele regel eronder invult;
   - kolom E en de statuskolom tonen wat nog te verdelen is (LET OP in kolom A);
   - Oud FO inlezen zet de overige opbrengsten van het oude FO in de handmatige regel; die gaan dan altijd als handmatig mee.
-- Op `Prijslijst` zijn ongebruikte woningtypes ingeklapt (na Oud FO inlezen).
-- **Koopsom en grond %:** grond % = grond / (grond + aanneemsom), zonder KAO; de kans in kolom Y rekent met dezelfde basis. Per woningtype op `Prijslijst` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
+- Op `Aansluiting opbrengsten` zijn ongebruikte woningtypes ingeklapt (na Oud FO inlezen).
+- **Koopsom en grond %:** grond % = grond / (grond + aanneemsom), zonder KAO; de kans in kolom Y rekent met dezelfde basis. Per woningtype op `Aansluiting opbrengsten` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
 - **Aantallen** staan zonder punt of komma erachter.
 
 ## PowerPoint
 
 - **Grafiekperiode:** "Grafiek vanaf / t/m" op het Dashboard geldt ook voor de dia's (cashflow, scenario's, verkoop en transport, van verkoop naar omzet, per woningtype). Alleen de kleine grafiek op dia 2 toont altijd de hele looptijd.
 - **Tijdassen:** de bouwtermijnen lopen t/m het jaar van de laatste termijn; verkoop en transport t/m Q4 van het jaar van de laatste verkoop of het laatste transport.
-- **Verkoop en transport:** vóór de kwartalen staat een staaf "Totaal" met alle woningen per type, op de dia én in de Dashboard-grafieken; de titel noemt het totaal en de legenda het aantal per type.
+- **Verkoop en transport:** de cumulatieve %-lijn, de labels en de rechter as zijn rood, zodat ze afsteken tegen de staven.
+- **Verkoop en transport (totaal):** vóór de kwartalen staat een staaf "Totaal" met alle woningen per type, op de dia én in de Dashboard-grafieken; de titel noemt het totaal en de legenda het aantal per type.
 
 Sjabloon v22 (zelfde opbouw als v21, strakker):
 - **palet** van het werkboek: navy `003366`, geel `FEB900`, groen `15803D`, rood `B91C1C`; rustige scenariokleuren;
@@ -150,7 +152,7 @@ Sjabloon v22 (zelfde opbouw als v21, strakker):
   het tabblad staat, met de toelichting; pas de notities aan in de gele kolom op het tabblad. Bij een gemengd project
   (DAEB-woningen, en A of B ingevuld) komt het overzicht van `2B. Ontw PEW` op de dia. De ondertitel noemt het
   resultaat, het verschil met vorig kwartaal, bij DAEB de marge niet-DAEB en DAEB, de meest recente FD en de PEW-basis
-  (Start blok 6); de **top 3 kosten** staan in één regel eronder (`PEW_TOP3`).
+  (Start blok 6). De top 3 kosten staat niet meer op de dia (wel op Start, blok 7). RESULTAAT staat op de PEW-tabbladen als donkerblauwe band met de delta's in groen/rood, en dus ook zo op de dia.
 
 De teksten en tabellen staan op het verborgen tabblad `PowerPoint` (tekstregels vanaf rij 8). Staat
 v22 niet in de map, dan neemt de macro v21.
@@ -167,7 +169,7 @@ omschrijving op.
 - Kolom G is "actuals": alles van vóór het eerste kwartaal.
 
 **Opbrengsten per woningtype**
-- De koopsom komt van `Prijslijst`. De grondtermijn = aantal getransporteerd × grond per woning (+ de grondprijsaanpassing).
+- De koopsom komt van `Aansluiting opbrengsten`. De grondtermijn = aantal getransporteerd × grond per woning (+ de grondprijsaanpassing).
 - Bouwtermijnen = aantal woningen dat de termijn haalt (planning), begrensd door het transport, × % × (aanneemsom + KAO) per woning.
 - Kopersmeerwerk: 25% met de eerste termijn (start bouw), 75% met de laatste termijn (oplevering).
 - Kadastrale kosten en aanvullende rente: aantal woningen per kwartaal, met de hand.

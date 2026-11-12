@@ -144,6 +144,40 @@ def vba_constanten():
     return '\r\n'.join(regels)
 
 
+AANSL = 'Aansluiting opbrengsten'
+
+
+def hernoem_prijslijst(dst):
+    """tabblad 'Prijslijst' heet in het werkbestand 'Aansluiting opbrengsten' (de aansluiting tussen Salesforce en SAP).
+    Pas aan het eind van de bouw: het standaard-FO en de omzetter houden 'Prijslijst'. Bladnaam, alle verwijzingen in
+    formules, namen, grafieken, voorwaardelijke opmaak, validatie en links, en de teksten die het tabblad noemen.
+    'Prijslijst dump' blijft."""
+    n = 0
+    ref = re.compile(r"(?:'Prijslijst'|(?<![\w' ])Prijslijst)!")
+    tekst = re.compile(r"\bPrijslijst\b(?! dump)(?!!)")
+    for naam in list(dst.parts):
+        if not naam.endswith('.xml') or not naam.startswith('xl/'):
+            continue
+        s = dst.parts[naam].decode('utf-8')
+        s2, k = ref.subn("'%s'!" % AANSL, s)
+        n += k
+        if naam == 'xl/workbook.xml':
+            s2, k = re.subn(r'(<sheet [^>]*name=")Prijslijst(")', r'\g<1>%s\2' % AANSL, s2)
+            assert k == 1, 'blad Prijslijst niet gevonden'
+            n += k
+        if naam == 'xl/sharedStrings.xml':
+            s2, k = tekst.subn(AANSL, s2)
+            n += k
+        if naam.startswith('xl/worksheets/sheet'):         # teksten in formules: HYPERLINK(...,"Prijslijst")
+            s2, k = re.subn(r'(&quot;|")Prijslijst(&quot;|")', r'\g<1>%s\2' % AANSL, s2)
+            n += k
+        if s2 != s:
+            dst.parts[naam] = s2.encode('utf-8')
+    rest = [nm for nm, b in dst.parts.items() if nm.endswith('.xml') and re.search(rb"(?<![\w' ])Prijslijst!|'Prijslijst'!", b)]
+    assert not rest, rest
+    return n
+
+
 def palet_werkbestand(dst):
     """het werkbestand in hetzelfde palet als het PowerPoint-sjabloon v22 (pptx_v22.PALET): grafieken, tekeningen,
     stijlen en de voorwaardelijke opmaak in de werkbladen. Gele tekst wordt donker amber (geel op wit is onleesbaar);
@@ -911,7 +945,11 @@ def main():
             new_dn.append(d)
     add_names(wb, sc_order, SC_RENAME)
     add_names(fo.x('xl/workbook.xml'), [n for n, _, _ in fo.sheets()], {})
-    for nm, ref in (('p_huidig', 'Start!$F$8'), ('p_oplevering', 'Start!$F$9'), ('p_actuals', 'Start!$F$12'),
+    ri, rt = scenario_koppeling.INV_RN, scenario_koppeling.INV_RN + 2       # CF-overzicht onderaan de CF-tabbladen
+    for nm, ref in (('cf_idx', 'Invoer!$A$8:$A$%d' % ri), ('cf_kosten', 'Invoer!$D$8:$D$%d' % ri),
+                    ('cf_omzet', 'Invoer!$F$8:$F$%d' % ri), ('cf_kosten_tot', 'Invoer!$D$%d' % rt),
+                    ('cf_omzet_tot', 'Invoer!$F$%d' % rt),
+                    ('p_huidig', 'Start!$F$8'), ('p_oplevering', 'Start!$F$9'), ('p_actuals', 'Start!$F$12'),
                     ('p_startbouw', 'Start!$F$7')):
         d = etree.SubElement(new_dn, M + 'definedName', name=nm)
         d.text = ref
@@ -1013,7 +1051,17 @@ def main():
     os.remove(tmpl)
     note('%d modules' % len(modules))
 
+    note('Tabblad Prijslijst heet nu Aansluiting opbrengsten: %d verwijzingen en teksten' % hernoem_prijslijst(dst))
     note('Palet (zoals sjabloon v22): %d kleuren omgezet' % palet_werkbestand(dst))
+    # verkoop / transport op het Dashboard: de cumulatieve %-lijn rood, zoals op de dia
+    import pptx_v22
+    n_rood = 0
+    for naam in [n for n in dst.parts if n.startswith('xl/charts/chart') and n.endswith('.xml')]:
+        if b'g_vk_pct' in dst.parts[naam] or b'g_vk_tpct' in dst.parts[naam]:
+            t = etree.fromstring(dst.parts[naam])
+            n_rood += pptx_v22.pct_rood(t)
+            dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
+    assert n_rood == 4, n_rood
     dst.save(a.out)
     os.remove(fo_tmp)
     import json

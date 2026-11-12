@@ -313,7 +313,8 @@ def main():
         for r in (t['tr'] + 1, t['tr'] + 2):
             print('  CF - opbrengsten rij %d %-60s %s %s' % (r, str(o.cell(r, 2).value)[:60], o['%s%d' % (ob['check'], r)].value,
                                                        o['%s%d' % (ob['status'], r)].value))
-    ao = wb[cfg['opzet'].get('aansluiting_blad', 'Aansluiting opbrengsten')]
+    aansl = 'Aansluiting opbrengsten' if 'Aansluiting opbrengsten' in wb.sheetnames else cfg['opzet'].get('aansluiting_blad')
+    ao = wb[aansl]
     r0 = cfg['opzet']['aansluiting_max'] + 5
     print('  Te boeken in SAP: ' + ' | '.join('%s/%s %s' % (ao.cell(r, 2).value, ao.cell(r, 3).value or '', round(ao.cell(r, 4).value or 0))
                                               for r in range(r0, r0 + 6)) + ' | niet toegewezen %s' % ao.cell(r0 + 6, 4).value)
@@ -321,7 +322,7 @@ def main():
     scenario(wb, cfg)
     for blad in ('Start', 'Invoer', 'Woningtypes', 'Scenario kosten', 'Dashboard', 'Model', '_koppeling', '2. Ontw PEW',
                  'Controle oud FO', 'CF - opbrengsten', 'CF - kosten', 'CF - hulp VENA', 'PowerPoint',
-                 cfg['opzet'].get('aansluiting_blad', 'Aansluiting opbrengsten')):
+                 aansl):
         for row in wb[blad].iter_rows():
             for c in row:
                 if isinstance(c.value, str) and c.value.startswith('#') and c.value[1:4].isupper() and not (
