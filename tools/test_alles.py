@@ -485,8 +485,8 @@ def t_pptx():
        any(sh.name == 'SC_TABEL' and sh.has_table for sl in pres.slides for sh in sl.shapes) and 'PEW_BEELD' in namen
        and 'PEW_TOP3' not in namen and 'PEW_TABEL' not in namen)
     rood = [sh.name for sl in pres.slides for sh in sl.shapes if sh.has_chart and sh.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK')
-            and sh.chart._chartSpace.xpath('.//c:ser[contains(string(c:tx), "umulatief %")]//a:srgbClr[@val="B91C1C"]')]
-    ok('verkoop en transport: cumulatieve %-lijn rood op beide grafieken', len(rood) == 2, ', '.join(rood))
+            and sh.chart._chartSpace.xpath('.//c:ser[contains(string(c:tx), "umulatief %")]//a:srgbClr[@val="991B1B"]')]
+    ok('verkoop en transport: percentages bij de cumulatieve lijn donkerrood op beide grafieken', len(rood) == 2, ', '.join(rood))
     import pptx_v22
     oud_palet, klein = set(), []
     for i, sl in enumerate(pres.slides, 1):

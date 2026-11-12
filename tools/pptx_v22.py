@@ -40,21 +40,23 @@ def cm(x):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-ROOD = 'B91C1C'
+ROOD = '991B1B'                                    # donkerrood: de percentages bij de cumulatieve lijn
 C = '{%s}' % NS['c']
 
 
 def pct_rood(cs):
-    """grafiek verkoop / transport: de cumulatieve %-lijn, zijn labels en de rechter as (0-100%) rood, zodat ze afsteken
-    tegen de staven en de navy titels; rechter as tot 115% zodat het label '100%' niet tegen de titel valt.
+    """grafiek verkoop / transport: de cumulatieve %-lijn navy, de percentages (labels en rechter as) donkerrood, zodat ze
+    afsteken tegen de staven; rechter as tot 115% zodat het label '100%' niet tegen de titel valt.
     Geeft het aantal rood gemaakte reeksen terug."""
     n = 0
     for ser in cs.iter(C + 'ser'):
         tx = ser.find(C + 'tx')
         naam = ''.join(tx.itertext()) if tx is not None else ''
         if 'cumulatief %' in naam.lower():
+            dl = ser.find(C + 'dLbls')
+            in_lbl = set(dl.iter(A + 'srgbClr')) if dl is not None else set()
             for c in ser.iter(A + 'srgbClr'):
-                c.set('val', ROOD)
+                c.set('val', ROOD if c in in_lbl else NAVY)        # lijn en markers navy, labels donkerrood
             n += 1
     for ax in cs.iter(C + 'valAx'):
         pos = ax.find(C + 'axPos')

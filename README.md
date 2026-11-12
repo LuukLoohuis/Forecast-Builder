@@ -137,7 +137,7 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
 
 - **Grafiekperiode:** "Grafiek vanaf / t/m" op het Dashboard geldt ook voor de dia's (cashflow, scenario's, verkoop en transport, van verkoop naar omzet, per woningtype). Alleen de kleine grafiek op dia 2 toont altijd de hele looptijd.
 - **Tijdassen:** de bouwtermijnen lopen t/m het jaar van de laatste termijn; verkoop en transport t/m Q4 van het jaar van de laatste verkoop of het laatste transport.
-- **Verkoop en transport:** de cumulatieve %-lijn, de labels en de rechter as zijn rood, zodat ze afsteken tegen de staven.
+- **Verkoop en transport:** de cumulatieve lijn is navy, de percentages (labels en rechter as) donkerrood. De grafiek begint bij de eerste verkoop. DAEB-woningen staan altijd apart als markering (ze gaan meestal in één keer over), niet als staaf.
 - **Verkoop en transport (totaal):** vóór de kwartalen staat een staaf "Totaal" met alle woningen per type, op de dia én in de Dashboard-grafieken; de titel noemt het totaal en de legenda het aantal per type.
 
 Sjabloon v22 (zelfde opbouw als v21, strakker):

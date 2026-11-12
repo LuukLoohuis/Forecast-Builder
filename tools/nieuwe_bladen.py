@@ -493,14 +493,20 @@ def maak_pew(wb, inhoud, pw):
     for r in chk:
         for c in ['C'] + kols[:ih + 1]:
             cell(ws, '%s%d' % (c, r), None, F_HELP, None, '#,##0.0;-#,##0.0;"OK"' if c != 'C' else None)
-    # groen = gunstig: kosten lager (delta > 0), opbrengsten hoger (delta < 0)
+    # delta's overal huidig − vorig en huidig − FD (+ = meer): rood = ongunstig (meer kosten, minder opbrengsten),
+    # groen = gunstig (minder kosten, meer opbrengsten)
     groen, rood = Font(color='FF15803D', bold=True), Font(color='FFB91C1C', bold=True)
     if delta:
+        bronnen = [kols[iv], kols[0] if invoer else None]
+        for r in rk + ro + [tk, to]:
+            for c, b in zip(delta, bronnen):
+                if b:
+                    ws['%s%d' % (c, r)] = '=%s%d-%s%d' % (kols[ih], r, b, r)
         d1, d2 = delta[0], delta[-1]
-        ws.conditional_formatting.add('%s%d:%s%d' % (d1, r1, d2, tk), CellIsRule(operator='greaterThan', formula=['0.5'], font=groen))
-        ws.conditional_formatting.add('%s%d:%s%d' % (d1, r1, d2, tk), CellIsRule(operator='lessThan', formula=['-0.5'], font=rood))
-        ws.conditional_formatting.add('%s%d:%s%d' % (d1, ro[0], d2, to), CellIsRule(operator='lessThan', formula=['-0.5'], font=groen))
-        ws.conditional_formatting.add('%s%d:%s%d' % (d1, ro[0], d2, to), CellIsRule(operator='greaterThan', formula=['0.5'], font=rood))
+        ws.conditional_formatting.add('%s%d:%s%d' % (d1, r1, d2, tk), CellIsRule(operator='greaterThan', formula=['0.5'], font=rood))
+        ws.conditional_formatting.add('%s%d:%s%d' % (d1, r1, d2, tk), CellIsRule(operator='lessThan', formula=['-0.5'], font=groen))
+        ws.conditional_formatting.add('%s%d:%s%d' % (d1, ro[0], d2, to), CellIsRule(operator='greaterThan', formula=['0.5'], font=groen))
+        ws.conditional_formatting.add('%s%d:%s%d' % (d1, ro[0], d2, to), CellIsRule(operator='lessThan', formula=['-0.5'], font=rood))
     h = pw['huidig']
     ws.conditional_formatting.add('%s%d:%s%d' % (h, rk[0], h, rk[-1]),
                                   DataBarRule(start_type='num', start_value=0, end_type='max', color='FFFEB900', showValue=True))
@@ -574,7 +580,7 @@ def resultaat_band(ws, res, kols, delta, vorig, huidig, fd):
     if delta and res:
         cel = ws['C%d' % (res[-1] + 1)]
         if cel.value in (None, ''):
-            cel.value = "delta's: kosten en opbrengsten vorig − huidig (zoals het FO) · resultaat huidig − vorig (pp = procentpunt)"
+            cel.value = "delta = huidig − vorig / huidig − FD · rood = ongunstig (meer kosten, minder opbrengsten of resultaat) · groen = gunstig · pp = procentpunt"
             cel.font = F_HELP
 
 
@@ -621,8 +627,8 @@ def maak_pew_b(wb, pw, inhoud=None):
         ab = (inhoud or {}).get(labels.get(r, '').strip().lower(), (None, None, None))
         for c, v in zip('FG', ab[:2]):
             cell(ws, '%s%d' % (c, r), v, F_BASE, FILL_INPUT, NUM_PEW, None, B_BOTTOM)
-        cell(ws, 'J%d' % r, '=H%d-I%d' % (r, r), F_BASE, FILL_CALC, NUM_PEW, None, B_BOTTOM)
-        cell(ws, 'K%d' % r, '=E%d-I%d' % (r, r), F_BASE, FILL_CALC, NUM_PEW, None, B_BOTTOM)
+        cell(ws, 'J%d' % r, '=I%d-H%d' % (r, r), F_BASE, FILL_CALC, NUM_PEW, None, B_BOTTOM)
+        cell(ws, 'K%d' % r, '=I%d-E%d' % (r, r), F_BASE, FILL_CALC, NUM_PEW, None, B_BOTTOM)
         cell(ws, 'L%d' % r, '=IF(AND(F%d="",G%d=""),"",ROUND(N(F%d)+N(G%d)-I%d,0))' % (r, r, r, r, r), F_HELP, None,
              '#,##0;-#,##0;"OK"', Alignment(horizontal='center'))
         cell(ws, 'N%d' % r, ab[2], F_NOTE, FILL_INPUT, None, Alignment(wrap_text=True, vertical='top'), B_BOTTOM)
@@ -638,10 +644,10 @@ def maak_pew_b(wb, pw, inhoud=None):
     cell(ws, 'C%d' % (pct + 2), '=IF(COUNT(F%d:G%d)=0,"A en B zijn nog niet ingevuld",IF(SUMPRODUCT(--(ABS(N(+L%d:L%d))>0.5))=0,'
                                 '"Controle A + B = huidig: OK","LET OP: A + B wijkt af van huidig (kolom L)"))' % (r1, to, r1, to), F_HELP)
     groen, rood = Font(color='FF15803D', bold=True), Font(color='FFB91C1C', bold=True)
-    ws.conditional_formatting.add('J%d:K%d' % (r1, tk), CellIsRule(operator='greaterThan', formula=['0.5'], font=groen))
-    ws.conditional_formatting.add('J%d:K%d' % (r1, tk), CellIsRule(operator='lessThan', formula=['-0.5'], font=rood))
-    ws.conditional_formatting.add('J%d:K%d' % (ro[0], to), CellIsRule(operator='lessThan', formula=['-0.5'], font=groen))
-    ws.conditional_formatting.add('J%d:K%d' % (ro[0], to), CellIsRule(operator='greaterThan', formula=['0.5'], font=rood))
+    ws.conditional_formatting.add('J%d:K%d' % (r1, tk), CellIsRule(operator='greaterThan', formula=['0.5'], font=rood))
+    ws.conditional_formatting.add('J%d:K%d' % (r1, tk), CellIsRule(operator='lessThan', formula=['-0.5'], font=groen))
+    ws.conditional_formatting.add('J%d:K%d' % (ro[0], to), CellIsRule(operator='greaterThan', formula=['0.5'], font=groen))
+    ws.conditional_formatting.add('J%d:K%d' % (ro[0], to), CellIsRule(operator='lessThan', formula=['-0.5'], font=rood))
     ws.conditional_formatting.add('L%d:L%d' % (r1, to), CellIsRule(operator='notBetween', formula=['-0.5', '0.5'], font=rood))
     ws.freeze_panes = 'D%d' % (kop + 1)
 

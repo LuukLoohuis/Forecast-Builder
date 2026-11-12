@@ -400,72 +400,23 @@ Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
     End If
     marge = IIf(nieuw, 0, 6)
     hT3 = 0
-    ' eerst als bewerkbare tabel met de opmaak van Excel (HTML); lukt dat niet, dan als afbeelding
-    Set pic = Nothing
-    On Error Resume Next
-    bron.Copy
+    ' als afbeelding (zoals het op het tabblad staat: kleuren, band, toelichting); een tabel komt in PowerPoint niet mooi over
+    bron.CopyPicture Appearance:=1, Format:=-4147
     DoEvents
-    Set sr = dia.Shapes.PasteSpecial(DataType:=8)                  ' ppPasteHTML: tabel met bronopmaak
-    If Err.Number = 0 And Not sr Is Nothing Then
-        Set pic = sr(1)
-        If Not pic.HasTable Then pic.Delete: Set pic = Nothing
-    End If
-    Err.Clear
-    On Error GoTo Mis
-    Application.CutCopyMode = False
-    If Not pic Is Nothing Then
-        PasTabel pic, vak
-        pic.Name = "PEW_TABEL_BEWERKBAAR"
-    Else
-        bron.CopyPicture Appearance:=1, Format:=-4147
-        DoEvents
-        Set sr = dia.Shapes.PasteSpecial(DataType:=2)              ' als afbeelding (verbeterde metafile)
-        Set pic = sr(1)
-        pic.LockAspectRatio = True
-        pic.Width = vak.Width - 2 * marge
-        If pic.Height > vak.Height - hT3 - 2 * marge Then pic.Height = vak.Height - hT3 - 2 * marge
-        pic.Left = vak.Left + (vak.Width - pic.Width) / 2
-        pic.Top = vak.Top + marge
-        pic.Name = "PEW_AFBEELDING"
-        fouten = fouten & "- Update PEW: als afbeelding geplakt (plakken als tabel lukte niet)" & vbCrLf
-    End If
+    Set sr = dia.Shapes.PasteSpecial(DataType:=2)                  ' als afbeelding (verbeterde metafile)
+    Set pic = sr(1)
+    pic.LockAspectRatio = True
+    pic.Width = vak.Width - 2 * marge
+    If pic.Height > vak.Height - hT3 - 2 * marge Then pic.Height = vak.Height - hT3 - 2 * marge
+    pic.Left = vak.Left + (vak.Width - pic.Width) / 2
+    pic.Top = vak.Top + marge
+    pic.Name = "PEW_AFBEELDING"
     ' sinds deze versie geen top 3 kosten meer op de dia (staat op Start, blok 7); een oud vak PEW_TOP3 leegmaken
     Set tb = ZoekVorm(pres, "PEW_TOP3")
     If Not tb Is Nothing Then tb.Delete
     Exit Sub
 Mis:
     fouten = fouten & "- 2. Ontw PEW op de dia Update PEW: " & Err.Description & vbCrLf
-End Sub
-
-Private Sub PasTabel(shp As Object, vak As Object)
-    ' de geplakte PEW-tabel binnen het vak PEW_BEELD: kolommen naar verhouding op de breedte van het vak; daarna de letters
-    ' kleiner (van 9 naar minimaal 6,5 pt) en de celmarges klein tot de hoogte past
-    Dim tbl As Object, i As Long, j As Long, som As Double, f As Double, pt As Single
-    On Error Resume Next
-    Set tbl = shp.Table
-    For j = 1 To tbl.Columns.Count
-        som = som + tbl.Columns(j).Width
-    Next j
-    If som > 0 Then
-        f = vak.Width / som
-        For j = 1 To tbl.Columns.Count
-            tbl.Columns(j).Width = tbl.Columns(j).Width * f
-        Next j
-    End If
-    shp.Left = vak.Left
-    shp.Top = vak.Top
-    For pt = 9 To 6.5 Step -0.5
-        For i = 1 To tbl.Rows.Count
-            For j = 1 To tbl.Columns.Count
-                With tbl.Cell(i, j).Shape.TextFrame
-                    .MarginTop = 0: .MarginBottom = 0: .MarginLeft = 3: .MarginRight = 3
-                    .TextRange.Font.Size = pt
-                End With
-            Next j
-            tbl.Rows(i).Height = 1
-        Next i
-        If shp.Height <= vak.Height Then Exit For
-    Next pt
 End Sub
 
 Private Function Top3Tekst() As String

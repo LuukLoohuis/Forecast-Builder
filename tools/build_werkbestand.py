@@ -1095,10 +1095,20 @@ def grafiekbereik_en_totaal(sheet, save):
     # de verkoopscenario's houden het ruimere venster BY132
     klaar = 'MIN($BY$8,MAX(COUNTIF($BK$8:$BK$67,"<"&0.99999),COUNTIF($BL$8:$BL$67,"<"&0.99999))+1)'
     idx = 'INDEX($F$8:$F$67,%s)' % klaar
+    # verkoop en transport beginnen bij de eerste periode met een verkoop of transport (geen lege kwartalen ervoor)
+    assert not sh.get('BX342')
+    sh.set_value('BX342', 'Verkoopgrafiek: eerste getoonde periode (eerste verkoop of transport, niet vóór het grafiekbereik)',
+                 sh.style_of('BX338'))
+    sh.set_formula('BY342', 'MAX($BY$131,IFERROR(MATCH(TRUE,INDEX((N(+$BG$8:$BG$67)>0)+(N(+$BH$8:$BH$67)>0)>0,0),0),$BY$131))',
+                   sh.style_of('BY338'))
+    # DAEB-woningen altijd apart (gaan vaak in één keer over): markering in plaats van een staaf
+    assert sh.get('BY326') == '=IF(AND($BY$135>0,$BY$135>0.5*$BY$39),1,0)', sh.get('BY326')
+    sh.set_formula('BY326', 'IF($BY$135>0,1,0)', sh.style_of('BY326'))
+    sh.set_value('BX326', 'Verkoopgrafiek: DAEB apart (1/0; zodra er DAEB-woningen zijn)', sh.style_of('BX326'))
     sh.set_value('BX340', 'Verkoopgrafiek: aantal getoonde periodes (t/m Q4 van het jaar van de laatste verkoop / het laatste transport)',
                  sh.style_of('BX338'))
-    sh.set_formula('BY340', 'IF(OR($BY$8=0,$BY$39=0),$BY$132,MAX(1,MIN($BY$132,IFERROR(%s+4*(INT((%s-1)/4)+1)-%s,$BY$8)-$BY$131+1)))'
-                   % (klaar, idx, idx), sh.style_of('BY338'))
+    sh.set_formula('BY340', 'IF(OR($BY$8=0,$BY$39=0),$BY$132,MAX(1,MIN($BY$132-($BY$342-$BY$131),IFERROR(%s+4*(INT((%s-1)/4)+1)-%s,$BY$8)'
+                            '-$BY$342+1)))' % (klaar, idx, idx), sh.style_of('BY338'))
     # kleine grafiek op dia 2: t/m Q4 van het jaar van de laatste periode met opbrengsten of kosten
     data = ('(ISNUMBER($AT$8:$AT$67)*(($AT$8:$AT$67>=0.0005)+($AT$8:$AT$67<=-0.0005))+ISNUMBER($AU$8:$AU$67)*(($AU$8:$AU$67>=0.0005)'
             '+($AU$8:$AU$67<=-0.0005))>0)')
@@ -1148,8 +1158,9 @@ def grafiekbereik_en_totaal(sheet, save):
         assert not sh.get('%s68' % L(c))
         for r in range(68, 8, -1):
             f = sh.get('%s%d' % (L(c), r - 1))
-            assert f.count('>Model!$BY$132,') == 1, f
-            sh.set('%s%d' % (L(c), r), f.replace('>Model!$BY$132,', '>Model!$BY$340,'), sh.style_of('%s%d' % (L(c), r - 1)))
+            assert f.count('>Model!$BY$132,') == 1 and '+Model!$BY$131-1' in f, f
+            f = f.replace('>Model!$BY$132,', '>Model!$BY$340,').replace('+Model!$BY$131-1', '+Model!$BY$342-1')
+            sh.set('%s%d' % (L(c), r), f, sh.style_of('%s%d' % (L(c), r - 1)))
     sh.set_value('ER8', 'Totaal', sh.style_of('ER8'))
     for c in range(k1 + 1, kn + 1):
         i = c - k1 - 1
