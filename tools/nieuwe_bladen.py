@@ -577,6 +577,13 @@ def resultaat_band(ws, res, kols, delta, vorig, huidig, fd):
             drempel = '0.5' if i == 0 else '0.05'
             ws.conditional_formatting.add(d, CellIsRule(operator='greaterThan', formula=[drempel], font=Font(color='FF15803D', bold=True)))
             ws.conditional_formatting.add(d, CellIsRule(operator='lessThan', formula=['-' + drempel], font=Font(color='FFB91C1C', bold=True)))
+    # de marge (RESULTAAT %) kleurt mee: huidig hoger dan vorig groen, lager rood
+    if len(res) > 1 and vorig and huidig:
+        rp = res[1]
+        ws.conditional_formatting.add('%s%d' % (huidig, rp), FormulaRule(formula=['%s%d>%s%d+0.0005' % (huidig, rp, vorig, rp)],
+                                                                         font=Font(color='FF15803D', bold=True)))
+        ws.conditional_formatting.add('%s%d' % (huidig, rp), FormulaRule(formula=['%s%d<%s%d-0.0005' % (huidig, rp, vorig, rp)],
+                                                                         font=Font(color='FFB91C1C', bold=True)))
     if delta and res:
         cel = ws['C%d' % (res[-1] + 1)]
         if cel.value in (None, ''):

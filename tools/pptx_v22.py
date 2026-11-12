@@ -86,6 +86,22 @@ def pct_rood(cs):
     return n
 
 
+def daeb_lijn(cs):
+    """verkoop / transport: de lijn van de DAEB-ruit naar beneden (foutbalk) goed zichtbaar: donkergoud, 1,5 pt, gestreept
+    (was dun lichtgeel, nauwelijks te zien). Geeft het aantal aangepaste lijnen terug."""
+    n = 0
+    for eb in cs.iter(C + 'errBars'):
+        for ln in eb.iter(A + 'ln'):
+            ln.set('w', '19050')
+            for c in ln.iter(A + 'srgbClr'):
+                c.set('val', '7A5300')
+            d = ln.find(A + 'prstDash')
+            if d is not None:
+                d.set('val', 'dash')
+            n += 1
+    return n
+
+
 def palet(el):
     for c in el.iter(A + 'srgbClr'):
         v = (c.get('val') or '').upper()
@@ -318,6 +334,7 @@ def palet_en_letters(p):
                     min_letter(cs)
                 if shp.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK'):
                     assert pct_rood(cs) == 2, shp.name
+                    assert daeb_lijn(cs) >= 1, shp.name
     for m in p.slide_masters:
         palet(m._element)
         for lay in m.slide_layouts:

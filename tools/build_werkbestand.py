@@ -1060,6 +1060,7 @@ def main():
         if b'g_vk_pct' in dst.parts[naam] or b'g_vk_tpct' in dst.parts[naam]:
             t = etree.fromstring(dst.parts[naam])
             n_rood += pptx_v22.pct_rood(t)
+            assert pptx_v22.daeb_lijn(t) >= 1, naam
             dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
     assert n_rood == 4, n_rood
     dst.save(a.out)
