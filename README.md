@@ -152,7 +152,7 @@ Sjabloon v22 (zelfde opbouw als v21, strakker):
   het tabblad staat, met de toelichting; pas de notities aan in de gele kolom op het tabblad. Bij een gemengd project
   (DAEB-woningen, en A of B ingevuld) komt het overzicht van `2B. Ontw PEW` op de dia. De ondertitel noemt het
   resultaat, het verschil met vorig kwartaal, bij DAEB de marge niet-DAEB en DAEB, de meest recente FD en de PEW-basis
-  (Start blok 6). De top 3 kosten staat niet meer op de dia (wel op Start, blok 7). RESULTAAT staat op de PEW-tabbladen als donkerblauwe band met de delta's in groen/rood, en dus ook zo op de dia.
+  (Start blok 6). De top 3 kosten staat niet meer op de dia (wel op Start, blok 7). RESULTAAT staat op de PEW-tabbladen als donkerblauwe band; de delta's bij het resultaat zijn huidig − vorig (een daling is negatief, rood), het % in procentpunten. De macro plakt het overzicht als **bewerkbare tabel** met de opmaak van Excel (lukt dat niet, dan als afbeelding).
 
 De teksten en tabellen staan op het verborgen tabblad `PowerPoint` (tekstregels vanaf rij 8). Staat
 v22 niet in de map, dan neemt de macro v21.

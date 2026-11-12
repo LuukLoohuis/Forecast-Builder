@@ -343,6 +343,13 @@ def t_bereik_en_totaal():
                     and abs(c_ - m['BY20'].value) < 1 and abs(e_ + f_ - o_) < 1 and ws.cell(R + 10, 4).value == 'OK')
     ok('CF-overzicht onderaan beide CF-tabbladen: totalen = Invoer, eindsaldo = Model, actuals + prognose = totaal, PEW OK',
        all(goed), str(goed))
+    # RESULTAAT: delta = huidig - vorig (een stijging is positief), % in procentpunten; dia 2: t/m het jaar van de laatste cijfers
+    p2 = wb['2. Ontw PEW']
+    ok('RESULTAAT: delta huidig − vorig en % in procentpunten', abs(p2['H29'].value - (p2['G29'].value - p2['F29'].value)) < 0.01
+       and abs(p2['H30'].value - (p2['G30'].value - p2['F30'].value) * 100) < 0.001, '%s / %s' % (p2['H29'].value, p2['H30'].value))
+    kc = [pp.cell(r, ci('GZ')).value for r in range(8, 68)]
+    ok('grafiek dia 2: t/m Q4 van het jaar van de laatste opbrengsten of kosten', 0 < m['BY341'].value <= m['BY8'].value
+       and sum(1 for x in kc if isinstance(x, (int, float))) == m['BY341'].value, 'BY341 = %s' % m['BY341'].value)
     # verkoop en transport: één tabel per type; t/m nu uit de Salesforce-status
     import standaard_fo as S
     ob = wb['CF - opbrengsten']

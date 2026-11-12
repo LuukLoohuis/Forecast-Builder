@@ -1099,6 +1099,14 @@ def grafiekbereik_en_totaal(sheet, save):
                  sh.style_of('BX338'))
     sh.set_formula('BY340', 'IF(OR($BY$8=0,$BY$39=0),$BY$132,MAX(1,MIN($BY$132,IFERROR(%s+4*(INT((%s-1)/4)+1)-%s,$BY$8)-$BY$131+1)))'
                    % (klaar, idx, idx), sh.style_of('BY338'))
+    # kleine grafiek op dia 2: t/m Q4 van het jaar van de laatste periode met opbrengsten of kosten
+    data = ('(ISNUMBER($AT$8:$AT$67)*(($AT$8:$AT$67>=0.0005)+($AT$8:$AT$67<=-0.0005))+ISNUMBER($AU$8:$AU$67)*(($AU$8:$AU$67>=0.0005)'
+            '+($AU$8:$AU$67<=-0.0005))>0)')
+    pos = 'LOOKUP(2,1/%s,ROW($AT$8:$AT$67)-7)' % data
+    kw = '(INDEX($F$8:$F$67,%s)-4*INT((INDEX($F$8:$F$67,%s)-1)/4))' % (pos, pos)
+    assert not sh.get('BX341')
+    sh.set_value('BX341', 'Grafiek dia 2: aantal periodes (t/m Q4 van het jaar van de laatste opbrengsten of kosten)', sh.style_of('BX338'))
+    sh.set_formula('BY341', 'IF($BY$8=0,0,IFERROR(MIN($BY$8,%s+4-%s),$BY$8))' % (pos, kw), sh.style_of('BY338'))
     sh.set_value('BX339', 'Verkoopgrafiek in PowerPoint: aantal rijen (totaalrij + periodes)', sh.style_of('BX338'))
     sh.set_formula('BY339', '$BY$340+1', sh.style_of('BY338'))
     # bouwtermijnen: de tijdas stopt aan het eind van het jaar van de laatste termijn
@@ -1126,6 +1134,14 @@ def grafiekbereik_en_totaal(sheet, save):
                 assert f and f.startswith(kop) and f.count('$67,%d)' % n) == 1, (ref, f)
                 f = '=IF(%d>Model!$BY$338,' % n + f[len(kop):].replace('$67,%d)' % n, '$67,%d+Model!$BY$336-1)' % n)
                 sh.set_formula(ref, f, sh.style_of(ref))
+    # kleine grafiek dia 2 (blok GY7:HF): t/m het jaar van de laatste opbrengsten of kosten (Model BY341)
+    for c in range(ci('GY'), ci('HF') + 1):
+        for r in range(8, 68):
+            ref = '%s%d' % (L(c), r)
+            f = sh.get(ref)
+            oud = '%d>Model!$BY$8,' % (r - 7)
+            assert f and oud in f, (ref, f)
+            sh.set_formula(ref, f.replace(oud, '%d>Model!$BY$341,' % (r - 7)), sh.style_of(ref))
     # totaalrij: de periodes een rij omlaag (van onder naar boven), daarna rij 8 = totaal per type
     k1, kn = ci('ER'), ci('FW')
     for c in range(k1, kn + 1):

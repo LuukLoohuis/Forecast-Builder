@@ -113,7 +113,7 @@ Private Const KOST_N As Long = 20                      ' aantal posten (layout.N
 Private Const KOST_COL1 As Long = 9                    ' kolom I = periode 1 (layout.KF_COL1); B naam, C schuift mee met, E gerealiseerd
 Private Const KPI_ROW1 As Long = 8            ' eerste regel met KPI-teksten
 Private Const CEL_N As String = "BY338"            ' aantal getoonde periodes (tabblad Model; Dashboard: grafiek vanaf / t/m)
-Private Const CEL_N_ALLE As String = "BY8"         ' alle periodes (de kleine grafiek op dia 2)
+Private Const CEL_N_ALLE As String = "BY341"       ' kleine grafiek op dia 2: t/m het jaar van de laatste opbrengsten of kosten
 Private Const CEL_VP_RIJEN As String = "BY339"     ' verkoop en transport: totaalrij + getoonde periodes
 Private Const CEL_AS_MIN As String = "BY97"        ' ondergrens tijd-as BT_GRAFIEK: kwartaalindex 1 jan eerste jaar (Model, t_first)
 Private Const CEL_AS_MAX As String = "BY99"        ' bovengrens tijd-as: kwartaalindex na het laatste jaar (Model, t_end)
@@ -390,32 +390,82 @@ Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
     If vak Is Nothing Then Exit Sub
     Set dia = vak.Parent
     On Error GoTo Mis
-    Set bron = ThisWorkbook.Worksheets("2. Ontw PEW").Range("C4:K30")
+    Set bron = ThisWorkbook.Worksheets("2. Ontw PEW").Range("C4:K31")
     On Error Resume Next
     Set wsB = ThisWorkbook.Worksheets("2B. Ontw PEW")
     On Error GoTo Mis
     If Not wsB Is Nothing Then
         If Val(CStr(ThisWorkbook.Worksheets(SH_MODEL).Range("BY135").Value)) > 0 And _
-           Application.WorksheetFunction.Count(wsB.Range("F7:G26")) > 0 Then Set bron = wsB.Range("C4:N30")
+           Application.WorksheetFunction.Count(wsB.Range("F7:G26")) > 0 Then Set bron = wsB.Range("C4:N31")
     End If
     marge = IIf(nieuw, 0, 6)
     hT3 = 0
-    bron.CopyPicture Appearance:=1, Format:=-4147
+    ' eerst als bewerkbare tabel met de opmaak van Excel (HTML); lukt dat niet, dan als afbeelding
+    Set pic = Nothing
+    On Error Resume Next
+    bron.Copy
     DoEvents
-    Set sr = dia.Shapes.PasteSpecial(DataType:=2)                  ' als afbeelding (verbeterde metafile)
-    Set pic = sr(1)
-    pic.LockAspectRatio = True
-    pic.Width = vak.Width - 2 * marge
-    If pic.Height > vak.Height - hT3 - 2 * marge Then pic.Height = vak.Height - hT3 - 2 * marge
-    pic.Left = vak.Left + (vak.Width - pic.Width) / 2
-    pic.Top = vak.Top + marge
-    pic.Name = "PEW_AFBEELDING"
+    Set sr = dia.Shapes.PasteSpecial(DataType:=8)                  ' ppPasteHTML: tabel met bronopmaak
+    If Err.Number = 0 And Not sr Is Nothing Then
+        Set pic = sr(1)
+        If Not pic.HasTable Then pic.Delete: Set pic = Nothing
+    End If
+    Err.Clear
+    On Error GoTo Mis
+    Application.CutCopyMode = False
+    If Not pic Is Nothing Then
+        PasTabel pic, vak
+        pic.Name = "PEW_TABEL_BEWERKBAAR"
+    Else
+        bron.CopyPicture Appearance:=1, Format:=-4147
+        DoEvents
+        Set sr = dia.Shapes.PasteSpecial(DataType:=2)              ' als afbeelding (verbeterde metafile)
+        Set pic = sr(1)
+        pic.LockAspectRatio = True
+        pic.Width = vak.Width - 2 * marge
+        If pic.Height > vak.Height - hT3 - 2 * marge Then pic.Height = vak.Height - hT3 - 2 * marge
+        pic.Left = vak.Left + (vak.Width - pic.Width) / 2
+        pic.Top = vak.Top + marge
+        pic.Name = "PEW_AFBEELDING"
+        fouten = fouten & "- Update PEW: als afbeelding geplakt (plakken als tabel lukte niet)" & vbCrLf
+    End If
     ' sinds deze versie geen top 3 kosten meer op de dia (staat op Start, blok 7); een oud vak PEW_TOP3 leegmaken
     Set tb = ZoekVorm(pres, "PEW_TOP3")
     If Not tb Is Nothing Then tb.Delete
     Exit Sub
 Mis:
     fouten = fouten & "- 2. Ontw PEW op de dia Update PEW: " & Err.Description & vbCrLf
+End Sub
+
+Private Sub PasTabel(shp As Object, vak As Object)
+    ' de geplakte PEW-tabel binnen het vak PEW_BEELD: kolommen naar verhouding op de breedte van het vak; daarna de letters
+    ' kleiner (van 9 naar minimaal 6,5 pt) en de celmarges klein tot de hoogte past
+    Dim tbl As Object, i As Long, j As Long, som As Double, f As Double, pt As Single
+    On Error Resume Next
+    Set tbl = shp.Table
+    For j = 1 To tbl.Columns.Count
+        som = som + tbl.Columns(j).Width
+    Next j
+    If som > 0 Then
+        f = vak.Width / som
+        For j = 1 To tbl.Columns.Count
+            tbl.Columns(j).Width = tbl.Columns(j).Width * f
+        Next j
+    End If
+    shp.Left = vak.Left
+    shp.Top = vak.Top
+    For pt = 9 To 6.5 Step -0.5
+        For i = 1 To tbl.Rows.Count
+            For j = 1 To tbl.Columns.Count
+                With tbl.Cell(i, j).Shape.TextFrame
+                    .MarginTop = 0: .MarginBottom = 0: .MarginLeft = 3: .MarginRight = 3
+                    .TextRange.Font.Size = pt
+                End With
+            Next j
+            tbl.Rows(i).Height = 1
+        Next i
+        If shp.Height <= vak.Height Then Exit For
+    Next pt
 End Sub
 
 Private Function Top3Tekst() As String
@@ -994,7 +1044,7 @@ Private Sub SchikGrafiekDia2(shp As Object, ch As Object)
     End If
     Set dia = shp.Parent
     If dia Is Nothing Then Exit Sub
-    n = AantalPeriodes()
+    n = AantalRijen(CEL_N_ALLE, MAX_RIJEN)
     posNu = AantalRijen(CEL_POS_ACTUALS, MAX_RIJEN)
     Set vlak = VormOpDia(dia, "GRAFIEK_REALISATIE")
     namen = Array("TL_NU_LABEL", "KPI4_WAARDE", "KPI4_SUB")

@@ -538,8 +538,8 @@ def maak_pew(wb, inhoud, pw):
 
 def resultaat_band(ws, res, kols, delta, vorig, huidig, fd):
     """RESULTAAT en RESULTAAT % op de PEW-tabbladen (en dus op de dia): RESULTAAT als donkerblauwe band met witte, grote
-    cijfers; RESULTAAT % lichtblauw; de delta's (vorig - huidig en FD - huidig, zoals de andere regels) wit met groen
-    (gunstig: resultaat hoger) of rood (ongunstig)"""
+    cijfers; RESULTAAT % lichtblauw. De delta's zijn hier huidig - vorig en huidig - FD (een daling is negatief, rood; een
+    stijging positief, groen); bij RESULTAAT % in procentpunten. Kosten en opbrengsten houden vorig - huidig, zoals het FO."""
     groot = Font(name='Heijmans-BoldCon', size=12, color='FFFFFFFF')
     pct_f = Font(name='Heijmans-BoldCon', size=11, color=Color(theme=6))
     boven = Border(top=Side(style='medium', color='FF003366'))
@@ -560,18 +560,22 @@ def resultaat_band(ws, res, kols, delta, vorig, huidig, fd):
             if not b:
                 continue
             cel = ws['%s%d' % (c, r)]
-            if cel.value in (None, ''):
-                cel.value = '=%s%d-%s%d' % (b, r, huidig, r)
+            cel.value = ('=%s%d-%s%d' if i == 0 else '=(%s%d-%s%d)*100') % (huidig, r, b, r)
             cel.font = Font(name='Heijmans-BoldCon', size=12 if i == 0 else 11)
-            cel.number_format = NUM_PEW if i == 0 else '+0.0%;-0.0%;"-"'
+            cel.number_format = '+#,##0;-#,##0;"-"' if i == 0 else '+0.0" pp";-0.0" pp";"-"'
             cel.alignment = Alignment(horizontal='right', vertical='center')
             if i == 0:
                 cel.border = boven
         if delta:
             d = '%s%d:%s%d' % (delta[0], r, delta[-1], r)
-            drempel = '0.5' if i == 0 else '0.0005'
-            ws.conditional_formatting.add(d, CellIsRule(operator='lessThan', formula=['-' + drempel], font=Font(color='FF15803D', bold=True)))
-            ws.conditional_formatting.add(d, CellIsRule(operator='greaterThan', formula=[drempel], font=Font(color='FFB91C1C', bold=True)))
+            drempel = '0.5' if i == 0 else '0.05'
+            ws.conditional_formatting.add(d, CellIsRule(operator='greaterThan', formula=[drempel], font=Font(color='FF15803D', bold=True)))
+            ws.conditional_formatting.add(d, CellIsRule(operator='lessThan', formula=['-' + drempel], font=Font(color='FFB91C1C', bold=True)))
+    if delta and res:
+        cel = ws['C%d' % (res[-1] + 1)]
+        if cel.value in (None, ''):
+            cel.value = "delta's: kosten en opbrengsten vorig − huidig (zoals het FO) · resultaat huidig − vorig (pp = procentpunt)"
+            cel.font = F_HELP
 
 
 def maak_pew_b(wb, pw, inhoud=None):
@@ -630,9 +634,6 @@ def maak_pew_b(wb, pw, inhoud=None):
     for c in 'EFGHI':
         cell(ws, '%s%d' % (c, res), '=%s%d-%s%d' % (c, to, c, tk), F_BOLD, None, NUM_PEW)
         cell(ws, '%s%d' % (c, pct), '=IFERROR(%s%d/%s%d,0)' % (c, res, c, to), F_BOLD, None, '0.0%')
-    for c, f in (('J', '=H%d-I%d'), ('K', '=E%d-I%d')):
-        for r in (res, pct):
-            ws['%s%d' % (c, r)] = f % (r, r)
     resultaat_band(ws, [res, pct], list('EFGHI'), ['J', 'K'], 'H', 'I', 'E')
     cell(ws, 'C%d' % (pct + 2), '=IF(COUNT(F%d:G%d)=0,"A en B zijn nog niet ingevuld",IF(SUMPRODUCT(--(ABS(N(+L%d:L%d))>0.5))=0,'
                                 '"Controle A + B = huidig: OK","LET OP: A + B wijkt af van huidig (kolom L)"))' % (r1, to, r1, to), F_HELP)
