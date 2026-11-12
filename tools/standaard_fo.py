@@ -434,6 +434,12 @@ def maak_opbrengsten(ws):
         for c in ['C', 'D', 'E'] + COLS + [CHK]:
             zet(ws, '%s%d' % (c, r), '=' + '+'.join('%s%d' % (c, x) for x in rijen), FB, TOTAAL, '0' if c in 'CDE' else AANT)
         zet(ws, 'F%d' % r, '=IF(N(C%d)=0,"",D%d/C%d)' % (r, r, r), FB, TOTAAL, '0%')
+    # bron zichtbaar: de statussen in de Salesforce-export (Prijslijst dump), per bouwnummer gekoppeld op Prijslijst
+    st_ = lambda x: 'COUNTIF(Prijslijst!%s,"%s")' % (s_bn, x)
+    zet(ws, 'B%d' % (TT_TOT + 1), '=HYPERLINK("#\'Prijslijst dump\'!A1","t/m nu uit Salesforce (Prijslijst dump): "&%s&" verkocht · "&'
+                                  '%s&" getransporteerd · "&%s&" in optie · "&%s&" te koop  →")'
+        % (st_('Verkocht'), st_('Getransporteerd'), st_('In optie'), st_('Te koop')),
+        Font(name='Heijmans-Light', size=9, italic=True, color='FF003366', underline='single'))
     ws.conditional_formatting.add('F%d:F%d' % (VK + 1, TT_TOT), DataBarRule(start_type='num', start_value=0, end_type='num',
                                                                              end_value=1, color='FF003366', showValue=True))
     # omzetblokken (aantallen woningen per termijn per kwartaal)
