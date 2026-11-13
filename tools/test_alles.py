@@ -112,6 +112,39 @@ def jaren_als_getal(doc):
             c.setValue(float(t))
 
 
+def vba_lint(tekst):
+    """fouten die LibreOffice Basic niet ziet maar Excel wel: toewijzing aan een andere functie in een functie; Sub/Function
+    zonder bijpassende End"""
+    regels = tekst.replace('\r\n', '\n').split('\n')
+    fout = []
+    func = set(m.group(1).lower() for m in re.finditer(r'^(?:Public |Private |Friend )?(?:Static )?Function (\w+)', tekst, re.M | re.I))
+    huidig, soort = None, None
+    for nr, r in enumerate(regels, 1):
+        code = re.sub(r"'.*$", '', re.sub(r'"[^"]*"', '""', r)).strip()
+        m = re.match(r'^(?:Public |Private |Friend )?(?:Static )?(Sub|Function|Property (?:Get|Let|Set)) (\w+)', code, re.I)
+        if m:
+            if huidig:
+                fout.append('%d: %s %s begint voordat %s klaar is' % (nr, m.group(1), m.group(2), huidig))
+            soort, huidig = m.group(1).split()[0].lower(), m.group(2)
+            continue
+        m = re.match(r'^End (Sub|Function|Property)\b', code, re.I)
+        if m:
+            if not huidig or m.group(1).lower() != soort:
+                fout.append('%d: End %s zonder bijpassend begin' % (nr, m.group(1)))
+            huidig = soort = None
+            continue
+        if huidig:
+            for deel in code.split(':'):
+                deel = re.sub(r'^.*\bThen\b\s*', '', deel.strip(), flags=re.I) if re.search(r'\bThen\b\s*\S', deel, re.I) else deel.strip()
+                deel = re.sub(r'^Else\s+', '', deel, flags=re.I)
+                a = re.match(r'^(\w+)\s*=(?!=)', deel)
+                if a and a.group(1).lower() in func and a.group(1).lower() != huidig.lower():
+                    fout.append('%d: in %s een toewijzing aan functie %s' % (nr, huidig, a.group(1)))
+    if huidig:
+        fout.append('einde bestand: %s niet afgesloten' % huidig)
+    return fout
+
+
 def waarde(sh, ref):
     return sh.getCellRangeByName(ref).getValue()
 
@@ -511,6 +544,11 @@ def t_pptx():
     npp = npp[:npp.index('\nEnd Sub')]
     vgv = vba[vba.index('Private Sub VulGrafiekVorm('):]
     vgv = vgv[:vgv.index('\nEnd Sub')]
+    import glob
+    lint = {os.path.basename(p_): vba_lint(open(p_, encoding='cp1252').read())
+            for p_ in sorted(glob.glob(os.path.join(ROOT, 'vba', '*.bas')) + glob.glob(os.path.join(ROOT, 'vba', '*.cls')))}
+    ok('VBA: geen toewijzing aan een andere functie, elke Sub/Function netjes afgesloten (controle die LibreOffice mist)',
+       not any(lint.values()), '; '.join('%s %s' % (k, v[:3]) for k, v in lint.items() if v) or '%d modules' % len(lint))
     ok('Naar PowerPoint sneller: tijden in de eindmelding, PowerPoint geminimaliseerd, vormlijst, eerst (uit) weg',
        'TijdOverzicht()' in npp and 'WindowState = 2' in npp and 'BouwVormIndex pres' in npp
        and 'ScreenUpdating = False' in npp and vgv.index('VerwijderUitgezetteReeksen ch') < vgv.index('ZetBereik ch')

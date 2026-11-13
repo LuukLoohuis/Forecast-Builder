@@ -708,9 +708,9 @@ Private Function WaardeTekst(v As Variant) As String
     If IsEmpty(v) Then Exit Function
     Select Case VarType(v)
         Case vbDouble, vbSingle, vbLong, vbInteger, vbCurrency
-            CelTekst = Format$(v, "0")
+            WaardeTekst = Format$(v, "0")
         Case Else
-            CelTekst = CStr(v)
+            WaardeTekst = CStr(v)
     End Select
 End Function
 
