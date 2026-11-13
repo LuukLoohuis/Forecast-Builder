@@ -283,8 +283,10 @@ def t_palet_werkbestand():
         ch = [z.read(n).decode('utf-8') for n in z.namelist() if re.match(r'xl/charts/chart\d+\.xml$', n)]
     typen = [c for c in ch if 'g_vk_pct' in c and all(t in c for t in pptx_v22.TYPEN[:4])]
     vorig = [c for c in ch if re.search(r'Vorige prognose</c:v>.*?srgbClr val="%s"' % pptx_v22.VORIG_KL, c, re.S)]
-    opd = [c for c in ch if 'g_vk_som_' in c and 'datalabelsRange' in c and 'PowerPoint!$I' in c]
-    ok('Dashboard: opsomming boven de staaf uit cellen (verkoop en transport)', len(opd) == 2, '%d grafieken' % len(opd))
+    opd = [c for c in ch if 'g_vk_som_' in c and c.count('datalabelsRange>') == 4
+           and ('PowerPoint!$IG$' in c or 'PowerPoint!$IH$' in c)]
+    ok('Dashboard: opsomming boven de staaf en de percentagerij uit cellen (verkoop en transport)', len(opd) == 2,
+       '%d grafieken' % len(opd))
     ok('Dashboard: vorige prognose geel, scenario rood, eigen kleuren per woningtype',
        typen and vorig and any('srgbClr val="%s"' % pptx_v22.SCEN_KL in c for c in vorig),
        '%d typegrafieken, %d met vorige prognose' % (len(typen), len(vorig)))
@@ -331,6 +333,12 @@ def t_bereik_en_totaal():
     ok('verkoop en transport: totaalrij = alle woningen per type', pp['ER8'].value == 'Totaal' and som == m['BY39'].value > 0
        and m['BY339'].value == m['BY132'].value + 1, 'totaal %s' % som)
     verw = ' + '.join('%g' % x for x in tot if isinstance(x, (int, float)) and x > 0)
+    rij = [(pp['FR%d' % r].value, pp['IG%d' % r].value, m['BO%d' % (r - 1)].value) for r in range(9, 69)
+           if isinstance(pp['FS%d' % r].value, (int, float))]
+    ok('verkoop en transport: percentagerij (vaste hoogte, tekst = cumulatief %)', rij and all(
+        t == '%d%%' % round(p * 100) for p, t, _ in rij) and all(abs(pp['FS%d' % r].value - 1.12) < 1e-9 for r in range(9, 69)
+                                                                   if isinstance(pp['FS%d' % r].value, (int, float))),
+       '%d kwartalen, bijv. %s' % (len(rij), [t for _, t, _ in rij][:4]))
     ok('verkoop en transport: opsomming boven de staaf (Dashboard), bijv. totaalrij', pp['IC8'].value == verw
        and pp['IE8'].value == som, '%r (verwacht %r), hoogte %s' % (pp['IC8'].value, verw, pp['IE8'].value))
     # tijdassen: bouwtermijnen t/m het jaar van de laatste termijn; verkoop/transport t/m Q4 van het laatste transport
@@ -522,10 +530,10 @@ def t_pptx():
                 o, lb = ser.get('Opsomming'), ser.get('Cumulatief % (label)')
                 mk = [x_ for x_ in cs_.iter(PV.C + 'ser') if PV._marker_reeks(x_)]
                 if (o is not None and o.find('.//' + PV.C + 'dLblPos').get('val') == 't' and lb is not None
-                        and lb.find('.//' + PV.C + 'dLblPos').get('val') == 't' and mk
+                        and lb.find('.//' + PV.C + 'dLblPos').get('val') == 'ctr' and mk
                         and mk[0].find(PV.C + 'marker/' + PV.C + 'symbol').get('val') == 'none'):
                     op.append(sh.name)
-    ok('verkoop en transport (dia): opsomming boven de staaf, percentages boven de lijn, geen bolletje op de markering',
+    ok('verkoop en transport (dia): opsomming boven de staaf, percentages in een rij bovenin, geen bolletje op de markering',
        len(op) == 2, ', '.join(op))
     ok('kleuren: vorige prognose geel, scenario rood, eigen kleuren per woningtype (dia)',
        vorig and set(vorig.values()) == {PV.VORIG_KL} and scen and set(scen.values()) == {PV.SCEN_KL} and vp == PV.TYPEN[:4],

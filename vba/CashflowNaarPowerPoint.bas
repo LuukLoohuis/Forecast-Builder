@@ -35,7 +35,7 @@ Option Explicit
 '  v15: grafiek per woningtype (dia 8): blok FM7 met 10 kolommen (totaal per kwartaal als label, eindpunt met het totaal),
 '       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw (sinds v22: geel, scenario rood); sjabloon v15.
 '       Knoppen op Woningtypes: 'Vorige prognose uit FO' (ouder FO -> blok 4 en 6) en 'Nu bewaren als vorige prognose'.
-'  v22: dia 6 boven elke staaf de opsomming per type ('10 + 2', OpsommingLabels); percentages boven de lijn
+'  v22: dia 6 boven elke staaf de opsomming per type ('10 + 2', OpsommingLabels); percentages in een vaste rij bovenin
 '  v16: dia 6 (VP1_/VP2_GRAFIEK): cumulatief percentage verkocht/getransporteerd als lijn met labels; blok EF7 met 30 kolommen
 '       (vier kolommen extra: cumulatief % en label, verkocht en transport), alleen de periodes vanaf het actuals-jaar (Model!BY132);
 '       VO-blok vanaf FK7, blok per type (dia 8) vanaf FQ7, tabellen vanaf kolom GB; sjabloon v16.
@@ -1470,6 +1470,23 @@ Private Sub OpsommingLabels(ch As Object, arr() As Variant, n As Long, k0 As Lon
             ser.Points(r).HasDataLabel = False
         End If
     Next r
+    ' percentagerij bovenin: de reeks 'Cumulatief % (label)' staat op een vaste hoogte, de tekst is het cumulatieve %
+    ' (kolom AA verkocht, AC getransporteerd)
+    Dim lbl As Object, pk As Long
+    pk = IIf(k0 = 1, 26, 28)
+    For i = 1 To ch.SeriesCollection.Count
+        If ch.SeriesCollection(i).Name = "Cumulatief % (label)" Then Set lbl = ch.SeriesCollection(i)
+    Next i
+    If Not lbl Is Nothing Then
+        For r = 1 To n
+            If IsNumeric(arr(r, pk + 1)) And Not IsEmpty(arr(r, pk + 1)) And IsNumeric(arr(r, pk)) And Not IsEmpty(arr(r, pk)) Then
+                lbl.Points(r).HasDataLabel = True
+                lbl.Points(r).DataLabel.Text = Format(arr(r, pk), "0%")
+            Else
+                lbl.Points(r).HasDataLabel = False
+            End If
+        Next r
+    End If
     ' in de staaf alleen cijfers die passen (staafdeel >= 6% van de hoogste staaf); de rest staat in de opsomming erboven
     Dim maxSom As Double, b As Object, w As Variant
     For r = 1 To n

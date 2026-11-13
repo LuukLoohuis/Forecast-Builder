@@ -41,6 +41,7 @@ def cm(x):
 
 # ---------------------------------------------------------------------------------------------------------------
 ROOD = 'A16207'                                    # donkergeel: de percentages bij de cumulatieve lijn (naam historisch)
+PCT_RIJ = 1.12                                      # hoogte van de percentagerij op de rechteras (as tot 1,2)
 VORIG_KL, SCEN_KL = 'FEB900', 'DC2626'              # cashflowgrafiek: vorige prognose geel, scenario rood
 OUD_TYPEN = ['2563EB', 'B45309', '0F766E', 'FEB900', '64748B', '15803D', '1E3A8A', 'D97706', '0891B2', '92400E']
 TYPEN = ['2563EB', '16A34A', 'DC2626', 'FACC15', '7C3AED', 'EA580C', '0891B2', 'DB2777', '92400E', '6B7280']
@@ -60,9 +61,7 @@ def pct_rood(cs):
             in_lbl = set(dl.iter(A + 'srgbClr')) if dl is not None else set()
             for c in ser.iter(A + 'srgbClr'):
                 c.set('val', ROOD if c in in_lbl else NAVY)        # lijn en markers navy, labels donkergeel
-            pos = dl.find(C + 'dLblPos') if dl is not None else None
-            if pos is not None:
-                pos.set('val', 't')                     # percentage boven het punt, niet rechts op de lijn
+
             n += 1
     for ax in cs.iter(C + 'valAx'):
         pos = ax.find(C + 'axPos')
@@ -71,7 +70,7 @@ def pct_rood(cs):
         sc = ax.find(C + 'scaling')
         mx = sc.find(C + 'max')
         if mx is not None and mx.get('val') == '1':
-            mx.set('val', '1.15')
+            mx.set('val', '1.2')
             mu = ax.find(C + 'majorUnit')
             if mu is None:
                 mu = etree.Element(C + 'majorUnit')
@@ -214,7 +213,8 @@ def opsomming(cs, kol=None, naam_waarden=None, tekstbereik=None):
     dl = n.find(C + 'dLbls')
     for e in list(dl):
         dl.remove(e)
-    dl_xml = ('<c:dLbls xmlns:c="%s" xmlns:a="%s"><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
+    dl_xml = ('<c:dLbls xmlns:c="%s" xmlns:a="%s"><c:spPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>'
+              '<a:ln><a:noFill/></a:ln></c:spPr>'
               '<c:txPr><a:bodyPr wrap="none"/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="800" b="1"><a:solidFill>'
               '<a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="Arial"/><a:cs typeface="Arial"/></a:defRPr>'
               '</a:pPr><a:endParaRPr lang="nl-NL"/></a:p></c:txPr><c:dLblPos val="t"/><c:showLegendKey val="0"/>'
@@ -259,6 +259,41 @@ def opsomming(cs, kol=None, naam_waarden=None, tekstbereik=None):
     laatste = [e for e in m.getparent() if e.tag == C + 'ser'][-1]
     laatste.addnext(n)
     return 1
+
+
+def pct_rij(cs, tekstbereik=None):
+    """verkoop / transport: de percentages in een vaste rij bovenin (reeks 'Cumulatief % (label)' op hoogte PCT_RIJ,
+    label gecentreerd), zodat ze nooit over een staaf of de opsomming vallen. De tekst: op de dia zet de macro het
+    percentage per punt (OpsommingLabels), op het Dashboard uit cellen (tekstbereik). Geeft het aantal reeksen terug."""
+    n = 0
+    for ser in cs.iter(C + 'ser'):
+        if _naam(ser).lower() != 'cumulatief % (label)':
+            continue
+        dl = ser.find(C + 'dLbls')
+        dl.find(C + 'dLblPos').set('val', 'ctr')
+        dl.find(C + 'showVal').set('val', '0')
+        for e in dl.findall(C + 'numFmt'):
+            dl.remove(e)
+        if tekstbereik:
+            ext = dl.find(C + 'extLst/' + C + 'ext[@uri="{CE6537A1-D6FC-4f65-9D91-7224C49458BB}"]')
+            if ext is None:
+                el = dl.find(C + 'extLst')
+                if el is None:
+                    el = etree.SubElement(dl, C + 'extLst')
+                ext = etree.SubElement(el, C + 'ext', uri='{CE6537A1-D6FC-4f65-9D91-7224C49458BB}')
+            sl = ext.find('{%s}showLeaderLines' % C15)
+            e = etree.Element('{%s}showDataLabelsRange' % C15, val='1')
+            (sl.addprevious(e) if sl is not None else ext.append(e))
+            for x_ in ser.findall(C + 'extLst'):
+                ser.remove(x_)
+            ser.append(etree.fromstring('<c:extLst xmlns:c="%s"><c:ext uri="{02D57815-91ED-43cb-92C2-25804820EDAC}" '
+                                        'xmlns:c15="%s"><c15:datalabelsRange><c15:f>%s</c15:f></c15:datalabelsRange>'
+                                        '</c:ext></c:extLst>' % (NS['c'], C15, tekstbereik)))
+        else:                                   # sjabloon: de rij staat op PCT_RIJ (cache), tekst volgt uit de macro
+            for v in ser.findall(C + 'val/' + C + 'numRef/' + C + 'numCache/' + C + 'pt/' + C + 'v'):
+                v.text = '%g' % PCT_RIJ
+        n += 1
+    return n
 
 
 def daeb_lijn(cs):
@@ -514,6 +549,7 @@ def palet_en_letters(p):
                 typekleuren(cs)
                 if shp.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK'):    # na typekleuren: de som leest de typekleuren
                     assert opsomming(cs, kol='V' if shp.name == 'VP1_GRAFIEK' else 'W') == 1, shp.name
+                    assert pct_rij(cs) == 1, shp.name
     for m in p.slide_masters:
         palet(m._element)
         for lay in m.slide_layouts:

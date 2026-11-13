@@ -885,6 +885,15 @@ def main():
         sh.set_formula('BY%d' % r, re.sub(r'"([0-9A-F]{6}),"', lambda m: '"%s,"' % pptx_v22.PALET.get(m.group(1), m.group(1)), f))
         sh.set_formula('BY%d' % r, pptx_v22.typekleur_tekst(sh.get('BY%d' % r)))
         assert pptx_v22.TYPEN[1] in sh.get('BY%d' % r), r
+    # verkoop / transport: de percentages in een vaste rij bovenin de grafiek (rechteras 1,12; as tot 120%), niet meer op
+    # de lijn; de tekst komt uit de macro (dia) of uit cellen (Dashboard, PowerPoint IG / IH)
+    unshare(sh.t)
+    for kol, bron in (('BO', 'BK'), ('BP', 'BL')):
+        for r in range(8, 68):
+            f = sh.get('%s%d' % (kol, r))
+            oud = ',%s%d,NA()))' % (bron, r)
+            assert f and f.endswith(oud), (kol, r, f)
+            sh.set_formula('%s%d' % (kol, r), f[:-len(oud)] + ',%s,NA()))' % pptx_v22.PCT_RIJ, sh.style_of('%s%d' % (kol, r)))
     save('Model', sh)
     grafiekbereik_en_totaal(sheet, save)
     for blad, ref, oud, nieuw in (('Dashboard', 'E156', 'kopie van dia 8 in het sjabloon', 'kopie van de dia per woningtype'),
@@ -1076,6 +1085,7 @@ def main():
             if kenmerk in dst.parts[naam]:
                 t = etree.fromstring(dst.parts[naam])
                 n_op += pptx_v22.opsomming(t, naam_waarden='[0]!' + waarden, tekstbereik=tekst)
+                assert pptx_v22.pct_rij(t, tekst.replace('$IC$', '$IG$').replace('$ID$', '$IH$')) == 1, naam
                 dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
     assert n_op == 2, n_op
     # alle grafieken: vorige prognose geel, scenario rood, eigen kleuren per woningtype
@@ -1210,6 +1220,12 @@ def grafiekbereik_en_totaal(sheet, save):
             sh.set_formula('%s%d' % (kt, r), '=IF(LEN(%s)=0,"",LEFT(%s,LEN(%s)-3))' % (t, t, t))
             som = 'SUMIF(%s%d:%s%d,">0")' % (cols[0], r, cols[-1], r)
             sh.set_formula('%s%d' % (kw, r), '=IF(%s>0,%s,NA())' % (som, som))
+    for kt, lbl, pct in (('IG', 'FS', 'FR'), ('IH', 'FU', 'FT')):        # tekst van de percentagerij (Dashboard)
+        for r in range(8, 69):
+            assert not sh.get('%s%d' % (kt, r)), (kt, r)
+            sh.set_formula('%s%d' % (kt, r), '=IF(ISNUMBER(%s%d),TEXT(%s%d,"0%%"),"")' % (lbl, r, pct, r))
+    sh.set_value('IG7', 'Percentagerij verkocht (Dashboard)')
+    sh.set_value('IH7', 'Percentagerij getransporteerd (Dashboard)')
     sh.set_value('IC7', 'Opsomming verkocht (Dashboard)')
     sh.set_value('ID7', 'Opsomming getransporteerd (Dashboard)')
     sh.set_value('IE7', 'Staafhoogte verkocht')
