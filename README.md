@@ -142,6 +142,18 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
 - **Koopsom en grond %:** grond % = grond / (grond + aanneemsom), zonder KAO; de kans in kolom Y rekent met dezelfde basis. Per woningtype op `Aansluiting opbrengsten` (kolom X) en bovenaan elk woningtypeblok op CF - opbrengsten.
 - **Aantallen** staan zonder punt of komma erachter.
 
+## Nieuw project zonder prijslijst
+
+Vroeg in een project is er nog geen prijslijst (Salesforce-dump). Een woningtype werkt dan op de SKO:
+1. `Aansluiting opbrengsten`, blok 1: naam van het type en het **aantal** woningen (kolom N, handmatig).
+2. Blok 2, bij het type: de **SKO**-bedragen (grond, aanneemsom, KAO, kopersmeerwerk, kadastrale kosten en rente) en rechts het **termijnschema** (naam en %).
+3. `CF - opbrengsten`: per termijn het aantal woningen per kwartaal, en verkocht en getransporteerd.
+
+Zolang de prijslijst voor het type 0 woningen geeft, rekent de cashflow met de SKO (een handmatig bedrag in kolom O–R gaat
+voor); de kolom Prijslijst in de aansluiting toont dan hetzelfde bedrag, dus Corr = 0 en PEW = SKO. In de kop van het type
+staat "geen prijslijst: de cashflow rekent met de SKO". Komt de prijslijst er later bij, dan neemt die het over en verschijnt
+het verschil met de SKO in Corr.
+
 ## PowerPoint
 
 - **Grafiekperiode:** "Grafiek vanaf / t/m" op het Dashboard geldt ook voor de dia's (cashflow, scenario's, verkoop en transport, van verkoop naar omzet, per woningtype). Alleen de kleine grafiek op dia 2 toont altijd de hele looptijd.

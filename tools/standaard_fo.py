@@ -892,17 +892,23 @@ def maak_prijslijst(ws):
                 F, GRIJS, NUM)
         for x in P_HAND.values():
             zet(ws, '%s%d' % (x, r), None, F, GEEL, NUM)
-        g = lambda h, u: '=IF(%s%d<>"",%s%d,%s)' % (h, r, h, r, u)
-        zet(ws, '%s%d' % (P_GEBR['aantal'], r), g('N', 'D%d' % r), FB, WIT, '0')
-        zet(ws, '%s%d' % (P_GEBR['grond'], r), g('O', 'E%d' % r), FB, WIT, NUM)
-        zet(ws, '%s%d' % (P_GEBR['aanneemkao'], r), g('P', 'F%d+G%d' % (r, r)), FB, WIT, NUM)
-        zet(ws, '%s%d' % (P_GEBR['kmw'], r), g('Q', 'H%d' % r), FB, WIT, NUM)
-        zet(ws, '%s%d' % (P_GEBR['kadrente'], r), g('R', 'I%d+J%d+K%d+L%d' % (r, r, r, r)), FB, WIT, NUM)
-        zet(ws, 'X%d' % r, '=IFERROR(T%d/(T%d+U%d-G%d),0)' % (r, r, r, r), FB, WIT, '0.0%')     # excl. KAO
-        zet(ws, 'Y%d' % r, None, FB, GEEL, '0%')
-        zet(ws, 'Z%d' % r, '=IF(Y%d="",0,IFERROR((Y%d-X%d)*(T%d+U%d-G%d)/S%d,0))' % (r, r, r, r, r, r, r), F, WIT, NUM)
-        # hulp voor de grafiek: SKO en prijslijst per type (uit het aansluitblok)
+        # bron van de bedragen in de cashflow: 1 handmatig, 2 de prijslijst, 3 zonder prijslijst voor dit type (aantal
+        # uit de prijslijst = 0, bijvoorbeeld vroeg in het project) de SKO uit het aansluitblok van het type
         a = p_aans(k)
+        sko = lambda *namen: '+'.join('N($B$%d)' % (a + 2 + P_REGELS.index(n_)) for n_ in namen)
+        g = lambda h, u, s_=None: ('=IF(%s%d<>"",%s%d,IF(N($D%d)=0,%s,%s))' % (h, r, h, r, r, s_, u) if s_
+                                   else '=IF(%s%d<>"",%s%d,%s)' % (h, r, h, r, u))
+        kao = 'IF(N($D%d)=0,%s,G%d)' % (r, sko('KAO opties'), r)
+        zet(ws, '%s%d' % (P_GEBR['aantal'], r), g('N', 'D%d' % r), FB, WIT, '0')
+        zet(ws, '%s%d' % (P_GEBR['grond'], r), g('O', 'E%d' % r, sko('Grond + Ontwikkelkosten')), FB, WIT, NUM)
+        zet(ws, '%s%d' % (P_GEBR['aanneemkao'], r), g('P', 'F%d+G%d' % (r, r), sko('Aanneemsom', 'KAO opties')), FB, WIT, NUM)
+        zet(ws, '%s%d' % (P_GEBR['kmw'], r), g('Q', 'H%d' % r, sko('Kopersmeerwerk')), FB, WIT, NUM)
+        zet(ws, '%s%d' % (P_GEBR['kadrente'], r), g('R', 'I%d+J%d+K%d+L%d' % (r, r, r, r),
+                                                    sko('Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Korting')), FB, WIT, NUM)
+        zet(ws, 'X%d' % r, '=IFERROR(T%d/(T%d+U%d-%s),0)' % (r, r, r, kao), FB, WIT, '0.0%')     # excl. KAO
+        zet(ws, 'Y%d' % r, None, FB, GEEL, '0%')
+        zet(ws, 'Z%d' % r, '=IF(Y%d="",0,IFERROR((Y%d-X%d)*(T%d+U%d-%s)/S%d,0))' % (r, r, r, r, r, kao, r), F, WIT, NUM)
+        # hulp voor de grafiek: SKO en prijslijst per type (uit het aansluitblok)
         zet(ws, 'AB%d' % r, '=SUM(B%d:B%d)' % (a + 2, a + 1 + len(P_REGELS)), FK, None, NUM)
         zet(ws, 'AC%d' % r, '=SUM(D%d:D%d)' % (a + 2, a + 1 + len(P_REGELS)), FK, None, NUM)
         for cc in range(1, 27):
@@ -968,6 +974,9 @@ def maak_prijslijst(ws):
         zet(ws, 'A%d' % a, 'Vergelijking excl. BTW - type %d' % k, FW, BAND['gebr'])
         zet(ws, 'C%d' % a, '=B%d&""' % t, Font(name='Heijmans-BoldCon', size=11, color='FFFFFFFF'), BAND['gebr'])
         zet(ws, 'J%d' % a, '=IF(COUNTIF(J%d:J%d,"FOUT")=0,"OK","FOUT")' % (ra, rz), FW, BAND['gebr'])
+        zet(ws, 'E%d' % a, '=IF(AND(N($D%d)=0,SUM(B%d:B%d)<>0),IF(N(S%d)=0,"LET OP: vul het aantal woningen in (kolom N, rij %d)",'
+                           '"geen prijslijst: de cashflow rekent met de SKO"),"")' % (t, ra, rz, t, t),
+            Font(name='Heijmans-Light', size=9, italic=True, color='FFFFFFFF'), BAND['gebr'])
         zet(ws, 'N%d' % a, '=IF(ABS(%s%d-1)<0.0001,"OK",IF(%s%d=0,"","LET OP: niet 100%%"))'
             % (P_TERM_PCT, rz + 1, P_TERM_PCT, rz + 1), FW, BAND['gebr'])
         for c, h in zip('BDFGHIJ', ['SKO', 'Prijslijst', 'Actueel budget', 'Corr', 'PEW', 'Verschil', 'Status']):
@@ -979,14 +988,19 @@ def maak_prijslijst(ws):
             r = a + 2 + i
             zet(ws, 'A%d' % r, lab)
             zet(ws, 'B%d' % r, None, F, GEEL, NUM)
-            # type zonder sleutel in de prijslijst (bijvoorbeeld parkeren of commercieel, met de hand ingevuld): de
-            # kolom Prijslijst toont dan het handmatige bedrag, anders ontstaat een tegenboeking en wordt de PEW 0
+            # type zonder prijslijst (aantal uit de prijslijst = 0: vroeg in het project, of parkeren / commercieel met de
+            # hand): de kolom Prijslijst toont dan het bedrag waarmee de cashflow rekent (handmatig, anders de SKO), zodat
+            # er geen tegenboeking ontstaat en de PEW gelijk is aan de SKO
             if lab == 'Grond + Ontwikkelkosten':
-                fd = '=IF($C%d&""="",N(%s%d),E%d)' % (t, P_HAND['grond'], t, t)
+                fd = '=IF(N($D%d)=0,T%d,E%d)' % (t, t, t)
             elif lab == 'Aanneemsom':
-                fd = '=IF($C%d&""="",N(%s%d)-N(G%d),F%d)' % (t, P_HAND['aanneemkao'], t, t, t)
+                fd = '=IF(N($D%d)=0,U%d-N(B%d),F%d)' % (t, t, a + 2 + P_REGELS.index('KAO opties'), t)
+            elif lab == 'Kopersmeerwerk':
+                fd = '=IF(N($D%d)=0,V%d,H%d)' % (t, t, t)
+            elif lab in uit:
+                fd = '=IF(N($D%d)=0,N(B%d),%s%d)' % (t, r, uit[lab], t)
             else:
-                fd = '=%s%d' % (uit[lab], t) if lab in uit else None
+                fd = None
             zet(ws, 'D%d' % r, fd, F, GRIJS if lab in uit else GEEL, NUM)
             zet(ws, 'F%d' % r, '=B%d' % r, F, None, NUM)
             zet(ws, 'G%d' % r, '=N(D%d)-N(F%d)' % (r, r), FB, None, NUM)

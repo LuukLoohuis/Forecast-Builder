@@ -343,6 +343,44 @@ def t_palet_werkbestand():
        '%d typegrafieken, %d met vorige prognose' % (len(typen), len(vorig)))
 
 
+def t_zonder_prijslijst():
+    """leeg sjabloon, vroeg in het project: alleen de SKO, het aantal, een termijnschema en een planning (geen
+    prijslijst): de aansluiting sluit (PEW = SKO, geen tegenboeking) en de omzet komt in de cashflow"""
+    import tempfile
+    import openpyxl
+    from xlsxpkg import Package, Sheet, SST
+    tmp = tempfile.mkdtemp(prefix='zonderpl_')
+    k, k2, d = (os.path.join(tmp, x) for x in ('k.xlsm', 'k2.xlsm', 'd.xlsx'))
+    controleer.testkopie(SJABLOON, k)
+    pkg = Package(k)
+    sst = SST(pkg.x('xl/sharedStrings.xml'))
+
+    def zet(blad, cellen):
+        part = pkg.sheet_part(blad)
+        sh = Sheet(pkg.x(part), sst)
+        for ref, v in cellen:
+            sh.set_value(ref, v)
+        pkg.put(part, sh.t)
+    a, q = S.p_aans(1), S.QCOLS
+    zet('Aansluiting opbrengsten', [('B%d' % S.P_TYPE1, 'Rijwoning'), ('N%d' % S.P_TYPE1, 10), ('B%d' % (a + 2), 600000),
+                                    ('B%d' % (a + 3), 2900000), ('L%d' % (a + 2), 'T1'), ('M%d' % (a + 2), 0.5),
+                                    ('L%d' % (a + 3), 'T2'), ('M%d' % (a + 3), 0.5)])
+    zet('CF - opbrengsten', [('%s%d' % (q[4], S.plan(1, 1)), 10), ('%s%d' % (q[6], S.plan(1, 2)), 10),
+                             ('%s%d' % (q[2], S.vk_rij(1)), 10), ('%s%d' % (q[3], S.tt_rij(1)), 10)])
+    sst.finish()
+    pkg.put('xl/sharedStrings.xml', sst.t)
+    pkg.save(k2)
+    controleer.doorrekenen(k2, d)
+    wb = openpyxl.load_workbook(d, data_only=True)
+    p, o = wb['Aansluiting opbrengsten'], wb['CF - opbrengsten']
+    regels = [[p['%s%d' % (c, r)].value for c in 'BDGHJ'] for r in (a + 2, a + 3)]
+    tot = next((o['D%d' % r].value for r in range(1, 80) if str(o['B%d' % r].value or '').startswith('Totaal opbrengsten type 1')), None)
+    ok('zonder prijslijst: de SKO loopt door naar de aansluiting (PEW = SKO, Corr 0) en de cashflow',
+       all(abs(b - d_) < 1 and abs(g) < 1 and abs(h - b) < 1 and j == 'OK' for b, d_, g, h, j in regels)
+       and tot is not None and abs(tot - 3500000) < 1 and 'geen prijslijst' in str(p['E%d' % a].value),
+       'opbrengsten type 1 %s (SKO 3500000), kop: %s' % (tot, p['E%d' % a].value))
+
+
 def t_gedeelde_formules():
     """het sjabloon bewaart doorgetrokken formules als gedeelde formule (kleiner, sneller openen); de opbouw klopt"""
     import zipfile
@@ -695,6 +733,7 @@ def main():
     t_pptx()
     t_palet_werkbestand()
     t_gedeelde_formules()
+    t_zonder_prijslijst()
     t_dianummers()
     t_bereik_en_totaal()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')
