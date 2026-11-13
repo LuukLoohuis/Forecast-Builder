@@ -343,6 +343,45 @@ def t_palet_werkbestand():
        '%d typegrafieken, %d met vorige prognose' % (len(typen), len(vorig)))
 
 
+def t_gedeelde_formules():
+    """het sjabloon bewaart doorgetrokken formules als gedeelde formule (kleiner, sneller openen); de opbouw klopt"""
+    import zipfile
+    from xlsxpkg import M, parse, split_ref, col2num
+    n_kind = n_bron = groot = 0
+    fout = []
+    with zipfile.ZipFile(SJABLOON) as z:
+        for n in z.namelist():
+            if not re.match(r'xl/worksheets/sheet\d+\.xml$', n):
+                continue
+            b = z.read(n)
+            groot += len(b)
+            bron, kind = {}, []
+            for f in parse(b).iter(M + 'f'):
+                if f.get('t') != 'shared':
+                    continue
+                cel = f.getparent().get('r')
+                if f.get('ref'):
+                    if f.get('si') in bron or not f.text:
+                        fout.append('%s %s: bron dubbel of zonder tekst' % (n, cel))
+                    bron[f.get('si')] = f.get('ref')
+                else:
+                    kind.append((f.get('si'), cel))
+            for si, cel in kind:
+                if si not in bron:
+                    fout.append('%s %s: geen bron' % (n, cel))
+                    continue
+                (k1, r1), (k2, r2) = (split_ref(x) for x in bron[si].split(':'))
+                k, r = split_ref(cel)
+                if not (col2num(k1) <= col2num(k) <= col2num(k2) and r1 <= r <= r2):
+                    fout.append('%s %s: buiten het bereik %s' % (n, cel, bron[si]))
+            n_kind += len(kind)
+            n_bron += len(bron)
+    ok('sjabloon: doorgetrokken formules gedeeld opgeslagen (kleiner bestand, sneller openen), opbouw klopt',
+       n_kind > 50000 and not fout and groot < 14e6 and os.path.getsize(SJABLOON) < 1.7e6,
+       '%d cellen in %d reeksen, werkbladen %.1f MB, bestand %.2f MB%s' % (n_kind, n_bron, groot / 1e6, os.path.getsize(SJABLOON) / 1e6,
+                                                                        '; ' + '; '.join(fout[:3]) if fout else ''))
+
+
 def t_dianummers():
     """de teksten in het werkbestand noemen geen verouderde dianummers (sinds v22 is dia 4 nieuw)"""
     import openpyxl                      # de cellen zelf (in sharedStrings blijven vervangen teksten ongebruikt staan)
@@ -549,6 +588,11 @@ def t_pptx():
             for p_ in sorted(glob.glob(os.path.join(ROOT, 'vba', '*.bas')) + glob.glob(os.path.join(ROOT, 'vba', '*.cls')))}
     ok('VBA: geen toewijzing aan een andere functie, elke Sub/Function netjes afgesloten (controle die LibreOffice mist)',
        not any(lint.values()), '; '.join('%s %s' % (k, v[:3]) for k, v in lint.items() if v) or '%d modules' % len(lint))
+    zv = vba[vba.index('Private Function ZoekVorm('):]
+    zv = zv[:zv.index('\nEnd Function')]
+    ok('Naar PowerPoint: vormen rechtstreeks op naam, reeksbereik in één keer met terugval, tijd per grafiek',
+       's.Shapes(naam)' in zv and 'shp.Name = naam' not in zv and 'ZetReeksFormule(reeks, fReeks, kol, n) Then ZetBereik' in vgv
+       and 'NoteerGrafiekTijd vorm, tGraf' in vgv and 'Per grafiek (s)' in vba)
     ok('Naar PowerPoint sneller: tijden in de eindmelding, PowerPoint geminimaliseerd, vormlijst, eerst (uit) weg',
        'TijdOverzicht()' in npp and 'WindowState = 2' in npp and 'BouwVormIndex pres' in npp
        and 'ScreenUpdating = False' in npp and vgv.index('VerwijderUitgezetteReeksen ch') < vgv.index('ZetBereik ch')
@@ -650,6 +694,7 @@ def main():
     print('== 6 PowerPoint-sjabloon')
     t_pptx()
     t_palet_werkbestand()
+    t_gedeelde_formules()
     t_dianummers()
     t_bereik_en_totaal()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')

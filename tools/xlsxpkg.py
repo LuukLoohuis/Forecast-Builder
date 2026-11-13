@@ -461,6 +461,61 @@ def unshare(tree) -> int:
 
 
 
+def formuleteksten(tree) -> dict:
+    """{celnaam: formuletekst} van alle cellen met een eigen formuletekst (voor de controle van share / unshare)"""
+    return {f.getparent().get('r'): f.text for f in tree.iter(M + 'f') if f.text}
+
+
+def share(tree) -> int:
+    """het omgekeerde van unshare: buren met dezelfde formule (verschoven) als gedeelde formule opslaan, zoals Excel een
+    doorgetrokken formule bewaart: de eerste cel houdt de tekst (t="shared" ref si), de andere alleen de verwijzing (si).
+    Scheelt veel XML (kleiner bestand, sneller openen). Eerst reeksen langs een kolom, dan voor wat overblijft langs
+    een rij. Een cel doet alleen mee als de formule van de eerste cel, verschoven naar die cel (dezelfde vertaler als
+    unshare), letterlijk gelijk is aan zijn eigen tekst. Matrixformules, formules met kenmerken en bestaande gedeelde
+    formules blijven zoals ze zijn. Geeft het aantal cellen terug dat geen eigen formuletekst meer heeft."""
+    from openpyxl.formula.translate import Translator
+    cellen, si = {}, -1
+    for f in tree.iter(M + 'f'):
+        if f.get('t') == 'shared' and f.get('si') is not None:
+            si = max(si, int(f.get('si')))
+        elif not f.attrib and f.text:
+            k, r = split_ref(f.getparent().get('r'))
+            cellen[(col2num(k), r)] = f
+    naam = lambda k, r: '%s%d' % (num2col(k), r)
+    gedaan, n = set(), 0
+    for dk, dr, volgorde in ((0, 1, sorted(cellen)), (1, 0, sorted(cellen, key=lambda x: (x[1], x[0])))):
+        for k, r in volgorde:
+            if (k, r) in gedaan or (k + dk, r + dr) not in cellen or (k + dk, r + dr) in gedaan:
+                continue
+            vertaler = Translator('=' + cellen[(k, r)].text, origin=naam(k, r))
+            leden, kk, rr = [], k + dk, r + dr
+            while (kk, rr) in cellen and (kk, rr) not in gedaan:
+                try:
+                    zelfde = vertaler.translate_formula(naam(kk, rr))[1:] == cellen[(kk, rr)].text
+                except Exception:
+                    zelfde = False
+                if not zelfde:
+                    break
+                leden.append((kk, rr))
+                kk, rr = kk + dk, rr + dr
+            if not leden:
+                continue
+            si += 1
+            bron = cellen[(k, r)]
+            bron.set('t', 'shared')
+            bron.set('ref', '%s:%s' % (naam(k, r), naam(*leden[-1])))
+            bron.set('si', str(si))
+            gedaan.add((k, r))
+            for lid in leden:
+                f = cellen[lid]
+                f.text = None
+                f.set('t', 'shared')
+                f.set('si', str(si))
+                gedaan.add(lid)
+            n += len(leden)
+    return n
+
+
 # ------------------------------------------------------------------------------------------------
 #  rijen invoegen (zoals Excel: alle verwijzingen in het hele bestand schuiven mee)
 # ------------------------------------------------------------------------------------------------

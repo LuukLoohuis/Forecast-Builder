@@ -27,7 +27,7 @@ import nieuwe_bladen  # noqa: E402
 import vba_project  # noqa: E402
 from xlsxpkg import (CT, CT_CHART, CT_CHARTCOLORS, CT_CHARTSTYLE, CT_DRAWING, CT_SHEET, M, PR, R, SST, T_DRAWING,  # noqa: E402
                      T_SHEET, Package, Sheet, Styles, rels_name, relative, replace_in_formulas,
-                     resolve, split_ref, unshare)
+                     resolve, split_ref, unshare, share, formuleteksten)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -1136,6 +1136,24 @@ def main():
             dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
     assert n_lijn >= 3 and n_type >= 30, (n_lijn, n_type)
     note('Kleuren: %d lijnen (vorige prognose / scenario), %d typereeksen' % (n_lijn, n_type))
+    # als laatste: doorgetrokken formules als gedeelde formule opslaan (zoals Excel dat zelf doet): minder XML, dus een
+    # kleiner bestand dat sneller opent. Controle per blad: weer uitgeschreven zijn alle formules letterlijk gelijk.
+    n_deel = b_voor = b_na = 0
+    for naam_, part, _ in dst.sheets():
+        t = dst.x(part)
+        b_voor += len(dst.parts[part])
+        voor = copy.deepcopy(t)
+        unshare(voor)
+        n_ = share(t)
+        if n_:
+            na = copy.deepcopy(t)
+            unshare(na)
+            assert formuleteksten(na) == formuleteksten(voor), 'gedeelde formules: ' + naam_
+            dst.put(part, t)
+            n_deel += n_
+        b_na += len(dst.parts[part])
+    note('Gedeelde formules: %d cellen, werkbladen %.1f -> %.1f MB' % (n_deel, b_voor / 1e6, b_na / 1e6))
+    assert n_deel > 50000, n_deel
     dst.save(a.out)
     os.remove(fo_tmp)
     import json

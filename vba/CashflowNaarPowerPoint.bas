@@ -106,6 +106,7 @@ Public RekenTijd As Double                         ' doorrekenen vóór NaarPowerP
 Private vormIndex As Collection                    ' alle vormnamen van de presentatie die nu gevuld wordt (snel 'niet gevonden')
 Private tijdNaam(1 To 30) As String, tijdSec(1 To 30) As Double, nTijd As Long
 Private stapNu As String, tStap As Double, tBegin As Double
+Private grafTijd As String                         ' seconden per grafiek, voor de eindmelding
 Private Const SH_PP As String = "PowerPoint"
 Private Const SH_DASH As String = "Dashboard"
 Private Const SH_MODEL As String = "Model"
@@ -298,7 +299,7 @@ Public Sub NaarPowerPoint()
     Dim g As Variant, t As Variant, i As Long, bericht As String
     Dim venster As Object, vensterStand As Long
     On Error GoTo Fout
-    nTijd = 0: stapNu = "": tBegin = Timer
+    nTijd = 0: stapNu = "": tBegin = Timer: grafTijd = ""
     If RekenTijd > 0 Then
         nTijd = 1: tijdNaam(1) = "doorrekenen": tijdSec(1) = RekenTijd
         tBegin = tBegin - RekenTijd
@@ -461,6 +462,7 @@ Private Function TijdOverzicht() As String
         gehad = gehad & "|" & best & "|"
         tekst = tekst & " · " & tijdNaam(best) & " " & Format$(tijdSec(best), "0") & " s"
     Next k
+    If Len(grafTijd) > 0 Then tekst = tekst & vbCrLf & "Per grafiek (s): " & grafTijd
     TijdOverzicht = tekst
 End Function
 
@@ -674,28 +676,32 @@ Private Sub HaalVervallenVormenWeg(pres As Object)
 End Sub
 
 Private Function ZoekVorm(pres As Object, naam As String) As Object
-    ' eerst op de dia's, dan in de dia-indelingen (daar staat de voettekst VOET_TEKST van alle dia's)
+    ' eerst op de dia's, dan in de dia-indelingen (daar staat de voettekst VOET_TEKST van alle dia's); per dia en per
+    ' indeling rechtstreeks op naam (één aanroep) in plaats van alle vormen aflopen
     Dim s As Object, shp As Object, d As Object, lay As Object
     If Not BestaatMisschien(naam) Then Exit Function
-    For Each s In pres.Slides
-        For Each shp In s.Shapes
-            If shp.Name = naam Then
-                Set ZoekVorm = shp
-                Exit Function
-            End If
-        Next shp
-    Next s
     On Error Resume Next
+    For Each s In pres.Slides
+        Set shp = Nothing
+        Set shp = s.Shapes(naam)
+        If Not shp Is Nothing Then
+            Set ZoekVorm = shp
+            Err.Clear
+            Exit Function
+        End If
+    Next s
     For Each d In pres.Designs
         For Each lay In d.SlideMaster.CustomLayouts
-            For Each shp In lay.Shapes
-                If shp.Name = naam Then
-                    Set ZoekVorm = shp
-                    Exit Function
-                End If
-            Next shp
+            Set shp = Nothing
+            Set shp = lay.Shapes(naam)
+            If Not shp Is Nothing Then
+                Set ZoekVorm = shp
+                Err.Clear
+                Exit Function
+            End If
         Next lay
     Next d
+    Err.Clear
 End Function
 
 Private Function CelTekst(cel As Range) As String
@@ -816,14 +822,13 @@ Private Function RegelVanVorm(wsP As Worksheet, naam As String) As Long
 End Function
 
 Private Function VormOpDia(dia As Object, naam As String) As Object
+    ' rechtstreeks op naam (één aanroep); niet op de dia: Nothing
     Dim shp As Object
     If Not BestaatMisschien(naam) Then Exit Function
-    For Each shp In dia.Shapes
-        If shp.Name = naam Then
-            Set VormOpDia = shp
-            Exit Function
-        End If
-    Next shp
+    On Error Resume Next
+    Set shp = dia.Shapes(naam)
+    If Not shp Is Nothing Then Set VormOpDia = shp
+    Err.Clear
 End Function
 
 Private Function IsBalkregel(vorm As String) As Boolean
@@ -1494,6 +1499,8 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     ' X-bereik = kolom A, Y-bereik = de kolomletter uit de SERIES-formule van die reeks (KolomVanReeks). Reeksnamen die
     ' naar rij 1 van het gegevensblad verwijzen volgen zo de koptekst; namen als tekst in de formule (BT_GRAFIEK) blijven.
     Dim ch As Object, wbE As Object, wsE As Object, blok As Variant, nTot As Long
+    Dim reeks As Object, fReeks As String, tGraf As Double
+    tGraf = Timer
     Dim arr() As Variant, r As Long, c As Long, v As Variant, i As Long, kol As String, letter As Double
     On Error GoTo Mislukt
     Set ch = shp.Chart
@@ -1531,8 +1538,12 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" _
        Or vorm = "VP1_GRAFIEK" Or vorm = "VP2_GRAFIEK" Then VerwijderUitgezetteReeksen ch, arr, nKol
     For i = 1 To ch.SeriesCollection.Count
-        kol = KolomVanReeks(CStr(ch.SeriesCollection(i).Formula))
-        If Len(kol) > 0 Then ZetBereik ch.SeriesCollection(i), wsE, kol, n
+        Set reeks = ch.SeriesCollection(i)
+        fReeks = CStr(reeks.Formula)
+        kol = KolomVanReeks(fReeks)
+        If Len(kol) > 0 Then
+            If Not ZetReeksFormule(reeks, fReeks, kol, n) Then ZetBereik reeks, wsE, kol, n
+        End If
     Next i
     If vorm = "BT_GRAFIEK" Then
         ZetTijdAs ch
@@ -1553,13 +1564,65 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     If vorm = "VS_GRAFIEK" Then SchikGrafiekVS shp, ch
     wbE.Close
     Set wbE = Nothing
+    NoteerGrafiekTijd vorm, tGraf
     Exit Sub
 Mislukt:
     fouten = fouten & vorm & ": " & Err.Description & vbCrLf
     On Error Resume Next
     If Not wbE Is Nothing Then wbE.Close
+    NoteerGrafiekTijd vorm, tGraf
     On Error GoTo 0
 End Sub
+
+Private Sub NoteerGrafiekTijd(vorm As String, t0 As Double)
+    ' seconden per grafiek, voor de eindmelding ('CF 3 · BT 14 · ...')
+    Dim d As Double
+    d = Timer - t0
+    If d < 0 Then d = d + 86400
+    If Len(grafTijd) > 0 Then grafTijd = grafTijd & " · "
+    grafTijd = grafTijd & Replace(vorm, "_GRAFIEK", "") & " " & Format$(d, "0")
+End Sub
+
+Private Function ZetReeksFormule(reeks As Object, f As String, kol As String, n As Long) As Boolean
+    ' Zet het bereik van een reeks in één keer via de SERIES-formule (eindrij van de bereiken die op rij 2 beginnen
+    ' wordt n + 1) in plaats van X en Y apart. True = de reeks staat goed (ook als er niets hoefde te veranderen).
+    ' False = niet gelukt of niet zeker: de aanroeper zet het bereik dan op de oude manier (ZetBereik).
+    Dim nieuw As String, p As Long, q As Long, e As Long, terug As String
+    Dim wilX As String, wilY As String
+    wilX = "$A$2:$A$" & (n + 1)
+    wilY = "$" & kol & "$2:$" & kol & "$" & (n + 1)
+    nieuw = f
+    p = InStr(1, nieuw, "$2:$")
+    Do While p > 0
+        q = InStr(p + 4, nieuw, "$")
+        If q = 0 Then Exit Do
+        e = q + 1
+        Do While e <= Len(nieuw)
+            If Mid$(nieuw, e, 1) < "0" Or Mid$(nieuw, e, 1) > "9" Then Exit Do
+            e = e + 1
+        Loop
+        If e > q + 1 Then nieuw = Left$(nieuw, q) & CStr(n + 1) & Mid$(nieuw, e)
+        p = InStr(q + 1, nieuw, "$2:$")
+    Loop
+    ' alleen als de nieuwe formule precies de bedoelde bereiken heeft (X = kolom A, Y = de kolom van de reeks)
+    If InStr(nieuw, wilX) = 0 Or InStr(nieuw, wilY) = 0 Then Exit Function
+    If nieuw = f Then
+        ZetReeksFormule = True
+        Exit Function
+    End If
+    On Error Resume Next
+    reeks.Formula = nieuw
+    If Err.Number <> 0 Then
+        Err.Clear
+        Exit Function
+    End If
+    terug = CStr(reeks.Formula)
+    If Err.Number <> 0 Then
+        Err.Clear
+        Exit Function
+    End If
+    ZetReeksFormule = (InStr(terug, wilX) > 0 And InStr(terug, wilY) > 0)
+End Function
 
 Private Sub OpsommingSom(arr() As Variant, n As Long, k0 As Long)
     ' som van de tien typekolommen (vanaf k0) per rij in kolom V (k0 = 1, verkocht) of W (k0 = 11, getransporteerd)

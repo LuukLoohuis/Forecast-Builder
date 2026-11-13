@@ -170,7 +170,13 @@ v22 niet in de map, dan neemt de macro v21.
 noemt de totale tijd en de drie langste stappen. Tijdens het maken staat PowerPoint geminimaliseerd en ververst Excel het
 scherm niet; de macro rekent gewoon door (alles opnieuw alleen als het rekenen op handmatig staat), haalt in elke
 grafiek eerst de reeksen met "(uit)" weg en zet dan pas de bereiken, en weet van vormen die niet in het sjabloon staan
-meteen dat ze er niet zijn.
+meteen dat ze er niet zijn. Vormen zoekt de macro rechtstreeks op naam, het bereik van een reeks gaat in één keer
+(met terugval op de oude manier), en de eindmelding noemt ook de seconden per grafiek.
+
+**Grootte en openen:** de bouw bewaart doorgetrokken formules als gedeelde formule, zoals Excel dat zelf doet
+(`xlsxpkg.share`, met een controle dat alle formules letterlijk gelijk blijven). Het sjabloon is daardoor ruim 1 MB in
+plaats van ruim 2 MB, met bijna half zoveel XML om te laden. Nog sneller openen: het werkbestand eenmalig bewaren als
+Excel binaire werkmap (.xlsb); de macro's werken daar ook.
 
 ## Top 3 kosten
 
