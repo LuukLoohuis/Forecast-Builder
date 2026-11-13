@@ -530,6 +530,7 @@ def main():
     ap.add_argument('--scenario', default=os.path.join(ROOT, 'input', 'Cashflow_scenario_leeg_3.xlsm'))
     ap.add_argument('--pptx', default=os.path.join(ROOT, 'input', 'Kwartaal_Template_cashflow_v20.pptx'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'output', 'FO_Parkzoom_werkbestand.xlsm'))
+    ap.add_argument('--gedeeld', action='store_true', help='formules gedeeld opslaan (kleiner; werkte niet in Excel)')
     ap.add_argument('--pptx-out', default=os.path.join(ROOT, 'output', 'Kwartaal_Template_cashflow_v22.pptx'))
     ap.add_argument('--project', help='projectnaam (standaard uit de bestandsnaam van het FO)')
     ap.add_argument('--oud', help='het oude FO waaruit het standaard-FO is omgezet (voor de controle)')
@@ -1139,7 +1140,8 @@ def main():
     # als laatste: doorgetrokken formules als gedeelde formule opslaan (zoals Excel dat zelf doet): minder XML, dus een
     # kleiner bestand dat sneller opent. Controle per blad: weer uitgeschreven zijn alle formules letterlijk gelijk.
     n_deel = b_voor = b_na = 0
-    for naam_, part, _ in dst.sheets():
+    # UIT (--gedeeld zet het aan): het sjabloon met gedeelde formules werkte bij de gebruiker niet in Excel
+    for naam_, part, _ in (dst.sheets() if a.gedeeld else []):
         t = dst.x(part)
         b_voor += len(dst.parts[part])
         voor = copy.deepcopy(t)
@@ -1153,7 +1155,7 @@ def main():
             n_deel += n_
         b_na += len(dst.parts[part])
     note('Gedeelde formules: %d cellen, werkbladen %.1f -> %.1f MB' % (n_deel, b_voor / 1e6, b_na / 1e6))
-    assert n_deel > 50000, n_deel
+    assert n_deel > 50000 or not a.gedeeld, n_deel
     dst.save(a.out)
     os.remove(fo_tmp)
     import json

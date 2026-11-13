@@ -414,8 +414,8 @@ def t_gedeelde_formules():
                     fout.append('%s %s: buiten het bereik %s' % (n, cel, bron[si]))
             n_kind += len(kind)
             n_bron += len(bron)
-    ok('sjabloon: doorgetrokken formules gedeeld opgeslagen (kleiner bestand, sneller openen), opbouw klopt',
-       n_kind > 50000 and not fout and groot < 14e6 and os.path.getsize(SJABLOON) < 1.7e6,
+    ok('sjabloon: formules per cel uitgeschreven (gedeeld opslaan staat uit: werkte niet in Excel)',
+       n_kind < 1000 and not fout,
        '%d cellen in %d reeksen, werkbladen %.1f MB, bestand %.2f MB%s' % (n_kind, n_bron, groot / 1e6, os.path.getsize(SJABLOON) / 1e6,
                                                                         '; ' + '; '.join(fout[:3]) if fout else ''))
 

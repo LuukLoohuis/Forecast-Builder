@@ -186,10 +186,7 @@ grafiek eerst de reeksen met "(uit)" weg en zet dan pas de bereiken, en weet van
 meteen dat ze er niet zijn. Vormen zoekt de macro rechtstreeks op naam, het bereik van een reeks gaat in één keer
 (met terugval op de oude manier), en de eindmelding noemt ook de seconden per grafiek.
 
-**Grootte en openen:** de bouw bewaart doorgetrokken formules als gedeelde formule, zoals Excel dat zelf doet
-(`xlsxpkg.share`, met een controle dat alle formules letterlijk gelijk blijven). Het sjabloon is daardoor ruim 1 MB in
-plaats van ruim 2 MB, met bijna half zoveel XML om te laden. Nog sneller openen: het werkbestand eenmalig bewaren als
-Excel binaire werkmap (.xlsb); de macro's werken daar ook.
+**Grootte en openen:** formules staan per cel uitgeschreven. Gedeeld opslaan (`xlsxpkg.share`, bouwoptie `--gedeeld`) maakt het bestand kleiner, maar dat sjabloon werkte bij de gebruiker niet in Excel en staat daarom uit. Sneller openen kan door het werkbestand eenmalig te bewaren als Excel binaire werkmap (.xlsb); de macro's werken daar ook.
 
 ## Top 3 kosten
 
