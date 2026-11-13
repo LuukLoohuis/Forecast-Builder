@@ -914,7 +914,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         eind = maxR
         For r = vk + 1 To maxR
             lab = LCase$(Tk(wO.Cells(r, 2).Value))
-            If Left$(lab, 10) = "financieel" Or (Left$(lab, 9) = "termijnen" And InStr(lab, ChrW(8364)) > 0) Then eind = r: Exit For
+            If Left$(lab, 10) = "financieel" Or (Left$(lab, 9) = "termijnen" And InStr(lab & Tk(wO.Cells(r, 3).Value), ChrW(8364)) > 0) Then eind = r: Exit For
         Next r
         nOmz = 0
         For r = vk + 1 To eind - 1
@@ -936,7 +936,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     Next c
     For r = omz(nOmz) To maxR
         lab = LCase$(Tk(wO.Cells(r, 2).Value))
-        If Left$(lab, 9) = "termijnen" And InStr(lab, ChrW(8364)) > 0 Then euro = r: Exit For
+        If Left$(lab, 9) = "termijnen" And InStr(lab & Tk(wO.Cells(r, 3).Value), ChrW(8364)) > 0 Then euro = r: Exit For
     Next r
     per = RijMet(wO, 2, euro, maxR, "periode in cashflow*")
     sl = KwSleutels(wO, euro - 1, euro, 7, laatste)
@@ -1012,7 +1012,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     nEu = 0
     For r = euro To IIf(per > 0, per, maxR)
         lab = LCase$(Tk(wO.Cells(r, 2).Value))
-        If Left$(lab, 9) = "termijnen" And InStr(lab, ChrW(8364)) > 0 And nEu < 20 Then nEu = nEu + 1: euR(nEu) = r
+        If Left$(lab, 9) = "termijnen" And InStr(lab & Tk(wO.Cells(r, 3).Value), ChrW(8364)) > 0 And nEu < 20 Then nEu = nEu + 1: euR(nEu) = r
     Next r
     For i = 1 To nKop
         If i > NT Then Exit For

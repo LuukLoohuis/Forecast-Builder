@@ -64,7 +64,7 @@ def _opbrengsten(f, v):
         # terugval: een omzetblok zonder '# won' in kolom F (wel het aantal in G erboven), herkend aan de kop '%' / '€',
         # na het verkooptempo en vóór het financiële blok ('Financieel' / 'Termijnen 1 in €')
         eind = next((r for r in range(vk, maxr) if _t(get(r, 2)).lower().startswith('financieel')
-                     or (_t(get(r, 2)).lower().startswith('termijnen') and '€' in _t(get(r, 2)))), maxr)
+                     or (_t(get(r, 2)).lower().startswith('termijnen') and '€' in _t(get(r, 2)) + _t(get(r, 3)))), maxr)
         extra = [r for r in range(vk + 1, eind) if r not in omz and _t(get(r, 2)) and _t(get(r, 3)).startswith('%')
                  and _t(get(r, 4)) == '€' and isinstance(get(r - 1, 7), (int, float))]
         omz = sorted(omz + extra)
@@ -77,16 +77,23 @@ def _opbrengsten(f, v):
     for i, (hb, oh) in enumerate(zip(kop, omz)):
         plan, d, tr = [], None, None
         r = hb + 1
+        # planningsrijen: meestal '=B<omzetrij>', soms met de hand als tekst getypt (dan op positie: de eerste
+        # planningsrij hoort bij de tweede rij van het omzetblok, na 'Koopsom')
         while _t(form(r, 2)):
             m = re.match(r'=B(\d+)$', _t(form(r, 2)))
-            if not m:
-                break
-            if d is None:
+            if m and d is None:
                 d = int(m.group(1)) - r
+            elif not m and _t(form(r, 2)).startswith('='):
+                break
             plan.append(r)
             r += 1
+        if d is None or (plan and d != oh + 2 - plan[0]):
+            d = oh + 2 - (hb + 1)
         tr = r
-        if any(_t(form(tr, c)) for c in range(2, check + 3)):
+        # onder de planning moet een lege rij staan; een losse notitie als tekst in het kwartaalraster (bijvoorbeeld
+        # 'Start verkoop 10-11-2026') telt niet mee
+        if _t(form(tr, 2)) or any(_t(form(tr, c)).startswith('=') or isinstance(form(tr, c), (int, float))
+                                  for c in range(3, check + 3)):
             raise Fout('CF - opbrengsten: geen lege rij onder de bouwplanning van type %d (rij %d)' % (i + 1, tr))
         orows = []
         r = oh + 1
@@ -101,7 +108,7 @@ def _opbrengsten(f, v):
                       # waarden die Excel in het FO heeft opgeslagen: verkocht en grondtermijn (= transport) per kolom
                       'verkoop_waarden': [_getal(get(vrij(i), c)) for c in range(7, max(qk) + 1)],
                       'grond_waarden': [_getal(get(orows[0], c)) for c in range(7, max(qk) + 1)]})
-    euro = next(r for r in range(omz[-1], maxr) if _t(get(r, 2)).lower().startswith('termijnen') and '€' in _t(get(r, 2)))
+    euro = next(r for r in range(omz[-1], maxr) if _t(get(r, 2)).lower().startswith('termijnen') and '€' in _t(get(r, 2)) + _t(get(r, 3)))
     periode = next(r for r in range(euro, maxr + 1) if _t(get(r, 2)).lower().startswith('periode in cashflow'))
     totaal = max(r for r in range(euro, periode) if _t(get(r, 2)).lower().startswith('totaal opbrengsten'))
     # DAEB-blok (titel met 'daeb', geen typeblok)

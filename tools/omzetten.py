@@ -199,7 +199,8 @@ def omzetten(oud, uit, project=None):
     # blijven) en komt de omzet via de regels parkeren / commercieel
     oc_ = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
     eu_rijen = [r for r in range(ob['euro_kop'], ob['totaal'])
-                if _t(o_v.cell(r, 2).value).lower().startswith('termijnen') and '€' in _t(o_v.cell(r, 2).value)]
+                if _t(o_v.cell(r, 2).value).lower().startswith('termijnen')
+                and '€' in _t(o_v.cell(r, 2).value) + _t(o_v.cell(r, 3).value)]
 
     def eu_som(i):
         if i >= len(eu_rijen):
