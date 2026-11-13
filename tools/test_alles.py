@@ -278,6 +278,14 @@ def t_palet_werkbestand():
                         oud.setdefault(k, set()).add(n.split('/')[1])
     ok('werkbestand: zelfde palet als de slides (geen oude kleuren)', not oud,
        ', '.join('%s in %s' % (k, '/'.join(sorted(v))) for k, v in sorted(oud.items())))
+    # Dashboard: vorige prognose geel, scenario rood, typekleuren (verkoop / transport en de legenda in Model)
+    with zipfile.ZipFile(SJABLOON) as z:
+        ch = [z.read(n).decode('utf-8') for n in z.namelist() if re.match(r'xl/charts/chart\d+\.xml$', n)]
+    typen = [c for c in ch if 'g_vk_pct' in c and all(t in c for t in pptx_v22.TYPEN[:4])]
+    vorig = [c for c in ch if re.search(r'Vorige prognose</c:v>.*?srgbClr val="%s"' % pptx_v22.VORIG_KL, c, re.S)]
+    ok('Dashboard: vorige prognose geel, scenario rood, eigen kleuren per woningtype',
+       typen and vorig and any('srgbClr val="%s"' % pptx_v22.SCEN_KL in c for c in vorig),
+       '%d typegrafieken, %d met vorige prognose' % (len(typen), len(vorig)))
 
 
 def t_dianummers():
@@ -486,8 +494,23 @@ def t_pptx():
        any(sh.name == 'SC_TABEL' and sh.has_table for sl in pres.slides for sh in sl.shapes) and 'PEW_BEELD' in namen
        and 'PEW_TOP3' not in namen and 'PEW_TABEL' not in namen)
     rood = [sh.name for sl in pres.slides for sh in sl.shapes if sh.has_chart and sh.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK')
-            and sh.chart._chartSpace.xpath('.//c:ser[contains(string(c:tx), "umulatief %")]//a:srgbClr[@val="991B1B"]')]
-    ok('verkoop en transport: percentages bij de cumulatieve lijn donkerrood op beide grafieken', len(rood) == 2, ', '.join(rood))
+            and sh.chart._chartSpace.xpath('.//c:ser[contains(string(c:tx), "umulatief %")]//a:srgbClr[@val="A16207"]')]
+    ok('verkoop en transport: percentages bij de cumulatieve lijn donkergeel op beide grafieken', len(rood) == 2, ', '.join(rood))
+    import pptx_v22 as PV
+    kl = {}
+    for sl in pres.slides:
+        for sh in sl.shapes:
+            if sh.has_chart:
+                for ser in sh.chart._chartSpace.iter(PV.C + 'ser'):
+                    sp = ser.find(PV.C + 'spPr')
+                    c = sp.find('.//' + PV.A + 'srgbClr') if sp is not None else None
+                    kl.setdefault((sh.name, PV._naam(ser).lower()), c.get('val') if c is not None else None)
+    vorig = {k: v for k, v in kl.items() if k[1] == 'vorige prognose'}
+    scen = {k: v for k, v in kl.items() if k[1] == 'scenario'}
+    vp = [kl.get(('VP1_GRAFIEK', n)) for n in ('rijwoning', 'tweekapper', 'vrijstaand', 'appartement')]
+    ok('kleuren: vorige prognose geel, scenario rood, eigen kleuren per woningtype (dia)',
+       vorig and set(vorig.values()) == {PV.VORIG_KL} and scen and set(scen.values()) == {PV.SCEN_KL} and vp == PV.TYPEN[:4],
+       'vorige %s, scenario %s, types %s' % (sorted(set(vorig.values())), sorted(set(scen.values())), vp))
     import pptx_v22
     oud_palet, klein = set(), []
     for i, sl in enumerate(pres.slides, 1):

@@ -40,7 +40,10 @@ def cm(x):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-ROOD = '991B1B'                                    # donkerrood: de percentages bij de cumulatieve lijn
+ROOD = 'A16207'                                    # donkergeel: de percentages bij de cumulatieve lijn (naam historisch)
+VORIG_KL, SCEN_KL = 'FEB900', 'DC2626'              # cashflowgrafiek: vorige prognose geel, scenario rood
+OUD_TYPEN = ['2563EB', 'B45309', '0F766E', 'FEB900', '64748B', '15803D', '1E3A8A', 'D97706', '0891B2', '92400E']
+TYPEN = ['2563EB', '0D9488', '7C3AED', '64748B', '0EA5E9', '16A34A', 'DB2777', '4F46E5', '65A30D', '57534E']
 C = '{%s}' % NS['c']
 
 
@@ -56,7 +59,7 @@ def pct_rood(cs):
             dl = ser.find(C + 'dLbls')
             in_lbl = set(dl.iter(A + 'srgbClr')) if dl is not None else set()
             for c in ser.iter(A + 'srgbClr'):
-                c.set('val', ROOD if c in in_lbl else NAVY)        # lijn en markers navy, labels donkerrood
+                c.set('val', ROOD if c in in_lbl else NAVY)        # lijn en markers navy, labels donkergeel
             n += 1
     for ax in cs.iter(C + 'valAx'):
         pos = ax.find(C + 'axPos')
@@ -84,6 +87,86 @@ def pct_rood(cs):
             for c in tp.iter(A + 'srgbClr'):
                 c.set('val', ROOD)
     return n
+
+
+def _naam(ser):
+    tx = ser.find(C + 'tx')
+    if tx is None:
+        return ''
+    v = tx.find('.//' + C + 'v')                    # de getoonde naam (bij een celverwijzing de cache, niet de formule)
+    return (v.text if v is not None and v.text else ''.join(tx.itertext())).strip()
+
+
+def _lijn(ser, kleur, w, dash):
+    sp = ser.find(C + 'spPr')
+    ln = sp.find(A + 'ln') if sp is not None else None
+    if ln is None:
+        return False
+    ln.set('w', str(w))
+    for c in ln.iter(A + 'srgbClr'):
+        c.set('val', kleur)
+    d = ln.find(A + 'prstDash')
+    if d is None:
+        d = etree.SubElement(ln, A + 'prstDash')
+        nxt = [e for e in ln if e.tag in (A + 'round', A + 'bevel', A + 'miter', A + 'headEnd', A + 'tailEnd')]
+        if nxt:
+            nxt[0].addprevious(d)
+    d.set('val', dash)
+    return True
+
+
+def lijnkleuren(cs):
+    """cashflowgrafiek: meer contrast tussen de lijnen. Huidig blijft navy; vorige prognose geel (gestreept, 2,25 pt),
+    scenario rood (lange streep, 2 pt); het label 'Scenario €..' rood. Geeft het aantal aangepaste reeksen terug."""
+    n = 0
+    for ser in cs.iter(C + 'ser'):
+        nm = _naam(ser).lower()
+        if nm == 'vorige prognose':
+            n += _lijn(ser, VORIG_KL, 28575, 'dash')
+        elif nm == 'scenario':
+            n += _lijn(ser, SCEN_KL, 25400, 'lgDash')
+        elif nm.startswith('scenario ') and '€' in nm:
+            for c in ser.iter(A + 'srgbClr'):
+                if c.get('val') == 'FEB900':
+                    c.set('val', SCEN_KL)
+            n += 1
+    return n
+
+
+def typekleuren(cs):
+    """grafieken per woningtype: de typen in een eigen reeks kleuren (geen geel: dat is vorige prognose en de percentages;
+    geen rood: kosten en scenario; geen navy: de cumulatieve lijn). Herkent de typereeksen aan de oude kleuren op volgorde
+    (10 reeksen achter elkaar). Geeft het aantal aangepaste reeksen terug."""
+    sers = list(cs.iter(C + 'ser'))
+    eerst = []
+    for ser in sers:
+        sp = ser.find(C + 'spPr')
+        c = sp.find('.//' + A + 'srgbClr') if sp is not None else None
+        eerst.append(c.get('val') if c is not None else None)
+    n = 0
+    for j in range(len(sers) - 9):
+        if eerst[j:j + 10] == OUD_TYPEN:
+            for i in range(10):
+                for c in sers[j + i].iter(A + 'srgbClr'):
+                    if c.get('val') == OUD_TYPEN[i]:
+                        c.set('val', TYPEN[i])
+                    elif c.get('val') == '1F2937' and i == 3:          # tekst op het oude geel: nu wit
+                        c.set('val', 'FFFFFF')
+                n += 1
+            eerst[j:j + 10] = TYPEN
+    return n
+
+
+def typekleur_tekst(f):
+    """legendakleuren als tekst ('2563EB,' ... per type in een formule): op volgorde naar TYPEN"""
+    import re
+    i = [0]
+
+    def r(m):
+        k = i[0]
+        i[0] += 1
+        return '"%s,"' % (TYPEN[k] if k < 10 and m.group(1) == OUD_TYPEN[k] else m.group(1))
+    return re.sub(r'"([0-9A-F]{6}),"', r, f)
 
 
 def daeb_lijn(cs):
@@ -335,6 +418,8 @@ def palet_en_letters(p):
                 if shp.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK'):
                     assert pct_rood(cs) == 2, shp.name
                     assert daeb_lijn(cs) >= 1, shp.name
+                lijnkleuren(cs)
+                typekleuren(cs)
     for m in p.slide_masters:
         palet(m._element)
         for lay in m.slide_layouts:

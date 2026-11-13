@@ -883,6 +883,8 @@ def main():
         f = sh.get('BY%d' % r)
         assert f and 'EDA100' in f and '2A78D6' in f, f
         sh.set_formula('BY%d' % r, re.sub(r'"([0-9A-F]{6}),"', lambda m: '"%s,"' % pptx_v22.PALET.get(m.group(1), m.group(1)), f))
+        sh.set_formula('BY%d' % r, pptx_v22.typekleur_tekst(sh.get('BY%d' % r)))
+        assert pptx_v22.TYPEN[1] in sh.get('BY%d' % r), r
     save('Model', sh)
     grafiekbereik_en_totaal(sheet, save)
     for blad, ref, oud, nieuw in (('Dashboard', 'E156', 'kopie van dia 8 in het sjabloon', 'kopie van de dia per woningtype'),
@@ -1063,6 +1065,16 @@ def main():
             assert pptx_v22.daeb_lijn(t) >= 1, naam
             dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
     assert n_rood == 4, n_rood
+    # alle grafieken: vorige prognose geel, scenario rood, eigen kleuren per woningtype
+    n_lijn = n_type = 0
+    for naam in [n for n in dst.parts if n.startswith('xl/charts/chart') and n.endswith('.xml')]:
+        t = etree.fromstring(dst.parts[naam])
+        a_, b_ = pptx_v22.lijnkleuren(t), pptx_v22.typekleuren(t)
+        if a_ or b_:
+            n_lijn, n_type = n_lijn + a_, n_type + b_
+            dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
+    assert n_lijn >= 3 and n_type >= 30, (n_lijn, n_type)
+    note('Kleuren: %d lijnen (vorige prognose / scenario), %d typereeksen' % (n_lijn, n_type))
     dst.save(a.out)
     os.remove(fo_tmp)
     import json

@@ -50,7 +50,15 @@ Eén vaste kleurtaal in het hele bestand:
 
 Grafieken en opmaak gebruiken hetzelfde palet als het PowerPoint-sjabloon v22 (navy `003366`, geel `FEB900`, groen
 `15803D`, rood `B91C1C`; gele tekst donker amber `B45309`), zodat het Dashboard en de slides er hetzelfde uitzien.
-De woningtypes hebben één vaste, rustige kleurreeks (blauw, amber, petrol, geel, …), gelijk in de grafieken, de legenda's en op de slides.
+De woningtypes hebben één vaste kleurreeks, gelijk in de grafieken, de legenda's en op de slides: 1 blauw `2563EB`, 2 petrol `0D9488`, 3 paars `7C3AED`, 4 leisteen `64748B`, 5 hemelsblauw `0EA5E9`, 6 groen `16A34A`, 7 roze `DB2777`, 8 indigo `4F46E5`, 9 limoen `65A30D`, 10 warmgrijs `57534E`. Geen geel, rood of navy: die hebben een eigen betekenis.
+
+| In de grafieken | Kleur |
+|---|---|
+| Huidige cumulatieve cashflow | navy `003366`, doorgetrokken |
+| Vorige prognose | geel `FEB900`, gestreept |
+| Scenario (in de cashflowgrafiek) | rood `DC2626`, lange streep |
+| Percentages verkocht / getransporteerd (labels en rechteras) | donkergeel `A16207` |
+| DAEB-ruit en de lijn naar de as | goud `FEB900` / `7A5300` |
 
 Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad heeft linksboven "← Start" en een legenda. Start bouw en Oplevering staan als groen en blauw label boven het kwartaal, met een lijn langs de kolom; koppen en invoer houden hun eigen kleur.
 

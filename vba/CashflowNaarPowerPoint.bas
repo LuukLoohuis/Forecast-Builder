@@ -33,7 +33,7 @@ Option Explicit
 '  SchikGrafiekDia2      kleine cashflowgrafiek op dia 2: waarde-as, grijs vlak t/m 'nu' en het nu-blok bij dat kwartaal
 '
 '  v15: grafiek per woningtype (dia 8): blok FM7 met 10 kolommen (totaal per kwartaal als label, eindpunt met het totaal),
-'       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw; sjabloon v15.
+'       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw (sinds v22: geel, scenario rood); sjabloon v15.
 '       Knoppen op Woningtypes: 'Vorige prognose uit FO' (ouder FO -> blok 4 en 6) en 'Nu bewaren als vorige prognose'.
 '  v16: dia 6 (VP1_/VP2_GRAFIEK): cumulatief percentage verkocht/getransporteerd als lijn met labels; blok EF7 met 30 kolommen
 '       (vier kolommen extra: cumulatief % en label, verkocht en transport), alleen de periodes vanaf het actuals-jaar (Model!BY132);
