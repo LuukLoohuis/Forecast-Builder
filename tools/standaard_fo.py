@@ -979,7 +979,15 @@ def maak_prijslijst(ws):
             r = a + 2 + i
             zet(ws, 'A%d' % r, lab)
             zet(ws, 'B%d' % r, None, F, GEEL, NUM)
-            zet(ws, 'D%d' % r, '=%s%d' % (uit[lab], t) if lab in uit else None, F, GRIJS if lab in uit else GEEL, NUM)
+            # type zonder sleutel in de prijslijst (bijvoorbeeld parkeren of commercieel, met de hand ingevuld): de
+            # kolom Prijslijst toont dan het handmatige bedrag, anders ontstaat een tegenboeking en wordt de PEW 0
+            if lab == 'Grond + Ontwikkelkosten':
+                fd = '=IF($C%d&""="",N(%s%d),E%d)' % (t, P_HAND['grond'], t, t)
+            elif lab == 'Aanneemsom':
+                fd = '=IF($C%d&""="",N(%s%d)-N(G%d),F%d)' % (t, P_HAND['aanneemkao'], t, t, t)
+            else:
+                fd = '=%s%d' % (uit[lab], t) if lab in uit else None
+            zet(ws, 'D%d' % r, fd, F, GRIJS if lab in uit else GEEL, NUM)
             zet(ws, 'F%d' % r, '=B%d' % r, F, None, NUM)
             zet(ws, 'G%d' % r, '=N(D%d)-N(F%d)' % (r, r), FB, None, NUM)
             zet(ws, 'H%d' % r, '=F%d+G%d' % (r, r), F, None, NUM)

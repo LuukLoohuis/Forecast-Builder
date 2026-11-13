@@ -1273,7 +1273,9 @@ def grafiekbereik_en_totaal(sheet, save):
         for r in range(8, 69):
             assert not sh.get('%s%d' % (kt, r)) and not sh.get('%s%d' % (kw, r)), (kt, r)
             t = '&'.join('IF(ISNUMBER(%s%d),IF(%s%d>0,%s%d&" + ",""),"")' % (c, r, c, r, c, r) for c in cols)
-            sh.set_formula('%s%d' % (kt, r), '=IF(LEN(%s)=0,"",LEFT(%s,LEN(%s)-3))' % (t, t, t))
+            # meer dan 8 kwartalen: de staven zijn te smal voor de opsomming, dan alleen het totaal
+            sh.set_formula('%s%d' % (kt, r), '=IF(LEN(%s)=0,"",IF(Model!$BY$339>9,TEXT(SUMIF(%s%d:%s%d,">0"),"0"),LEFT(%s,LEN(%s)-3)))'
+                           % (t, cols[0], r, cols[-1], r, t, t))
             som = 'SUMIF(%s%d:%s%d,">0")' % (cols[0], r, cols[-1], r)
             sh.set_formula('%s%d' % (kw, r), '=IF(%s>0,%s,NA())' % (som, som))
     for kt, lbl, pct in (('IG', 'FS', 'FR'), ('IH', 'FU', 'FT')):        # tekst van de percentagerij (Dashboard)

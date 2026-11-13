@@ -1654,6 +1654,8 @@ Private Sub OpsommingLabels(ch As Object, arr() As Variant, n As Long, k0 As Lon
                 If arr(r, k) > 0 Then tekst = tekst & IIf(Len(tekst) > 0, " + ", "") & CStr(arr(r, k))
             End If
         Next k
+        ' veel kwartalen (meer dan 8): de staven zijn te smal voor de opsomming, dan alleen het totaal boven de staaf
+        If n > 9 And Len(tekst) > 0 Then tekst = CStr(arr(r, IIf(k0 = 1, 21, 22)))
         If Len(tekst) > 0 Then
             ser.Points(r).HasDataLabel = True
             ser.Points(r).DataLabel.Text = tekst

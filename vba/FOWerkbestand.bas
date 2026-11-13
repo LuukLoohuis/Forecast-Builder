@@ -1005,6 +1005,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             End If
         Next r
     End If
+    Dim typeNaam As String, viaParke As Boolean, viaCommerc As Boolean, overslaan As Boolean
     ReDim ov1(1 To C_Q1 + NQ): ReDim ov2(1 To C_Q1 + NQ): ReDim ovp(1 To C_Q1 + NQ): ReDim ovc(1 To C_Q1 + NQ)
     ' EUR-blokken per type ('Termijnen n in EUR'): een type met woningen maar zonder bedragen daar (parkeren, commercieel)
     ' heeft zijn omzet onder 'Overige opbrengsten in EUR'; dan prijs 0 (de kosten blijven)
@@ -1133,8 +1134,16 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                     r = r + 1
                 Loop
                 If basis = 0 Then
-                    For j = 2 To 5: wP.Cells(P_TYPE1 + i - 1, 13 + j).Value = 0: Next j
-                    lg = lg & "- type " & i & ": geen bedragen in het " & ChrW(8364) & "-blok van het oude FO; de omzet staat onder Overige opbrengsten (prijs 0, de kosten blijven)" & vbCrLf
+                    ' parkeren / commercieel met een eigen termijnschema: als echt type via de termijnen (de regel onder
+                    ' Overige opbrengsten van het oude FO vervalt dan, anders telt het dubbel)
+                    typeNaam = LCase$(Tk(wP.Cells(P_TYPE1 + i - 1, 2).Value))
+                    If (InStr(typeNaam, "parke") > 0 Or InStr(typeNaam, "commerc") > 0) And Nk(wP.Cells(P_TYPE1 + i - 1, 16).Value) > 0 Then
+                        If InStr(typeNaam, "parke") > 0 Then viaParke = True Else viaCommerc = True
+                        lg = lg & "- type " & i & ": omzet via het termijnschema van het type; de regel onder Overige opbrengsten van het oude FO is niet overgenomen, de kwartalen kunnen afwijken van het oude FO" & vbCrLf
+                    Else
+                        For j = 2 To 5: wP.Cells(P_TYPE1 + i - 1, 13 + j).Value = 0: Next j
+                        lg = lg & "- type " & i & ": geen bedragen in het " & ChrW(8364) & "-blok van het oude FO; de omzet staat onder Overige opbrengsten (prijs 0, de kosten blijven)" & vbCrLf
+                    End If
                 End If
             End If
             lg = lg & "- type " & i & " (" & wP.Cells(P_TYPE1 + i - 1, 2).Value & "): " & aantT & " termijnen, " & won & " woningen" & vbCrLf
@@ -1152,6 +1161,8 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         For j = r + 1 To r + 3
             If Len(Tk(wO.Cells(j, 2).Formula)) = 0 Then Exit For
             lab = LCase$(Tk(wO.Cells(j, 2).Value) & " " & wO.Cells(j, 2).Formula)
+            overslaan = (viaParke And InStr(LCase$(Tk(wO.Cells(j, 2).Value)), "parke") > 0) Or (viaCommerc And InStr(LCase$(Tk(wO.Cells(j, 2).Value)), "commerc") > 0)
+            If Not overslaan Then
             For c = 7 To laatste
                 k = KolStd(CLng(sl(c)), k1)
                 If k > 0 Then
@@ -1164,6 +1175,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                     End If
                 End If
             Next c
+            End If
         Next j
     End If
     ' de regel parkeren is bezet als er verschillen per type zijn; commercieel als er andere overige opbrengsten zijn

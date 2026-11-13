@@ -193,6 +193,7 @@ def omzetten(oud, uit, project=None):
     of = wf['CF - opbrengsten']
     sl = (oz.get('prijslijst') or {}).get('sleutels') or []
     ov2 = {}
+    via_type = set()                    # 'parke' / 'commerc': deze omzet loopt via een woningtype, niet via Overige
     # €-blokken per type ('Termijnen n in €') in het oude FO: een type met woningen maar zonder bedragen daar (bijvoorbeeld
     # parkeren of commercieel) heeft zijn omzet onder 'Overige opbrengsten in €'; dan krijgt het type prijs 0 (de kosten
     # blijven) en komt de omzet via de regels parkeren / commercieel
@@ -256,10 +257,19 @@ def omzetten(oud, uit, project=None):
                     log.append('type %d (%s): %s uit het oude FO (%.0f) wijkt af van de prijslijst (%.0f): handmatig gezet'
                                % (k, naam, x, oud[x], pl_[x]))
         if t['won'] and eu_som(k - 1) == 0:
-            for x in ('grond', 'aanneemkao', 'kmw', 'kadrente'):
-                P['%s%d' % (S.P_HAND[x], tr_)] = 0
-            log.append('type %d (%s): geen bedragen in het €-blok van het oude FO; de omzet staat onder Overige opbrengsten '
-                       '(prijs 0, de kosten blijven)' % (k, naam))
+            # parkeren / commercieel met een eigen termijnschema: als echt type via de termijnen (de regel onder
+            # 'Overige opbrengsten in €' van het oude FO vervalt dan, anders telt het dubbel)
+            sleutel_ov = 'parke' if 'parke' in naam.lower() else 'commerc' if 'commerc' in naam.lower() else ''
+            if sleutel_ov and oud['aanneemkao'] > 0:
+                via_type.add(sleutel_ov)
+                log.append('type %d (%s): omzet via het termijnschema van het type (%.0f); de regel onder Overige opbrengsten '
+                           'van het oude FO is niet overgenomen, de kwartalen kunnen afwijken van het oude FO'
+                           % (k, naam, oud['aanneemkao']))
+            else:
+                for x in ('grond', 'aanneemkao', 'kmw', 'kadrente'):
+                    P['%s%d' % (S.P_HAND[x], tr_)] = 0
+                log.append('type %d (%s): geen bedragen in het €-blok van het oude FO; de omzet staat onder Overige opbrengsten '
+                           '(prijs 0, de kosten blijven)' % (k, naam))
         # termijnschema
         a = S.p_aans(k)
         for i, r in enumerate(termijnen, 1):
@@ -330,6 +340,8 @@ def omzetten(oud, uit, project=None):
             lab = _t(of.cell(r, 2).value).lower()
             if not lab:
                 break
+            if any(x in lab for x in via_type):
+                continue                # loopt via het woningtype
             doel = ovp if 'parkeer' in lab or 'parkeren' in lab else ovc if 'commerc' in lab else ov1
             for c in oc:
                 k2 = d.kol(okeys.get(c, 0))

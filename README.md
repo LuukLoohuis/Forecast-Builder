@@ -147,6 +147,7 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
 - **Grafiekperiode:** "Grafiek vanaf / t/m" op het Dashboard geldt ook voor de dia's (cashflow, scenario's, verkoop en transport, van verkoop naar omzet, per woningtype). Alleen de kleine grafiek op dia 2 toont altijd de hele looptijd.
 - **Tijdassen:** de bouwtermijnen lopen t/m het jaar van de laatste termijn; verkoop en transport t/m Q4 van het jaar van de laatste verkoop of het laatste transport.
 - **Verkoop en transport:** de cumulatieve lijn is navy; de percentages staan in één vaste rij bovenin de grafiek (donkergeel), boven elke staaf de aantallen per type ("10 + 2", met witte achtergrond). De markering "Uitverkocht" / "Laatste transport" staat rechts naast de staaf, zonder bolletje. De grafiek begint bij de eerste verkoop. DAEB-woningen staan altijd apart als markering (ze gaan meestal in één keer over), niet als staaf.
+- **Veel kwartalen:** bij meer dan 8 kwartalen staat boven de staaf alleen het totaal (de staven zijn dan te smal voor de opsomming per type).
 - **Verkoop en transport (totaal):** vóór de kwartalen staat een staaf "Totaal" met alle woningen per type, op de dia én in de Dashboard-grafieken; de titel noemt het totaal en de legenda het aantal per type.
 
 Sjabloon v22 (zelfde opbouw als v21, strakker):
@@ -214,6 +215,7 @@ De macro (en `tools/omzetten.py`, dezelfde regels in Python) neemt over:
   - naam en type;
   - bedragen: handmatig als de prijslijst ze niet verklaart;
   - termijnschema, planning, verkocht en transport (omgezet naar %), kadastrale kosten/rente;
+  - parkeren en commerciële ruimte met een eigen termijnschema in het oude FO (een type met aantal 1, zonder bedragen in het €-blok) lopen als echt woningtype via die termijnen; de regel onder "Overige opbrengsten" van het oude FO wordt dan niet overgenomen. Het totaal blijft gelijk, de kwartalen kunnen afwijken. In de aansluiting toont de kolom Prijslijst voor een type zonder sleutel het handmatige bedrag;
   - kosten: budget, KAO, % en de planning als die afwijkt;
 - de SKO-bedragen van de aansluiting;
 - overige opbrengsten en "verschillen" per type;
