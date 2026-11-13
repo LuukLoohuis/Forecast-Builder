@@ -102,6 +102,10 @@ Option Explicit
 '  Welke tekst naar welke vorm gaat staat op tabblad "PowerPoint", kolom F.
 ' =====================================================================================
 
+Public RekenTijd As Double                         ' doorrekenen vóór NaarPowerPoint (PowerPointMaken), voor de eindmelding
+Private vormIndex As Collection                    ' alle vormnamen van de presentatie die nu gevuld wordt (snel 'niet gevonden')
+Private tijdNaam(1 To 30) As String, tijdSec(1 To 30) As Double, nTijd As Long
+Private stapNu As String, tStap As Double, tBegin As Double
 Private Const SH_PP As String = "PowerPoint"
 Private Const SH_DASH As String = "Dashboard"
 Private Const SH_MODEL As String = "Model"
@@ -292,46 +296,67 @@ Public Sub NaarPowerPoint()
     Dim pp As Object, pres As Object, wsP As Worksheet
     Dim stap As String, n As Long, nG As Long, pad As String, mist As String, fouten As String
     Dim g As Variant, t As Variant, i As Long, bericht As String
+    Dim venster As Object, vensterStand As Long
     On Error GoTo Fout
+    nTijd = 0: stapNu = "": tBegin = Timer
+    If RekenTijd > 0 Then
+        nTijd = 1: tijdNaam(1) = "doorrekenen": tijdSec(1) = RekenTijd
+        tBegin = tBegin - RekenTijd
+    End If
+    RekenTijd = 0
 
-    stap = "werkbladen zoeken"
+    stap = "werkbladen zoeken": MeetStap stap
     Set wsP = ThisWorkbook.Worksheets(SH_PP)
     Application.Calculate
     n = AantalPeriodes()
     If n < 1 Then
+        KlaarMeten
         MsgBox "Er staan nog geen periodes op tabblad Invoer.", vbExclamation, titel
         Exit Sub
     End If
 
-    stap = "PowerPoint starten"
+    stap = "PowerPoint starten": MeetStap stap
     Set pp = HaalPowerPoint()
     If pp Is Nothing Then
+        KlaarMeten
         MsgBox "PowerPoint kon niet worden gestart.", vbExclamation, titel
         Exit Sub
     End If
 
-    stap = "sjabloon openen"
+    stap = "sjabloon openen": MeetStap stap
     Set pres = OpenSjabloon(pp, wsP)
-    If pres Is Nothing Then Exit Sub
+    If pres Is Nothing Then
+        KlaarMeten
+        Exit Sub
+    End If
+    ' tijdens het vullen: PowerPoint geminimaliseerd (geen herteken van dia en miniaturen bij elke wijziging), Excel
+    ' zonder schermverversing; een lijst van alle vormnamen maakt 'niet gevonden' snel
+    On Error Resume Next
+    Set venster = pres.Windows(1)
+    vensterStand = venster.WindowState
+    venster.WindowState = 2                                   ' ppWindowMinimized
+    On Error GoTo Fout
+    Application.ScreenUpdating = False
+    BouwVormIndex pres
 
-    stap = "teksten vullen"
+    stap = "teksten vullen": MeetStap stap
     HaalVervallenVormenWeg pres
     VulTeksten pres, wsP, mist
 
-    stap = "dia 2 schikken"
+    stap = "dia 2 schikken": MeetStap stap
     SchikDia2 pres, wsP
     VulBalken pres, wsP
 
-    stap = "dia verkoopscenario's schikken"
+    stap = "dia verkoopscenario's schikken": MeetStap stap
     SchikDiaScenarios pres, wsP
 
-    stap = "tabellen vullen"
+    stap = "tabellen vullen": MeetStap stap
     t = Tabellen()
     For i = LBound(t) To UBound(t)
         VulTabel pres, CStr(t(i)(0)), wsP.Range(CStr(t(i)(1))), CLng(t(i)(2)), CLng(t(i)(3)), (CLng(t(i)(4)) = 1), mist, fouten
     Next i
 
-    stap = "grafieken vullen"
+    stap = "grafieken vullen": MeetStap stap
     g = Grafieken()
     For i = LBound(g) To UBound(g)
         ' aantal rijen: uit de opgegeven Model-cel (bouwtermijnenblok), anders het aantal periodes;
@@ -344,22 +369,25 @@ Public Sub NaarPowerPoint()
         End If
         ' de dia met VS_GRAFIEK is weg als er geen scenario in PowerPoint komt (SchikDiaScenarios)
         If CStr(g(i)(0)) <> "VS_GRAFIEK" Or VsDiaAan() Then
+            Application.StatusBar = "PowerPoint maken: grafiek " & (i - LBound(g) + 1) & " van " & (UBound(g) - LBound(g) + 1) & " ..."
             VulGrafiek pres, CStr(g(i)(0)), wsP.Range(CStr(g(i)(1))), nG, CLng(g(i)(2)), mist, fouten
         End If
     Next i
 
-    stap = "dia per woningtype"
+    stap = "dia per woningtype": MeetStap stap
     VulDiasPerType pres, wsP, n, mist, fouten
 
-    stap = "2. Ontw PEW op de dia Update PEW"
+    stap = "2. Ontw PEW op de dia Update PEW": MeetStap stap
+    Application.ScreenUpdating = True                          ' de afbeelding van het tabblad heeft het scherm nodig
     PlaatsPEW pres, fouten
 
-    stap = "presentatie bewaren"
+    stap = "presentatie bewaren": MeetStap stap
     pad = Bewaar(pres, wsP)
 
+    KlaarMeten
     On Error Resume Next
-    pp.Activate
-    pres.Windows(1).Activate
+    If Not venster Is Nothing Then venster.WindowState = IIf(vensterStand = 2, 1, vensterStand)
+    AppActivate Application.Caption                            ' de melding vóór PowerPoint, niet erachter
     On Error GoTo Fout
 
     If Len(pad) > 0 Then
@@ -371,13 +399,102 @@ Public Sub NaarPowerPoint()
     If Len(fouten) > 0 Then
         bericht = bericht & vbCrLf & vbCrLf & "Niet gelukt (plak deze met de hand vanaf tabblad PowerPoint):" & vbCrLf & fouten
     End If
+    bericht = bericht & vbCrLf & vbCrLf & TijdOverzicht()
     MsgBox bericht, IIf(Len(mist) + Len(fouten) > 0, vbExclamation, vbInformation), titel
+    On Error Resume Next
+    pp.Activate
+    pres.Windows(1).Activate
+    On Error GoTo 0
     Exit Sub
 
 Fout:
-    Application.ScreenUpdating = True
+    KlaarMeten
+    On Error Resume Next
+    If Not venster Is Nothing Then venster.WindowState = IIf(vensterStand = 2, 1, vensterStand)
+    On Error GoTo 0
     MsgBox "Het ging mis bij: " & stap & vbCrLf & vbCrLf & "Fout " & Err.Number & ": " & Err.Description, vbExclamation, titel
 End Sub
+
+Private Sub MeetStap(naam As String)
+    ' sluit de lopende stap af (tijd) en begint de volgende; de statusbalk toont waar de knop is
+    Dim nu As Double, d As Double
+    nu = Timer
+    If Len(stapNu) > 0 And nTijd < UBound(tijdNaam) Then
+        d = nu - tStap
+        If d < 0 Then d = d + 86400                             ' over middernacht
+        nTijd = nTijd + 1
+        tijdNaam(nTijd) = stapNu
+        tijdSec(nTijd) = d
+    End If
+    stapNu = naam
+    tStap = nu
+    If Len(naam) > 0 Then Application.StatusBar = "PowerPoint maken: " & naam & " ..."
+End Sub
+
+Private Sub KlaarMeten()
+    ' na de laatste stap (of bij een fout): tijd vastleggen, statusbalk en scherm terug, vormlijst weg
+    MeetStap ""
+    Application.StatusBar = False
+    Application.ScreenUpdating = True
+    Set vormIndex = Nothing
+End Sub
+
+Private Function TijdOverzicht() As String
+    ' 'Klaar in 38 s · grafieken vullen 22 s · dia per woningtype 6 s · ...' (de drie langste stappen)
+    Dim totaal As Double, i As Long, k As Long, best As Long, gehad As String, tekst As String
+    totaal = Timer - tBegin
+    If totaal < 0 Then totaal = totaal + 86400
+    tekst = "Klaar in " & Format$(totaal, "0") & " s"
+    For k = 1 To 3
+        best = 0
+        For i = 1 To nTijd
+            If InStr(gehad, "|" & i & "|") = 0 Then
+                If best = 0 Then
+                    best = i
+                ElseIf tijdSec(i) > tijdSec(best) Then
+                    best = i
+                End If
+            End If
+        Next i
+        If best = 0 Then Exit For
+        If tijdSec(best) < 0.5 Then Exit For
+        gehad = gehad & "|" & best & "|"
+        tekst = tekst & " · " & tijdNaam(best) & " " & Format$(tijdSec(best), "0") & " s"
+    Next k
+    TijdOverzicht = tekst
+End Function
+
+Private Sub BouwVormIndex(pres As Object)
+    ' alle vormnamen op de dia's en in de dia-indelingen, eenmalig: ZoekVorm en VormOpDia weten dan meteen dat een vorm niet
+    ' bestaat (veel vormen uit oudere sjablonen staan niet in v22), zonder alle vormen af te lopen
+    Dim s As Object, shp As Object, d As Object, lay As Object
+    Set vormIndex = New Collection
+    On Error Resume Next
+    For Each s In pres.Slides
+        For Each shp In s.Shapes
+            vormIndex.Add True, shp.Name
+        Next shp
+    Next s
+    For Each d In pres.Designs
+        For Each lay In d.SlideMaster.CustomLayouts
+            For Each shp In lay.Shapes
+                vormIndex.Add True, shp.Name
+            Next shp
+        Next lay
+    Next d
+    Err.Clear
+End Sub
+
+Private Function BestaatMisschien(naam As String) As Boolean
+    ' False = deze naam staat zeker niet in de presentatie (vormlijst); zonder lijst altijd True
+    Dim x As Variant
+    BestaatMisschien = True
+    If vormIndex Is Nothing Then Exit Function
+    On Error Resume Next
+    x = vormIndex(naam)
+    If Err.Number <> 0 Then BestaatMisschien = False
+    Err.Clear
+End Function
 
 Private Sub PlaatsPEW(pres As Object, ByRef fouten As String)
     ' het overzicht van 2. Ontw PEW als afbeelding in het vak PEW_BEELD op de dia Update PEW (zoals het op het tabblad staat,
@@ -559,6 +676,7 @@ End Sub
 Private Function ZoekVorm(pres As Object, naam As String) As Object
     ' eerst op de dia's, dan in de dia-indelingen (daar staat de voettekst VOET_TEKST van alle dia's)
     Dim s As Object, shp As Object, d As Object, lay As Object
+    If Not BestaatMisschien(naam) Then Exit Function
     For Each s In pres.Slides
         For Each shp In s.Shapes
             If shp.Name = naam Then
@@ -581,8 +699,11 @@ Private Function ZoekVorm(pres As Object, naam As String) As Object
 End Function
 
 Private Function CelTekst(cel As Range) As String
-    Dim v As Variant
-    v = cel.Value
+    CelTekst = WaardeTekst(cel.Value)
+End Function
+
+Private Function WaardeTekst(v As Variant) As String
+    ' zoals CelTekst, voor een waarde uit een blok dat in één keer is gelezen
     If IsError(v) Then Exit Function
     If IsEmpty(v) Then Exit Function
     Select Case VarType(v)
@@ -696,6 +817,7 @@ End Function
 
 Private Function VormOpDia(dia As Object, naam As String) As Object
     Dim shp As Object
+    If Not BestaatMisschien(naam) Then Exit Function
     For Each shp In dia.Shapes
         If shp.Name = naam Then
             Set VormOpDia = shp
@@ -1230,7 +1352,7 @@ End Sub
 
 Private Sub VulTabel(pres As Object, vorm As String, kop As Range, nRijen As Long, nKol As Long, overslaan As Boolean, _
                      ByRef mist As String, ByRef fouten As String)
-    Dim shp As Object, tbl As Object, r As Long, c As Long, rij As Long
+    Dim shp As Object, tbl As Object, r As Long, c As Long, rij As Long, blok As Variant
     Set shp = ZoekVorm(pres, vorm)
     If shp Is Nothing Then
         ' sinds sjabloon v20 heeft het sjabloon geen tabel woningtypes meer: geen melding
@@ -1239,15 +1361,16 @@ Private Sub VulTabel(pres As Object, vorm As String, kop As Range, nRijen As Lon
     End If
     On Error GoTo Mislukt
     Set tbl = shp.Table
+    blok = kop.Resize(nRijen, nKol).Value
     rij = 0
     For r = 0 To nRijen - 1
-        If overslaan And r > 0 And Len(CelTekst(kop.Offset(r, 0))) = 0 Then
+        If overslaan And r > 0 And Len(WaardeTekst(blok(r + 1, 1))) = 0 Then
             ' lege regel (woningtype zonder aantal): niet op de dia
         Else
             rij = rij + 1
             If rij > tbl.Rows.Count Then tbl.Rows.Add
             For c = 0 To nKol - 1
-                If c < tbl.Columns.Count Then tbl.Cell(rij, c + 1).Shape.TextFrame.TextRange.Text = CelTekst(kop.Offset(r, c))
+                If c < tbl.Columns.Count Then tbl.Cell(rij, c + 1).Shape.TextFrame.TextRange.Text = WaardeTekst(blok(r + 1, c + 1))
             Next c
         End If
     Next r
@@ -1370,14 +1493,19 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     ' zet het blok (kop + n rijen) in het gegevensblad van de grafiek en past het bereik van elke reeks aan:
     ' X-bereik = kolom A, Y-bereik = de kolomletter uit de SERIES-formule van die reeks (KolomVanReeks). Reeksnamen die
     ' naar rij 1 van het gegevensblad verwijzen volgen zo de koptekst; namen als tekst in de formule (BT_GRAFIEK) blijven.
-    Dim ch As Object, wbE As Object, wsE As Object
+    Dim ch As Object, wbE As Object, wsE As Object, blok As Variant, nTot As Long
     Dim arr() As Variant, r As Long, c As Long, v As Variant, i As Long, kol As String, letter As Double
     On Error GoTo Mislukt
     Set ch = shp.Chart
-    ReDim arr(0 To n, 0 To nKol - 1)
+    ' het blok in één keer uit het werkblad; het gegevensblad krijgt het tot de grootste bloklengte (MAX_RIJEN_BT, de rest
+    ' leeg), zodat oude voorbeeldrijen in één schrijfactie verdwijnen
+    nTot = MAX_RIJEN_BT
+    If n > nTot Then nTot = n
+    ReDim arr(0 To nTot, 0 To nKol - 1)
+    blok = kop.Resize(n + 1, nKol).Value
     For r = 0 To n
         For c = 0 To nKol - 1
-            v = kop.Offset(r, c).Value
+            v = blok(r + 1, c + 1)
             If IsError(v) Then
                 arr(r, c) = Empty
             ElseIf Len(CStr(v)) = 0 Then
@@ -1396,16 +1524,16 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     Set wsE = wbE.Worksheets(1)
     ' wissen tot de grootste bloklengte (MAX_RIJEN_BT >= MAX_RIJEN): veilig voor alle grafieken, ook als het sjabloon
     ' meer voorbeeldrijen bevat dan het blok nu heeft
-    wsE.Range("A1").Resize(MAX_RIJEN_BT + 1, nKol).ClearContents
-    wsE.Range("A1").Resize(n + 1, nKol).Value = arr
+    wsE.Range("A1").Resize(nTot + 1, nKol).Value = arr
+    ' reeksen met '(uit)' in de kop gaan eerst weg (de scenariolijn in de cashflowgrafiek, in de bouwtermijnengrafiek de
+    ' typen zonder termijnen en de jaren buiten het bereik, in de grafiek per type de onderdelen die het type niet heeft),
+    ' daarna krijgen alleen de overgebleven reeksen hun bereik: scheelt bij de bouwtermijnen tientallen reeksen
+    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" _
+       Or vorm = "VP1_GRAFIEK" Or vorm = "VP2_GRAFIEK" Then VerwijderUitgezetteReeksen ch, arr, nKol
     For i = 1 To ch.SeriesCollection.Count
         kol = KolomVanReeks(CStr(ch.SeriesCollection(i).Formula))
         If Len(kol) > 0 Then ZetBereik ch.SeriesCollection(i), wsE, kol, n
     Next i
-    ' reeksen met '(uit)' in de kop gaan weg: de scenariolijn in de cashflowgrafiek, in de bouwtermijnengrafiek de typen
-    ' zonder termijnen en de jaren buiten het bereik, in de grafiek per type de onderdelen die het type niet heeft
-    If vorm = "CF_GRAFIEK" Or vorm = "BT_GRAFIEK" Or vorm = "PT_GRAFIEK" Or vorm = "KPI_GRAFIEK" Or vorm = "VS_GRAFIEK" _
-       Or vorm = "VP1_GRAFIEK" Or vorm = "VP2_GRAFIEK" Then VerwijderUitgezetteReeksen ch, wsE
     If vorm = "BT_GRAFIEK" Then
         ZetTijdAs ch
         ' geen legenda: na het weghalen van reeksen verschuiven de verborgen legenda-regels en blijven de kwartaalnummers
@@ -1508,7 +1636,7 @@ Private Sub OpsommingLabels(ch As Object, arr() As Variant, n As Long, k0 As Lon
     On Error GoTo 0
 End Sub
 
-Private Sub VerwijderUitgezetteReeksen(ch As Object, wsE As Object)
+Private Sub VerwijderUitgezetteReeksen(ch As Object, arr() As Variant, nKol As Long)
     ' Een reeks waarvan de kop in het gegevensblad eindigt op '(uit)' (de scenariolijn bij 'Scenariolijn tonen = nee',
     ' tab PowerPoint kolom N; in de bouwtermijnengrafiek typen zonder termijnen en jaren buiten het bereik) wordt uit de
     ' grafiek verwijderd, zodat hij niet als lege vermelding in de legenda staat.
@@ -1517,18 +1645,29 @@ Private Sub VerwijderUitgezetteReeksen(ch As Object, wsE As Object)
     ' scenariolijn zou entry 5 zijn) en die telling verschuift zodra iemand het sjabloon aanpast. Verwijderen hangt niet
     ' van een index af en is veilig: het sjabloon wordt per run opnieuw geopend, alleen de nieuwe presentatie verandert.
     ' Van achteren naar voren, omdat de nummering van SeriesCollection verschuift na een Delete.
-    Dim i As Long, kol As String, kopTekst As String
+    ' De kop komt uit rij 0 van het blok dat net in het gegevensblad is gezet (geen lezen uit het gegevensblad).
+    Dim i As Long, kol As String, kopTekst As String, k As Long
     On Error Resume Next
     For i = ch.SeriesCollection.Count To 1 Step -1
         kol = KolomVanReeks(CStr(ch.SeriesCollection(i).Formula))
         If Len(kol) > 0 Then
             kopTekst = ""
-            kopTekst = Trim$(CStr(wsE.Range(kol & "1").Value))
+            k = KolNummer(kol) - 1
+            If k >= 0 And k < nKol Then kopTekst = Trim$(CStr(arr(0, k)))
             If Right$(kopTekst, 5) = "(uit)" Then ch.SeriesCollection(i).Delete
         End If
     Next i
     On Error GoTo 0
 End Sub
+
+Private Function KolNummer(kol As String) As Long
+    ' 'A' -> 1, 'AB' -> 28
+    Dim i As Long, n As Long
+    For i = 1 To Len(kol)
+        n = n * 26 + (Asc(UCase$(Mid$(kol, i, 1))) - 64)
+    Next i
+    KolNummer = n
+End Function
 
 Private Sub ZetTijdAs(ch As Object)
     ' BT_GRAFIEK: beide waarde-assen (tijd in kwartaalindex) vast op Model!BY97 (1 januari van het jaar twee jaar vóór de eerste
@@ -1573,6 +1712,7 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
     Dim wsT As Worksheet, wsD As Worksheet, shp As Object, sjabloon As Object
     Dim oud As Variant, pos As Long, c As Long, naam As String, aantal As Variant, idx As Long, nKopie As Long
     Dim rTitel As Long, rSub As Long, r As Long, modus As String, totaal As Boolean, perType As Boolean, nKoop As Long
+    Dim rekenmodus As Long
     Set shp = ZoekVorm(pres, "PT_GRAFIEK")
     If shp Is Nothing Then
         mist = mist & "PT_GRAFIEK" & vbCrLf
@@ -1584,6 +1724,8 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
     Set wsT = ThisWorkbook.Worksheets(SH_TYPES)
     Set wsD = ThisWorkbook.Worksheets(SH_DASH)
     oud = wsD.Range(CEL_PT_KEUZE).Formula
+    rekenmodus = Application.Calculation
+    Application.Calculation = -4135                         ' handmatig: na elke keuze precies één keer doorrekenen
     modus = LCase$(Trim$(CelTekst(wsD.Range(CEL_PT_PP))))
     perType = (Left$(modus, 8) = "per type") Or (InStr(modus, "en per type") > 0)
     totaal = (Left$(modus, 8) <> "per type")
@@ -1628,12 +1770,14 @@ Private Sub VulDiasPerType(pres As Object, wsP As Worksheet, n As Long, ByRef mi
     End If
     sjabloon.Delete
     wsD.Range(CEL_PT_KEUZE).Formula = oud
+    Application.Calculation = rekenmodus
     Application.Calculate
     Exit Sub
 Mislukt:
     fouten = fouten & "dia per woningtype (" & naam & "): " & Err.Description & vbCrLf
     On Error Resume Next
     wsD.Range(CEL_PT_KEUZE).Formula = oud
+    If rekenmodus <> 0 Then Application.Calculation = rekenmodus
     Application.Calculate
     On Error GoTo 0
 End Sub

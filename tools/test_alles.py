@@ -506,6 +506,16 @@ def t_pptx():
     for indeling in pres.slide_layouts:            # de macro zoekt ook in de dia-indelingen (voettekst)
         alle(indeling.shapes)
     vba = open(os.path.join(ROOT, 'vba', 'CashflowNaarPowerPoint.bas'), encoding='cp1252').read()
+    fow = open(os.path.join(ROOT, 'vba', 'FOWerkbestand.bas'), encoding='cp1252').read()
+    npp = vba[vba.index('Public Sub NaarPowerPoint()'):]
+    npp = npp[:npp.index('\nEnd Sub')]
+    vgv = vba[vba.index('Private Sub VulGrafiekVorm('):]
+    vgv = vgv[:vgv.index('\nEnd Sub')]
+    ok('Naar PowerPoint sneller: tijden in de eindmelding, PowerPoint geminimaliseerd, vormlijst, eerst (uit) weg',
+       'TijdOverzicht()' in npp and 'WindowState = 2' in npp and 'BouwVormIndex pres' in npp
+       and 'ScreenUpdating = False' in npp and vgv.index('VerwijderUitgezetteReeksen ch') < vgv.index('ZetBereik ch')
+       and 'ClearContents' not in vgv and 'Application.CalculateFull\n    CashflowNaarPowerPoint' not in fow
+       and 'CashflowNaarPowerPoint.RekenTijd' in fow)
     nodig = set()
     for f in ('Grafieken', 'Tabellen'):
         body = vba[vba.index('Private Function %s()' % f):]

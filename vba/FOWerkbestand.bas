@@ -683,8 +683,13 @@ End Sub
 ' =====================================================================================
 
 Public Sub PowerPointMaken()
-    ' het scenariomodel rekent met formules mee met het FO: doorrekenen en de presentatie maken
-    Application.CalculateFull
+    ' het scenariomodel rekent met formules mee met het FO: doorrekenen en de presentatie maken. Gewoon doorrekenen is genoeg
+    ' (geen vluchtige functies of externe koppelingen; bij het openen rekent Excel alles door); staat het rekenen op
+    ' handmatig, dan alles opnieuw. De rekentijd staat in de eindmelding.
+    Dim t0 As Double
+    t0 = Timer
+    If Application.Calculation = -4135 Then Application.CalculateFull Else Application.Calculate
+    CashflowNaarPowerPoint.RekenTijd = Timer - t0
     CashflowNaarPowerPoint.NaarPowerPoint
 End Sub
 
