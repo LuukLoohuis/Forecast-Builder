@@ -750,6 +750,20 @@ def main():
         sh.set_formula('Z84', "'CF - opbrengsten'!$D$%d" % (rk + 7), sh.style_of('W71'))
         sh.set_formula('Z85', "'CF - opbrengsten'!$D$%d" % (rk + 5), sh.style_of('W71'))
         sh.set_formula('Z86', "'CF - opbrengsten'!$D$%d" % (rk + 2), sh.style_of('W71'))
+        # scenarioblok: schakelaar 'kans grondtermijn in de scenariolijn' (Model AL telt de kans erbij, kolom BW/BZ)
+        assert sh.get('V27') is None and sh.get('Y27') is None, (sh.get('V27'), sh.get('Y27'))
+        sh.set_value('V27', 'Kans grondtermijn in de scenariolijn', sh.style_of('V25'))
+        sh.set_value('Y27', 'ja', sh.style_of('Y25'))
+        sh.set_value('Z27', 'ja = de kans grondtermijn (Aansluiting opbrengsten kolom Y, per type) zit in de scenariolijn; '
+                            'nee = scenario zonder kans · geen kans ingevuld = geen verschil', sh.style_of('Z25'))
+        n_dv = 0
+        for dv in sh.t.iter(M + 'dataValidation'):
+            if 'Y25' in (dv.get('sqref') or '').split():
+                dv.set('sqref', dv.get('sqref') + ' Y27')
+                n_dv += 1
+        assert n_dv == 1, n_dv
+        tekst_vervang(sh, 'Z16', 'de gele lijn', 'de rode lijn')
+        tekst_vervang(sh, 'Z25', 'de gele lijn', 'de rode lijn')
     # periode van de cashflowgrafiek: vanaf / t/m (leeg = automatisch: eerste t/m laatste kwartaal met opbrengsten of
     # kosten, plus één kwartaal); de grafiekreeksen (namen g_...) lopen via Model!BY336:BY338 mee
     st_k, st_l, st_i, st_n, st_w = (sh.style_of(x) for x in ('V82', 'V77', 'W18', 'Z18', 'W9'))
@@ -888,6 +902,30 @@ def main():
     # verkoop / transport: de percentages in een vaste rij bovenin de grafiek (rechteras 1,12; as tot 120%), niet meer op
     # de lijn; de tekst komt uit de macro (dia) of uit cellen (Dashboard, PowerPoint IG / IH)
     unshare(sh.t)
+    # kans grondtermijn in de scenariolijn (schakelaar Dashboard Y27): BW = cumulatief netto effect van de kans per periode
+    # (CF - opbrengsten rij KT+5, via dezelfde sleutel als Invoer), BZ = idem verschoven zoals de verkoop (Dashboard Y17),
+    # 0 in de realisatie; AL (opbrengsten scenariolijn) telt de verandering van BZ erbij; de naam krijgt '+ kans grond'
+    import standaard_fo as S_
+    kopp = re.search(r"_koppeling!\$G\$\d+:\$AU\$\d+", sheet('Invoer').get('F20') or '')
+    assert kopp, 'sleutel Invoer F20'
+    for r in range(8, 68):
+        for kol in ('BW', 'BZ'):
+            assert sh.get('%s%d' % (kol, r)) is None, (kol, r)
+        sh.set_formula('BW%d' % r, '=IF($A%d="",0,IFERROR(N(INDEX(\'CF - opbrengsten\'!$G$%d:$AU$%d,MATCH(INDEX(Invoer!$A$7:$A$500,'
+                                    '$B%d),%s,0))),0))' % (r, S_.KT + 5, S_.KT + 5, r, kopp.group(0)))
+        sh.set_formula('BZ%d' % r, '=IF($A%d="",0,IF(G%d="Realisatie",0,N(INDEX($BW$8:$BW$67,MAX(1,MIN($BY$8,$A%d-N(Dashboard!$Y$17)))))))'
+                       % (r, r, r))
+        f = sh.get('AL%d' % r)
+        eind = '*(1+N(Dashboard!$Y$19))))'
+        assert f and f.endswith(eind), (r, f)
+        sh.set_formula('AL%d' % r, f[:-2] + '+IF(LOWER(Dashboard!$Y$27&"")="nee",0,BZ%d-N(BZ%d))))' % (r, r - 1),
+                       sh.style_of('AL%d' % r))
+    sh.set_value('BW7', 'Kans grondtermijn cum.', sh.style_of('BK7'))
+    sh.set_value('BZ7', 'Kans in scenario (verschoven)', sh.style_of('BK7'))
+    f = sh.get('BY71')
+    assert f == '=IF(TRIM(Dashboard!$Y$26&"")="","Scenario",TRIM(Dashboard!$Y$26&""))', f
+    sh.set_formula('BY71', f + '&IF(AND(LOWER(Dashboard!$Y$27&"")<>"nee",N(\'CF - opbrengsten\'!$D$%d)<>0)," + kans grond","")'
+                   % (S_.KT + 2), sh.style_of('BY71'))
     for kol, bron in (('BO', 'BK'), ('BP', 'BL')):
         for r in range(8, 68):
             f = sh.get('%s%d' % (kol, r))

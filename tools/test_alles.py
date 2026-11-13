@@ -218,11 +218,29 @@ def t_scenarios(doc):
         doc.calculateAll()
 
     # kans grondtermijn
+    m_, d_ = doc.Sheets.getByName('Model'), doc.Sheets.getByName('Dashboard')
+
+    def scenariolijn():                 # cumulatieve opbrengsten van de scenariolijn (Model AL) per periode
+        import itertools
+        return list(itertools.accumulate(waarde(m_, 'AL%d' % r) for r in range(8, 68)))
+    bereken()
+    zonder = scenariolijn()
     p.getCellRangeByName('Y13').setValue(0.5)
     bereken()
     extra, netto = waarde(o, 'D%d' % (S.KT + 2)), waarde(o, 'D%d' % (S.KT + 4))
     ok('kans grondtermijn 50%: extra grondtermijn eerder, netto 0 over de looptijd', extra > 0 and abs(netto) < 1,
        'extra %.0f, netto %.0f' % (extra, netto))
+    met = scenariolijn()
+    hoogste = max(b - a for a, b in zip(zonder, met))
+    ok('kans grondtermijn in de scenariolijn (Dashboard Y27 = ja): eerder ontvangen, aan het eind gelijk, naam + kans grond',
+       hoogste > 1 and abs(met[-1] - zonder[-1]) < 1 and tekst(m_, 'BY71').endswith('+ kans grond'),
+       'hoogste stand extra %.0f, eind verschil %.0f, naam %r' % (hoogste, met[-1] - zonder[-1], tekst(m_, 'BY71')))
+    d_.getCellRangeByName('Y27').setString('nee')
+    bereken()
+    uit = scenariolijn()
+    ok('kans grondtermijn uit de scenariolijn (Dashboard Y27 = nee): scenariolijn als zonder kans',
+       max(abs(a - b) for a, b in zip(zonder, uit)) < 1 and not tekst(m_, 'BY71').endswith('kans grond'))
+    d_.getCellRangeByName('Y27').setString('ja')
     p.getCellRangeByName('Y13').setString('')
     # parkeren naar rato van de bouwtermijnen
     cel = 'D%d' % (S.p_aans(1) + 2 + S.P_REGELS.index('Opbrengsten parkeren'))

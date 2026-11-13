@@ -129,7 +129,8 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
     - het netto effect per kwartaal en cumulatief (de hoogste stand).
   - Over de hele looptijd is het netto 0: de kans verschuift opbrengsten naar voren.
   - Het Dashboard (V82–Z86) toont de max. financiering huidig en met kans, en de extra grondtermijn.
-  - De kans zit niet in de cashflow zelf; het is een doorkijk.
+  - De kans zit niet in de basiscashflow; het is een doorkijk.
+  - **In de scenariolijn** van de cashflowgrafiek zit de kans wel, als Dashboard Y27 ("Kans grondtermijn in de scenariolijn") op ja staat (standaard). De kans schuift mee met de verkoopverschuiving van het scenario (Y17); de lijn heet dan "Scenario + kans grond". Rekenwerk: Model kolom BW (cumulatief effect) en BZ (verschoven), opgeteld in AL.
 - **Parkeren en commercieel:** onder "Overige opbrengsten in €" op CF - opbrengsten:
   - kolom D toont het bedrag uit de aansluiting (PEW, alle woningtypes);
   - in kolom C kies je de verdeling:
