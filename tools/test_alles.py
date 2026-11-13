@@ -595,7 +595,7 @@ def t_pptx():
        and 'NoteerGrafiekTijd vorm, tGraf' in vgv and 'Per grafiek (s)' in vba)
     ok('Naar PowerPoint sneller: tijden in de eindmelding, PowerPoint geminimaliseerd, vormlijst, eerst (uit) weg',
        'TijdOverzicht()' in npp and 'WindowState = 2' in npp and 'BouwVormIndex pres' in npp
-       and 'ScreenUpdating = False' in npp and vgv.index('VerwijderUitgezetteReeksen ch') < vgv.index('ZetBereik ch')
+       and 'ScreenUpdating = False' in npp and vgv.index('VerwijderUitgezetteReeksen ch') < vgv.index('ZetBereik reeks')
        and 'ClearContents' not in vgv and 'Application.CalculateFull\n    CashflowNaarPowerPoint' not in fow
        and 'CashflowNaarPowerPoint.RekenTijd' in fow)
     nodig = set()
