@@ -50,7 +50,7 @@ Eén vaste kleurtaal in het hele bestand:
 
 Grafieken en opmaak gebruiken hetzelfde palet als het PowerPoint-sjabloon v22 (navy `003366`, geel `FEB900`, groen
 `15803D`, rood `B91C1C`; gele tekst donker amber `B45309`), zodat het Dashboard en de slides er hetzelfde uitzien.
-De woningtypes hebben één vaste kleurreeks, gelijk in de grafieken, de legenda's en op de slides: 1 blauw `2563EB`, 2 petrol `0D9488`, 3 paars `7C3AED`, 4 leisteen `64748B`, 5 hemelsblauw `0EA5E9`, 6 groen `16A34A`, 7 roze `DB2777`, 8 indigo `4F46E5`, 9 limoen `65A30D`, 10 warmgrijs `57534E`. Geen geel, rood of navy: die hebben een eigen betekenis.
+De woningtypes hebben één vaste kleurreeks, gelijk in de grafieken, de legenda's en op de slides: 1 blauw `2563EB`, 2 groen `16A34A`, 3 rood `DC2626`, 4 geel `FACC15` (donkere tekst), 5 paars `7C3AED`, 6 oranje `EA580C`, 7 cyaan `0891B2`, 8 roze `DB2777`, 9 bruin `92400E`, 10 grijs `6B7280`. Geen navy: dat is de cumulatieve lijn.
 
 | In de grafieken | Kleur |
 |---|---|

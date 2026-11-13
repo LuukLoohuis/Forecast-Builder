@@ -43,7 +43,7 @@ def cm(x):
 ROOD = 'A16207'                                    # donkergeel: de percentages bij de cumulatieve lijn (naam historisch)
 VORIG_KL, SCEN_KL = 'FEB900', 'DC2626'              # cashflowgrafiek: vorige prognose geel, scenario rood
 OUD_TYPEN = ['2563EB', 'B45309', '0F766E', 'FEB900', '64748B', '15803D', '1E3A8A', 'D97706', '0891B2', '92400E']
-TYPEN = ['2563EB', '0D9488', '7C3AED', '64748B', '0EA5E9', '16A34A', 'DB2777', '4F46E5', '65A30D', '57534E']
+TYPEN = ['2563EB', '16A34A', 'DC2626', 'FACC15', '7C3AED', 'EA580C', '0891B2', 'DB2777', '92400E', '6B7280']
 C = '{%s}' % NS['c']
 
 
@@ -134,9 +134,10 @@ def lijnkleuren(cs):
 
 
 def typekleuren(cs):
-    """grafieken per woningtype: de typen in een eigen reeks kleuren (geen geel: dat is vorige prognose en de percentages;
-    geen rood: kosten en scenario; geen navy: de cumulatieve lijn). Herkent de typereeksen aan de oude kleuren op volgorde
-    (10 reeksen achter elkaar). Geeft het aantal aangepaste reeksen terug."""
+    """grafieken per woningtype: de typen in duidelijk verschillende kleuren (blauw, groen, rood, geel, paars, ...; geen navy:
+    dat is de cumulatieve lijn). Herkent de typereeksen aan de oude kleuren op volgorde (10 reeksen achter elkaar).
+    De labeltekst blijft staan: wit, op type 4 (geel, toen en nu) donker.
+    Geeft het aantal aangepaste reeksen terug."""
     sers = list(cs.iter(C + 'ser'))
     eerst = []
     for ser in sers:
@@ -150,8 +151,6 @@ def typekleuren(cs):
                 for c in sers[j + i].iter(A + 'srgbClr'):
                     if c.get('val') == OUD_TYPEN[i]:
                         c.set('val', TYPEN[i])
-                    elif c.get('val') == '1F2937' and i == 3:          # tekst op het oude geel: nu wit
-                        c.set('val', 'FFFFFF')
                 n += 1
             eerst[j:j + 10] = TYPEN
     return n
