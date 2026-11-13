@@ -973,6 +973,9 @@ def main():
             d.text = 'OFFSET(PowerPoint!$%s$8,0,0,MAX(1,Model!$BY$339),1)' % vp[m.group(1)]
             n_vp += 1
     assert n_vp >= 30, n_vp
+    for nm, kol in (('g_vk_som_v', 'IE'), ('g_vk_som_t', 'IF')):     # opsomming boven de staaf (Dashboard)
+        d = etree.SubElement(new_dn, M + 'definedName', name=nm)
+        d.text = 'OFFSET(PowerPoint!$%s$8,0,0,MAX(1,Model!$BY$339),1)' % kol
     # Excel wil de namen gesorteerd (hoofdletterongevoelig), _xlnm-namen per blad
     items = sorted(new_dn, key=lambda d: (d.get('name').lower(), int(d.get('localSheetId') or -1)))
     for d in list(new_dn):
@@ -1065,6 +1068,16 @@ def main():
             assert pptx_v22.daeb_lijn(t) >= 1, naam
             dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
     assert n_rood == 4, n_rood
+    # boven elke staaf de aantallen per type ('10 + 2'), tekst uit tab PowerPoint (IC / ID)
+    n_op = 0
+    for naam in [n for n in dst.parts if n.startswith('xl/charts/chart') and n.endswith('.xml')]:
+        for kenmerk, waarden, tekst in ((b'g_vk_pct<', 'g_vk_som_v', 'PowerPoint!$IC$8:$IC$68'),
+                                        (b'g_vk_tpct<', 'g_vk_som_t', 'PowerPoint!$ID$8:$ID$68')):
+            if kenmerk in dst.parts[naam]:
+                t = etree.fromstring(dst.parts[naam])
+                n_op += pptx_v22.opsomming(t, naam_waarden='[0]!' + waarden, tekstbereik=tekst)
+                dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
+    assert n_op == 2, n_op
     # alle grafieken: vorige prognose geel, scenario rood, eigen kleuren per woningtype
     n_lijn = n_type = 0
     for naam in [n for n in dst.parts if n.startswith('xl/charts/chart') and n.endswith('.xml')]:
@@ -1187,6 +1200,20 @@ def grafiekbereik_en_totaal(sheet, save):
         else:
             f = 'NA()'
         sh.set_formula('%s8' % L(c), f, sh.style_of('%s8' % L(c)))
+    # opsomming boven de staaf op het Dashboard ('10 + 2'): tekst per kwartaal (IC verkocht, ID getransporteerd) en de
+    # hoogte van de staaf (IE / IF) waar het label boven staat; de dia rekent hetzelfde in de macro (OpsommingLabels)
+    for kt, kw, eerste in (('IC', 'IE', 'ES'), ('ID', 'IF', 'FC')):
+        cols = [L(ci(eerste) + i) for i in range(10)]
+        for r in range(8, 69):
+            assert not sh.get('%s%d' % (kt, r)) and not sh.get('%s%d' % (kw, r)), (kt, r)
+            t = '&'.join('IF(ISNUMBER(%s%d),IF(%s%d>0,%s%d&" + ",""),"")' % (c, r, c, r, c, r) for c in cols)
+            sh.set_formula('%s%d' % (kt, r), '=IF(LEN(%s)=0,"",LEFT(%s,LEN(%s)-3))' % (t, t, t))
+            som = 'SUMIF(%s%d:%s%d,">0")' % (cols[0], r, cols[-1], r)
+            sh.set_formula('%s%d' % (kw, r), '=IF(%s>0,%s,NA())' % (som, som))
+    sh.set_value('IC7', 'Opsomming verkocht (Dashboard)')
+    sh.set_value('ID7', 'Opsomming getransporteerd (Dashboard)')
+    sh.set_value('IE7', 'Staafhoogte verkocht')
+    sh.set_value('IF7', 'Staafhoogte getransporteerd')
     save('PowerPoint', sh)
 
 

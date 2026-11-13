@@ -35,6 +35,7 @@ Option Explicit
 '  v15: grafiek per woningtype (dia 8): blok FM7 met 10 kolommen (totaal per kwartaal als label, eindpunt met het totaal),
 '       alleen de periodes vanaf twee jaar vóór de eerste opbrengst (Model!BY128); 'Vorige prognose' op dia 3 lichtblauw (sinds v22: geel, scenario rood); sjabloon v15.
 '       Knoppen op Woningtypes: 'Vorige prognose uit FO' (ouder FO -> blok 4 en 6) en 'Nu bewaren als vorige prognose'.
+'  v22: dia 6 boven elke staaf de opsomming per type ('10 + 2', OpsommingLabels); percentages boven de lijn
 '  v16: dia 6 (VP1_/VP2_GRAFIEK): cumulatief percentage verkocht/getransporteerd als lijn met labels; blok EF7 met 30 kolommen
 '       (vier kolommen extra: cumulatief % en label, verkocht en transport), alleen de periodes vanaf het actuals-jaar (Model!BY132);
 '       VO-blok vanaf FK7, blok per type (dia 8) vanaf FQ7, tabellen vanaf kolom GB; sjabloon v16.
@@ -1386,6 +1387,9 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
             End If
         Next c
     Next r
+    ' verkoop / transport: kolom V (VP1) of W (VP2) = som van de typen per kwartaal (ook de totaalrij), de hoogte waar
+    ' het label 'Opsomming' boven de staaf staat
+    If vorm = "VP1_GRAFIEK" Or vorm = "VP2_GRAFIEK" Then OpsommingSom arr, n, IIf(vorm = "VP1_GRAFIEK", 1, 11)
     ch.ChartData.Activate
     DoEvents
     Set wbE = ch.ChartData.Workbook
@@ -1416,6 +1420,7 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
         ch.Axes(1).TickLabels.Font.Size = letter
         On Error GoTo Mislukt
     End If
+    If vorm = "VP1_GRAFIEK" Or vorm = "VP2_GRAFIEK" Then OpsommingLabels ch, arr, n, IIf(vorm = "VP1_GRAFIEK", 1, 11)
     If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch
     If vorm = "VS_GRAFIEK" Then SchikGrafiekVS shp, ch
     wbE.Close
@@ -1425,6 +1430,64 @@ Mislukt:
     fouten = fouten & vorm & ": " & Err.Description & vbCrLf
     On Error Resume Next
     If Not wbE Is Nothing Then wbE.Close
+    On Error GoTo 0
+End Sub
+
+Private Sub OpsommingSom(arr() As Variant, n As Long, k0 As Long)
+    ' som van de tien typekolommen (vanaf k0) per rij in kolom V (k0 = 1, verkocht) of W (k0 = 11, getransporteerd)
+    Dim r As Long, k As Long, som As Double
+    For r = 1 To n
+        som = 0
+        For k = k0 To k0 + 9
+            If IsNumeric(arr(r, k)) And Not IsEmpty(arr(r, k)) Then
+                If arr(r, k) > 0 Then som = som + arr(r, k)
+            End If
+        Next k
+        If som > 0 Then arr(r, IIf(k0 = 1, 21, 22)) = som Else arr(r, IIf(k0 = 1, 21, 22)) = Empty
+    Next r
+End Sub
+
+Private Sub OpsommingLabels(ch As Object, arr() As Variant, n As Long, k0 As Long)
+    ' boven elke staaf de aantallen per type ('10 + 2'), zodat ook een dun staafdeel een leesbaar cijfer heeft
+    Dim i As Long, r As Long, k As Long, tekst As String, ser As Object
+    On Error Resume Next
+    For i = 1 To ch.SeriesCollection.Count
+        If ch.SeriesCollection(i).Name = "Opsomming" Then Set ser = ch.SeriesCollection(i)
+    Next i
+    If ser Is Nothing Then Exit Sub
+    ser.HasDataLabels = True
+    For r = 1 To n
+        tekst = ""
+        For k = k0 To k0 + 9
+            If IsNumeric(arr(r, k)) And Not IsEmpty(arr(r, k)) Then
+                If arr(r, k) > 0 Then tekst = tekst & IIf(Len(tekst) > 0, " + ", "") & CStr(arr(r, k))
+            End If
+        Next k
+        If Len(tekst) > 0 Then
+            ser.Points(r).HasDataLabel = True
+            ser.Points(r).DataLabel.Text = tekst
+        Else
+            ser.Points(r).HasDataLabel = False
+        End If
+    Next r
+    ' in de staaf alleen cijfers die passen (staafdeel >= 6% van de hoogste staaf); de rest staat in de opsomming erboven
+    Dim maxSom As Double, b As Object, w As Variant
+    For r = 1 To n
+        If IsNumeric(arr(r, IIf(k0 = 1, 21, 22))) And Not IsEmpty(arr(r, IIf(k0 = 1, 21, 22))) Then
+            If arr(r, IIf(k0 = 1, 21, 22)) > maxSom Then maxSom = arr(r, IIf(k0 = 1, 21, 22))
+        End If
+    Next r
+    If maxSom <= 0 Then Exit Sub
+    For Each b In ch.SeriesCollection
+        If b.ChartType = 52 Then                       ' xlColumnStacked
+            w = b.Values
+            For r = 1 To n
+                If IsNumeric(w(r)) And Not IsEmpty(w(r)) Then
+                    If w(r) > 0 And w(r) < 0.06 * maxSom Then b.Points(r).HasDataLabel = False
+                End If
+            Next r
+        End If
+    Next b
     On Error GoTo 0
 End Sub
 

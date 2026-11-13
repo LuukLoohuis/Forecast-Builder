@@ -60,6 +60,9 @@ def pct_rood(cs):
             in_lbl = set(dl.iter(A + 'srgbClr')) if dl is not None else set()
             for c in ser.iter(A + 'srgbClr'):
                 c.set('val', ROOD if c in in_lbl else NAVY)        # lijn en markers navy, labels donkergeel
+            pos = dl.find(C + 'dLblPos') if dl is not None else None
+            if pos is not None:
+                pos.set('val', 't')                     # percentage boven het punt, niet rechts op de lijn
             n += 1
     for ax in cs.iter(C + 'valAx'):
         pos = ax.find(C + 'axPos')
@@ -166,6 +169,96 @@ def typekleur_tekst(f):
         i[0] += 1
         return '"%s,"' % (TYPEN[k] if k < 10 and m.group(1) == OUD_TYPEN[k] else m.group(1))
     return re.sub(r'"([0-9A-F]{6}),"', r, f)
+
+
+C15 = 'http://schemas.microsoft.com/office/drawing/2012/chart'
+
+
+def _marker_reeks(ser):
+    """de reeks met de markering 'Uitverkocht ..' / 'Laatste transport ..' (dia of Dashboard: naam via Model BY86/BY87)"""
+    nm = _naam(ser).lower()
+    f = ser.find(C + 'tx/' + C + 'strRef/' + C + 'f')
+    return nm.startswith(('uitverkocht', 'laatste transport')) or (f is not None and f.text in ('Model!$BY$86', 'Model!$BY$87'))
+
+
+def opsomming(cs, kol=None, naam_waarden=None, tekstbereik=None):
+    """verkoop / transport: boven elke staaf de aantallen per type ('10 + 2'), zodat ook een dun staafdeel een leesbaar
+    cijfer heeft. Nieuwe lijnreeks 'Opsomming' (geen lijn, geen marker, label boven het punt, donker) in de lijngrafiek
+    van de markering; de markering zelf zonder bolletje (dat viel over het cijfer), het label rechts naast de staaf.
+    Dia: waarden uit kolom kol van het gegevensblad (de macro zet daar de som per kwartaal en de labeltekst).
+    Dashboard: waarden uit de naam naam_waarden, labeltekst uit cellen (tekstbereik, Excel 'Waarde uit cellen').
+    Geeft 1 terug als de reeks is toegevoegd."""
+    sers = list(cs.iter(C + 'ser'))
+    mk = [s_ for s_ in sers if _marker_reeks(s_)]
+    if not mk or any(_naam(s_) == 'Opsomming' for s_ in sers):
+        return 0
+    m = mk[0]
+    sym = m.find(C + 'marker/' + C + 'symbol')
+    if sym is not None:
+        sym.set('val', 'none')
+    for e in m.findall(C + 'marker/' + C + 'size') + m.findall(C + 'marker/' + C + 'spPr'):
+        e.getparent().remove(e)
+    pos = m.find(C + 'dLbls/' + C + 'dLblPos')
+    if pos is not None:
+        pos.set('val', 'r')
+    n = copy.deepcopy(m)
+    nr = max(int(e.get('val')) for e in cs.iter(C + 'idx')) + 1
+    n.find(C + 'idx').set('val', str(nr))
+    n.find(C + 'order').set('val', str(max(int(e.get('val')) for e in cs.iter(C + 'order')) + 1))
+    tx = n.find(C + 'tx')
+    for e in list(tx):
+        tx.remove(e)
+    etree.SubElement(tx, C + 'v').text = 'Opsomming'
+    for e in n.findall(C + 'extLst'):
+        n.remove(e)
+    dl = n.find(C + 'dLbls')
+    for e in list(dl):
+        dl.remove(e)
+    dl_xml = ('<c:dLbls xmlns:c="%s" xmlns:a="%s"><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>'
+              '<c:txPr><a:bodyPr wrap="none"/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="800" b="1"><a:solidFill>'
+              '<a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="Arial"/><a:cs typeface="Arial"/></a:defRPr>'
+              '</a:pPr><a:endParaRPr lang="nl-NL"/></a:p></c:txPr><c:dLblPos val="t"/><c:showLegendKey val="0"/>'
+              '<c:showVal val="%d"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/>'
+              '<c:showBubbleSize val="0"/><c:showLeaderLines val="0"/><c:extLst><c:ext uri="{CE6537A1-D6FC-4f65-9D91-7224C49458BB}" '
+              'xmlns:c15="%s">%s<c15:showLeaderLines val="0"/></c:ext></c:extLst></c:dLbls>'
+              % (NS['c'], NS['a'], 0 if tekstbereik else 1, C15,
+                 '<c15:showDataLabelsRange val="1"/>' if tekstbereik else ''))
+    for e in etree.fromstring(dl_xml):
+        dl.append(e)
+    val = n.find(C + 'val/' + C + 'numRef')
+    if naam_waarden:
+        val.find(C + 'f').text = naam_waarden
+        nc = val.find(C + 'numCache')
+        if nc is not None:
+            val.remove(nc)
+    else:
+        f = val.find(C + 'f')
+        f.text = re.sub(r'\$[A-Z]+\$', '$%s$' % kol, f.text, count=0)
+        # cache: som van de typereeksen per punt (zoals de macro het straks vult)
+        nc = val.find(C + 'numCache')
+        som = {}
+        for s_ in sers:
+            sp = s_.find(C + 'spPr')
+            c_ = sp.find('.//' + A + 'srgbClr') if sp is not None else None
+            if c_ is not None and c_.get('val') in TYPEN and s_.getparent().tag == C + 'barChart':
+                for pt in s_.findall(C + 'val/' + C + 'numRef/' + C + 'numCache/' + C + 'pt'):
+                    i = int(pt.get('idx'))
+                    som[i] = som.get(i, 0) + float(pt.find(C + 'v').text)
+        for pt in nc.findall(C + 'pt'):
+            nc.remove(pt)
+        for i in sorted(som):
+            if som[i] > 0:
+                pt = etree.SubElement(nc, C + 'pt', idx=str(i))
+                etree.SubElement(pt, C + 'v').text = '%g' % som[i]
+    if tekstbereik:
+        ext = etree.fromstring('<c:extLst xmlns:c="%s"><c:ext uri="{02D57815-91ED-43cb-92C2-25804820EDAC}" xmlns:c15="%s">'
+                               '<c15:datalabelsRange><c15:f>%s</c15:f></c15:datalabelsRange></c:ext></c:extLst>'
+                               % (NS['c'], C15, tekstbereik))
+        n.append(ext)
+    # achter de laatste reeks van dezelfde lijngrafiek
+    laatste = [e for e in m.getparent() if e.tag == C + 'ser'][-1]
+    laatste.addnext(n)
+    return 1
 
 
 def daeb_lijn(cs):
@@ -419,6 +512,8 @@ def palet_en_letters(p):
                     assert daeb_lijn(cs) >= 1, shp.name
                 lijnkleuren(cs)
                 typekleuren(cs)
+                if shp.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK'):    # na typekleuren: de som leest de typekleuren
+                    assert opsomming(cs, kol='V' if shp.name == 'VP1_GRAFIEK' else 'W') == 1, shp.name
     for m in p.slide_masters:
         palet(m._element)
         for lay in m.slide_layouts:
