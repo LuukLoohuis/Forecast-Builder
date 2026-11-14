@@ -1006,6 +1006,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         Next r
     End If
     Dim typeNaam As String, viaParke As Boolean, viaCommerc As Boolean, overslaan As Boolean
+    Dim vkR As Long, vkGebruikt As String, vkRijT(1 To 20) As Long, inJaarV As Double, extraV As Double, hkQ As Long, jNuV As Long, khK As Long
     ReDim ov1(1 To C_Q1 + NQ): ReDim ov2(1 To C_Q1 + NQ): ReDim ovp(1 To C_Q1 + NQ): ReDim ovc(1 To C_Q1 + NQ)
     ' EUR-blokken per type ('Termijnen n in EUR'): een type met woningen maar zonder bedragen daar (parkeren, commercieel)
     ' heeft zijn omzet onder 'Overige opbrengsten in EUR'; dan prijs 0 (de kosten blijven)
@@ -1116,9 +1117,19 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             ' (t/m nu) is een formule op de Salesforce-status, de kwartalen komen uit het oude FO
             wD.Range(wD.Cells(VK_RIJ + 2 * i - 1, C_Q1), wD.Cells(VK_RIJ + 2 * i - 1, C_Q1 + NQ - 1)).ClearContents
             wD.Range(wD.Cells(VK_RIJ + 2 * i, C_Q1), wD.Cells(VK_RIJ + 2 * i, C_Q1 + NQ - 1)).ClearContents
-            RijOver wO, vk + i, sl, 7, laatste, wD, VK_RIJ + 2 * i - 1, k1, True, 0, lg      ' verkoop in aantallen (verkooptempo)
+            ' de regels van het verkooptempo staan niet altijd in de volgorde van de types: de regel met hetzelfde aantal
+            ' woningen (kolom C), anders op volgorde
+            vkR = vk + i
+            If Nk(wO.Cells(vkR, 3).Value) <> won Or InStr(vkGebruikt, "|" & i & "|") > 0 Then
+                For j = 1 To nKop
+                    If Nk(wO.Cells(vk + j, 3).Value) = won And InStr(vkGebruikt, "|" & j & "|") = 0 Then vkR = vk + j: Exit For
+                Next j
+            End If
+            vkGebruikt = vkGebruikt & "|" & (vkR - vk) & "|"
+            If i <= 20 Then vkRijT(i) = vkR
+            RijOver wO, vkR, sl, 7, laatste, wD, VK_RIJ + 2 * i - 1, k1, True, 0, lg      ' verkoop in aantallen (verkooptempo)
             RijOver wO, oRij(1), sl, 7, laatste, wD, VK_RIJ + 2 * i, k1, True, 0, lg         ' transport in aantallen
-            If sleutel = "" Then wD.Cells(VK_RIJ + 2 * i - 1, 4).Value = Nk(wO.Cells(vk + i, 4).Value)
+            If sleutel = "" Then wD.Cells(VK_RIJ + 2 * i - 1, 4).Value = Nk(wO.Cells(vkR, 4).Value)
             If kad > 0 Then RijOver wO, kad, sl, 7, laatste, wD, OZ1 + OBLOK * (i - 1) + 1 + NTERM + 3, k1, False, 0, lg
             For j = 1 To nOv
                 basis = Nk(wO.Cells(ovr(j), 5).Value)
@@ -1239,6 +1250,30 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     Next r
     ' loopt het kwartaal van de laatste boekingsperiode nog, dan is dat het huidige kwartaal en is het kwartaal ervoor afgesloten
     If (perMax Mod 100) Mod 3 <> 0 Then pAct = pAct - 1
+    ' verkoop in de jaarkolom van het lopende jaar (bijvoorbeeld '2026' terwijl het kwartaalraster pas later begint): wat
+    ' Salesforce nog niet als verkocht telt (t/m nu), komt in het huidige kwartaal; anders valt het weg en kunnen die
+    ' woningen nooit getransporteerd worden (zoals Python)
+    If pAct > 0 Then
+        Application.Calculate
+        hkQ = pAct + 1: jNuV = (hkQ - 1) \ 4
+        khK = KolStd(hkQ, k1)
+        For i = 1 To nKop
+            If i > NT Or i > 20 Then Exit For
+            If vkRijT(i) > 0 And khK > 0 And khK <> C_ACT Then
+                inJaarV = 0
+                For c = 7 To laatste
+                    If sl(c) = 0 Then
+                        If Tk(wO.Cells(euro, c).Value) = CStr(jNuV) Then inJaarV = inJaarV + Nk(wO.Cells(vkRijT(i), c).Value)
+                    End If
+                Next c
+                extraV = inJaarV - Nk(wD.Cells(VK_RIJ + 2 * i - 1, C_ACT).Value)
+                If extraV > 0 Then
+                    wD.Cells(VK_RIJ + 2 * i - 1, khK).Value = Nk(wD.Cells(VK_RIJ + 2 * i - 1, khK).Value) + extraV
+                    lg = lg & "- type " & i & ": " & extraV & " verkocht in " & jNuV & " volgens het oude FO, nog niet in Salesforce: in het huidige kwartaal gezet" & vbCrLf
+                End If
+            End If
+        Next i
+    End If
     If Not wKo Is Nothing Then
         ond = RijMet(wKo, 2, 2, 300, "onderdelen")
         If ond > 0 Then
@@ -1329,6 +1364,8 @@ Private Sub KostenOmzetten(ByVal wbO As Workbook, ByVal wO As Worksheet, ByVal i
     wK.Cells(kb, 6).Value = Nk(wKo.Cells(kr - 1, 6).Value)
     For j = 1 To n
         If j > NTERM Then Exit For
+        ' hooguit zoveel termijnen als de opbrengsten (een rij met een verwijzing naar een lege cel, '0', is geen termijn)
+        If aantT > 0 And j > aantT Then Exit For
         wK.Cells(kb + 1 + j, 3).Value = Nk(wKo.Cells(kRij(j), 3).Value)
         ' eigen planning (HWB) alleen als die afwijkt van de planning van de opbrengsten
         afwijk = False

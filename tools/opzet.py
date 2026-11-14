@@ -74,6 +74,29 @@ def _opbrengsten(f, v):
     eerste, laatste = 7, max(qk)
     check = next((c for c in range(laatste + 1, laatste + 6) if _t(get(kop[0], c)).lower() == 'check'), laatste + 2)
     types = []
+    # oud FO: de regels van het verkooptempo staan niet altijd in de volgorde van de woningtypes; per type de regel met
+    # hetzelfde aantal woningen (kolom C), bij gelijke aantallen of geen match op volgorde
+    vk_bij = {}
+    if not per_type:
+        aantallen = {i: get(hb - 1, 7) for i, hb in enumerate(kop)}
+        regels = {i: get(vrij(i), 3) for i in range(len(kop))}
+        vrij_ = set(range(len(kop)))
+        for i in range(len(kop)):
+            if isinstance(aantallen[i], (int, float)) and regels.get(i) == aantallen[i] and i in vrij_:
+                vk_bij[i] = i
+                vrij_.discard(i)
+        for i in range(len(kop)):
+            if i in vk_bij:
+                continue
+            j = next((j for j in sorted(vrij_) if isinstance(aantallen[i], (int, float)) and regels.get(j) == aantallen[i]), None)
+            if j is not None:
+                vk_bij[i] = j
+                vrij_.discard(j)
+        for i in range(len(kop)):
+            if i not in vk_bij:
+                vk_bij[i] = min(vrij_) if vrij_ else i
+                vrij_.discard(vk_bij[i])
+    vrij_type = lambda i: vrij(vk_bij.get(i, i))
     for i, (hb, oh) in enumerate(zip(kop, omz)):
         plan, d, tr = [], None, None
         r = hb + 1
@@ -104,9 +127,9 @@ def _opbrengsten(f, v):
         if won is None and '_omzetting' in v.parent.sheetnames:       # standaard-FO na omzetten: aantal als hint
             won = v.parent['_omzetting'].cell(i + 1, 2).value
         types.append({'k': i + 1, 'hb': hb, 'plan': plan, 'd': d, 'tr': tr, 'omzet_kop': oh, 'omzet': orows,
-                      'koop': orows[0], 'verkoop': vrij(i), 'won': won if isinstance(won, (int, float)) else 0,
+                      'koop': orows[0], 'verkoop': vrij_type(i), 'won': won if isinstance(won, (int, float)) else 0,
                       # waarden die Excel in het FO heeft opgeslagen: verkocht en grondtermijn (= transport) per kolom
-                      'verkoop_waarden': [_getal(get(vrij(i), c)) for c in range(7, max(qk) + 1)],
+                      'verkoop_waarden': [_getal(get(vrij_type(i), c)) for c in range(7, max(qk) + 1)],
                       'grond_waarden': [_getal(get(orows[0], c)) for c in range(7, max(qk) + 1)]})
     euro = next(r for r in range(omz[-1], maxr) if _t(get(r, 2)).lower().startswith('termijnen') and '€' in _t(get(r, 2)) + _t(get(r, 3)))
     periode = next(r for r in range(euro, maxr + 1) if _t(get(r, 2)).lower().startswith('periode in cashflow'))

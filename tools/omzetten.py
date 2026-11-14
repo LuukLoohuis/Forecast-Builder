@@ -183,6 +183,14 @@ def omzetten(oud, uit, project=None):
         k_ = sls.index(str(sleutel).strip().lower()) + 1 if str(sleutel).strip().lower() in sls else None
         return k_ is not None and type_van(r) == k_
 
+    def sf_verkocht(sleutel):
+        """aantal bouwnummers van het type met status verkocht of getransporteerd in de prijslijst van het oude FO"""
+        st = next((c for k_, c in hd.items() if 'status' in k_), None)
+        if not sleutel or st is None or 'type' not in hd:
+            return 0
+        return sum(1 for r in bn if hoort_bij(r, sleutel)
+                   and _t(pv.cell(r, st).value).lower().startswith(('verkocht', 'getransporteer')))
+
     def uit_prijslijst(sleutel, kolnaam):
         if not sleutel or 'type' not in hd or kolnaam not in hd:
             return None
@@ -282,6 +290,22 @@ def omzetten(oud, uit, project=None):
         for i, r in enumerate(termijnen, 1):
             d.rij('CF - opbrengsten', S.plan(k, i), val(o_v, r - t['d']), okeys)
         d.rij('CF - opbrengsten', S.vk_rij(k), val(o_v, t['verkoop']), okeys, alleen_q=True)
+        # verkoop in de jaarkolom van het lopende jaar (bijvoorbeeld '2026' terwijl het kwartaalraster pas in 2027
+        # begint): wat Salesforce nog niet als verkocht telt, komt in het huidige kwartaal (anders valt het weg en kunnen
+        # die woningen nooit getransporteerd worden)
+        if act_max:
+            hk = act_max + 1
+            jaar_nu = (hk - 1) // 4
+            in_jaar = sum(_n(o_v.cell(t['verkoop'], c).value) for c in oc
+                          if not okeys.get(c) and _t(o_v.cell(ob['euro_kop'], c).value).split('.')[0] == str(jaar_nu))
+            sf = sf_verkocht(sleutel)
+            extra = in_jaar - sf
+            kh = d.kol(hk)
+            if extra > 0 and kh and kh != S.C_ACT:
+                cel = O.cell(S.vk_rij(k), kh)
+                cel.value = _n(cel.value) + extra
+                log.append('type %d (%s): %d verkocht in %d volgens het oude FO, %d volgens Salesforce: %d in het huidige '
+                           'kwartaal gezet' % (k, naam, in_jaar, jaar_nu, sf, extra))
         if not sleutel:
             O['D%d' % S.vk_rij(k)] = _n(o_v.cell(t['verkoop'], 4).value)
         d.rij('CF - opbrengsten', S.oz_rij(k, 0), val(o_v, t['koop']), okeys)
@@ -306,7 +330,11 @@ def omzetten(oud, uit, project=None):
             K['F%d' % b] = _n(kv.cell(kop_r - 1, 6).value)
             kkeys = sleutels(kv, kop_r - 1, kop_r, ci(ko['eerste']), ci(ko['laatste']))
             kc = range(ci(ko['eerste']), ci(ko['laatste']) + 1)
-            kterm = [r for r in krows if 'meerwerk' not in _t(kv.cell(r, 2).value).lower()][:S.NTERM]
+            # termijnrijen: geen kopersmeerwerk (ook niet als de naam een formule zonder opgeslagen waarde is) en
+            # hooguit zoveel als het type termijnen heeft aan de opbrengstenkant
+            kf_ = wf['CF - kosten']
+            kterm = [r for r in krows if 'meerwerk' not in (_t(kv.cell(r, 2).value) + ' ' + _t(kf_.cell(r, 2).value)).lower()
+                     and _t(kv.cell(r, 2).value)][:min(S.NTERM, len(termijnen) or S.NTERM)]
             for i, r in enumerate(kterm, 1):
                 K['C%d' % S.kterm(k, i)] = _n(kv.cell(r, 3).value)
                 kw = {c: kv.cell(r, c).value for c in kc}
