@@ -112,12 +112,14 @@ Public Sub VerborgenTabbladen()
     For i = LBound(namen) To UBound(namen)
         Set ws = Nothing
         Set ws = ThisWorkbook.Worksheets(CStr(namen(i)))
-        If Not ws Is Nothing Then If ws.Visible <> xlSheetVisible Then tonen = True
+        If Not ws Is Nothing Then
+            If ws.Visible <> -1 Then tonen = True                    ' -1 = xlSheetVisible
+        End If
     Next i
     For i = LBound(namen) To UBound(namen)
         Set ws = Nothing
         Set ws = ThisWorkbook.Worksheets(CStr(namen(i)))
-        If Not ws Is Nothing Then ws.Visible = IIf(tonen, xlSheetVisible, xlSheetHidden)
+        If Not ws Is Nothing Then ws.Visible = IIf(tonen, -1, 0)      ' -1 zichtbaar, 0 verborgen
     Next i
     actief.Activate
     On Error GoTo 0

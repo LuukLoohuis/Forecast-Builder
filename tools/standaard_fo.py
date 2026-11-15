@@ -1076,7 +1076,7 @@ def maak_prijslijst(ws, wbn=None):
         sl_ = 'SUBSTITUTE(Prijslijst!$C$%d:$C$%d,"; ",";")' % (P_TYPE1, P_TYPE1 + NT - 1)
         m_ = lambda c: 'MATCH(1,INDEX(($%s%d<>"")*ISNUMBER(SEARCH(";"&$%s%d&";",";"&%s&";")),0),0)' % (c, r, c, r, sl_)
         ex_ = lambda c: 'IF($%s%d="",NA(),MATCH($%s%d&"",INDEX(Prijslijst!$C$%d:$C$%d&"",0),0))' % (c, r, c, r, P_TYPE1, P_TYPE1 + NT - 1)
-        zet(ws, 'U%d' % r, '=IF($A%d="","",IFERROR(%s,IFERROR(%s,IFERROR(%s,IFERROR(%s,IFERROR(MATCH("~*",$C$%d:$C$%d,0),""))))))'
+        zet(ws, 'U%d' % r, '=IF($A%d="","",IFERROR(%s,IFERROR(%s,IFERROR(%s,IFERROR(%s,IFERROR(MATCH("~*",Prijslijst!$C$%d:$C$%d,0),""))))))'
             % (r, ex_('C'), m_('C'), ex_('B'), m_('B'), P_TYPE1, P_TYPE1 + NT - 1), FB, None, '0')
     zet(ws, 'U1', '=HYPERLINK("#\'Prijslijst\'!A1","← Aansluiting opbrengsten")', Font(name='Heijmans-Light', size=9, color='FFFFFFFF', underline='single'), DONKER)
     ws.column_dimensions['A'].width = 14
