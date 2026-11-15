@@ -1254,7 +1254,6 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     ' Salesforce nog niet als verkocht telt (t/m nu), komt in het huidige kwartaal; anders valt het weg en kunnen die
     ' woningen nooit getransporteerd worden (zoals Python)
     If pAct > 0 Then
-        Application.Calculate
         hkQ = pAct + 1: jNuV = (hkQ - 1) \ 4
         khK = KolStd(hkQ, k1)
         For i = 1 To nKop
@@ -1266,7 +1265,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                         If Tk(wO.Cells(euro, c).Value) = CStr(jNuV) Then inJaarV = inJaarV + Nk(wO.Cells(vkRijT(i), c).Value)
                     End If
                 Next c
-                extraV = inJaarV - Nk(wD.Cells(VK_RIJ + 2 * i - 1, C_ACT).Value)
+                extraV = inJaarV - Nk(wO.Cells(vkRijT(i), 4).Value)      ' kolom 'Verkocht' van het verkooptempo (zoals Python)
                 If extraV > 0 Then
                     wD.Cells(VK_RIJ + 2 * i - 1, khK).Value = Nk(wD.Cells(VK_RIJ + 2 * i - 1, khK).Value) + extraV
                     lg = lg & "- type " & i & ": " & extraV & " verkocht in " & jNuV & " volgens het oude FO, nog niet in Salesforce: in het huidige kwartaal gezet" & vbCrLf

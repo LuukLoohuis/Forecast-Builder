@@ -183,14 +183,6 @@ def omzetten(oud, uit, project=None):
         k_ = sls.index(str(sleutel).strip().lower()) + 1 if str(sleutel).strip().lower() in sls else None
         return k_ is not None and type_van(r) == k_
 
-    def sf_verkocht(sleutel):
-        """aantal bouwnummers van het type met status verkocht of getransporteerd in de prijslijst van het oude FO"""
-        st = next((c for k_, c in hd.items() if 'status' in k_), None)
-        if not sleutel or st is None or 'type' not in hd:
-            return 0
-        return sum(1 for r in bn if hoort_bij(r, sleutel)
-                   and _t(pv.cell(r, st).value).lower().startswith(('verkocht', 'getransporteer')))
-
     def uit_prijslijst(sleutel, kolnaam):
         if not sleutel or 'type' not in hd or kolnaam not in hd:
             return None
@@ -298,13 +290,13 @@ def omzetten(oud, uit, project=None):
             jaar_nu = (hk - 1) // 4
             in_jaar = sum(_n(o_v.cell(t['verkoop'], c).value) for c in oc
                           if not okeys.get(c) and _t(o_v.cell(ob['euro_kop'], c).value).split('.')[0] == str(jaar_nu))
-            sf = sf_verkocht(sleutel)
+            sf = _n(o_v.cell(t['verkoop'], 4).value)     # kolom 'Verkocht' van het verkooptempo (uit Salesforce)
             extra = in_jaar - sf
             kh = d.kol(hk)
             if extra > 0 and kh and kh != S.C_ACT:
                 cel = O.cell(S.vk_rij(k), kh)
                 cel.value = _n(cel.value) + extra
-                log.append('type %d (%s): %d verkocht in %d volgens het oude FO, %d volgens Salesforce: %d in het huidige '
+                log.append('type %d (%s): %d verkocht in %d volgens het oude FO, %d verkocht volgens het verkooptempo: %d in het huidige '
                            'kwartaal gezet' % (k, naam, in_jaar, jaar_nu, sf, extra))
         if not sleutel:
             O['D%d' % S.vk_rij(k)] = _n(o_v.cell(t['verkoop'], 4).value)
