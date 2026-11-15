@@ -1077,7 +1077,7 @@ def maak_prijslijst(ws, wbn=None):
             else:
                 fd = None
             zet(ws, 'D%d' % r, fd, F, GRIJS if lab in uit else GEEL, NUM)
-            zet(ws, 'F%d' % r, '=B%d' % r, F, None, NUM)
+            zet(ws, 'F%d' % r, '=N(B%d)' % r, F, None, NUM)
             zet(ws, 'G%d' % r, '=N(D%d)-N(F%d)' % (r, r), FB, None, NUM)
             zet(ws, 'H%d' % r, '=F%d+G%d' % (r, r), F, None, NUM)
             zet(ws, 'I%d' % r, '=N(D%d)-H%d' % (r, r), F, None, NUM)
