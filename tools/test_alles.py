@@ -575,7 +575,10 @@ def t_export(lo, export=None):
                 a, b = orig[r][c], na[r][c]
                 if r <= 14 and c == 1:
                     continue
-                gelijk = (abs((a or 0) - (b or 0)) < 0.006 if isinstance(a, float) or isinstance(b, float) and a == '' else a == b)
+                if isinstance(a, float) or (isinstance(b, float) and a == ''):
+                    gelijk = isinstance(a or 0, (int, float)) and isinstance(b or 0, (int, float)) and abs((a or 0) - (b or 0)) < 0.006
+                else:
+                    gelijk = a == b
                 if not gelijk:
                     fout.append('%s%d: %r -> %r' % (chr(65 + c), r + 1, a, b))
         pew1 = [pew.getCellByPosition(6, r).getValue() for r in (19, 26)]
