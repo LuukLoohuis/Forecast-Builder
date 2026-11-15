@@ -126,6 +126,81 @@ Public Sub VerborgenTabbladen()
     MsgBox IIf(tonen, "Getoond: ", "Verborgen: ") & Join(namen, ", ") & ".", vbInformation, "Verborgen tabbladen"
 End Sub
 
+' ---- Speelveld: schuifjes ------------------------------------------------------------------------------------------
+' Per parameter (rij 6-18) een schuifbalk naast de gele cel D. De verborgen kolommen H-L houden de stand (H = formule op D),
+' het minimum (I), het maximum (J), de offset (K) en de stap (L): D = (stand - offset) * stap.
+Public Sub SpeelveldSchuifjes()
+    Dim ws As Worksheet, r As Long, shp As Shape, naam As String
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("Speelveld")
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Sub
+    On Error Resume Next
+    For r = 6 To 18
+        naam = "sv_" & r
+        Set shp = Nothing
+        Set shp = ws.Shapes(naam)
+        If shp Is Nothing Then
+            Set shp = ws.Shapes.AddFormControl(8, ws.Range("F" & r).Left + 2, ws.Range("F" & r).Top + 2, ws.Range("F" & r).Width - 4, ws.Range("F" & r).Height - 4)   ' 8 = schuifbalk
+            shp.Name = naam
+            shp.Placement = 2
+        End If
+        With shp.ControlFormat
+            .Min = CLng(Val(CStr(ws.Range("I" & r).Value)))
+            .Max = CLng(Val(CStr(ws.Range("J" & r).Value)))
+            .SmallChange = 1
+            .LargeChange = 2
+            .Value = CLng(Val(CStr(ws.Range("H" & r).Value)))
+        End With
+        shp.OnAction = "SpeelveldSchuif"
+    Next r
+    If Not BestaatKnop(ws, "btnSpeelveldBasis") Then Knop ws, "F3", "btnSpeelveldBasis", "Terug naar basis", "SpeelveldBasis", RGB(91, 97, 105)
+    On Error GoTo 0
+End Sub
+
+Public Sub SpeelveldSchuif()
+    ' schuifje verschoven: de waarde in de gele cel
+    Dim ws As Worksheet, r As Long, stand As Double
+    On Error GoTo Klaar
+    Set ws = ThisWorkbook.Worksheets("Speelveld")
+    r = CLng(Mid$(CStr(Application.Caller), 4))
+    stand = ws.Shapes(CStr(Application.Caller)).ControlFormat.Value
+    Application.EnableEvents = False
+    ws.Range("D" & r).Value = (stand - Val(CStr(ws.Range("K" & r).Value))) * Val(CStr(ws.Range("L" & r).Value))
+Klaar:
+    Application.EnableEvents = True
+End Sub
+
+Public Sub SpeelveldSchuifjesBijwerken()
+    ' na typen in de gele cellen: de schuifjes op de nieuwe stand
+    Dim ws As Worksheet, r As Long
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("Speelveld")
+    For r = 6 To 18
+        ws.Shapes("sv_" & r).ControlFormat.Value = CLng(Val(CStr(ws.Range("H" & r).Value)))
+    Next r
+    On Error GoTo 0
+End Sub
+
+Public Sub SpeelveldBasis()
+    ' alles terug naar de basis (geen verschuivingen, rente van het Dashboard)
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("Speelveld")
+    Application.EnableEvents = False
+    ws.Range("D6:D18").ClearContents
+    Application.EnableEvents = True
+    SpeelveldSchuifjesBijwerken
+    On Error GoTo 0
+End Sub
+
+Private Function BestaatKnop(ws As Worksheet, naam As String) As Boolean
+    Dim shp As Shape
+    On Error Resume Next
+    Set shp = ws.Shapes(naam)
+    BestaatKnop = Not shp Is Nothing
+End Function
+
 Public Sub PlakkenHuidig()
     Plakken RIJ_HUIDIG
 End Sub
