@@ -57,6 +57,7 @@ Public Sub StartKnoppen()
     Knop ws, "J6:J8", "btnOudFO", "Oud FO inlezen...", "OudFOInlezen", grijs
     Knop ws, "K6:K8", "btnNieuwKwartaal", "Nieuw kwartaal starten", "NieuwKwartaalStarten", grijs
     Knop ws, "J9:K11", "btnPowerPoint", "PowerPoint maken", "PowerPointMaken", donker
+    Knop ws, "J12:K13", "btnVerborgen", "Verborgen tabbladen tonen / verbergen", "VerborgenTabbladen", grijs
     Knop ws, "J" & RIJ_VORIG, "btnPlakVorig", "Plakken", "PlakkenVorig", donker
     Knop ws, "K" & RIJ_VORIG, "btnLeesVorig", "Inlezen...", "InlezenVorig", grijs
     Knop ws, "J" & RIJ_HUIDIG, "btnPlakHuidig", "Plakken", "PlakkenHuidig", donker
@@ -100,6 +101,29 @@ End Sub
 Public Sub PlakkenVorig()
     Plakken RIJ_VORIG
 End Sub
+Public Sub VerborgenTabbladen()
+    ' naslag- en invoertabbladen die normaal verborgen zijn: CF vorig en huidig (vorige prognose met de hand), Bouwnummers
+    ' (prijslijst per bouwnummer), Woningtypes en Scenario kosten (scenariomodel), en de exports. Staat er één verborgen,
+    ' dan worden ze allemaal getoond; anders worden ze allemaal verborgen. De rekenbladen (Model, Invoer, ...) blijven verborgen.
+    Dim namen As Variant, i As Long, ws As Worksheet, tonen As Boolean, actief As Worksheet
+    namen = Array("CF vorig en huidig", "Bouwnummers", "Woningtypes", "Scenario kosten", "FO - vorig", "FO - huidig", "FO - actuals", "Prijslijst dump")
+    Set actief = ActiveSheet
+    On Error Resume Next
+    For i = LBound(namen) To UBound(namen)
+        Set ws = Nothing
+        Set ws = ThisWorkbook.Worksheets(CStr(namen(i)))
+        If Not ws Is Nothing Then If ws.Visible <> xlSheetVisible Then tonen = True
+    Next i
+    For i = LBound(namen) To UBound(namen)
+        Set ws = Nothing
+        Set ws = ThisWorkbook.Worksheets(CStr(namen(i)))
+        If Not ws Is Nothing Then ws.Visible = IIf(tonen, xlSheetVisible, xlSheetHidden)
+    Next i
+    actief.Activate
+    On Error GoTo 0
+    MsgBox IIf(tonen, "Getoond: ", "Verborgen: ") & Join(namen, ", ") & ".", vbInformation, "Verborgen tabbladen"
+End Sub
+
 Public Sub PlakkenHuidig()
     Plakken RIJ_HUIDIG
 End Sub
@@ -975,15 +999,16 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         If kopP > 0 Then
             kType = KolNaam(ws, kopP, "type")
             If LCase$(Tk(ws.Range("A1").Value)) Like "datum*" Then wP.Range("C1").Value = ws.Range("C1").Value
-            wP.Range(wP.Cells(P_BN1, 1), wP.Cells(P_BNN, 3)).ClearContents
+            Set wBn = ThisWorkbook.Worksheets("Bouwnummers")          ' prijslijst per bouwnummer: eigen tabblad
+            wBn.Range(wBn.Cells(P_BN1, 1), wBn.Cells(P_BNN, 3)).ClearContents
             ReDim bn(1 To ws.UsedRange.Rows.Count + 10)
             For r = kopP + 1 To ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
                 If Len(Tk(ws.Cells(r, 1).Value)) > 0 And nBn < P_BNN - P_BN1 + 1 Then
                     nBn = nBn + 1: bn(nBn) = r
-                    wP.Cells(P_BN1 + nBn - 1, 1).Value = ws.Cells(r, 1).Value
+                    wBn.Cells(P_BN1 + nBn - 1, 1).Value = ws.Cells(r, 1).Value
                     For Each x In Array("termijnen / blok|2", "type|3", "kadastrale kosten|10", "bouwrente|17", "aanvullende rente|18", "korting|19")
                         c = KolNaam(ws, kopP, CStr(Split(x, "|")(0)))
-                        If c > 0 Then wP.Cells(P_BN1 + nBn - 1, CLng(Split(x, "|")(1))).Value = ws.Cells(r, c).Value
+                        If c > 0 Then wBn.Cells(P_BN1 + nBn - 1, CLng(Split(x, "|")(1))).Value = ws.Cells(r, c).Value
                     Next x
                 End If
             Next r
@@ -1006,6 +1031,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         Next r
     End If
     Dim typeNaam As String, viaParke As Boolean, viaCommerc As Boolean, overslaan As Boolean
+    Dim wBn As Worksheet
     Dim vkR As Long, vkGebruikt As String, vkRijT(1 To 20) As Long, inJaarV As Double, extraV As Double, hkQ As Long, jNuV As Long, khK As Long
     ReDim ov1(1 To C_Q1 + NQ): ReDim ov2(1 To C_Q1 + NQ): ReDim ovp(1 To C_Q1 + NQ): ReDim ovc(1 To C_Q1 + NQ)
     ' EUR-blokken per type ('Termijnen n in EUR'): een type met woningen maar zonder bedragen daar (parkeren, commercieel)

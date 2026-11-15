@@ -150,16 +150,17 @@ def omzetten(oud, uit, project=None):
             if pv.cell(r, 1).value in (None, ''):
                 continue
             bn.append(r)
+        B = wb[S.SH_BN]                      # prijslijst per bouwnummer: eigen tabblad
         for i, r in enumerate(bn[:S.P_BNN - S.P_BN1 + 1]):
             rr = S.P_BN1 + i
-            P['A%d' % rr] = pv.cell(r, 1).value
+            B['A%d' % rr] = pv.cell(r, 1).value
             for naam, col in (('termijnen / blok', 'B'), ('type', 'C'), ('kadastrale kosten', 'J'), ('bouwrente', 'Q'),
                               ('aanvullende rente', 'R'), ('korting', 'S')):
                 if naam in hd:
                     v = pf.cell(r, hd[naam]).value
                     if isinstance(v, str) and v.startswith('='):
                         v = pv.cell(r, hd[naam]).value      # formule (zoals de kadastrale kosten): de waarde
-                    P['%s%d' % (col, rr)] = v
+                    B['%s%d' % (col, rr)] = v
         log.append('prijslijst: %d bouwnummers' % len(bn))
 
     def type_van(r):

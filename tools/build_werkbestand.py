@@ -42,6 +42,7 @@ LAYOUT = [
     ('FO - actuals', 'fo', 'FO - actuals', 'shFOActuals'),
     ('Prijslijst dump', 'fo', 'Prijslijst dump', 'shPrijslijstDump'),
     ('Prijslijst', 'fo', 'Prijslijst', 'shPrijslijst'),
+    ('Bouwnummers', 'fo', 'Bouwnummers', 'shBouwnummers'),
     ('Aansluiting opbrengsten', 'fo', 'Aansluiting opbrengsten', 'shAansluiting'),
     ('CF - opbrengsten', 'fo', 'CF - opbrengsten', 'shCFOpbrengsten'),
     ('CF - kosten', 'fo', 'CF - kosten', 'shCFKostenFO'),
@@ -65,7 +66,8 @@ VERVALLEN = {'1. Cashflow', '3. Restant bdgt', '2. Ontw PEW', '2B. Ontw PEW', 'N
              'Toelichting onderlegger', '1. Ontw businessc FD', '5. K&R businessc'}    # 2. Ontw PEW komt in een nieuw jasje
 VERBORGEN = {'Invoer', 'Woningtypes', 'Scenario kosten', 'Model',   # rekenbladen van het scenariomodel: alles is formule
              'PowerPoint', 'Controle oud FO', 'Behind the scens',
-             '2B. Ontw PEW'}                                         # zichtbaar zodra het project DAEB-woningen heeft (macro)
+             '2B. Ontw PEW',                                         # zichtbaar zodra het project DAEB-woningen heeft (macro)
+             'Bouwnummers', 'CF vorig en huidig'}                    # naslag: knop 'Verborgen tabbladen' op Start
 VBA_STD = ['CashflowNaarPowerPoint', 'FOWerkbestand']
 DEMO = {'project': 'Parkzoom', 'oplevering': (2028, 3), 'startbouw': (2027, 2),
         'dia10': [('Meest recente FD', 'SKO', 'Inclusief uitruilregeling'),

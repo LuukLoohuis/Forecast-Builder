@@ -154,7 +154,8 @@ def p_aans(k):                           # titel 'Vergelijking excl. BTW - type 
 
 
 P_SAP = p_aans(NT) + P_BLOK            # ruimte voor 'te boeken in SAP' (de bouw zet het hier)
-P_BN_KOP = P_SAP + 110                  # kop per bouwnummer
+SH_BN = 'Bouwnummers'                   # verborgen tabblad met de prijslijst per bouwnummer (zoals de oude Prijslijst)
+P_BN_KOP = 3                             # kop per bouwnummer op tabblad Bouwnummers
 P_BN1, P_BNN = P_BN_KOP + 1, P_BN_KOP + 500
 # per type: kolommen 'uit prijslijst', 'handmatig' (overschrijft), 'gebruikt'
 P_UIT = {'aantal': 'D', 'grond': 'E', 'aanneemsom': 'F', 'kao': 'G', 'kmw': 'H', 'kad': 'I', 'bouwrente': 'J',
@@ -410,8 +411,8 @@ def maak_opbrengsten(ws):
         zet(ws, '%s%d' % (c, VK), t, FB, KOP)
     zet(ws, '%s%d' % (CHK, VK), 'Check', FB, KOP)
     s_bn = '$%s$%d:$%s$%d' % (P_BN['status'], P_BN1, P_BN['status'], P_BNN)
-    w_bn = 'Prijslijst!$%s$%d:$%s$%d' % (P_BN['wt'], P_BN1, P_BN['wt'], P_BNN)
-    tel = lambda k, st_: 'COUNTIFS(%s,%d,Prijslijst!%s,"%s")' % (w_bn, k, s_bn, st_)
+    w_bn = '%s!$%s$%d:$%s$%d' % (SH_BN, P_BN['wt'], P_BN1, P_BN['wt'], P_BNN)
+    tel = lambda k, st_: 'COUNTIFS(%s,%d,%s!%s,"%s")' % (w_bn, k, SH_BN, s_bn, st_)
     FI = Font(name='Heijmans-Light', size=10, color='FF4B5563')
     for k in range(1, NT + 1):
         for r, lab, sf in ((vk_rij(k), '=%s&" · verkocht"' % pl('$B$%d' % (P_TYPE1 + k - 1)),
@@ -435,7 +436,7 @@ def maak_opbrengsten(ws):
             zet(ws, '%s%d' % (c, r), '=' + '+'.join('%s%d' % (c, x) for x in rijen), FB, TOTAAL, '0' if c in 'CDE' else AANT)
         zet(ws, 'F%d' % r, '=IF(N(C%d)=0,"",D%d/C%d)' % (r, r, r), FB, TOTAAL, '0%')
     # bron zichtbaar: de statussen in de Salesforce-export (Prijslijst dump), per bouwnummer gekoppeld op Prijslijst
-    st_ = lambda x: 'COUNTIF(Prijslijst!%s,"%s")' % (s_bn, x)
+    st_ = lambda x: 'COUNTIF(%s!%s,"%s")' % (SH_BN, s_bn, x)
     zet(ws, 'B%d' % (TT_TOT + 1), '=HYPERLINK("#\'Prijslijst dump\'!A1","t/m nu uit Salesforce (Prijslijst dump): "&%s&" verkocht · "&'
                                   '%s&" getransporteerd · "&%s&" in optie · "&%s&" te koop  →")'
         % (st_('Verkocht'), st_('Getransporteer*'), st_('In optie'), st_('Te koop')),
@@ -806,7 +807,7 @@ def p_uit_kao(k):
 
 
 # ===================================================================================================
-def maak_prijslijst(ws):
+def maak_prijslijst(ws, wbn=None):
     """dashboard: kaarten, woningtypes (prijslijst / handmatig / gebruikt / kans), grafieken, aansluiting per type met het
     termijnschema; daaronder (door de bouw) 'te boeken in SAP' en de prijslijst per bouwnummer"""
     from openpyxl.chart import BarChart, Reference
@@ -880,7 +881,7 @@ def maak_prijslijst(ws):
         zet(ws, '%s%d' % (L(1 + i), t1 - 1), t, FB, LICHT)
         ws['%s%d' % (L(1 + i), t1 - 1)].alignment = Alignment(wrap_text=True, vertical='center')
     ws.row_dimensions[t1 - 1].height = 32
-    rng = lambda c: '$%s$%d:$%s$%d' % (c, P_BN1, c, P_BNN)
+    rng = lambda c: '%s!$%s$%d:$%s$%d' % (SH_BN, c, P_BN1, c, P_BNN)
     for k in range(1, NT + 1):
         r = P_TYPE1 + k - 1
         zet(ws, 'A%d' % r, k, FB)
@@ -1038,7 +1039,12 @@ def maak_prijslijst(ws):
         if L(c) != P_TERM_NAAM:
             ws.column_dimensions[L(c)].width = 14
     navigatie(ws, 'E1', 'H1')
-    # per bouwnummer (zoals de oude Prijslijst)
+    # per bouwnummer (zoals de oude Prijslijst): eigen, verborgen tabblad Bouwnummers (naslag; knop op Start toont het)
+    pr = ws
+    ws = wbn
+    zet(ws, 'A1', 'BOUWNUMMERS · prijslijst per bouwnummer (naslag; de aansluiting per woningtype staat op Aansluiting opbrengsten)', FW, DONKER)
+    for cc in range(2, 23):
+        ws.cell(1, cc).fill = DONKER
     kb_ = ['Bouwnummer', 'Termijnen / Blok', 'Type', 'SF: Grondkosten start verkoop (incl. Kad)', 'SF: Aanneemsom start verkoop',
            'SF: VON start verkoop', 'SF: Totaal woonwensen in VON', 'SF: Totaal woonwensen in OB', 'SF: Status',
            'Kadastrale kosten', 'Grondkosten start verkoop (facturatie)', 'Aanneemsom start verkoop', 'VON start verkoop',
@@ -1067,14 +1073,18 @@ def maak_prijslijst(ws):
         zet(ws, 'T%d' % r, '=IF($A%d="","",N(J%d)+N(K%d)+N(O%d)+N(P%d)+N(Q%d)+N(R%d))' % (r, r, r, r, r, r, r), F, None, NUM)
         # bij welk woningtype dit bouwnummer hoort (precies één): eerst op de kolom Type, dan op Termijnen / blok, dan '*';
         # bij meerdere passende types het eerste
-        sl_ = 'SUBSTITUTE($C$%d:$C$%d,"; ",";")' % (P_TYPE1, P_TYPE1 + NT - 1)
+        sl_ = 'SUBSTITUTE(Prijslijst!$C$%d:$C$%d,"; ",";")' % (P_TYPE1, P_TYPE1 + NT - 1)
         m_ = lambda c: 'MATCH(1,INDEX(($%s%d<>"")*ISNUMBER(SEARCH(";"&$%s%d&";",";"&%s&";")),0),0)' % (c, r, c, r, sl_)
-        ex_ = lambda c: 'IF($%s%d="",NA(),MATCH($%s%d&"",INDEX($C$%d:$C$%d&"",0),0))' % (c, r, c, r, P_TYPE1, P_TYPE1 + NT - 1)
+        ex_ = lambda c: 'IF($%s%d="",NA(),MATCH($%s%d&"",INDEX(Prijslijst!$C$%d:$C$%d&"",0),0))' % (c, r, c, r, P_TYPE1, P_TYPE1 + NT - 1)
         zet(ws, 'U%d' % r, '=IF($A%d="","",IFERROR(%s,IFERROR(%s,IFERROR(%s,IFERROR(%s,IFERROR(MATCH("~*",$C$%d:$C$%d,0),""))))))'
             % (r, ex_('C'), m_('C'), ex_('B'), m_('B'), P_TYPE1, P_TYPE1 + NT - 1), FB, None, '0')
-    ws.column_dimensions['A'].width = 26
-    ws.column_dimensions['B'].width = 24
-    ws.freeze_panes = 'A3'
+    zet(ws, 'U1', '=HYPERLINK("#\'Prijslijst\'!A1","← Aansluiting opbrengsten")', Font(name='Heijmans-Light', size=9, color='FFFFFFFF', underline='single'), DONKER)
+    ws.column_dimensions['A'].width = 14
+    ws.column_dimensions['B'].width = 18
+    for c in range(3, 23):
+        ws.column_dimensions[L(c)].width = 14
+    ws.freeze_panes = 'B%d' % P_BN1
+    ws.sheet_properties.tabColor = '9CA3AF'
 
 
 # ===================================================================================================
@@ -1159,7 +1169,7 @@ def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=No
         del wb[n]
     maak_opbrengsten(wb.create_sheet('CF - opbrengsten'))
     maak_kosten(wb.create_sheet('CF - kosten'))
-    maak_prijslijst(wb['Prijslijst'])
+    maak_prijslijst(wb['Prijslijst'], wb.create_sheet(SH_BN, wb.sheetnames.index('Prijslijst') + 1))
     for n in ('CF - hulp VENA', '1. Cashflow'):
         i = wb.sheetnames.index(n)
         wb.remove(wb[n])
