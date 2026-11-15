@@ -142,6 +142,23 @@ def vba_lint(tekst):
                     fout.append('%d: in %s een toewijzing aan functie %s' % (nr, huidig, a.group(1)))
     if huidig:
         fout.append('einde bestand: %s niet afgesloten' % huidig)
+    # een lokale variabele gebruikt vóór de Dim-regel: Excel (Option Explicit) compileert de module dan niet
+    gebruikt = None
+    for nr, r in enumerate(regels, 1):
+        code = re.sub(r"'.*$", '', re.sub(r'"[^"]*"', '""', r))
+        if re.match(r'\s*(?:Public |Private |Friend )?(?:Static )?(?:Sub|Function|Property \w+) ', code, re.I):
+            gebruikt = {}
+            continue
+        if gebruikt is None:
+            continue
+        m = re.match(r'\s*Dim\s+(.*)', code, re.I)
+        if m:
+            for d in re.findall(r'(?:^|,)\s*(\w+)', m.group(1)):
+                if d.lower() in gebruikt:
+                    fout.append('%d: %s gebruikt op regel %d, vóór de Dim' % (nr, d, gebruikt[d.lower()]))
+        else:
+            for w in re.findall(r'\b([A-Za-z_]\w*)\b', code):
+                gebruikt.setdefault(w.lower(), nr)
     return fout
 
 

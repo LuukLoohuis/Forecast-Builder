@@ -870,6 +870,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     Dim bn() As Long, nBn As Long, x As Variant, basis As Double, tr As Long, t As Long, ov2() As Double, ov1() As Double, ovp() As Double, ovc() As Double, _
         euR(1 To 20) As Long, nEu As Long, eind As Long, heeftOv1 As Boolean, heeftOv2 As Boolean
     Dim regels As Variant, ond As Long, kr As Long, kb As Long, ksl As Variant, kc2 As Long
+    Dim wBn As Worksheet
 
     Set wO = ZoekBlad(wbO, "CF - opbrengsten")
     If wO Is Nothing Then
@@ -1033,7 +1034,6 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         Next r
     End If
     Dim typeNaam As String, viaParke As Boolean, viaCommerc As Boolean, overslaan As Boolean
-    Dim wBn As Worksheet
     Dim vkR As Long, vkGebruikt As String, vkRijT(1 To 20) As Long, inJaarV As Double, extraV As Double, hkQ As Long, jNuV As Long, khK As Long
     ReDim ov1(1 To C_Q1 + NQ): ReDim ov2(1 To C_Q1 + NQ): ReDim ovp(1 To C_Q1 + NQ): ReDim ovc(1 To C_Q1 + NQ)
     ' EUR-blokken per type ('Termijnen n in EUR'): een type met woningen maar zonder bedragen daar (parkeren, commercieel)
