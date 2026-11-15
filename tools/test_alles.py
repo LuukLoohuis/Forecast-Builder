@@ -275,7 +275,7 @@ def t_scenarios(doc):
         return list(itertools.accumulate(waarde(m_, 'AL%d' % r) for r in range(8, 68)))
     bereken()
     zonder = scenariolijn()
-    p.getCellRangeByName('Y13').setValue(0.5)
+    p.getCellRangeByName('Y%d' % S.P_TYPE1).setValue(0.5)
     bereken()
     extra, netto = waarde(o, 'D%d' % (S.KT + 2)), waarde(o, 'D%d' % (S.KT + 4))
     ok('kans grondtermijn 50%: extra grondtermijn eerder, netto 0 over de looptijd', extra > 0 and abs(netto) < 1,
@@ -291,7 +291,7 @@ def t_scenarios(doc):
     ok('kans grondtermijn uit de scenariolijn (Dashboard Y27 = nee): scenariolijn als zonder kans',
        max(abs(a - b) for a, b in zip(zonder, uit)) < 1 and not tekst(m_, 'BY71').endswith('kans grond'))
     d_.getCellRangeByName('Y27').setString('ja')
-    p.getCellRangeByName('Y13').setString('')
+    p.getCellRangeByName('Y%d' % S.P_TYPE1).setString('')
     # parkeren naar rato van de bouwtermijnen
     cel = 'D%d' % (S.p_aans(1) + 2 + S.P_REGELS.index('Opbrengsten parkeren'))
     p.getCellRangeByName(cel).setValue(1000000)
@@ -323,12 +323,12 @@ def t_scenarios(doc):
        'verkocht %.1f%% · %s' % (pct * 100, status))
     p.getCellRangeByName('C1').setFormula(c1)
     # overlappende sleutels: elk bouwnummer bij één type
-    c13 = tekst(p, 'C13')
-    p.getCellRangeByName('C13').setString('*')
+    c13 = tekst(p, 'C%d' % S.P_TYPE1)
+    p.getCellRangeByName('C%d' % S.P_TYPE1).setString('*')
     bereken()
-    a1, a2, tot = waarde(p, 'D13'), waarde(p, 'D14'), waarde(p, 'D%d' % (S.P_TYPE1 + S.NT))
+    a1, a2, tot = waarde(p, 'D%d' % S.P_TYPE1), waarde(p, 'D%d' % (S.P_TYPE1 + 1)), waarde(p, 'D%d' % (S.P_TYPE1 + S.NT))
     ok('overlappende sleutels (* en APP): geen dubbeltelling', (a1, a2, tot) == (53, 24, 77), '%d + %d = %d' % (a1, a2, tot))
-    p.getCellRangeByName('C13').setString(c13)
+    p.getCellRangeByName('C%d' % S.P_TYPE1).setString(c13)
     bereken()
 
 
@@ -396,6 +396,71 @@ def t_zonder_prijslijst():
        all(abs(b - d_) < 1 and abs(g) < 1 and abs(h - b) < 1 and j == 'OK' for b, d_, g, h, j in regels)
        and tot is not None and abs(tot - 3500000) < 1 and 'geen prijslijst' in str(p['E%d' % a].value),
        'opbrengsten type 1 %s (SKO 3500000), kop: %s' % (tot, p['E%d' % a].value))
+
+
+def t_sko_invoer():
+    """leeg sjabloon: SKO per woningtype met categorie, termijnschema met kwartalen na start bouw en een kostenbudget op
+    Aansluiting opbrengsten -> planning, opbrengsten en kosten vanzelf; start bouw later -> alle termijnen schuiven mee"""
+    import tempfile
+    import openpyxl
+    from xlsxpkg import Package, Sheet, SST
+    from openpyxl.utils import column_index_from_string as ci_, get_column_letter as L_
+    uitkomst = []
+    for sb_q in (2, 3):
+        tmp = tempfile.mkdtemp(prefix='sko_')
+        k, k2, d = (os.path.join(tmp, x) for x in ('k.xlsm', 'k2.xlsm', 'd.xlsx'))
+        controleer.testkopie(SJABLOON, k)
+        pkg = Package(k)
+        sst = SST(pkg.x('xl/sharedStrings.xml'))
+        part = pkg.sheet_part('Aansluiting opbrengsten')
+        sh = Sheet(pkg.x(part), sst)
+        a = S.p_aans(1)
+        cel = [('B%d' % S.P_TYPE1, 'Grondgebonden')]
+        for i, (naam, n, von, grond, term) in enumerate((('Rij A', 6, 400000 * 1.21, 60000, 340000),
+                                                          ('Rij B', 4, 500000 * 1.21, 80000, 420000))):
+            r = S.SKO1 + i
+            cel += [('%s%d' % (S.SKO['naam'], r), naam), ('%s%d' % (S.SKO['cat'], r), 1), ('%s%d' % (S.SKO['aantal'], r), n),
+                    ('%s%d' % (S.SKO['von'], r), von), ('%s%d' % (S.SKO['grond'], r), grond), ('%s%d' % (S.SKO['termijnen'], r), term)]
+        cel += [('%s%d' % (S.P_TERM_NAAM, a + 2), 'Start bouw'), ('%s%d' % (S.P_TERM_PCT, a + 2), 0.5), ('%s%d' % (S.P_TERM_KW, a + 2), 0),
+                ('%s%d' % (S.P_TERM_NAAM, a + 3), 'Oplevering'), ('%s%d' % (S.P_TERM_PCT, a + 3), 0.5), ('%s%d' % (S.P_TERM_KW, a + 3), 2),
+                ('%s%d' % (S.P_SB_J, a + 2), 2027), ('%s%d' % (S.P_SB_Q, a + 2), sb_q), ('%s%d' % (S.P_KBUDGET, a + 5), 3000000)]
+        for ref, v in cel:
+            sh.set_value(ref, v)
+        pkg.put(part, sh.t)
+        po = pkg.sheet_part('CF - opbrengsten')                # verkocht en getransporteerd (nodig voor de opbrengsten)
+        so = Sheet(pkg.x(po), sst)
+        so.set_value('%s%d' % (S.QCOLS[2], S.vk_rij(1)), 10)
+        so.set_value('%s%d' % (S.QCOLS[3], S.tt_rij(1)), 10)
+        pkg.put(po, so.t)
+        sst.finish()
+        pkg.put('xl/sharedStrings.xml', sst.t)
+        pkg.save(k2)
+        controleer.doorrekenen(k2, d)
+        wb = openpyxl.load_workbook(d, data_only=True)
+        p, o, kk = wb['Aansluiting opbrengsten'], wb['CF - opbrengsten'], wb['CF - kosten']
+        jaar = o['D3'].value
+        kol = lambda key: L_(ci_(S.QCOLS[0]) + key - (jaar * 4 + 1))
+        plan1 = {c: o['%s%d' % (c, S.plan(1, 1))].value for c in S.QCOLS if isinstance(o['%s%d' % (c, S.plan(1, 1))].value, (int, float)) and o['%s%d' % (c, S.plan(1, 1))].value}
+        plan2 = {c: o['%s%d' % (c, S.plan(1, 2))].value for c in S.QCOLS if isinstance(o['%s%d' % (c, S.plan(1, 2))].value, (int, float)) and o['%s%d' % (c, S.plan(1, 2))].value}
+        tot = next((o['D%d' % r].value for r in range(1, 80) if str(o['B%d' % r].value or '').startswith('Totaal opbrengsten type 1')), None)
+        kos = kk['D%d' % S.k_aanneem(1)].value if hasattr(S, 'k_aanneem') else None
+        uitkomst.append({'plan1': plan1, 'plan2': plan2, 'verwacht1': kol(2027 * 4 + sb_q), 'verwacht2': kol(2027 * 4 + sb_q + 2),
+                         'aantal': p['S%d' % S.P_TYPE1].value, 'sko_grond': p['B%d' % (a + 2)].value, 'sko_aanneem': p['B%d' % (a + 3)].value,
+                         'pew': p['H%d' % (a + 2 + len(S.P_REGELS))].value, 'status': p['J%d' % a].value, 'tot': tot,
+                         'kosten': sum(v for c in S.COLS for v in [kk['%s%d' % (c, S.k_aanneem(1))].value] if isinstance(v, (int, float)))})
+    u0, u1 = uitkomst
+    sko = 6 * 400000 + 4 * 500000
+    ok('SKO per woningtype → categorie: aantal, SKO, PEW en opbrengsten (zonder prijslijst)',
+       u0['aantal'] == 10 and abs(u0['sko_grond'] - 680000) < 1 and abs(u0['sko_aanneem'] - 3720000) < 1
+       and abs(u0['pew'] - sko) < 1 and u0['status'] == 'OK' and abs(u0['tot'] - sko) < 1,
+       'aantal %s, grond %s, aanneemsom %s, PEW %s, %s, opbrengsten %s' % (u0['aantal'], u0['sko_grond'], u0['sko_aanneem'],
+                                                                          u0['pew'], u0['status'], u0['tot']))
+    ok('termijnen: kwartalen na start bouw → planning in het juiste kwartaal; start bouw later → alles schuift mee',
+       u0['plan1'] == {u0['verwacht1']: 10} and u0['plan2'] == {u0['verwacht2']: 10}
+       and u1['plan1'] == {u1['verwacht1']: 10} and u1['plan2'] == {u1['verwacht2']: 10} and u1['verwacht1'] != u0['verwacht1'],
+       'Q2: %s / %s · Q3: %s / %s' % (u0['plan1'], u0['plan2'], u1['plan1'], u1['plan2']))
+    ok('kosten: budget en % per termijn op Aansluiting opbrengsten → CF - kosten (aanneemsom)', abs(u0['kosten'] - 3000000) < 1,
+       'aanneemsom kosten %s' % u0['kosten'])
 
 
 def t_gedeelde_formules():
@@ -754,6 +819,7 @@ def main():
     t_palet_werkbestand()
     t_gedeelde_formules()
     t_zonder_prijslijst()
+    t_sko_invoer()
     t_dianummers()
     t_bereik_en_totaal()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')

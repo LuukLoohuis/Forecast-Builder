@@ -1261,110 +1261,8 @@
   "standaard": true,
   "aansluiting": [
    {
-    "titel": 43,
-    "naam": "type 1",
-    "corr": "G",
-    "regels": [
-     [
-      45,
-      "Grond + Ontwikkelkosten"
-     ],
-     [
-      46,
-      "Aanneemsom"
-     ],
-     [
-      47,
-      "VON verhogingen"
-     ],
-     [
-      48,
-      "KAO opties"
-     ],
-     [
-      49,
-      "Korting"
-     ],
-     [
-      50,
-      "Kopersmeerwerk"
-     ],
-     [
-      51,
-      "Kadastrale kosten"
-     ],
-     [
-      52,
-      "Bouwrente"
-     ],
-     [
-      53,
-      "Aanvullende rente"
-     ],
-     [
-      54,
-      "Opbrengsten commercieel"
-     ],
-     [
-      55,
-      "Opbrengsten parkeren"
-     ]
-    ]
-   },
-   {
-    "titel": 58,
-    "naam": "type 2",
-    "corr": "G",
-    "regels": [
-     [
-      60,
-      "Grond + Ontwikkelkosten"
-     ],
-     [
-      61,
-      "Aanneemsom"
-     ],
-     [
-      62,
-      "VON verhogingen"
-     ],
-     [
-      63,
-      "KAO opties"
-     ],
-     [
-      64,
-      "Korting"
-     ],
-     [
-      65,
-      "Kopersmeerwerk"
-     ],
-     [
-      66,
-      "Kadastrale kosten"
-     ],
-     [
-      67,
-      "Bouwrente"
-     ],
-     [
-      68,
-      "Aanvullende rente"
-     ],
-     [
-      69,
-      "Opbrengsten commercieel"
-     ],
-     [
-      70,
-      "Opbrengsten parkeren"
-     ]
-    ]
-   },
-   {
     "titel": 73,
-    "naam": "type 3",
+    "naam": "type 1",
     "corr": "G",
     "regels": [
      [
@@ -1415,7 +1313,7 @@
    },
    {
     "titel": 88,
-    "naam": "type 4",
+    "naam": "type 2",
     "corr": "G",
     "regels": [
      [
@@ -1466,7 +1364,7 @@
    },
    {
     "titel": 103,
-    "naam": "type 5",
+    "naam": "type 3",
     "corr": "G",
     "regels": [
      [
@@ -1517,7 +1415,7 @@
    },
    {
     "titel": 118,
-    "naam": "type 6",
+    "naam": "type 4",
     "corr": "G",
     "regels": [
      [
@@ -1565,9 +1463,111 @@
       "Opbrengsten parkeren"
      ]
     ]
+   },
+   {
+    "titel": 133,
+    "naam": "type 5",
+    "corr": "G",
+    "regels": [
+     [
+      135,
+      "Grond + Ontwikkelkosten"
+     ],
+     [
+      136,
+      "Aanneemsom"
+     ],
+     [
+      137,
+      "VON verhogingen"
+     ],
+     [
+      138,
+      "KAO opties"
+     ],
+     [
+      139,
+      "Korting"
+     ],
+     [
+      140,
+      "Kopersmeerwerk"
+     ],
+     [
+      141,
+      "Kadastrale kosten"
+     ],
+     [
+      142,
+      "Bouwrente"
+     ],
+     [
+      143,
+      "Aanvullende rente"
+     ],
+     [
+      144,
+      "Opbrengsten commercieel"
+     ],
+     [
+      145,
+      "Opbrengsten parkeren"
+     ]
+    ]
+   },
+   {
+    "titel": 148,
+    "naam": "type 6",
+    "corr": "G",
+    "regels": [
+     [
+      150,
+      "Grond + Ontwikkelkosten"
+     ],
+     [
+      151,
+      "Aanneemsom"
+     ],
+     [
+      152,
+      "VON verhogingen"
+     ],
+     [
+      153,
+      "KAO opties"
+     ],
+     [
+      154,
+      "Korting"
+     ],
+     [
+      155,
+      "Kopersmeerwerk"
+     ],
+     [
+      156,
+      "Kadastrale kosten"
+     ],
+     [
+      157,
+      "Bouwrente"
+     ],
+     [
+      158,
+      "Aanvullende rente"
+     ],
+     [
+      159,
+      "Opbrengsten commercieel"
+     ],
+     [
+      160,
+      "Opbrengsten parkeren"
+     ]
+    ]
    }
   ],
-  "aansluiting_max": 131,
+  "aansluiting_max": 161,
   "prijslijst": null,
   "ingevoegd": []
  },

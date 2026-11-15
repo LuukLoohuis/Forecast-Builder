@@ -319,7 +319,7 @@ def omzetten(oud, uit, project=None):
         if krows:
             kop_r = krows[0] - 1
             b = S.kb(k)
-            K['D%d' % b] = _n(kv.cell(kop_r - 1, 4).value)
+            P['%s%d' % (S.P_KBUDGET, S.p_aans(k) + 5)] = _n(kv.cell(kop_r - 1, 4).value)   # budget kosten: Aansluiting opbrengsten
             K['F%d' % b] = _n(kv.cell(kop_r - 1, 6).value)
             kkeys = sleutels(kv, kop_r - 1, kop_r, ci(ko['eerste']), ci(ko['laatste']))
             kc = range(ci(ko['eerste']), ci(ko['laatste']) + 1)

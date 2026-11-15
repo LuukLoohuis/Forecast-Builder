@@ -1387,7 +1387,8 @@ Private Sub KostenOmzetten(ByVal wbO As Workbook, ByVal wO As Worksheet, ByVal i
     Next c
     ksl = KwSleutels(wKo, kr - 1, kr, 7, kc2)
     kb = 3 + KBLOK * (i - 1)
-    wK.Cells(kb, 4).Value = Nk(wKo.Cells(kr - 1, 4).Value)
+    ' budget aanneemsom (kosten): op Aansluiting opbrengsten (kolom Q, rij blok + 5); CF - kosten rekent ermee
+    ThisWorkbook.Worksheets(SH_AANSL).Cells(P_AANS1 + P_BLOK * (i - 1) + 5, 17).Value = Nk(wKo.Cells(kr - 1, 4).Value)
     wK.Cells(kb, 6).Value = Nk(wKo.Cells(kr - 1, 6).Value)
     For j = 1 To n
         If j > NTERM Then Exit For
