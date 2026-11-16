@@ -10,5 +10,4 @@ Private Sub Workbook_Open()
     On Error Resume Next
     CashflowNaarPowerPoint.KnoppenControleren
     FOWerkbestand.StartKnoppen
-    FOWerkbestand.SpeelveldSchuifjes
 End Sub

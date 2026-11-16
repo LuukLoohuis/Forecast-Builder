@@ -474,73 +474,6 @@ def t_sko_invoer():
        'aanneemsom kosten %s' % u0['kosten'])
 
 
-def t_speelveld(doc):
-    """tab Speelveld stuurt Scenario 1: leeg = basis; start bouw type 1, tempo, verkoop, rente, opbrengsten % werken"""
-    import nieuwe_bladen as NB
-    from openpyxl.utils import column_index_from_string as ci
-    sv, m, inv = doc.Sheets.getByName('Speelveld'), doc.Sheets.getByName('Model'), doc.Sheets.getByName('Invoer')
-
-    def zet(k, v):
-        c = sv.getCellRangeByName(NB.speelveld_cel(k).replace('$', ''))
-        c.setString('') if v is None else c.setValue(v)
-
-    def leeg():
-        for k in [x[0] for x in NB.SPEELVELD]:
-            zet(k, None)
-        doc.calculateAll()
-
-    def kol(c):
-        return [m.getCellRangeByName('%s%d' % (c, r)).getValue() for r in range(8, 68)]
-    leeg()
-    basis = (waarde(m, 'BY20'), waarde(m, 'BY18'))
-    s1 = (waarde(m, 'BY201'), waarde(m, 'BY196'))
-    ok('Speelveld leeg: Scenario 1 = basis (eindsaldo, dieptepunt)', abs(basis[0] - s1[0]) < 1 and abs(basis[1] - s1[1]) < 1
-       and waarde(m, 'BY360') == 0, 'basis %s · speelveld %s' % (basis, s1))
-    # start bouw type 1 + 2: bouwtermijnen van type 1 later, totaal gelijk
-    nr0 = kol('NR')
-    zet('sb1', 2)
-    doc.calculateAll()
-    nr1 = kol('NR')
-    eerste = lambda xs: next((i for i, x in enumerate(xs) if x > 1e-9), None)
-    ok('Speelveld start bouw type 1 +2 kw: bouwtermijnen type 1 twee kwartalen later', eerste(nr0) is not None
-       and eerste(nr1) is not None and eerste(nr1) > eerste(nr0) and waarde(m, 'BY360') == 1,
-       'eerste termijn op positie %s -> %s' % (eerste(nr0), eerste(nr1)))
-    leeg()
-    # verkooptempo -50%: uitverkocht later, totaal verkocht gelijk
-    mx0 = [sum(m.getCellByPosition(c, r).getValue() for c in range(ci('MX') - 1, ci('NG'))) for r in range(7, 67)]
-    zet('tempo', -0.5)
-    doc.calculateAll()
-    mx1 = [sum(m.getCellByPosition(c, r).getValue() for c in range(ci('MX') - 1, ci('NG'))) for r in range(7, 67)]
-    vol = lambda xs: next((i for i, x in enumerate(xs) if x >= max(xs) - 1e-6), None)
-    ok('Speelveld verkooptempo −50%: uitverkocht later, zelfde aantal woningen', max(mx0) > 0 and abs(max(mx1) - max(mx0)) < 1e-6
-       and vol(mx1) > vol(mx0), 'uitverkocht op positie %s -> %s, totaal %s / %s' % (vol(mx0), vol(mx1), max(mx0), max(mx1)))
-    leeg()
-    # verkoop +2: eerste verkoop later
-    zet('vk', 2)
-    doc.calculateAll()
-    mx2 = [sum(m.getCellByPosition(c, r).getValue() for c in range(ci('MX') - 1, ci('NG'))) for r in range(7, 67)]
-    stijg = lambda xs, ref: next((i for i, (a, b) in enumerate(zip(xs, ref)) if abs(a - b) > 1e-6), None)
-    ok('Speelveld verkoop +2 kw: verkoop later', stijg(mx2, mx0) is not None and mx2[stijg(mx2, mx0)] < mx0[stijg(mx2, mx0)],
-       'eerste afwijking op positie %s' % stijg(mx2, mx0))
-    leeg()
-    # rente 5%: rente > 0 en hoger dan bij 2%
-    zet('rente', 0.02)
-    doc.calculateAll()
-    r2 = waarde(m, 'BY202')
-    zet('rente', 0.05)
-    doc.calculateAll()
-    r5 = waarde(m, 'BY202')
-    ok('Speelveld rente: 5% geeft meer rente dan 2%', r5 > r2 > 0, 'rente 2%%: %.0f · 5%%: %.0f' % (r2, r5))
-    leeg()
-    # opbrengsten +10%: prognose-omzet +10%
-    o0 = sum(kol('MM'))
-    zet('opbr', 0.1)
-    doc.calculateAll()
-    o1 = sum(kol('MM'))
-    ok('Speelveld opbrengsten +10%: meer opbrengsten', o1 > o0, 'opbrengsten %.0f -> %.0f' % (o0, o1))
-    leeg()
-
-
 def t_gedeelde_formules():
     """het sjabloon bewaart doorgetrokken formules als gedeelde formule (kleiner, sneller openen); de opbouw klopt"""
     import zipfile
@@ -920,7 +853,6 @@ def main():
             ok('PowerPoint-module compileert en de knoppen worden gezet', False, str(e)[:200])
         vba_doc.close(True)
         t_scenarios(demo)
-        t_speelveld(demo)
         demo.close(True)
         if a.fo:
             eigen = os.path.join(lo.tmp, 'eigen.xlsm')

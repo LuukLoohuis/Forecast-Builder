@@ -870,103 +870,6 @@ def maak_sjabloon(wb):
     return ws
 
 
-# ---- Speelveld: scenario met schuifjes (stuurt Scenario 1 in het Model) -------------------------------------------
-# rij, label, eenheid/uitleg, getalnotatie, schuifje (min, max, offset, stap): invoer = (schuifje - offset) * stap
-SPEELVELD_RIJ1 = 6
-SPEELVELD = [
-    ('sb', 'Start bouw · hele project', 'kwartalen later (+) of eerder (−); termijnen en kosten "start bouw" schuiven mee', '+0;-0;0', (0, 12, 4, 1)),
-] + [('sb%d' % k, None, 'kwartalen; alleen de bouwtermijnen van dit type', '+0;-0;0', (0, 12, 4, 1)) for k in range(1, 7)] + [
-    ('opl', 'Oplevering · extra', 'kwartalen; de laatste termijn van elk type (bijv. oplevering)', '+0;-0;0', (0, 12, 4, 1)),
-    ('vk', 'Verkoop en transport', 'kwartalen later (+) of eerder (−)', '+0;-0;0', (0, 16, 8, 1)),
-    ('tempo', 'Verkooptempo', '−50% = half zo snel (uitverkocht later), +50% = sneller; zelfde aantal woningen', '+0%;-0%;0%', (0, 20, 10, 0.05)),
-    ('rente', 'Rente per jaar', 'leeg = de rente op het Dashboard (W6)', '0.00%', (0, 40, 0, 0.0025)),
-    ('opbr', 'Opbrengsten', 'op alle prognose-opbrengsten (indexatie)', '+0%;-0%;0%', (0, 40, 20, 0.01)),
-    ('kost', 'Kosten', 'op alle prognosekosten', '+0%;-0%;0%', (0, 40, 20, 0.01)),
-]
-
-
-def speelveld_cel(sleutel):
-    """cel met de invoer van een parameter op tab Speelveld (kolom D)"""
-    return '$D$%d' % (SPEELVELD_RIJ1 + [x[0] for x in SPEELVELD].index(sleutel))
-
-
-def maak_speelveld(wb):
-    """tab 'Speelveld': parameters met een schuifje (de macro maakt de schuifjes; zonder macro's typ je in de gele cellen),
-    de uitkomst basis -> speelveld en de grafiek. Het Model rekent het speelveld als Scenario 1 (zie build_werkbestand)."""
-    from openpyxl.chart import LineChart, Reference
-    import standaard_fo as S
-    ws = wb.create_sheet('Speelveld')
-    ws.sheet_view.showGridLines = False
-    for k, v in {'A': 3, 'B': 34, 'C': 14, 'D': 12, 'E': 62, 'F': 30, 'G': 3}.items():
-        ws.column_dimensions[k].width = v
-    cell(ws, 'A1', '=HYPERLINK("#Start!A1","← Start")', Font(name='Heijmans-BoldCon', size=10, color='FF003366', underline='single'))
-    cell(ws, 'B2', 'Speelveld · scenario met schuifjes', F_TITLE)
-    cell(ws, 'B3', 'Schuif of typ in de gele cellen: de uitkomst en de grafiek rekenen direct mee. Het speelveld is Scenario 1 '
-                   '(tab Scenario\'s); de lijn staat ook in de cashflowgrafiek op het Dashboard. "Terug naar basis" zet alles op 0.', F_NOTE)
-    section(ws, SPEELVELD_RIJ1 - 1, 'PARAMETERS', 2, 6)
-    for i, (sl, lab, uitleg, fmt, (mn, mx, off, stap)) in enumerate(SPEELVELD):
-        r = SPEELVELD_RIJ1 + i
-        if lab is None:
-            k = int(sl[2:])
-            lab = '="Start bouw · type %d "&IF(Prijslijst!$B$%d="","",Prijslijst!$B$%d)' % (k, S.P_TYPE1 + k - 1, S.P_TYPE1 + k - 1)
-        cell(ws, 'B%d' % r, lab, F_BOLD)
-        cell(ws, 'D%d' % r, None, F_BOLD, FILL_INPUT, fmt, Alignment(horizontal='center'))
-        cell(ws, 'E%d' % r, uitleg, F_NOTE)
-        # hulp voor het schuifje (verborgen kolommen H-K): stand, minimum, maximum, offset, stap
-        for c, v in zip('HIJKL', ('=IFERROR(MAX(%d,MIN(%d,ROUND(N(D%d)/%s,0)+%d)),%d)' % (mn, mx, r, stap, off, off), mn, mx, off, stap)):
-            cell(ws, '%s%d' % (c, r), v, F_HELP)
-        ws.row_dimensions[r].height = 20
-    rz = SPEELVELD_RIJ1 + len(SPEELVELD)
-    cell(ws, 'B%d' % rz, 'Kosten schuiven alleen mee met de start bouw van het hele project (het model kent geen kosten per type).', F_NOTE)
-    for c in 'HIJKL':
-        ws.column_dimensions[c].hidden = True
-    # uitkomst
-    u = rz + 2
-    section(ws, u, 'UITKOMST · basis → speelveld', 2, 6)
-    for c, h in zip('BCDE', ('', 'Basis', 'Speelveld', 'Verschil')):
-        cell(ws, '%s%d' % (c, u + 1), h, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center'))
-    regels = [('Dieptepunt (max. financiering)', '=Model!$BY$18', '=Model!$BY$196', NUM),
-              ('Kwartaal van het dieptepunt', '=Model!$BY$19', '=Model!$BY$198', None),
-              ('Eindsaldo', '=Model!$BY$20', '=Model!$BY$201', NUM),
-              ('Rente (totaal)', '=SUM(Model!$V$8:$V$67)', '=Model!$BY$202', NUM),
-              ('Break-even (cumulatief weer positief)', None, '=Model!$BY$200', None)]
-    for i, (lab, b, s_, fmt) in enumerate(regels):
-        r = u + 2 + i
-        cell(ws, 'B%d' % r, lab, F_BOLD, None, None, None, Border(bottom=THIN))
-        cell(ws, 'C%d' % r, b, F_BASE, None, fmt, Alignment(horizontal='right'), Border(bottom=THIN))
-        cell(ws, 'D%d' % r, s_, F_BOLD, None, fmt, Alignment(horizontal='right'), Border(bottom=THIN))
-        cell(ws, 'E%d' % r, '=IFERROR(D%d-C%d,"")' % (r, r) if fmt else None, F_BASE, None, fmt, Alignment(horizontal='left'),
-             Border(bottom=THIN))
-    # grafiek: cumulatieve cashflow basis en speelveld (× € 1 mln), hulpkolommen N-P
-    for r in range(8, 68):
-        cell(ws, 'N%d' % r, '=IF(Model!$A%d="","",Model!$E%d)' % (r, r), F_HELP)
-        cell(ws, 'O%d' % r, '=IF(Model!$A%d="",NA(),N(Model!$AB%d)/1000000)' % (r, r), F_HELP, None, '0.0')
-        cell(ws, 'P%d' % r, '=IF(Model!$A%d="",NA(),N(Model!$MR%d)/1000000)' % (r, r), F_HELP, None, '0.0')
-    cell(ws, 'O7', 'Basis', F_HELP)
-    cell(ws, 'P7', 'Speelveld', F_HELP)
-    g = LineChart()
-    g.title = 'Cumulatieve cashflow · basis en speelveld (€ mln)'
-    g.add_data(Reference(ws, min_col=15, min_row=7, max_row=67), titles_from_data=True)
-    g.add_data(Reference(ws, min_col=16, min_row=7, max_row=67), titles_from_data=True)
-    g.set_categories(Reference(ws, min_col=14, min_row=8, max_row=67))
-    g.series[0].graphicalProperties.line.solidFill = '003366'
-    g.series[0].graphicalProperties.line.width = 28000
-    g.series[1].graphicalProperties.line.solidFill = 'DC2626'
-    g.series[1].graphicalProperties.line.dashStyle = 'lgDash'
-    g.series[1].graphicalProperties.line.width = 25000
-    g.y_axis.number_format = '#,##0.0'
-    g.y_axis.majorGridlines = None
-    g.x_axis.delete = g.y_axis.delete = False
-    g.legend.position = 'b'
-    g.height, g.width = 9, 24
-    g.visible_cells_only = False
-    ws.add_chart(g, 'B%d' % (u + 9))
-    for c in 'NOP':
-        ws.column_dimensions[c].hidden = True
-    ws.sheet_properties.tabColor = '15803D'
-    return ws
-
-
 def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud, oz, inv_tot, daeb_type, pew_b=None):
     wb = Workbook()
     wb.remove(wb.active)
@@ -975,7 +878,6 @@ def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud, oz, inv_tot, daeb_ty
     info['pew_extra'] = maak_pew(wb, pew_inhoud, oz['pew'])
     maak_pew_b(wb, oz['pew'], pew_b)
     maak_vorige_prognose(wb, oud_cashflow, 'uit ' + oud_bestand)
-    maak_speelveld(wb)
     maak_controle(wb, oud_cashflow, oud_bestand, R['inv_laatste'])
     info['stijlen'] = maak_stijlen(wb)
     maak_sjabloon(wb)

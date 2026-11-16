@@ -48,7 +48,6 @@ LAYOUT = [
     ('CF - kosten', 'fo', 'CF - kosten', 'shCFKostenFO'),
     ('Dashboard', 'sc', 'Dashboard', 'shDashboard'),
     ("Scenario's", 'sc', "Scenario's", 'shScenarios'),
-    ('Speelveld', 'new', 'Speelveld', 'shSpeelveld'),
     ('CF vorig en huidig', 'new', 'CF vorig en huidig', 'shVorigePrognose'),
     ('2. Ontw PEW', 'new', '2. Ontw PEW', 'shOntwPEW'),
     ('2B. Ontw PEW', 'new', '2B. Ontw PEW', 'shOntwPEWB'),
@@ -936,7 +935,6 @@ def main():
             oud = ',%s%d,NA()))' % (bron, r)
             assert f and f.endswith(oud), (kol, r, f)
             sh.set_formula('%s%d' % (kol, r), f[:-len(oud)] + ',%s,NA()))' % pptx_v22.PCT_RIJ, sh.style_of('%s%d' % (kol, r)))
-    speelveld_model(sh)
     # laatste kwartaal (eindsaldo, 'saldo < 0 t/m'): het laatste kwartaal met opbrengsten of kosten, niet het einde van
     # de horizon van het model (anders staat er Q4 '35 terwijl het project in 2028 klaar is)
     f = sh.get('BY33')
@@ -1180,100 +1178,6 @@ def main():
     # ---- PowerPoint-sjabloon v22: v20 + vormnamen (v21) + strakker (pptx_v22) -----------------------------------
     maak_sjabloon(a.pptx, a.pptx_out)
     print('Klaar: ' + a.pptx_out)
-
-
-def speelveld_model(sh):
-    """Model: Scenario 1 rekent ook met de parameters van tab Speelveld (BY343-BY360). Start bouw hele project en per type,
-    oplevering (laatste termijn), verkoop/transport eerder of later, verkooptempo, eigen rente, opbrengsten % en kosten %.
-    Zonder speelveld (alles 0 / leeg) is Scenario 1 precies zoals voorheen."""
-    from openpyxl.utils import get_column_letter as L, column_index_from_string as ci
-    import nieuwe_bladen as NB
-    sv = lambda k: "Speelveld!%s" % NB.speelveld_cel(k)
-    P = {'proj': 'BY343', 'type1': 'BY344', 'opl': 'BY354', 'vk': 'BY355', 'tempo': 'BY356', 'rente': 'BY357', 'opbr': 'BY358',
-         'kost': 'BY359', 'aan': 'BY360'}
-    for r in range(343, 361):
-        assert sh.get('BY%d' % r) is None and sh.get('BX%d' % r) is None, r
-    lab = {343: 'Speelveld: start bouw hele project (kw)', 354: 'Speelveld: oplevering extra (kw)', 355: 'Speelveld: verkoop/transport (kw)',
-           356: 'Speelveld: verkooptempo', 357: 'Speelveld: rente (leeg = BY55)', 358: 'Speelveld: opbrengsten %', 359: 'Speelveld: kosten %',
-           360: 'Speelveld actief (1/0)'}
-    st = sh.style_of('BX180')
-    sh.set_formula('BY343', '=N(%s)' % sv('sb'))
-    for k in range(1, 11):
-        sh.set_formula('BY%d' % (343 + k), '=N(%s)' % sv('sb%d' % k) if k <= 6 else '=0')
-        lab[343 + k] = 'Speelveld: start bouw type %d (kw)' % k
-    sh.set_formula('BY354', '=N(%s)' % sv('opl'))
-    sh.set_formula('BY355', '=N(%s)' % sv('vk'))
-    sh.set_formula('BY356', '=MAX(-0.9,N(%s))' % sv('tempo'))
-    sh.set_formula('BY357', '=IF(%s="",$BY$55,N(%s))' % (sv('rente'), sv('rente')))
-    sh.set_formula('BY358', '=N(%s)' % sv('opbr'))
-    sh.set_formula('BY359', '=N(%s)' % sv('kost'))
-    sh.set_formula('BY360', '=IF(OR($BY$343<>0,SUMPRODUCT(ABS($BY$344:$BY$353))>0,$BY$354<>0,$BY$355<>0,$BY$356<>0,%s<>"",'
-                            '$BY$358<>0,$BY$359<>0),1,0)' % sv('rente'))
-    for r, t in lab.items():
-        sh.set_value('BX%d' % r, t, st)
-
-    def zet(ref, oud, nieuw, n=1):
-        f = sh.get(ref)
-        assert f and f.count(oud) == n, (ref, oud, f)
-        sh.set_formula(ref, f.replace(oud, nieuw), sh.style_of(ref))
-    # start bouw: hele project (BY187) en per type (NR6:OA6)
-    f = sh.get('BY187')
-    assert f.startswith('=IF(OR(IF($BY$180>$BY$9'), f
-    sh.set_formula('BY187', '=' + f[1:] + '+IF($BY$58>=99999,0,$BY$343)', sh.style_of('BY187'))
-    for i in range(10):
-        c = L(ci('NR') + i)
-        zet('%s6' % c, '+$BY$187)', '+$BY$187+$BY$%d)' % (344 + i))
-    # verkoop en transport: verschuiving erbij (BY190, BY192); tempo in de posities MG (verkoop) en MH (transport)
-    for ref in ('BY190', 'BY192'):
-        f = sh.get(ref)
-        sh.set_formula(ref, '=' + f[1:] + '+$BY$355', sh.style_of(ref))
-    for r in range(8, 68):
-        # tempo: het eind van scenariokwartaal t komt overeen met basistijd B = start-1 + (t - (start-1) - verschuiving)*(1+tempo);
-        # MG/MH = positie van B, verkocht/getransporteerd naar rato binnen het kwartaal (zelfde totaal)
-        bt = {'MG': '(IF($BY$148>=99999,F%d-$BY$190,$BY$148-1+(F%d-$BY$148+1-$BY$190)*(1+$BY$356)))' % (r, r),
-              'MH': '(IF($BY$150>=99999,F%d-$BY$192,$BY$150-1+(F%d-$BY$150+1-$BY$192)*(1+$BY$356)))' % (r, r)}
-        zet('MG%d' % r, '(F%d-$BY$190)' % r, bt['MG'])
-        zet('MH%d' % r, '(F%d-$BY$192)' % r, bt['MH'])
-        import re as re2
-        for i in range(20):
-            c = L(ci('MX') + i)
-            ref = '%s%d' % (c, r)
-            f = sh.get(ref)
-
-            def interp(m):
-                rng, pos = m.group(1), '%s%d' % (m.group(2), r)
-                fF = '$F$8:$F$67'
-                return ('(N(INDEX(%s,%s))+IF(%s<$BY$8,(N(INDEX(%s,%s+1))-N(INDEX(%s,%s)))*MAX(0,MIN(1,(%s-INDEX(%s,%s))'
-                        '/MAX(1,INDEX(%s,%s+1)-INDEX(%s,%s)))),0))'
-                        % (rng, pos, pos, rng, pos, rng, pos, bt[m.group(2)], fF, pos, fF, pos, fF, pos))
-            f2, n_ = re2.subn(r'N\(INDEX\((\$[A-Z]+\$8:\$[A-Z]+\$67),(M[GH])%d\)\)' % r, interp, f)
-            assert n_ >= 1, (ref, f)
-            sh.set_formula(ref, f2, sh.style_of(ref))
-        # oplevering: de termijn met het hoogste kw (laatste termijn) van elk type schuift extra
-        for i in range(10):
-            c = L(ci('NR') + i)
-            ref = '%s%d' % (c, r)
-            f = sh.get(ref)
-            import re as re_
-            m = re_.search(r'SUMIF\((INDEX\(Woningtypes!\$A\$16:\$ZZ\$25,0,\d+\)),"<="&\((F\d+-%s\$6\+1)\),(INDEX\(Woningtypes!\$A\$16:\$ZZ\$25,0,\d+\))\)' % c, f)
-            assert m, (ref, f)
-            kw, x, pc = m.group(1), m.group(2), m.group(3)
-            nieuw = ('(SUMIF(%s,"<="&(%s),%s)-SUMIFS(%s,%s,MAX(%s),%s,"<="&(%s))+SUMIFS(%s,%s,MAX(%s),%s,"<="&(%s-$BY$354)))'
-                     % (kw, x, pc, pc, kw, kw, kw, x, pc, kw, kw, kw, x))
-            sh.set_formula(ref, f.replace(m.group(0), nieuw), sh.style_of(ref))
-        # rente, opbrengsten % en kosten %
-        zet('MP%d' % r, '$BY$55', '$BY$357', 2)
-        zet('MM%d' % r, ',ML%d-N(ML%d))' % (r, r - 1), ',(ML%d-N(ML%d))*(1+$BY$358))' % (r, r - 1))
-        f = sh.get('MO%d' % r)
-        assert f == '=IF($A%d="","",MN%d-N(MN%d))' % (r, r, r - 1), f
-        sh.set_formula('MO%d' % r, '=IF($A%d="","",IF(G%d="Prognose",(MN%d-N(MN%d))*(1+$BY$359),MN%d-N(MN%d)))'
-                       % (r, r, r, r - 1, r, r - 1), sh.style_of('MO%d' % r))
-    # aan: Scenario 1 telt als ingevuld en staat in de cashflowgrafiek op het Dashboard; naam 'Speelveld'
-    for ref, voor in (('BY186', '$BY$360=1'), ('BY214', 'AND($BY$360=1,$BY$186=1)')):
-        f = sh.get(ref)
-        sh.set_formula(ref, '=IF(OR(%s,%s=1),1,0)' % (voor, f[1:]), sh.style_of(ref))
-    f = sh.get('BY193')
-    sh.set_formula('BY193', '=IF(AND(TRIM(\'Scenario\'\'s\'!$E$17&"")="",$BY$360=1),"Speelveld",%s)' % f[1:], sh.style_of('BY193'))
 
 
 def grafiekbereik_en_totaal(sheet, save):
