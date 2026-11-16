@@ -280,6 +280,9 @@ def t_scenarios(doc):
     extra, netto = waarde(o, 'D%d' % (S.KT + 2)), waarde(o, 'D%d' % (S.KT + 4))
     ok('kans grondtermijn 50%: extra grondtermijn eerder, netto 0 over de looptijd', extra > 0 and abs(netto) < 1,
        'extra %.0f, netto %.0f' % (extra, netto))
+    pp_ = doc.Sheets.getByName('PowerPoint')
+    kans_rijen = [r for r in range(7, 200) if tekst(pp_, 'F%d' % r) in ('CF_KANS_LABEL', 'CF_KANS_WAARDE')]
+    met_kans = [tekst(pp_, 'D%d' % r) for r in kans_rijen]
     met = scenariolijn()
     hoogste = max(b - a for a, b in zip(zonder, met))
     ok('kans grondtermijn in de scenariolijn (Dashboard Y27 = ja): eerder ontvangen, aan het eind gelijk, naam + kans grond',
@@ -292,6 +295,14 @@ def t_scenarios(doc):
        max(abs(a - b) for a, b in zip(zonder, uit)) < 1 and not tekst(m_, 'BY71').endswith('kans grond'))
     d_.getCellRangeByName('Y27').setString('ja')
     p.getCellRangeByName('Y%d' % S.P_TYPE1).setString('')
+    bereken()
+    zonder_kans = [tekst(pp_, 'D%d' % r) for r in kans_rijen]
+    ok('dia 3: blok kans grondtermijn alleen als er een kans is ingesteld', len(kans_rijen) == 2 and all(met_kans)
+       and not any(zonder_kans), 'met kans %s · zonder %s' % (met_kans, zonder_kans))
+    m2 = doc.Sheets.getByName('Model')
+    ok('eindsaldo: kwartaal = laatste kwartaal met opbrengsten of kosten (niet het einde van de horizon)',
+       tekst(m2, 'BY33') != tekst(m2, 'E%d' % (7 + int(waarde(m2, 'BY8')))) or waarde(m2, 'BY341') >= waarde(m2, 'BY8'),
+       'BY33 %s, einde horizon %s' % (tekst(m2, 'BY33'), tekst(m2, 'E%d' % (7 + int(waarde(m2, 'BY8'))))))
     # parkeren naar rato van de bouwtermijnen
     cel = 'D%d' % (S.p_aans(1) + 2 + S.P_REGELS.index('Opbrengsten parkeren'))
     p.getCellRangeByName(cel).setValue(1000000)

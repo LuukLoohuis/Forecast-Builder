@@ -937,6 +937,15 @@ def main():
             assert f and f.endswith(oud), (kol, r, f)
             sh.set_formula('%s%d' % (kol, r), f[:-len(oud)] + ',%s,NA()))' % pptx_v22.PCT_RIJ, sh.style_of('%s%d' % (kol, r)))
     speelveld_model(sh)
+    # laatste kwartaal (eindsaldo, 'saldo < 0 t/m'): het laatste kwartaal met opbrengsten of kosten, niet het einde van
+    # de horizon van het model (anders staat er Q4 '35 terwijl het project in 2028 klaar is)
+    f = sh.get('BY33')
+    assert f == '=IF($BY$8=0,"–",INDEX($E$8:$E$67,$BY$8))', f
+    act = ('(ISNUMBER($AT$8:$AT$67)*(($AT$8:$AT$67>=0.0005)+($AT$8:$AT$67<=-0.0005))+ISNUMBER($AU$8:$AU$67)*'
+           '(($AU$8:$AU$67>=0.0005)+($AU$8:$AU$67<=-0.0005))>0)')
+    sh.set_formula('BY33', '=IF($BY$8=0,"–",INDEX($E$8:$E$67,IFERROR(MIN($BY$8,LOOKUP(2,1/%s,ROW($AT$8:$AT$67)-7)),$BY$8)))' % act,
+                   sh.style_of('BY33'))
+    sh.set_value('BX33', 'Laatste kwartaal met opbrengsten of kosten', sh.style_of('BX33'))
     save('Model', sh)
     grafiekbereik_en_totaal(sheet, save)
     for blad, ref, oud, nieuw in (('Dashboard', 'E156', 'kopie van dia 8 in het sjabloon', 'kopie van de dia per woningtype'),
@@ -1409,7 +1418,8 @@ def powerpoint_v22(sh, style, r0, d10):
     pew_d = '(%s-%s)' % (P('G', 29), P('F', 29))
     fd, basis = 'Start!$C$%d&""' % d10, 'Start!$C$%d&""' % (d10 + 1)
     rows = [
-        (3, 'Blokje kans grondtermijn · label', 'KANS GRONDTERMIJN', '', 'CF_KANS_LABEL'),
+        (3, 'Blokje kans grondtermijn · label', '=IF(AND(N(%s)=0,N(%s)=0),"","KANS GRONDTERMIJN")' % (W('Z', 85), W('Z', 86)), '',
+         'CF_KANS_LABEL'),
         (9, 'Ondertitel', '="Resultaat "&IF(%s<0,"−","")&"€"&FIXED(ABS(%s)/1000,1)&" mln ("&FIXED(%s*100,1)&"%%) · "&'
                           'IF(ABS(%s)<50,"gelijk aan vorig kwartaal",IF(%s>0,"+","−")&"€"&FIXED(ABS(%s)/1000,1)&'
                           '" mln t.o.v. vorig kwartaal")&IF(AND(Model!$BY$135>0,COUNT(\'2B. Ontw PEW\'!$F$7:$G$26)>0),'
@@ -1429,7 +1439,7 @@ def powerpoint_v22(sh, style, r0, d10):
         vorm = sh.get('F%d' % r)
         if vorm == 'CF_BE_WAARDE':          # dia 3: het vierde blok is de kans grondtermijn (break-even staat al op dia 2)
             sh.set_value('C%d' % r, 'Blokje kans grondtermijn')
-            sh.set('D%d' % r, '=IF(AND(N(%s)=0,N(%s)=0),"geen kans ingesteld",IF(%s<0,"−","+")&"€"&FIXED(ABS(%s)/1000000,1)'
+            sh.set('D%d' % r, '=IF(AND(N(%s)=0,N(%s)=0),"",IF(%s<0,"−","+")&"€"&FIXED(ABS(%s)/1000000,1)'
                               '&"M eerder")' % (W('Z', 85), W('Z', 86), W('Z', 85), W('Z', 85)))
             sh.set_value('F%d' % r, 'CF_KANS_WAARDE')
         elif vorm in ('VP_STAT1_ACCENT', 'VP_STAT3_ACCENT'):
