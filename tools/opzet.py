@@ -216,8 +216,10 @@ def _kosten(f, v, opb):
 
 def _pew(v):
     get = lambda r, c: v.cell(r, c).value
-    kop = next(r for r in range(1, 12) if any(_t(get(r, c)).lower() == 'huidig' for c in range(3, 16)))
-    kol = {_t(get(kop, c)).lower(): L(c) for c in range(3, 16) if _t(get(kop, c))}
+    # koppen 'Vorig' / 'Huidig', ook met het kwartaal erachter ('Huidig Q4 ’26', zoals het werkbestand ze zet)
+    norm = lambda t: t.split()[0] if t.split() and t.split()[0] in ('vorig', 'huidig') else t
+    kop = next(r for r in range(1, 12) if any(norm(_t(get(r, c)).lower()) == 'huidig' for c in range(3, 16)))
+    kol = {norm(_t(get(kop, c)).lower()): L(c) for c in range(3, 16) if _t(get(kop, c))}
     rij = {}
     for r in range(kop + 1, 45):
         t = _t(get(r, 3)).lower()

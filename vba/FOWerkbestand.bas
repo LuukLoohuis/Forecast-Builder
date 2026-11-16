@@ -1574,7 +1574,7 @@ Private Sub PewOmzetten(ByVal wbO As Workbook, ByRef lg As String)
     Set wN = ThisWorkbook.Worksheets("2. Ontw PEW")
     For r = 1 To 12
         For c = 3 To 16
-            If LCase$(Tk(wO.Cells(r, c).Value)) = "huidig" Then kop = r
+            If LCase$(Tk(wO.Cells(r, c).Value)) Like "huidig*" Then kop = r     ' ook "Huidig Q4 '26"
         Next c
         If kop > 0 Then Exit For
     Next r

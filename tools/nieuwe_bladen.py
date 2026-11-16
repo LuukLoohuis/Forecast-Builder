@@ -155,6 +155,8 @@ def maak_start(wb, demo, R):
     cell(ws, 'B2', 'FO-werkbestand', F_TITLE)
     cell(ws, 'B3', 'Eén bestand voor het kwartaal-FO: SAP- en SF-exports erin, prognose kosten en opbrengsten '
                    '(voorstel of handmatig), cashflow, scenario\'s en de PowerPoint.', F_NOTE)
+    cell(ws, 'B4', '=IF(N(F8)=0,"Vul het huidige kwartaal in (rij 8)","Nu: "&E8&" · vorige periode: "&E12&'
+                   '" (FO - vorig = de export van "&E12&", FO - huidig = "&E8&")")', F_BOLD)
     cell(ws, 'G2', 'Legenda', F_BOLD)
     cell(ws, 'H2', 'handmatig invullen', F_BASE, FILL_INPUT)
     cell(ws, 'H3', 'export uit SAP / SF', F_BASE, FILL_SAP)
@@ -429,6 +431,8 @@ def maak_start(wb, demo, R):
 # ================================================================================================
 
 NUM_PEW = '#,##0;-#,##0;"-"'
+PEW_KOP_VORIG = '=IF(N(Start!$F$12)=0,"Vorig","Vorig Q"&Start!$D$12&" ’"&RIGHT(Start!$C$12,2))'
+PEW_KOP_HUIDIG = '=IF(N(Start!$F$8)=0,"Huidig","Huidig Q"&Start!$D$8&" ’"&RIGHT(Start!$C$8,2))'
 
 
 def maak_pew(wb, inhoud, pw):
@@ -473,6 +477,9 @@ def maak_pew(wb, inhoud, pw):
     for c in ['C'] + kols + [toel]:
         cell(ws, '%s%d' % (c, kop), None, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', vertical='center', wrap_text=True))
     ws['C%d' % kop].alignment = Alignment(horizontal='left', vertical='center')
+    # vorig en huidig met het kwartaal (van Start: huidig kwartaal en het kwartaal ervoor)
+    ws['%s%d' % (pw['vorig'], kop)] = PEW_KOP_VORIG
+    ws['%s%d' % (pw['huidig'], kop)] = PEW_KOP_HUIDIG
     ws.row_dimensions[kop].height = 30
     for ref in ('C%d' % (r1 - 1), 'C%d' % (ro[0] - 1)):
         cell(ws, ref, extra[ref], Font(name='Heijmans-BoldCon', size=10, color=Color(theme=6)))
@@ -617,7 +624,7 @@ def maak_pew_b(wb, pw, inhoud=None):
     for c, t in (('F', 'A'), ('G', 'B'), ('H', 'A+B'), ('I', 'A+B')):
         cell(ws, '%s%d' % (c, kop - 1), t, F_HEAD, FILL_SECTION, None, Alignment(horizontal='center'))
     cell(ws, 'N%d' % (kop - 1), 'Toelichting', F_SECTION, FILL_SECTION)
-    koppen = {'C': None, 'E': 'Meest recente FD', 'F': 'Concept SKO DAEB', 'G': 'Concept SKO Niet-DAEB', 'H': 'Vorig', 'I': 'Huidig',
+    koppen = {'C': None, 'E': 'Meest recente FD', 'F': 'Concept SKO DAEB', 'G': 'Concept SKO Niet-DAEB', 'H': PEW_KOP_VORIG, 'I': PEW_KOP_HUIDIG,
               'J': 'Delta huidig vs vorig', 'K': 'Delta huidig vs FD', 'N': None}
     for c, t in koppen.items():
         cell(ws, '%s%d' % (c, kop), t, F_HEAD, FILL_HEAD, None, Alignment(horizontal='center', vertical='center', wrap_text=True))
