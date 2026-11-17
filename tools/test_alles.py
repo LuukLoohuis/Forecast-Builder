@@ -655,6 +655,26 @@ def t_dianummers():
     ok('werkbestand: geen verouderde dianummers in de teksten', not oud, ', '.join(oud))
 
 
+def t_dia3_realisatie():
+    """dia 3: grijs vlak 'gerealiseerd t/m' achter de cashflowgrafiek, tekenvlak vast en gelijk aan de macro"""
+    from pptx import Presentation
+    import pptx_v22
+    pres = Presentation(PPTX)
+    s = pres.slides[2]
+    namen = [sh.name for sh in s.shapes]
+    g = next(sh for sh in s.shapes if sh.name == 'CF_GRAFIEK')
+    C = '{http://schemas.openxmlformats.org/drawingml/2006/chart}'
+    ml = g.chart._chartSpace.find(C + 'chart/' + C + 'plotArea/' + C + 'layout/' + C + 'manualLayout')
+    xywh = tuple(float(ml.find(C + t).get('val')) for t in 'xywh') if ml is not None else None
+    vba = open(os.path.join(ROOT, 'vba', 'CashflowNaarPowerPoint.bas'), encoding='cp1252').read()
+    cx = float(re.search(r'CF_PLOT_X As Double = ([\d.]+)', vba).group(1))
+    cw = float(re.search(r'CF_PLOT_W As Double = ([\d.]+)', vba).group(1))
+    ok('dia 3: grijs vlak gerealiseerd achter de grafiek, tekenvlak vast en gelijk aan de macro',
+       'CF_REALISATIE' in namen and 'CF_REAL_LBL' in namen and namen.index('CF_REALISATIE') < namen.index('CF_GRAFIEK')
+       and xywh == pptx_v22.CF_PLOT and (cx, cw) == (pptx_v22.CF_PLOT[0], pptx_v22.CF_PLOT[2]) and 'SchikGrafiekCF shp' in vba,
+       'vormen %s, tekenvlak %s, macro %s' % ([n for n in namen if n.startswith('CF_REAL')], xywh, (cx, cw)))
+
+
 def t_bereik_en_totaal():
     """grafiekbereik van het Dashboard werkt door in de blokken voor PowerPoint; totaalrij verkoop/transport; afgesloten
     kwartaal = huidig kwartaal - 1"""
@@ -966,6 +986,7 @@ def main():
     t_planning()
     t_naar_rato()
     t_dianummers()
+    t_dia3_realisatie()
     t_bereik_en_totaal()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')
     lo = LO()

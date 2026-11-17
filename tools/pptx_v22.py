@@ -586,9 +586,55 @@ def afwerking(p):
             shp.left = rechts - shp.width
 
 
+CF_PLOT = (0.055, 0.16, 0.935, 0.72)      # tekenvlak CF_GRAFIEK (dia 3) als fractie van het kader: x, y, w, h (= VBA CF_PLOT_*)
+
+
+def dia3_realisatie(p):
+    """dia 3: grijs vlak 'gerealiseerd t/m …' achter de cashflowgrafiek, zoals op dia 2 en 4. Het tekenvlak staat vast
+    (manualLayout), zodat de macro (SchikGrafiekCF) het vlak tot en met het actuals-kwartaal kan laten lopen; de grafiek
+    zelf krijgt geen achtergrond meer (anders valt het vlak erachter weg)"""
+    import copy
+    s = p.slides[2]
+    g = vorm(s, 'CF_GRAFIEK')
+    cs = g.chart._chartSpace
+    C = '{http://schemas.openxmlformats.org/drawingml/2006/chart}'
+    A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
+    sp = cs.find(C + 'spPr')
+    if sp is not None:
+        for f in list(sp):
+            if f.tag in (A + 'solidFill', A + 'noFill', A + 'gradFill'):
+                sp.remove(f)
+        sp.insert(0, etree.SubElement(sp, A + 'noFill'))
+    pa = cs.find(C + 'chart/' + C + 'plotArea')
+    lay = pa.find(C + 'layout')
+    for ch_ in list(lay):
+        lay.remove(ch_)
+    ml = etree.SubElement(lay, C + 'manualLayout')
+    for tag, val in (('layoutTarget', 'inner'), ('xMode', 'edge'), ('yMode', 'edge'), ('x', CF_PLOT[0]), ('y', CF_PLOT[1]),
+                     ('w', CF_PLOT[2]), ('h', CF_PLOT[3])):
+        etree.SubElement(ml, C + tag).set('val', str(val))
+    # vlak en label: kopie van die op dia 4 (zelfde kleur en letter), vóór de grafiek in de volgorde (dus erachter)
+    d4 = p.slides[3]
+    plotL = g.left + int(g.width * CF_PLOT[0])
+    plotT = g.top + int(g.height * CF_PLOT[1])
+    plotW, plotH = int(g.width * CF_PLOT[2]), int(g.height * CF_PLOT[3])
+    n_voorbeeld, nu_voorbeeld = 32, 15             # voorbeeld: 32 kwartalen (Q1 '23 .. Q4 '30), gerealiseerd t/m Q3 '26
+    for bron, naam in (('VS_REALISATIE', 'CF_REALISATIE'), ('VS_REAL_LBL', 'CF_REAL_LBL')):
+        el = copy.deepcopy(vorm(d4, bron)._element)
+        el.find('.//' + '{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr').set('name', naam)
+        el.find('.//' + '{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr').set('id', str(nieuw_id(s)))
+        g._element.addprevious(el)
+    vlak, lbl = vorm(s, 'CF_REALISATIE'), vorm(s, 'CF_REAL_LBL')
+    vlak.left, vlak.top, vlak.height = plotL, plotT, plotH
+    vlak.width = int(plotW * nu_voorbeeld / n_voorbeeld)
+    lbl.left, lbl.top, lbl.width = plotL + cm(0.15), plotT + cm(0.12), cm(5.0)
+    zet_tekst(lbl.text_frame._txBody, 'gerealiseerd t/m Q3 ’26')
+
+
 def maak(p):
     sc_tabel = vorm(p.slides[4], 'SC_TABEL')
     dia3_kans(p)
+    dia3_realisatie(p)
     dia2_labels(p)
     dia_pew(p, sc_tabel)
     palet_en_letters(p)

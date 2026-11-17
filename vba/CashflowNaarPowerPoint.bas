@@ -161,6 +161,9 @@ Private Const CEL_VS_MIN As String = "BY155"       ' Model: waarde-as van VS_GRA
 Private Const CEL_VS_MAX As String = "BY156"
 Private Const CEL_VS_STAP As String = "BY157"
 Private Const CEL_VS_NU As String = "BY171"        ' Model: positie van het 'nu'-kwartaal in het tijdvak van VS_GRAFIEK
+Private Const CF_PLOT_X As Double = 0.055                 ' tekenvlak CF_GRAFIEK (dia 3) als fractie van het kader (pptx_v22.CF_PLOT)
+Private Const CF_PLOT_W As Double = 0.935
+Private Const CEL_CF_START As String = "BY336"     ' Model: positie van de eerste getoonde periode in de cashflowgrafiek
 Private Const VS_PLOT_X As Double = 0.0437
 Private Const VS_PLOT_W As Double = 0.9421
 ' FO-koppeling (Dashboard): bestand, actuals t/m, opbrengsten en kosten totaal uit '1. Cashflow', datum; actuals-knop W5/X5
@@ -1301,6 +1304,42 @@ Private Sub SchikDiaScenarios(pres As Object, wsP As Worksheet)
     On Error GoTo 0
 End Sub
 
+Private Sub SchikGrafiekCF(shp As Object)
+    ' CF_GRAFIEK (dia 3): het grijze vlak CF_REALISATIE (met label CF_REAL_LBL 'gerealiseerd t/m ...') van de linkerrand van het
+    ' tekenvlak tot en met het actuals-kwartaal, zoals op dia 2 en 4. De grafiek heeft staven: kwartaal i (1..n) beslaat
+    ' links + breedte x (CF_PLOT_X + CF_PLOT_W x (i - 1) / n) tot (... x i / n); het tekenvlak staat vast in het sjabloon
+    ' (manualLayout, pptx_v22.CF_PLOT). Geen gerealiseerd kwartaal in het getoonde tijdvak: vlak en label onzichtbaar.
+    Dim dia As Object, vlak As Object, lbl As Object, n As Long, posNu As Long, eerste As Double, ok As Boolean, ok2 As Boolean
+    Dim plotL As Double, plotW As Double
+    On Error Resume Next
+    Set dia = shp.Parent
+    If dia Is Nothing Then Exit Sub
+    Set vlak = VormOpDia(dia, "CF_REALISATIE")
+    Set lbl = VormOpDia(dia, "CF_REAL_LBL")
+    If vlak Is Nothing Then Exit Sub
+    n = AantalRijen(CEL_N, MAX_RIJEN)
+    eerste = ModelGetal(CEL_CF_START, ok)
+    posNu = CLng(ModelGetal(CEL_POS_ACTUALS, ok2) - eerste + 1)
+    If Not ok Or Not ok2 Then posNu = 0
+    If posNu > n Then posNu = n
+    If posNu < 1 Or n < 1 Then
+        vlak.Visible = 0
+        If Not lbl Is Nothing Then lbl.Visible = 0
+        Exit Sub
+    End If
+    plotL = shp.Left + shp.Width * CF_PLOT_X
+    plotW = shp.Width * CF_PLOT_W
+    vlak.Left = plotL
+    vlak.Width = plotW * posNu / n
+    vlak.Visible = -1
+    If Not lbl Is Nothing Then
+        lbl.Left = plotL + 4
+        lbl.Visible = -1
+        lbl.TextFrame.TextRange.Text = "gerealiseerd t/m " & ThisWorkbook.Worksheets(SH_MODEL).Range("BY11").Text
+    End If
+    On Error GoTo 0
+End Sub
+
 Private Sub SchikGrafiekVS(shp As Object, ch As Object)
     ' VS_GRAFIEK (dia 4, sjabloon v18), na het vullen: de waarde-as op Model!BY155..BY157 (minimum, maximum, stap), het grijze vlak
     ' VS_REALISATIE (met het label VS_REAL_LBL) van de linkerrand van het tekenvlak tot het 'nu'-kwartaal (positie in het tijdvak:
@@ -1562,6 +1601,7 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     If vorm = "VP1_GRAFIEK" Or vorm = "VP2_GRAFIEK" Then OpsommingLabels ch, arr, n, IIf(vorm = "VP1_GRAFIEK", 1, 11)
     If vorm = "KPI_GRAFIEK" Then SchikGrafiekDia2 shp, ch
     If vorm = "VS_GRAFIEK" Then SchikGrafiekVS shp, ch
+    If vorm = "CF_GRAFIEK" Then SchikGrafiekCF shp
     wbE.Close
     Set wbE = Nothing
     NoteerGrafiekTijd vorm, tGraf
