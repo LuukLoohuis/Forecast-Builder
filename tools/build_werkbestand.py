@@ -943,6 +943,13 @@ def main():
     sh.set_formula('BY33', '=IF($BY$8=0,"–",INDEX($E$8:$E$67,IFERROR(MIN($BY$8,LOOKUP(2,1/%s,ROW($AT$8:$AT$67)-7)),$BY$8)))' % act,
                    sh.style_of('BY33'))
     sh.set_value('BX33', 'Laatste kwartaal met opbrengsten of kosten', sh.style_of('BX33'))
+    # eindsaldo vorige prognose: de laatste gevulde waarde t/m de laatste periode (de vorige prognose loopt vaak minder
+    # ver door dan het model; daar is Invoer J leeg en gaf N("") 'was €0,0M')
+    f = sh.get('BY35')
+    assert f == '=IF(OR($BY$14=0,$BY$8=0),0,N(INDEX(Invoer!$J$7:$J$500,INDEX($B$8:$B$67,$BY$8)))*1000)', f
+    rng = 'Invoer!$J$7:INDEX(Invoer!$J$7:$J$500,INDEX($B$8:$B$67,$BY$8))'
+    sh.set_formula('BY35', '=IF(OR($BY$14=0,$BY$8=0),0,IFERROR(LOOKUP(2,1/ISNUMBER(%s),%s)*1000,0))' % (rng, rng),
+                   sh.style_of('BY35'))
     save('Model', sh)
     grafiekbereik_en_totaal(sheet, save)
     for blad, ref, oud, nieuw in (('Dashboard', 'E156', 'kopie van dia 8 in het sjabloon', 'kopie van de dia per woningtype'),

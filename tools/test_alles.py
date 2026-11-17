@@ -303,6 +303,25 @@ def t_scenarios(doc):
     ok('eindsaldo: kwartaal = laatste kwartaal met opbrengsten of kosten (niet het einde van de horizon)',
        tekst(m2, 'BY33') != tekst(m2, 'E%d' % (7 + int(waarde(m2, 'BY8')))) or waarde(m2, 'BY341') >= waarde(m2, 'BY8'),
        'BY33 %s, einde horizon %s' % (tekst(m2, 'BY33'), tekst(m2, 'E%d' % (7 + int(waarde(m2, 'BY8'))))))
+    # eindsaldo vorige prognose als die minder ver doorloopt dan het model (Invoer J leeg aan het eind): niet 'was €0,0M'
+    inv = doc.Sheets.getByName('Invoer')
+    if waarde(m2, 'BY14') == 1 and waarde(m2, 'BY8') > 4:
+        jr = 6 + int(waarde(m2, 'B%d' % (7 + int(waarde(m2, 'BY8')))))      # rij in Invoer J van de laatste periode
+        bewaar = {r: inv.getCellRangeByName('J%d' % r).getFormula() for r in range(jr - 3, jr + 1)}
+        for r in bewaar:
+            inv.getCellRangeByName('J%d' % r).setString('')
+        bereken()
+        laatst = next(r for r in range(jr - 4, 6, -1) if inv.getCellRangeByName('J%d' % r).getString() != '')
+        verwacht = waarde(inv, 'J%d' % laatst) * 1000
+        pp_tekst = next((tekst(pp_, 'D%d' % r) for r in range(7, 200) if tekst(pp_, 'F%d' % r) == 'KPI3_WAS'), '')
+        ok('eindsaldo vorige prognose: laatste gevulde kwartaal als de vorige prognose korter is (niet "was €0,0M")',
+           abs(waarde(m2, 'BY35') - verwacht) < 1 and verwacht != 0 and '0,0M' not in pp_tekst,
+           'BY35 %.0f, verwacht %.0f, %s' % (waarde(m2, 'BY35'), verwacht, pp_tekst))
+        for r, f in bewaar.items():
+            inv.getCellRangeByName('J%d' % r).setFormula(f)
+        bereken()
+    else:
+        ok('eindsaldo vorige prognose: demo heeft een vorige prognose', False, 'BY14 %s' % waarde(m2, 'BY14'))
     # parkeren naar rato van de bouwtermijnen
     cel = 'D%d' % (S.p_aans(1) + 2 + S.P_REGELS.index('Opbrengsten parkeren'))
     p.getCellRangeByName(cel).setValue(1000000)
