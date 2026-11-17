@@ -533,6 +533,60 @@ def t_planning():
     ok('planning: onleesbare start bouw → rode melding in kolom A van die rij', a_pi.startswith('FOUT') and 'start bouw' in a_pi, a_pi)
 
 
+def t_naar_rato():
+    """naar rato (parkeren zoals in het oude FO): opbrengsten en kosten van het type volgen die van de gekozen types"""
+    import tempfile
+    import openpyxl
+    from xlsxpkg import Package, Sheet, SST
+    tmp = tempfile.mkdtemp(prefix='rato_')
+    k, k2, d = (os.path.join(tmp, x) for x in ('k.xlsm', 'k2.xlsm', 'd.xlsx'))
+    controleer.testkopie(SJABLOON, k)
+    pkg = Package(k)
+    sst = SST(pkg.x('xl/sharedStrings.xml'))
+    part = pkg.sheet_part('Aansluiting opbrengsten')
+    sh = Sheet(pkg.x(part), sst)
+    a1, a3 = S.p_aans(1), S.p_aans(3)
+    cel = [('B%d' % S.P_TYPE1, 'Woning'), ('B%d' % (S.P_TYPE1 + 2), 'Parkeren')]
+    for i, (naam, cat, n, von) in enumerate((('Woning', 1, 10, 400000), ('Parkeren', 3, 1, 600000))):
+        r = S.SKO1 + i
+        cel += [('%s%d' % (S.SKO['naam'], r), naam), ('%s%d' % (S.SKO['cat'], r), cat), ('%s%d' % (S.SKO['aantal'], r), n),
+                ('%s%d' % (S.SKO['von'], r), von * 1.21), ('%s%d' % (S.SKO['grond'], r), von * 0.2), ('%s%d' % (S.SKO['termijnen'], r), von * 0.8)]
+    for t, (naam, pct) in enumerate((('Start bouw', 0.3), ('Ruwbouw', 0.4), ('Oplevering', 0.3)), 2):
+        cel += [('%s%d' % (S.P_TERM_NAAM, a1 + t), naam), ('%s%d' % (S.P_TERM_PCT, a1 + t), pct)]
+    cel += [('%s%d' % (S.P_KBUDGET, a1 + 5), 3000000), ('%s%d' % (S.P_KBUDGET, a3 + 5), 500000),
+            ('%s%d' % (S.P_RATO, a3 + 7), 'naar rato'), ('%s%d' % (S.P_RATO_TYPES, a3 + 7), '1')]
+    for ref, v in cel:
+        sh.set_value(ref, v)
+    pkg.put(part, sh.t)
+    po = pkg.sheet_part('CF - opbrengsten')
+    so = Sheet(pkg.x(po), sst)
+    so.set_value('D%d' % S.plan_inv(1), 'Q1 2027')
+    so.set_value('E%d' % S.plan_inv(1), 'Q1 2028')
+    for c, n in zip(S.QCOLS[2:7], (2, 2, 2, 2, 2)):
+        so.set_value('%s%d' % (c, S.vk_rij(1)), n)
+        so.set_value('%s%d' % (c, S.tt_rij(1)), n)
+    for c in S.QCOLS[4:6]:              # parkeren: eigen planning en transport die niets mogen doen
+        so.set_value('%s%d' % (c, S.vk_rij(3)), 1 if c == S.QCOLS[4] else None)
+    pkg.put(po, so.t)
+    sst.finish()
+    pkg.put('xl/sharedStrings.xml', sst.t)
+    pkg.save(k2)
+    controleer.doorrekenen(k2, d)
+    wb = openpyxl.load_workbook(d, data_only=True)
+    o, kk = wb['CF - opbrengsten'], wb['CF - kosten']
+    rij = lambda ws, r: {c: ws['%s%d' % (c, r)].value or 0 for c in S.COLS}
+    t1, t3 = rij(o, S.tr(1) + 8), rij(o, S.tr(3) + 8)
+    s1, s3 = sum(t1.values()), sum(t3.values())
+    tot3 = 600000
+    ok_o = abs(s3 - tot3) < 1 and s1 > 0 and all(abs(t3[c] - tot3 * t1[c] / s1) < 1 for c in S.COLS)
+    ok('naar rato: opbrengsten parkeren volgen type 1 per kwartaal (totaal blijft gelijk)', ok_o,
+       'parkeren %.0f, kwartalen %s' % (s3, {c: round(v) for c, v in t3.items() if v}))
+    k1, k3 = rij(kk, S.k_aanneem(1)), rij(kk, S.k_aanneem(3))
+    sk1, sk3 = sum(k1.values()), sum(k3.values())
+    ok('naar rato: kosten parkeren volgen de aanneemsom-kosten van type 1', abs(sk3 - 500000) < 1 and sk1 > 0
+       and all(abs(k3[c] - 500000 * k1[c] / sk1) < 1 for c in S.COLS), 'kosten %.0f' % sk3)
+
+
 def t_gedeelde_formules():
     """het sjabloon bewaart doorgetrokken formules als gedeelde formule (kleiner, sneller openen); de opbouw klopt"""
     import zipfile
@@ -891,6 +945,7 @@ def main():
     t_zonder_prijslijst()
     t_sko_invoer()
     t_planning()
+    t_naar_rato()
     t_dianummers()
     t_bereik_en_totaal()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')

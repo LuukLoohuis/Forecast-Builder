@@ -110,6 +110,10 @@ def _opbrengsten(f, v):
                 break
             plan.append(r)
             r += 1
+        # planning die begint met een rij 'Koopsom' (=B<koopsomrij van het omzetblok>, zoals parkeren / commercieel in
+        # sommige FO's): die rij is geen termijn
+        if plan and d is not None and d == oh + 1 - plan[0]:
+            plan = plan[1:]
         if d is None or (plan and d != oh + 2 - plan[0]):
             d = oh + 2 - (hb + 1)
         tr = r

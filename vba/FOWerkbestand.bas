@@ -870,7 +870,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     Dim bn() As Long, nBn As Long, x As Variant, basis As Double, tr As Long, t As Long, ov2() As Double, ov1() As Double, ovp() As Double, ovc() As Double, _
         euR(1 To 20) As Long, nEu As Long, eind As Long, heeftOv1 As Boolean, heeftOv2 As Boolean
     Dim regels As Variant, ond As Long, kr As Long, kb As Long, ksl As Variant, kc2 As Long
-    Dim wBn As Worksheet
+    Dim wBn As Worksheet, p0 As Long, bronR(1 To 20) As Long
 
     Set wO = ZoekBlad(wbO, "CF - opbrengsten")
     If wO Is Nothing Then
@@ -1074,7 +1074,12 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             Do While Len(Tk(wO.Cells(r, 2).Value)) > 0 And nO < 30
                 nO = nO + 1: oRij(nO) = r: r = r + 1
             Loop
-            d = oRij(2) - (hb + 1)
+            ' planning die begint met een rij 'Koopsom' (=B<koopsomrij van het omzetblok>): die rij is geen termijn
+            p0 = hb + 1
+            If wO.Cells(hb + 1, 2).HasFormula Then
+                If Replace(UCase$(wO.Cells(hb + 1, 2).Formula), "$", "") = "=B" & oRij(1) Then p0 = hb + 2: nPlan = nPlan - 1
+            End If
+            d = oRij(2) - p0
             aantT = 0: kmw25 = 0: kmw75 = 0: kad = 0: nOv = 0
             For j = 2 To nO
                 lab = LCase$(Tk(wO.Cells(oRij(j), 2).Value))
@@ -1082,7 +1087,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                     kmw25 = oRij(j)
                 ElseIf InStr(lab, "meerwerk") > 0 And InStr(lab, "75") > 0 Then
                     kmw75 = oRij(j)
-                ElseIf oRij(j) - d >= hb + 1 And oRij(j) - d <= hb + nPlan Then
+                ElseIf oRij(j) - d >= p0 And oRij(j) - d <= p0 + nPlan - 1 Then
                     If aantT < NTERM Then aantT = aantT + 1: term(aantT) = oRij(j)
                 ElseIf InStr(lab, "kadast") > 0 Or InStr(lab, "rente") > 0 Then
                     kad = oRij(j)
@@ -1137,9 +1142,16 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             ' planning, verkocht, transport, kadastrale kosten
             hb = HB1 + BLOK * (i - 1)                 ' titelrij in dit werkbestand
             tr = hb + NTERM + 1
+            ' bron per termijn: de planningsrij, of de omzetrij als die vaste aantallen heeft (zo factureerde het oude FO)
+            x = False
+            For j = 1 To aantT
+                bronR(j) = term(j) - d
+                If RijVast(wO, term(j), laatste) Then bronR(j) = term(j): x = True
+            Next j
+            If x Then lg = lg & "- type " & i & ": planning uit de omzetrijen van het oude FO (met de hand getypte aantallen, zoals het oude FO factureerde)" & vbCrLf
             For j = 1 To aantT
                 wD.Range(wD.Cells(hb + j, C_ACT), wD.Cells(hb + j, C_Q1 + NQ - 1)).ClearContents
-                RijOver wO, term(j) - d, sl, 7, laatste, wD, hb + j, k1, False, 0, lg
+                RijOver wO, bronR(j), sl, 7, laatste, wD, hb + j, k1, False, 0, lg
             Next j
             ' tabel verkoop en transport: per type verkocht (VK_RIJ + 2i - 1) en getransporteerd (VK_RIJ + 2i); kolom 1
             ' (t/m nu) is een formule op de Salesforce-status, de kwartalen komen uit het oude FO
@@ -1178,7 +1190,13 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                     typeNaam = LCase$(Tk(wP.Cells(P_TYPE1 + i - 1, 2).Value))
                     If (InStr(typeNaam, "parke") > 0 Or InStr(typeNaam, "commerc") > 0) And Nk(wP.Cells(P_TYPE1 + i - 1, 16).Value) > 0 Then
                         If InStr(typeNaam, "parke") > 0 Then viaParke = True Else viaCommerc = True
-                        lg = lg & "- type " & i & ": omzet via het termijnschema van het type; de regel onder Overige opbrengsten van het oude FO is niet overgenomen, de kwartalen kunnen afwijken van het oude FO" & vbCrLf
+                        x = RatoTypes(wO, euro, maxR, laatste, euR, nEu, IIf(nKop < NT, nKop, NT), i, IIf(InStr(typeNaam, "parke") > 0, "parke", "commerc"))
+                        If x <> "" Then
+                            ThisWorkbook.Worksheets(SH_AANSL).Cells(P_AANS1 + P_BLOK * (i - 1) + 7, P_RATO_KOL).Value = "naar rato"
+                            ThisWorkbook.Worksheets(SH_AANSL).Cells(P_AANS1 + P_BLOK * (i - 1) + 7, P_RATO_KOL + 1).Value = "'" & x
+                            lg = lg & "- type " & i & ": naar rato van type " & Replace(x, ";", " en ") & ", zoals in het oude FO (opbrengsten en kosten volgen die types)" & vbCrLf
+                        End If
+                        lg = lg & "- type " & i & ": omzet via het termijnschema van het type; de regel onder Overige opbrengsten van het oude FO is niet overgenomen (anders telt het dubbel)" & vbCrLf
                     Else
                         For j = 2 To 5: wP.Cells(P_TYPE1 + i - 1, 13 + j).Value = 0: Next j
                         lg = lg & "- type " & i & ": geen bedragen in het " & ChrW(8364) & "-blok van het oude FO; de omzet staat onder Overige opbrengsten (prijs 0, de kosten blijven)" & vbCrLf
@@ -1187,7 +1205,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
             End If
             lg = lg & "- type " & i & " (" & wP.Cells(P_TYPE1 + i - 1, 2).Value & "): " & aantT & " termijnen, " & won & " woningen" & vbCrLf
             ' kosten: budget aanneemsom, KAO, % per termijn en eigen planning als die afwijkt
-            KostenOmzetten wbO, wO, i, kops(i), term, aantT, d, sl, laatste, k1, lg
+            KostenOmzetten wbO, wO, i, kops(i), bronR, aantT, 0, sl, laatste, k1, lg
         End If
     Next i
     ' overige opbrengsten
@@ -1345,6 +1363,65 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     ' PEW: meest recente FD en toelichting
     PewOmzetten wbO, lg
     OmzettenOudFO = lg
+End Function
+
+Private Function RijVast(ByVal ws As Worksheet, ByVal r As Long, ByVal laatste As Long) As Boolean
+    ' omzetrij met met de hand getypte aantallen (in plaats van de formule op de planning)
+    Dim c As Long
+    For c = 7 To laatste
+        If Not ws.Cells(r, c).HasFormula And Not IsEmpty(ws.Cells(r, c).Value) Then
+            If IsGetalW(ws.Cells(r, c).Value) Then RijVast = True: Exit Function
+        End If
+    Next c
+End Function
+
+Private Function RatoTypes(ByVal wO As Worksheet, ByVal euro As Long, ByVal maxR As Long, ByVal laatste As Long, euR() As Long, _
+                           ByVal nEu As Long, ByVal nTyp As Long, ByVal k As Long, ByVal sleutel As String) As String
+    ' de regel van parkeren / commercieel onder 'Overige opbrengsten in EUR' van het oude FO: verwijst die naar de
+    ' EUR-blokken van andere types (bv. ((SUM(N170:N184)+SUM(N151:N165))/...)*$D$136), dan 'naar rato' van die types ("1;2")
+    Dim r As Long, rOv As Long, c As Long, f As String, p As Long, q As Long, ch As String, rr As Long, i As Long, r1 As Long
+    Dim gezien(1 To 20) As Boolean, uit As String
+    On Error GoTo fout
+    For r = euro To maxR
+        If LCase$(Tk(wO.Cells(r, 2).Value)) Like "overige opbrengsten in*" Then rOv = r: Exit For
+    Next r
+    If rOv = 0 Then Exit Function
+    For r = rOv + 1 To rOv + 3
+        If InStr(LCase$(Tk(wO.Cells(r, 2).Value)), sleutel) > 0 Then
+            f = ""
+            For c = 7 To laatste
+                If wO.Cells(r, c).HasFormula Then f = f & " " & wO.Cells(r, c).Formula
+            Next c
+            p = 1
+            Do While p <= Len(f)
+                ch = Mid$(f, p, 1)
+                If (ch Like "[0-9]") And (p > 1) Then
+                    If (Mid$(f, p - 1, 1) Like "[A-Z$]") Then
+                        q = p
+                        Do While q <= Len(f)
+                            If Not (Mid$(f, q, 1) Like "[0-9]") Then Exit Do
+                            q = q + 1
+                        Loop
+                        rr = CLng(Val(Left$(Mid$(f, p, q - p), 7)))
+                        For i = 1 To IIf(nEu < nTyp, nEu, nTyp)
+                            If i < nEu Then r1 = euR(i + 1) Else r1 = maxR
+                            If rr > euR(i) And rr < r1 And i <> k Then gezien(i) = True
+                        Next i
+                        p = q
+                    End If
+                End If
+                p = p + 1
+            Loop
+            For i = 1 To 20
+                If gezien(i) Then uit = uit & IIf(uit = "", "", ";") & i
+            Next i
+            RatoTypes = uit
+            Exit Function
+        End If
+    Next r
+    Exit Function
+fout:
+    RatoTypes = ""                   ' niet te lezen: gewoon de termijnen
 End Function
 
 Private Function PrijsW(ByVal ws As Worksheet, ByVal r As Long, ByVal kopP As Long, ByVal naam As String) As Double

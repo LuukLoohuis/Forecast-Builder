@@ -211,6 +211,27 @@ def omzetten(oud, uit, project=None):
             som += sum(abs(_n(o_v.cell(r, c).value)) for c in oc_)
             r += 1
         return som
+    ov_kop = next((r for r in range(ob['euro_kop'], ob['totaal']) if _t(o_v.cell(r, 2).value).lower().startswith('overige opbrengsten in')), None)
+
+    def rato_types(sleutel, k):
+        """de regel van parkeren / commercieel onder 'Overige opbrengsten in €' van het oude FO: verwijst die naar de €-blokken
+        van andere types (zoals ((SUM(N170:N184)+SUM(N151:N165))/...)*$D$136), dan is het 'naar rato' van die types"""
+        if not ov_kop:
+            return None
+        for r in range(ov_kop + 1, ov_kop + 4):
+            if sleutel not in _t(o_v.cell(r, 2).value).lower():
+                continue
+            # alle kwartalen (de eerste kolommen kunnen nog naar de eigen termijnen verwijzen, de latere naar rato)
+            f = ' '.join(of.cell(r, c).value for c in oc_ if isinstance(of.cell(r, c).value, str) and of.cell(r, c).value.startswith('='))
+            types = set()
+            for m in re.finditer(r"(?<![!A-Za-z])\$?[A-Z]{1,3}\$?(\d+)", f):
+                rr = int(m.group(1))
+                for i, r0 in enumerate(eu_rijen[:len(ob['types'])]):
+                    r1 = eu_rijen[i + 1] if i + 1 < len(eu_rijen) else ob['totaal']
+                    if r0 < rr < r1 and i + 1 != k:
+                        types.add(i + 1)
+            return sorted(types) or None
+        return None
     for t in ob['types']:
         k = t['k']
         tr_ = S.P_TYPE1 + k - 1
@@ -264,8 +285,14 @@ def omzetten(oud, uit, project=None):
             sleutel_ov = 'parke' if 'parke' in naam.lower() else 'commerc' if 'commerc' in naam.lower() else ''
             if sleutel_ov and oud['aanneemkao'] > 0:
                 via_type.add(sleutel_ov)
+                rt = rato_types(sleutel_ov, k)
+                if rt:
+                    P['%s%d' % (S.P_RATO, S.p_aans(k) + 7)] = 'naar rato'
+                    P['%s%d' % (S.P_RATO_TYPES, S.p_aans(k) + 7)] = ';'.join(map(str, rt))
+                    log.append('type %d (%s): naar rato van type %s, zoals in het oude FO (opbrengsten en kosten volgen die types)'
+                               % (k, naam, ' en '.join(map(str, rt))))
                 log.append('type %d (%s): omzet via het termijnschema van het type (%.0f); de regel onder Overige opbrengsten '
-                           'van het oude FO is niet overgenomen, de kwartalen kunnen afwijken van het oude FO'
+                           'van het oude FO is niet overgenomen (anders telt het dubbel)'
                            % (k, naam, oud['aanneemkao']))
             else:
                 for x in ('grond', 'aanneemkao', 'kmw', 'kadrente'):
@@ -280,12 +307,21 @@ def omzetten(oud, uit, project=None):
         # planning, verkocht, transport, kadastrale kosten
         oc = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
         val = lambda ws, r: {c: ws.cell(r, c).value for c in oc}
+
+        def vast(r):
+            """omzetrij met met de hand getypte aantallen (in plaats van de formule op de planning): het oude FO
+            factureerde precies wat in die rij staat"""
+            return any(isinstance(of.cell(r, c).value, (int, float)) and not isinstance(of.cell(r, c).value, bool) for c in oc)
+        bron = {r: (r if vast(r) else r - t['d']) for r in termijnen}
+        if any(bron[r] == r for r in termijnen):
+            log.append('type %d (%s): planning uit de omzetrijen van het oude FO (met de hand getypte aantallen, zoals het oude FO factureerde)'
+                       % (k, naam))
         for i, r in enumerate(termijnen, 1):
             # planning uit het oude FO = vaste getallen: de hele rij leeg (geen formules die bij een later ingevulde
             # oplevering ernaast gaan meetellen), zoals de macro (ClearContents)
             for c in S.COLS:
                 O['%s%d' % (c, S.plan(k, i))].value = None
-            d.rij('CF - opbrengsten', S.plan(k, i), val(o_v, r - t['d']), okeys)
+            d.rij('CF - opbrengsten', S.plan(k, i), val(o_v, bron[r]), okeys)
         d.rij('CF - opbrengsten', S.vk_rij(k), val(o_v, t['verkoop']), okeys, alleen_q=True)
         # verkoop in de jaarkolom van het lopende jaar (bijvoorbeeld '2026' terwijl het kwartaalraster pas in 2027
         # begint): wat Salesforce nog niet als verkocht telt, komt in het huidige kwartaal (anders valt het weg en kunnen
@@ -335,12 +371,17 @@ def omzetten(oud, uit, project=None):
             for i, r in enumerate(kterm, 1):
                 K['C%d' % S.kterm(k, i)] = _n(kv.cell(r, 3).value)
                 kw = {c: kv.cell(r, c).value for c in kc}
-                pw = {c2: o_v.cell(termijnen[i - 1] - t['d'], c2).value for c2 in oc} if i <= len(termijnen) else {}
+                pw = {c2: o_v.cell(bron[termijnen[i - 1]], c2).value for c2 in oc} if i <= len(termijnen) else {}
                 som_k = sum(_n(v) for v in kw.values())
                 som_p = sum(_n(v) for v in pw.values())
                 # eigen planning (HWB) alleen als die afwijkt van de planning van de opbrengsten
-                if abs(som_k - som_p) > 1e-9 or any(abs(_n(kw.get(c, 0)) - _n(pw.get(c2, 0))) > 1e-9
-                                                    for c, c2 in zip(kc, oc) if kkeys.get(c) == okeys.get(c2)):
+                # per kwartaal vergelijken (de kolommen van CF - kosten en CF - opbrengsten vallen niet altijd gelijk)
+                per_k, per_p = {}, {}
+                for c, v in kw.items():
+                    per_k[kkeys.get(c, 0)] = per_k.get(kkeys.get(c, 0), 0) + _n(v)
+                for c2, v in pw.items():
+                    per_p[okeys.get(c2, 0)] = per_p.get(okeys.get(c2, 0), 0) + _n(v)
+                if abs(som_k - som_p) > 1e-9 or any(abs(per_k[x] - per_p[x]) > 1e-9 for x in set(per_k) & set(per_p) if x and x > 0):
                     for c in range(S.C_ACT, S.C_QN + 1):
                         K.cell(S.kterm(k, i), c).value = None
                     d.rij('CF - kosten', S.kterm(k, i), kw, kkeys)

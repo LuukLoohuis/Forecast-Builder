@@ -126,6 +126,13 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
   - een type zonder eigen termijnschema (kolom L op Aansluiting opbrengsten leeg) volgt type 1;
   - een lege start bouw neemt die van Start;
   - Oud FO inlezen zet de planning als vaste getallen.
+- **Naar rato** (bijvoorbeeld parkeren):
+  - op Aansluiting opbrengsten kies je per type bij *Verdeling* `naar rato`, met de types waarnaar het kijkt (bv. `1;2`; leeg = alle);
+  - de opbrengsten van dat type volgen dan per kwartaal de opbrengsten (verkoop/transport + bouwtermijnen) van die types;
+  - de kosten volgen de aanneemsom-kosten van die types;
+  - de eigen planning telt dan niet.
+  - Oud FO inlezen zet dit vanzelf als de regel parkeren/commercieel in het oude FO naar de €-blokken van andere types verwijst.
+  - Een omzetrij met de hand getypte aantallen in het oude FO wordt de planning, zoals het oude FO factureerde.
 - **Overzicht per woningtype** bovenaan Aansluiting opbrengsten:
   - per type aantal woningen, verkocht en getransporteerd, nog te verdelen, prijslijst, SKO, start bouw en oplevering;
   - de eerste melding staat erbij, met een link naar het blok.

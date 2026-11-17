@@ -182,6 +182,17 @@ P_EFF_NAAM, P_EFF_PCT = 'AE', 'AF'       # hulp: termijnschema dat de cashflow g
 P_STD = 'AE'                             # rij a+1: 1 = dit type volgt het termijnschema van type 1 (eigen schema leeg)
 P_SB_J, P_SB_Q, P_SB_IDX = 'Q', 'R', 'S'  # start bouw per categorie (rij a+2): jaar, kwartaal, index (leeg = Start)
 P_KBUDGET = 'Q'                          # rij a+5: budget aanneemsom kosten (excl. KAO) per categorie
+P_RATO, P_RATO_TYPES = 'Q', 'R'          # rij a+7: verdeling 'termijnen' / 'naar rato' en de types (bv. 1;2; leeg = alle)
+
+
+def rato(k):                             # verdeling van type k = 'naar rato' (zoals parkeren in het oude FO)
+    return 'Prijslijst!$%s$%d="naar rato"' % (P_RATO, p_aans(k) + 7)
+
+
+def rato_vlag(k, j):
+    """type j telt mee voor het naar-rato-type k: niet zelf naar rato en in de lijst (leeg = alle)"""
+    lijst = 'SUBSTITUTE(Prijslijst!$%s$%d&""," ","")' % (P_RATO_TYPES, p_aans(k) + 7)
+    return '(NOT(%s)*OR(%s="",ISNUMBER(SEARCH(";%d;",";"&%s&";"))))' % (rato(j), lijst, j, lijst)
 P_BN = {'wt': 'U', 'type': 'C', 'status': 'I', 'kad': 'J', 'grond': 'K', 'aanneemsom': 'L', 'von': 'M', 'kao': 'N', 'kmw': 'P',
         'bouwrente': 'Q', 'rente': 'R', 'korting': 'S'}
 
@@ -392,7 +403,9 @@ def maak_opbrengsten(ws):
         # termijn 'kw na start' in kolom F. Leeg: start bouw = Start, termijnen gelijk verdeeld tussen start en oplevering
         # of volgens type 1 (standaard schema)
         pi = plan_inv(k)
-        zet(ws, 'B%d' % pi, 'Planning · start bouw · oplevering (bv. Q1 2027) · spreiding (kwartalen per termijn)', FN)
+        zet(ws, 'B%d' % pi, '=IF(%s,"Naar rato van types "&IF(%s="","(alle)",%s)&" · de planning hieronder telt niet (Aansluiting opbrengsten)",'
+                            '"Planning · start bouw · oplevering (bv. Q1 2027) · spreiding (kwartalen per termijn)")'
+            % (rato(k), pl('$%s$%d' % (P_RATO_TYPES, p_aans(k) + 7)), pl('$%s$%d' % (P_RATO_TYPES, p_aans(k) + 7))), FN)
         zet(ws, 'D%d' % pi, None, FB, GEEL, '"start "@')
         zet(ws, 'E%d' % pi, None, FB, GEEL, '"opl. "@')
         zet(ws, 'F%d' % pi, None, FB, GEEL, '0" kw"')
@@ -432,7 +445,7 @@ def maak_opbrengsten(ws):
                         % (kw_, n_, kc_, q_, sp_, sp_, n_, kc_, q_, sp_, sp_), F, None, AANT)
             zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
             zet(ws, '%s%d' % (VER, r), '=IF(B%d="","",ROUND($G$%d-%s%d,2))' % (r, w, CHK, r), F, None, AANT)
-            zet(ws, '%s%d' % (STAT, r), ('=IF({v}{r}="","",IF({v}{r}=0,"OK",IF({v}{r}>0,"FOUT: "&{v}{r}&" woningen niet ingepland (type {k}, "&B{r}&")",'
+            zet(ws, '%s%d' % (STAT, r), ('=IF(OR({v}{r}="",' + rato(k) + '),"",IF({v}{r}=0,"OK",IF({v}{r}>0,"FOUT: "&{v}{r}&" woningen niet ingepland (type {k}, "&B{r}&")",'
                                          '"FOUT: "&-{v}{r}&" woningen te veel ingepland (type {k}, "&B{r}&")")))').format(v=VER, r=r, k=k), FB)
         # geel (invoer) alleen op de termijnen die er zijn: lege termijnregels blijven wit
         ws.conditional_formatting.add('%s%d:%s%d' % (COLS[0], plan(k, 1), COLS[-1], plan(k, NTERM)),
@@ -574,7 +587,20 @@ def maak_opbrengsten(ws):
             r, o = eu_rij(k, i), oz_rij(k, i)
             zet(ws, 'B%d' % r, '=B%d' % o)
             for c in COLS:
-                zet(ws, '%s%d' % (c, r), '=%s%d*$E%d' % (c, o, o), F, None, NUM)
+                gewoon = '%s%d*$E%d' % (c, o, o)
+                if i == 1:
+                    # naar rato: het totaal van dit type volgens de opbrengsten (aantallen x € per woning, zonder de
+                    # naar-rato-types zelf: geen kringverwijzing) van de gekozen types in dit kwartaal
+                    andere = [j for j in range(1, NT + 1) if j != k]
+                    tel = '+'.join('%s*SUMPRODUCT($E$%d:$E$%d,%s%d:%s%d)' % (rato_vlag(k, j), oz_rij(j, 0), oz_rij(j, OMZ_N - 1),
+                                                                         c, oz_rij(j, 0), c, oz_rij(j, OMZ_N - 1)) for j in andere)
+                    noem = '+'.join('%s*SUMPRODUCT($E$%d:$E$%d,$%s$%d:$%s$%d)' % (rato_vlag(k, j), oz_rij(j, 0), oz_rij(j, OMZ_N - 1),
+                                                                            CHK, oz_rij(j, 0), CHK, oz_rij(j, OMZ_N - 1)) for j in andere)
+                    tot_k = 'SUM($D$%d:$D$%d)' % (oz_rij(k, 0), oz_rij(k, OMZ_N - 1))
+                    f = '=IF(%s,IFERROR(%s*(%s)/(%s),0),%s)' % (rato(k), tot_k, tel, noem, gewoon)
+                else:
+                    f = '=IF(%s,0,%s)' % (rato(k), gewoon)
+                zet(ws, '%s%d' % (c, r), f, F, None, NUM)
     kopregels(ws, OV_KOP - 1, OV_KOP)
     zet(ws, 'B%d' % OV_KOP, 'Overige opbrengsten in €', FB, KOP)
     from openpyxl.worksheet.datavalidation import DataValidation
@@ -596,10 +622,10 @@ def maak_opbrengsten(ws):
         i_ = P_REGELS.index(lab)
         zet(ws, 'D%d' % r, '=IF($B%d<>"%s","",%s)' % (h, std, '+'.join(pl('$H$%d' % (p_aans(k) + 2 + i_)) for k in range(1, NT + 1))), FB, None, NUM)
         zet(ws, 'E%d' % r, '=IF(D%d="","",ROUND(D%d-%s%d,2))' % (r, r, CHK, r), F, None, NUM)
-        rato = 'AND($C%d="bouwtermijnen",$B%d="%s")' % (r, h, std)
+        bt_rato = 'AND($C%d="bouwtermijnen",$B%d="%s")' % (r, h, std)
         for c in COLS:
             bt_c = '+'.join('%s%d' % (c, tr(k) + 5) for k in range(1, NT + 1))
-            zet(ws, '%s%d' % (c, r), '=IF(%s,IFERROR(N($D%d)*(%s)/(%s),0),N(%s%d))' % (rato, r, bt_c, bt_tot, c, h), F, None, NUM)
+            zet(ws, '%s%d' % (c, r), '=IF(%s,IFERROR(N($D%d)*(%s)/(%s),0),N(%s%d))' % (bt_rato, r, bt_c, bt_tot, c, h), F, None, NUM)
         zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, NUM)
         zet(ws, '%s%d' % (VER, r), '=E%d' % r, F, None, NUM)
         zet(ws, '%s%d' % (STAT, r), ('=IF(AND($C{r}="bouwtermijnen",$B{h}="{std}",SUM({c0}{h}:{cn}{h})<>0),'
@@ -793,10 +819,17 @@ def maak_kosten(ws):
         t1, tn, m1, m2 = kterm(k, 1), kterm(k, NTERM), kterm(k, NTERM + 1), kterm(k, NTERM + 2)
         zet(ws, 'B%d' % ra, 'Aanneemsom', FB)
         zet(ws, 'B%d' % (ra + 1), 'Meerwerk', FB)
+        andere = [j for j in range(1, NT + 1) if j != k]
         for c in COLS:
-            zet(ws, '%s%d' % (c, ra), '=SUMPRODUCT($E$%d:$E$%d,%s%d:%s%d)' % (t1, tn, c, t1, c, tn), F, None, NUM)
-            zet(ws, '%s%d' % (c, ra + 1), '=SUMPRODUCT($F$%d:$F$%d,%s%d:%s%d)+SUMPRODUCT($F$%d:$F$%d,%s%d:%s%d)'
-                % (m1, m2, c, m1, c, m2, t1, tn, c, t1, c, tn), F, None, NUM)
+            gewoon = 'SUMPRODUCT($E$%d:$E$%d,%s%d:%s%d)' % (t1, tn, c, t1, c, tn)
+            # naar rato: het budget volgens de aanneemsom-kosten (termijnen) van de gekozen types in dit kwartaal
+            tel = '+'.join('%s*SUMPRODUCT($E$%d:$E$%d,%s%d:%s%d)' % (rato_vlag(k, j), kterm(j, 1), kterm(j, NTERM), c, kterm(j, 1),
+                                                                 c, kterm(j, NTERM)) for j in andere)
+            noem = '+'.join('%s*SUMPRODUCT($E$%d:$E$%d,$%s$%d:$%s$%d)' % (rato_vlag(k, j), kterm(j, 1), kterm(j, NTERM), CHK,
+                                                                    kterm(j, 1), CHK, kterm(j, NTERM)) for j in andere)
+            zet(ws, '%s%d' % (c, ra), '=IF(%s,IFERROR($D$%d*(%s)/(%s),0),%s)' % (rato(k), b, tel, noem, gewoon), F, None, NUM)
+            zet(ws, '%s%d' % (c, ra + 1), '=IF(%s,0,SUMPRODUCT($F$%d:$F$%d,%s%d:%s%d)+SUMPRODUCT($F$%d:$F$%d,%s%d:%s%d))'
+                % (rato(k), m1, m2, c, m1, c, m2, t1, tn, c, t1, c, tn), F, None, NUM)
     zet(ws, 'B%d' % K_PEW, 'Totaal kosten', FB)
     zet(ws, 'D%d' % K_PEW, "=N('2. Ontw PEW'!G20)*1000", FB, None, NUM)
     kopregels(ws, K_JAAR, K_OND, act='Actuals')
@@ -925,8 +958,9 @@ def maak_prijslijst(ws, wbn=None):
         zet(ws, 'F%d' % r, als('N(D%d)' % (rz + 1)), F, None, NUM)
         zet(ws, 'G%d' % r, als('N(B%d)' % (rz + 1)), F, None, NUM)
         zet(ws, 'H%d' % r, als('N(G%d)' % (rz + 1)), F, None, NUM)
-        zet(ws, 'I%d' % r, als(kq('%s$%s$%d' % (OO, CHK, pi))), F)
-        zet(ws, 'J%d' % r, als(kq('IF(%s$%s$%d="",N(p_oplevering),%s$%s$%d)' % (OO, VER, pi, OO, VER, pi))), F)
+        zet(ws, 'I%d' % r, als('IF(%s="naar rato","naar rato "&%s%d,%s)' % ('%s%d' % (P_RATO, a + 7), P_RATO_TYPES, a + 7,
+                                                                           kq('%s$%s$%d' % (OO, CHK, pi)))), F)
+        zet(ws, 'J%d' % r, als('IF(%s%d="naar rato","",%s)' % (P_RATO, a + 7, kq('IF(%s$%s$%d="",N(p_oplevering),%s$%s$%d)' % (OO, VER, pi, OO, VER, pi)))), F)
         zet(ws, 'K%d' % r, '=IF(%s,HYPERLINK("#A%d","→ blok %d"),"")' % (heeft, a, k),
             Font(name='Heijmans-Light', size=9, color='FF003366', underline='single'))
         stat = lambda rr: '%s$%s$%d&""' % (OO, STAT, rr)
@@ -1094,6 +1128,9 @@ def maak_prijslijst(ws, wbn=None):
     g2.height, g2.width = 7, 13
     ws.add_chart(g2, 'H%d' % (rij_tot + 2))
     # 2 aansluiting per type + termijnschema
+    from openpyxl.worksheet.datavalidation import DataValidation as DV_
+    dv_rato = DV_(type='list', formula1='"termijnen,naar rato"', allow_blank=True)
+    ws.add_data_validation(dv_rato)
     zet(ws, 'A%d' % (P_AANS1 - 2), '2 · AANSLUITING PER WONINGTYPE · SKO ↔ prijslijst ↔ PEW, met het termijnschema', FW, DONKER)
     for cc in range(2, 27):
         ws.cell(P_AANS1 - 2, cc).fill = DONKER
@@ -1175,6 +1212,14 @@ def maak_prijslijst(ws, wbn=None):
                                                                             color='FF003366', underline='single'))
         zet(ws, '%s%d' % (P_KBUDGET, a + 4), 'Kosten: budget aanneemsom (excl. KAO) voor CF - kosten', FB, LICHT)
         zet(ws, '%s%d' % (P_KBUDGET, a + 5), None, FB, GEEL, NUM)
+        # verdeling: termijnen (eigen planning) of naar rato van andere types (zoals parkeren in het oude FO)
+        zet(ws, '%s%d' % (P_RATO, a + 6), 'Verdeling', FB, LICHT)
+        zet(ws, '%s%d' % (P_RATO_TYPES, a + 6), 'naar rato van types', FB, LICHT)
+        zet(ws, '%s%d' % (P_RATO, a + 7), 'termijnen', FB, GEEL)
+        zet(ws, '%s%d' % (P_RATO_TYPES, a + 7), None, FB, GEEL)
+        dv_rato.add('%s%d' % (P_RATO, a + 7))
+        zet(ws, '%s%d' % (P_RATO, a + 8), 'naar rato = opbrengsten en kosten volgen de gekozen types (bv. 1;2, leeg = alle); '
+            'de eigen planning telt dan niet', FN)
         # standaard schema: een type zonder eigen termijnschema (kolom L leeg) volgt type 1
         a1 = p_aans(1)
         r1_, rn_ = a + 2, a + 1 + NTERM
