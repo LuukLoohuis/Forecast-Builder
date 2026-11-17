@@ -54,7 +54,7 @@ def build_oude(s, st):
             ('F8','Kolom BOR totaal','G8','IF($AG$8=0,"niet gevonden",$AG$8)'),
             ('F9','Kolom AK totaal','G9','IF($AG$9=0,"niet gevonden",$AG$9)'),
             ('F10','Projecten gevonden','G10','N(MAX($AA$22:$AA$321))'),
-            ('F11','AK per project meenemen','G11','IF(AND($AG$9>0,SUMPRODUCT(ABS(N(+INDEX(Bron_Versie!$A$1:$AZ$300,0,MAX(1,$AG$9)))*(ISNUMBER(FIND(".",Bron_Versie!$A$1:$A$300)))))>0),"Ja","Nee (AK = 0)")'),
+            ('F11','AK per project meenemen','G11','IF(AND($AG$9>0,SUMPRODUCT(ABS(N(+INDEX(Bron_Versie!$A$1:$AZ$300,0,MAX(1,$AG$9)))*(ISNUMBER(FIND(".",Bron_Versie!$A$1:$A$300)))*(ISERROR(FIND(" ",Bron_Versie!$A$1:$A$300)))))>0),"Ja","Nee (AK = 0)")'),
             ('F12','Regels om te plakken','G12',f'COUNTIF($T${OUT0}:$T${OUT0+NOUT-1},">0")'),
             ('F13','Plak in Historie op rij','G13','Historie!$D$3')]
     for lr, lt, vr, f in info:
@@ -98,7 +98,7 @@ def build_oude(s, st):
     for i in range(1, ROWS_SRC + 1):
         r = OUT0 - 1 + i
         s.set(f'AB{r}', formula=f'TRIM(Bron_Versie!$A{i}&"")', is_str=True)
-        s.set(f'AA{r}', formula=f'IF(AND(LEN(AB{r})>=8,ISNUMBER(FIND(".",AB{r})),COUNTIF($AB${OUT0}:AB{r},AB{r})=1),MAX($AA${OUT0-1}:AA{r-1})+1,"")')
+        s.set(f'AA{r}', formula=f'IF(AND(LEN(AB{r})>=8,ISNUMBER(FIND(".",AB{r})),ISERROR(FIND(" ",AB{r})),COUNTIF($AB${OUT0}:AB{r},AB{r})=1),MAX($AA${OUT0-1}:AA{r-1})+1,"")')
     src = f'MATCH($J{{r}},Bron_Versie!$A$1:$A${ROWS_SRC},0)'
     for k in range(1, NOUT + 1):
         r = OUT0 - 1 + k
