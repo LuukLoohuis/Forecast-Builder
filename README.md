@@ -118,6 +118,11 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
   - De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
 - **Vorige, huidig en realisatie** op het Dashboard (V93–V101): eindsaldo en laagste stand vorige ↔ huidig, kosten en omzet van het laatste afgesloten kwartaal vorige prognose ↔ gerealiseerd, en of de afgesloten periodes aansluiten op SAP. Details per periode: tab CF vorig en huidig.
 - **Tabbladkleuren:** Start donkerblauw, exports grijs, invoer en rekenwerk geel (Aansluiting opbrengsten, CF - opbrengsten, CF - kosten, 2. Ontw PEW), uitkomsten groen (Dashboard, Scenario's, CF - hulp VENA).
+- **Handleiding (tabblad na Start):**
+  - de tabbladen hebben alleen korte koppen en labels;
+  - de uitleg staat in de Handleiding, per tabblad, met de werkwijze per kwartaal, de kleuren en de knoppen;
+  - een klein **?** bij een kop of veld springt naar de uitleg;
+  - de bouw verplaatst de lange teksten zelf (`tools/handleiding.py`): invulcellen (geel), de controles op Start en de rode meldingen blijven staan.
 - **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont de melding zelf, klein en rood, op de rij waar je moet zijn (bv. "LET OP: 4 woningen nog te verdelen (verkocht, type 1)"); B1 telt ze. Op Aansluiting opbrengsten wordt het label van een foute regel rood.
 - **Planning per woningtype** (CF - opbrengsten, rij *Planning* boven elk type):
   - vul start bouw en oplevering in als tekst (bv. `Q1 2027`), en de spreiding (het aantal kwartalen waarover een termijn verdeeld wordt);

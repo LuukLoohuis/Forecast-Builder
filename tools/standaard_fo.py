@@ -403,8 +403,8 @@ def maak_opbrengsten(ws):
         # termijn 'kw na start' in kolom F. Leeg: start bouw = Start, termijnen gelijk verdeeld tussen start en oplevering
         # of volgens type 1 (standaard schema)
         pi = plan_inv(k)
-        zet(ws, 'B%d' % pi, '=IF(%s,"Naar rato van types "&IF(%s="","(alle)",%s)&" · de planning hieronder telt niet (Aansluiting opbrengsten)",'
-                            '"Planning · start bouw · oplevering (bv. Q1 2027) · spreiding (kwartalen per termijn)")'
+        zet(ws, 'B%d' % pi, '=IF(%s,"Naar rato van types "&IF(%s="","(alle)",%s)&" · planning telt niet",'
+                            '"Planning · start bouw · oplevering · spreiding")'
             % (rato(k), pl('$%s$%d' % (P_RATO_TYPES, p_aans(k) + 7)), pl('$%s$%d' % (P_RATO_TYPES, p_aans(k) + 7))), FN)
         zet(ws, 'D%d' % pi, None, FB, GEEL, '"start "@')
         zet(ws, 'E%d' % pi, None, FB, GEEL, '"opl. "@')

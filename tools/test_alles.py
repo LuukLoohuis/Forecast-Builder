@@ -675,6 +675,42 @@ def t_dia3_realisatie():
        'vormen %s, tekenvlak %s, macro %s' % ([n for n in namen if n.startswith('CF_REAL')], xywh, (cx, cw)))
 
 
+def t_weinig_tekst():
+    """rustig FO: geen lange uitlegteksten op de tabbladen (die staan in de Handleiding); elk '?' wijst naar een gevulde regel
+    van de Handleiding; het stappenplan staat niet meer op Start"""
+    import openpyxl
+    import handleiding as H
+    wb = openpyxl.load_workbook(SJABLOON)
+    lang = []
+    for ws in wb.worksheets:
+        if ws.sheet_state != 'visible' or ws.title in ('Handleiding', 'FO - vorig', 'FO - huidig', 'FO - actuals', 'Prijslijst dump'):
+            continue
+        r1, r2 = H.BEHOUD_RIJEN.get('Start' if ws.title == 'Start' else '', (0, -1))
+        for rij in ws.iter_rows():
+            for c in rij:
+                if isinstance(c.value, str) and not c.value.startswith('=') and len(c.value) > H.GRENS \
+                        and not (r1 <= c.row <= r2) and not ws.row_dimensions[c.row].hidden:
+                    lang.append('%s!%s' % (ws.title, c.coordinate))
+    hl = wb['Handleiding']
+    fout = []
+    n = 0
+    for ws in wb.worksheets:
+        for rij in ws.iter_rows():
+            for c in rij:
+                m = re.match(r'=HYPERLINK\("#Handleiding!B(\d+)","\?"\)', str(c.value or ''))
+                if m:
+                    n += 1
+                    r = int(m.group(1))
+                    if not (hl['B%d' % r].value or hl['C%d' % r].value):
+                        fout.append('%s!%s' % (ws.title, c.coordinate))
+    start = wb['Start']
+    stappen = [c.coordinate for rij in start.iter_rows() for c in rij
+               if isinstance(c.value, str) and re.match(r'^\d+\.\s+Klik', c.value) and not start.row_dimensions[c.row].hidden]
+    ok('rustig FO: geen lange teksten op de tabbladen, ?-links naar de Handleiding, stappenplan in de Handleiding',
+       not lang and not fout and n > 20 and not stappen,
+       '%d lang %s · %d ?-links, %d zonder doel %s · stappen op Start %s' % (len(lang), lang[:4], n, len(fout), fout[:3], stappen))
+
+
 def t_bereik_en_totaal():
     """grafiekbereik van het Dashboard werkt door in de blokken voor PowerPoint; totaalrij verkoop/transport; afgesloten
     kwartaal = huidig kwartaal - 1"""
@@ -987,6 +1023,7 @@ def main():
     t_naar_rato()
     t_dianummers()
     t_dia3_realisatie()
+    t_weinig_tekst()
     t_bereik_en_totaal()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')
     lo = LO()

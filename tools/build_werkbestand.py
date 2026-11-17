@@ -37,6 +37,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SC_RENAME = {'CF kosten': 'Scenario kosten'}
 LAYOUT = [
     ('Start', 'new', 'Start', 'shStart'),
+    ('Handleiding', 'new', 'Handleiding', 'shHandleiding'),
     ('FO - vorig', 'fo', 'FO - vorig', 'shFOVorig'),
     ('FO - huidig', 'fo', 'FO - huidig', 'shFOHuidig'),
     ('FO - actuals', 'fo', 'FO - actuals', 'shFOActuals'),
@@ -1067,7 +1068,7 @@ def main():
 
     # rekenketen weg (Excel bouwt hem opnieuw op), inhoudstypen bijwerken
     # tabbladkleuren per soort: start (donkerblauw), exports (grijs), invoer en rekenwerk (geel), uitkomsten (groen)
-    TABKLEUR = {'Start': 'FF003366',
+    TABKLEUR = {'Start': 'FF003366', 'Handleiding': 'FF003366',
                 'FO - vorig': 'FF9CA3AF', 'FO - huidig': 'FF9CA3AF', 'FO - actuals': 'FF9CA3AF', 'Prijslijst dump': 'FF9CA3AF',
                 'Prijslijst': 'FFFEB900', 'CF - opbrengsten': 'FFFEB900', 'CF - kosten': 'FFFEB900', '2. Ontw PEW': 'FFFEB900',
                 '2B. Ontw PEW': 'FFFEB900',
@@ -1085,6 +1086,13 @@ def main():
         tc = etree.Element(M + 'tabColor', rgb=kleur)
         sp.insert(0, tc)
         dst.put(part_of[naam], t)
+    # uitleg van de tabbladen naar de Handleiding (korte koppen en labels op de tabbladen, '?' naar de uitleg)
+    import handleiding
+    handleiding.verwerk(dst, part_of, sst, styles, st, note)
+    t_ = Sheet(dst.x(part_of['Start']), sst)
+    if t_.get('M14') in (None, ''):
+        t_.set('M14', '=HYPERLINK("#Handleiding!A1","→ Handleiding")', st['link'])
+        dst.put(part_of['Start'], t_.t)
     dst.parts.pop('xl/calcChain.xml', None)
     copier.remove_override('xl/calcChain.xml')
     dst.put('[Content_Types].xml', copier.ct)

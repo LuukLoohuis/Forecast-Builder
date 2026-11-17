@@ -155,8 +155,7 @@ def maak_start(wb, demo, R):
     cell(ws, 'B2', 'FO-werkbestand', F_TITLE)
     cell(ws, 'B3', 'Eén bestand voor het kwartaal-FO: SAP- en SF-exports erin, prognose kosten en opbrengsten '
                    '(voorstel of handmatig), cashflow, scenario\'s en de PowerPoint.', F_NOTE)
-    cell(ws, 'B4', '=IF(N(F8)=0,"Vul het huidige kwartaal in (rij 8)","Nu: "&E8&" · vorige periode: "&E12&'
-                   '" (FO - vorig = de export van "&E12&", FO - huidig = "&E8&")")', F_BOLD)
+    cell(ws, 'B4', '=IF(N(F8)=0,"Vul het huidige kwartaal in (rij 8)","Nu: "&E8&" · vorige periode: "&E12)', F_BOLD)
     cell(ws, 'G2', 'Legenda', F_BOLD)
     cell(ws, 'H2', 'handmatig invullen', F_BASE, FILL_INPUT)
     cell(ws, 'H3', 'export uit SAP / SF', F_BASE, FILL_SAP)
@@ -838,6 +837,8 @@ STIJLEN = {
     'hulp_links': (F_HELP, None, None, None),
     'sectie': (F_SECTION, FILL_SECTION, None, None),
     'vet': (F_BOLD, None, None, None),
+    'titel': (F_TITLE, None, None, None),
+    'link': (Font(name=FONT, size=10, color='FF003366', underline='single'), None, None, None),
     'melding': (Font(name='Heijmans-Light', size=8, bold=True, color='FFB91C1C'), None, None, Alignment(horizontal='right')),
     'tekst': (F_BASE, None, None, None),
     'aantal': (F_BASE, FILL_CALC, '0', Alignment(horizontal='center')),
@@ -856,6 +857,17 @@ def maak_stijlen(wb):
         refs[naam] = 'A%d' % i
         cell(ws, 'A%d' % i, naam, font, fl, fmt, al)
     return refs
+
+
+def maak_handleiding(wb):
+    """leeg tabblad Handleiding (de bouw vult het: tools/handleiding.py)"""
+    ws = wb.create_sheet('Handleiding')
+    ws.sheet_view.showGridLines = False
+    ws.column_dimensions['A'].width = 3
+    ws.column_dimensions['B'].width = 34
+    ws.column_dimensions['C'].width = 150
+    ws.column_dimensions['D'].width = 26
+    return ws
 
 
 def maak_sjabloon(wb):
@@ -881,6 +893,7 @@ def bouw(path, demo, oud_cashflow, oud_bestand, pew_inhoud, oz, inv_tot, daeb_ty
     maak_vorige_prognose(wb, oud_cashflow, 'uit ' + oud_bestand)
     maak_controle(wb, oud_cashflow, oud_bestand, R['inv_laatste'])
     info['stijlen'] = maak_stijlen(wb)
+    maak_handleiding(wb)
     maak_sjabloon(wb)
     h = wb.create_sheet('_koppeling')
     h.sheet_state = 'hidden'
