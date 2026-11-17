@@ -37,11 +37,16 @@ CHK, VER, STAT, TOEL = L(C_CHK), L(C_CHK + 1), L(C_CHK + 2), L(C_CHK + 3)
 JAAR = "'CF - opbrengsten'!$D$3"
 
 # ---- CF - opbrengsten -----------------------------------------------------------------------------
-BLOK = NTERM + 11                       # # won, titel, 10 planning, transport, verkocht %, getransp. %, grondprijs, 5x €
+BLOK = NTERM + 12                       # planning (start/oplevering/spreiding), # won, titel, 10 planning, transport,
+                                        # verkocht %, getransp. %, grondprijs, 5x €
 
 
 def won_rij(k):
-    return 5 + BLOK * (k - 1)
+    return 6 + BLOK * (k - 1)
+
+
+def plan_inv(k):                        # invoer planning: D start bouw, E oplevering (bv. Q1 2027), F spreiding (kwartalen)
+    return won_rij(k) - 1               # AW/AX (hulp): kwartaalindex start bouw (leeg = Start) en oplevering
 
 
 def hb(k):                              # titelrij 'Termijnen k - naam'
@@ -149,6 +154,7 @@ NSKO = 25
 SKO_TOT = SKO1 + NSKO
 SKO = {'naam': 'B', 'cat': 'C', 'aantal': 'D', 'von': 'E', 'vonex': 'F', 'totaal': 'G', 'grond': 'H', 'ontw': 'I',
        'termijnen': 'J', 'verschil': 'K', 'status': 'L', 'catnaam': 'M'}
+P_OVZ1 = 4                               # overzicht per woningtype bovenaan Aansluiting opbrengsten (rij 4..3+NT)
 P_TYPE1 = SKO_TOT + 5                    # rij type (categorie) k = P_TYPE1 + k - 1 (rij 3-9: kaarten bovenaan)
 P_REGELS = ['Grond + Ontwikkelkosten', 'Aanneemsom', 'VON verhogingen', 'KAO opties', 'Korting', 'Kopersmeerwerk',
             'Kadastrale kosten', 'Bouwrente', 'Aanvullende rente', 'Opbrengsten commercieel', 'Opbrengsten parkeren']
@@ -171,7 +177,9 @@ P_UIT = {'aantal': 'D', 'grond': 'E', 'aanneemsom': 'F', 'kao': 'G', 'kmw': 'H',
 P_HAND = {'aantal': 'N', 'grond': 'O', 'aanneemkao': 'P', 'kmw': 'Q', 'kadrente': 'R'}
 P_GEBR = {'aantal': 'S', 'grond': 'T', 'aanneemkao': 'U', 'kmw': 'V', 'kadrente': 'W'}
 P_TERM_NAAM, P_TERM_PCT = 'L', 'M'      # termijnschema naast het aansluitblok
-P_TERM_KW, P_TERM_KPCT = 'N', 'O'       # per termijn: kwartalen na start bouw, % kosten (leeg = % opbrengsten)
+P_TERM_KW, P_TERM_KPCT = 'N', 'O'       # per termijn: kwartalen na start bouw (effectief, berekend), % kosten (leeg = % opbrengsten)
+P_EFF_NAAM, P_EFF_PCT = 'AE', 'AF'       # hulp: termijnschema dat de cashflow gebruikt (eigen, of leeg = dat van type 1)
+P_STD = 'AE'                             # rij a+1: 1 = dit type volgt het termijnschema van type 1 (eigen schema leeg)
 P_SB_J, P_SB_Q, P_SB_IDX = 'Q', 'R', 'S'  # start bouw per categorie (rij a+2): jaar, kwartaal, index (leeg = Start)
 P_KBUDGET = 'Q'                          # rij a+5: budget aanneemsom kosten (excl. KAO) per categorie
 P_BN = {'wt': 'U', 'type': 'C', 'status': 'I', 'kad': 'J', 'grond': 'K', 'aanneemsom': 'L', 'von': 'M', 'kao': 'N', 'kmw': 'P',
@@ -345,6 +353,13 @@ def markeringen(ws, r_mark, r1, r2):
     ws.conditional_formatting.add('%s%d:%s%d' % (COLS[0], r1, COLS[0], r2), FormulaRule(formula=['TRUE'], border=Border(right=rand)))
 
 
+def kw_index(cel):
+    """kwartaalindex (jaar x 4 + kw) uit tekst als 'Q1 2027' (ook 'q1 2027', '2027 Q1'); geen kwartaal = fout"""
+    t = 'UPPER(TRIM(%s&""))' % cel
+    return ('IFERROR(IF(LEFT(%s,1)="Q",VALUE(RIGHT(%s,4))*4+VALUE(MID(%s,2,1)),VALUE(LEFT(%s,4))*4+VALUE(RIGHT(%s,1))),"?")'
+            % (t, t, t, t, t))
+
+
 def pl(ref):
     return 'Prijslijst!' + ref
 
@@ -357,7 +372,7 @@ def p_gebr(k, x):
 def maak_opbrengsten(ws):
     ws.title = 'CF - opbrengsten'
     ws.sheet_view.showGridLines = False
-    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['A'].width = 30          # rode meldingen (zie foutkolom in de bouw)
     for c_, w_ in (('C', 8), ('D', 13), ('E', 11), ('F', 8)):
         ws.column_dimensions[c_].width = w_
     zet(ws, 'B2', 'Bouwplanning, verkoop en transport', FT)
@@ -373,6 +388,23 @@ def maak_opbrengsten(ws):
         zet(ws, 'E%d' % w, '=%s' % pl('$X$%d' % (P_TYPE1 + k - 1)), FB, None, '0.0%')
         kopregels(ws, w, h)
         zet(ws, 'B%d' % h, '="Termijnen %d - "&%s' % (k, pl('$B$%d' % (P_TYPE1 + k - 1))), FB, KOP)
+        # planning per type: start bouw en oplevering (bv. 'Q1 2027') en spreiding (aantal kwartalen per termijn); per
+        # termijn 'kw na start' in kolom F. Leeg: start bouw = Start, termijnen gelijk verdeeld tussen start en oplevering
+        # of volgens type 1 (standaard schema)
+        pi = plan_inv(k)
+        zet(ws, 'B%d' % pi, 'Planning · start bouw · oplevering (bv. Q1 2027) · spreiding (kwartalen per termijn)', FN)
+        zet(ws, 'D%d' % pi, None, FB, GEEL, '"start "@')
+        zet(ws, 'E%d' % pi, None, FB, GEEL, '"opl. "@')
+        zet(ws, 'F%d' % pi, None, FB, GEEL, '0" kw"')
+        for c_ in 'DEF':
+            ws['%s%d' % (c_, pi)].alignment = Alignment(horizontal='center')
+        zet(ws, '%s%d' % (CHK, pi), '=IF(TRIM(D%d&"")="",N(p_startbouw),%s)' % (pi, kw_index('D%d' % pi)), FN, None, ';;;')
+        zet(ws, '%s%d' % (VER, pi), '=IF(TRIM(E%d&"")="","",%s)' % (pi, kw_index('E%d' % pi)), FN, None, ';;;')
+        zet(ws, '%s%d' % (STAT, pi), ('=IF(AND(TRIM(D{r}&"")<>"",NOT(ISNUMBER({ix}))),"FOUT: start bouw type {k} niet herkend (typ bv. Q1 2027)",'
+                                      'IF(AND(TRIM(E{r}&"")<>"",NOT(ISNUMBER({ox}))),"FOUT: oplevering type {k} niet herkend (typ bv. Q3 2028)",'
+                                      'IF(AND(ISNUMBER({ix}),ISNUMBER({ox})),IF({ox}<{ix},"FOUT: oplevering type {k} ligt voor start bouw",""),"")))').format(
+            r=pi, k=k, ix='%s%d' % (CHK, pi), ox='%s%d' % (VER, pi)), FB)
+        zet(ws, 'F%d' % h, 'kw na start', FB, KOP)
         for t in range(1, NTERM + 1):
             r = plan(k, t)
             zet(ws, 'B%d' % r, '=B%d' % oz_rij(k, t))
@@ -380,21 +412,28 @@ def maak_opbrengsten(ws):
             zet(ws, 'C%d' % r, '=IF(B%d="","",C%d)' % (r, oz_rij(k, t)), FN, None, '0.0%')
             zet(ws, 'D%d' % r, '=IF(B%d="","",D%d)' % (r, oz_rij(k, t)), FN, None, NUM)
             zet(ws, 'E%d' % r, '=IF(B%d="","",E%d)' % (r, oz_rij(k, t)), FN, None, NUM)
-            # planning: met 'kwartalen na start bouw' (Aansluiting opbrengsten) komen alle woningen van het type in
-            # het kwartaal start bouw + kwartalen; leeg = zelf invullen (overschrijven mag altijd; Oud FO inlezen vult in)
+            # planning: alle woningen van het type in het kwartaal start bouw + kwartalen na start (effectief, op
+            # Aansluiting opbrengsten: eigen kolom F, anders gelijk verdeeld tot oplevering, anders type 1), gespreid
+            # over 'spreiding' kwartalen (hele woningen, het totaal blijft gelijk); leeg = zelf invullen (overschrijven
+            # mag altijd; Oud FO inlezen vult in)
+            zet(ws, 'F%d' % r, None, F, GEEL, '0')
+            ws['F%d' % r].alignment = Alignment(horizontal='center')
             a_ = p_aans(k)
             kw_ = pl('$%s$%d' % (P_TERM_KW, a_ + 1 + t))
-            idx_ = pl('$%s$%d' % (P_SB_IDX, a_ + 2))
+            q_ = '(N($%s$%d)+%s)' % (CHK, pi, kw_)
+            sp_ = 'MAX(1,N($F$%d))' % pi
             kc_ = '(%s*4+1+COLUMN()-COLUMN($%s$%d))' % (JAAR, QCOLS[0], r)
+            n_ = p_gebr(k, 'aantal')
             for c in COLS:
                 if c == COLS[0]:
                     zet(ws, '%s%d' % (c, r), None, F, None, AANT)
                 else:
-                    zet(ws, '%s%d' % (c, r), '=IF(%s="",0,IF(N(%s)+%s=%s,%s,0))' % (kw_, idx_, kw_, kc_, p_gebr(k, 'aantal')),
-                        F, None, AANT)
+                    zet(ws, '%s%d' % (c, r), '=IF(%s="",0,ROUND(%s*MIN(MAX(%s-%s+1,0),%s)/%s,0)-ROUND(%s*MIN(MAX(%s-%s,0),%s)/%s,0))'
+                        % (kw_, n_, kc_, q_, sp_, sp_, n_, kc_, q_, sp_, sp_), F, None, AANT)
             zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
             zet(ws, '%s%d' % (VER, r), '=IF(B%d="","",ROUND($G$%d-%s%d,2))' % (r, w, CHK, r), F, None, AANT)
-            zet(ws, '%s%d' % (STAT, r), '=IF(%s%d="","",IF(%s%d=0,"OK","FOUT"))' % (VER, r, VER, r), FB)
+            zet(ws, '%s%d' % (STAT, r), ('=IF({v}{r}="","",IF({v}{r}=0,"OK",IF({v}{r}>0,"FOUT: "&{v}{r}&" woningen niet ingepland (type {k}, "&B{r}&")",'
+                                         '"FOUT: "&-{v}{r}&" woningen te veel ingepland (type {k}, "&B{r}&")")))').format(v=VER, r=r, k=k), FB)
         # geel (invoer) alleen op de termijnen die er zijn: lege termijnregels blijven wit
         ws.conditional_formatting.add('%s%d:%s%d' % (COLS[0], plan(k, 1), COLS[-1], plan(k, NTERM)),
                                       FormulaRule(formula=['$B%d<>""' % plan(k, 1)], fill=PatternFill('solid', fgColor='FFFFF2CC', bgColor='FFFFF2CC'), stopIfTrue=False))
@@ -428,7 +467,7 @@ def maak_opbrengsten(ws):
     # kwartaal). Kolom G (t/m nu) komt uit de Salesforce-status in de prijslijst; de kwartalen erna zijn invoer.
     from openpyxl.formatting.rule import DataBarRule
     kopregels(ws, VK - 1, VK, act='t/m nu')
-    for c, t in zip('BCDEF', ['VERKOOP EN TRANSPORT · aantal woningen', 'Aantal', 't/m nu (SF)', 'Nog', 'Voortgang']):
+    for c, t in zip('BCDEF', ['VERKOOP EN TRANSPORT · aantal woningen', 'Aantal', 't/m nu (SF)', 'Nog te verdelen', 'Voortgang']):
         zet(ws, '%s%d' % (c, VK), t, FB, KOP)
     zet(ws, '%s%d' % (CHK, VK), 'Check', FB, KOP)
     s_bn = '$%s$%d:$%s$%d' % (P_BN['status'], P_BN1, P_BN['status'], P_BNN)
@@ -442,13 +481,17 @@ def maak_opbrengsten(ws):
             zet(ws, 'B%d' % r, lab, FB if r == vk_rij(k) else FI)
             zet(ws, 'C%d' % r, '=G%d' % won_rij(k), F, None, '0')
             zet(ws, 'D%d' % r, '=' + sf, F, GRIJS, '0')
-            zet(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F, None, '0')
+            # nog te verdelen: aantal woningen min t/m nu en de kwartalen (verkooptempo)
+            zet(ws, 'E%d' % r, '=C%d-%s%d' % (r, CHK, r), FB, None, '0;-0;"-"')
             zet(ws, 'F%d' % r, '=IF(N(C%d)=0,"",D%d/C%d)' % (r, r, r), F, None, '0%')
             zet(ws, 'G%d' % r, '=D%d' % r, F, GRIJS, AANT)
             for c in QCOLS:
                 zet(ws, '%s%d' % (c, r), None, F, GEEL, AANT)
             zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, AANT)
             zet(ws, '%s%d' % (VER, r), '=ROUND(C%d-%s%d,2)' % (r, CHK, r), F, None, AANT)
+            soort = 'verkocht' if r == vk_rij(k) else 'getransporteerd'
+            zet(ws, '%s%d' % (STAT, r), ('=IF(N(C{r})=0,"",IF({v}{r}=0,"OK",IF({v}{r}>0,"LET OP: "&{v}{r}&" woningen nog te verdelen ({s}, type {k})",'
+                                         '"FOUT: "&-{v}{r}&" woningen te veel verdeeld ({s}, type {k})")))').format(r=r, v=VER, s=soort, k=k), FB)
         ws['B%d' % tt_rij(k)].border = Border(bottom=Side(style='thin', color='FFD1D5DB'))
     for r, lab, rijen in ((VK_TOT, 'Totaal · verkocht', [vk_rij(k) for k in range(1, NT + 1)]),
                           (TT_TOT, 'Totaal · getransporteerd', [tt_rij(k) for k in range(1, NT + 1)])):
@@ -462,6 +505,8 @@ def maak_opbrengsten(ws):
                                   '%s&" getransporteerd · "&%s&" in optie · "&%s&" te koop  →")'
         % (st_('Verkocht'), st_('Getransporteer*'), st_('In optie'), st_('Te koop')),
         Font(name='Heijmans-Light', size=9, italic=True, color='FF003366', underline='single'))
+    ws.conditional_formatting.add('E%d:E%d' % (VK + 1, TT_TOT), FormulaRule(formula=['ROUND(E%d,2)<>0' % (VK + 1)],
+                                  font=Font(bold=True, color='FFB91C1C'), fill=PatternFill('solid', fgColor='FFFECACA', bgColor='FFFECACA')))
     ws.conditional_formatting.add('F%d:F%d' % (VK + 1, TT_TOT), DataBarRule(start_type='num', start_value=0, end_type='num',
                                                                              end_value=1, color='FF003366', showValue=True))
     # omzetblokken (aantallen woningen per termijn per kwartaal)
@@ -486,8 +531,8 @@ def maak_opbrengsten(ws):
         for t in range(1, NTERM + 1):
             r = oz_rij(k, t)
             p = plan(k, t)
-            zet(ws, 'B%d' % r, '=%s&""' % pl('$%s$%d' % (P_TERM_NAAM, a + 1 + t)))
-            zet(ws, 'C%d' % r, '=N(%s)' % pl('$%s$%d' % (P_TERM_PCT, a + 1 + t)), F, None, '0.0%')
+            zet(ws, 'B%d' % r, '=%s&""' % pl('$%s$%d' % (P_EFF_NAAM, a + 1 + t)))
+            zet(ws, 'C%d' % r, '=N(%s)' % pl('$%s$%d' % (P_EFF_PCT, a + 1 + t)), F, None, '0.0%')
             zet(ws, 'D%d' % r, '=C%d*%s' % (r, p_gebr(k, 'aanneemkao')), F, None, NUM)
             zet(ws, 'E%d' % r, '=IFERROR(D%d/%s,0)' % (r, w), F, None, NUM2)
             for j, c in enumerate(COLS):
@@ -680,7 +725,7 @@ def maak_opbrengsten(ws):
     markeringen(ws, 4, 4, PER + 40)
     # inklappen: invoerblok per woningtype, en de rekenblokken (aantallen per termijn en €)
     for k in range(1, NT + 1):
-        ws.row_dimensions.group(plan(k, 1), hb(k) + BLOK - 2, outline_level=1)
+        ws.row_dimensions.group(plan(k, 1), hb(k) + BLOK - 3, outline_level=1)
     ws.row_dimensions.group(OZ1 - 1, OV_KOP - 2, outline_level=1, hidden=True)
     ws.sheet_properties.outlinePr.summaryBelow = False
     ws.column_dimensions['B'].width = 52
@@ -692,14 +737,14 @@ def maak_opbrengsten(ws):
     ws.column_dimensions['F'].width = 12
     navigatie(ws, 'A1', 'D1')
     statuskleuren(ws, '%s1:%s%d' % (CHK, TOEL, DAEB_VERKOOP + 5))
-    ws.freeze_panes = 'H6'
+    ws.freeze_panes = 'H5'
 
 
 # ===================================================================================================
 def maak_kosten(ws):
     ws.title = 'CF - kosten'
     ws.sheet_view.showGridLines = False
-    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['A'].width = 30          # rode meldingen (zie foutkolom in de bouw)
     OO = "'CF - opbrengsten'!"
     zet(ws, 'B1', None)
     for k in range(1, NT + 1):
@@ -719,7 +764,7 @@ def maak_kosten(ws):
             r = kterm(k, t)
             if t <= NTERM:
                 zet(ws, 'B%d' % r, "=%sB%d" % (OO, plan(k, t)))
-                zet(ws, 'C%d' % r, '=IF(%s="",N(%s),N(%s))' % (pl('$%s$%d' % (P_TERM_KPCT, a + 1 + t)), pl('$%s$%d' % (P_TERM_PCT, a + 1 + t)),
+                zet(ws, 'C%d' % r, '=IF(%s="",N(%s),N(%s))' % (pl('$%s$%d' % (P_TERM_KPCT, a + 1 + t)), pl('$%s$%d' % (P_EFF_PCT, a + 1 + t)),
                                                            pl('$%s$%d' % (P_TERM_KPCT, a + 1 + t))), F, None, '0.0%')
                 zet(ws, 'D%d' % r, '=C%d*$D$%d' % (r, b), F, None, NUM)
                 zet(ws, 'E%d' % r, '=IFERROR(D%d/%s,0)' % (r, w), F, None, NUM2)
@@ -855,35 +900,58 @@ def maak_prijslijst(ws, wbn=None):
     rij_tot = tn + 1
     regels = lambda col: '+'.join('SUM(%s%d:%s%d)' % (col, p_aans(k) + 2, col, p_aans(k) + 1 + len(P_REGELS))
                                   for k in range(1, NT + 1))
-    rk = KT
+    # overzicht per woningtype (rij 3 kop, 4..3+NT types, daaronder totaal): aantal, verkoop/transport, nog te verdelen,
+    # prijslijst en SKO, start bouw / oplevering en de eerste melding (rood) met een link naar het blok van het type
     OO = "'CF - opbrengsten'!"
-    kaarten = [
-        ('B', 'WONINGEN', '=SUM(S%d:S%d)' % (t1, tn), '0', '=COUNTIF(B%d:B%d,"?*")&" woningtypes"' % (t1, tn), None),
-        ('F', 'OPBRENGSTEN PRIJSLIJST (excl. btw)', '=SUM(T%d:W%d)' % (t1, tn), NUM, 'grond + aanneemsom + KAO + meerwerk + kad.', None),
-        ('J', 'SKO (actueel budget)', '=' + regels('B'), NUM, 'verschil met prijslijst:', '=SUM(T%d:W%d)-(%s)' % (t1, tn, regels('B'))),
-        ('N', 'TE BOEKEN IN SAP (Corr)', '=' + regels('G'), NUM, 'per SAP-nummer: zie blok 3', None),
-        ('R', 'AANSLUITING', '=IF((%s)=0,"OK",(%s)&" type(s) met FOUT")' % (('+'.join('N(J%d="FOUT")' % p_aans(k) for k in range(1, NT + 1)),) * 2), None, 'SKO ↔ prijslijst ↔ PEW, per regel', None),
-        ('V', 'KANS GRONDTERMIJN · extra eerder ontvangen', '=%sD%d' % (OO, rk + 5), NUM,
-         '="max. financiering huidig "&TEXT(%sD%d,"#,##0")&" · met kans:"' % (OO, rk + 6), '=%sD%d' % (OO, rk + 7)),
-    ]
-    for c, kop_, waarde, fmt, sub, subw in kaarten:
-        c2 = L(ci_(c) + 2)
-        for r in range(4, 9):
-            for cc in range(ci_(c), ci_(c) + 3):
-                cel = ws.cell(r, cc)
-                cel.fill = KAART
-                cel.border = Border(top=Side(style='medium', color='FFFEB900') if r == 4 else None,
-                                    left=dun if cc == ci_(c) else None, right=dun if cc == ci_(c) + 2 else None,
-                                    bottom=dun if r == 8 else None)
-        zet(ws, '%s4' % c, kop_, FK, KAART)
-        zet(ws, '%s5' % c, waarde, FV, KAART, fmt)
-        ws.merge_cells('%s5:%s6' % (c, c2))
-        ws['%s5' % c].alignment = Alignment(horizontal='left', vertical='center')
-        zet(ws, '%s7' % c, sub, FK, KAART)
-        if subw:
-            zet(ws, '%s8' % c, subw, FB, KAART, NUM)
-    ws.conditional_formatting.add('R5', CellIsRule(operator='equal', formula=['"OK"'], font=Font(color='FF15803D', bold=True, size=18)))
-    ws.conditional_formatting.add('R5', CellIsRule(operator='notEqual', formula=['"OK"'], font=Font(color='FFB91C1C', bold=True, size=18)))
+    R0 = P_OVZ1 - 1
+    kq = lambda x: 'IF(ISNUMBER({x}),IF({x}>0,"Q"&(MOD({x}-1,4)+1)&" "&INT(({x}-1)/4),""),"")'.format(x=x)
+    koppen = ['OVERZICHT PER WONINGTYPE', 'Aantal woningen', 'Verkocht t/m nu', 'Getransp. t/m nu', 'Nog te verdelen (verkooptempo)',
+              'Prijslijst €', 'SKO €', 'Verschil (Corr)', 'Start bouw', 'Oplevering', 'Naar', 'Status (eerste melding)']
+    for i_, t_ in enumerate(koppen):
+        cel = zet(ws, '%s%d' % (L(1 + i_), R0), t_, FW, DONKER)
+        cel.alignment = Alignment(wrap_text=True, vertical='center', horizontal='left' if i_ in (0, 11) else 'center')
+    ws.row_dimensions[R0].height = 28
+    for k in range(1, NT + 1):
+        r, t, a = R0 + k, P_TYPE1 + k - 1, p_aans(k)
+        rz = a + 1 + len(P_REGELS)
+        pi = plan_inv(k)
+        heeft = 'OR(B{t}<>"",N(S{t})>0)'.format(t=t)
+        als = lambda f: '=IF(%s,%s,"")' % (heeft, f)
+        zet(ws, 'A%d' % r, '=IF(B{t}<>"",B{t},IF(N(S{t})>0,"Type {k}",""))'.format(t=t, k=k), FB)
+        zet(ws, 'B%d' % r, als('N(S%d)' % t), FB, None, '0')
+        zet(ws, 'C%d' % r, als('N(%s$D$%d)' % (OO, vk_rij(k))), F, None, '0')
+        zet(ws, 'D%d' % r, als('N(%s$D$%d)' % (OO, tt_rij(k))), F, None, '0')
+        zet(ws, 'E%d' % r, als('N(%s$E$%d)' % (OO, vk_rij(k))), FB, None, '0;-0;"-"')
+        zet(ws, 'F%d' % r, als('N(D%d)' % (rz + 1)), F, None, NUM)
+        zet(ws, 'G%d' % r, als('N(B%d)' % (rz + 1)), F, None, NUM)
+        zet(ws, 'H%d' % r, als('N(G%d)' % (rz + 1)), F, None, NUM)
+        zet(ws, 'I%d' % r, als(kq('%s$%s$%d' % (OO, CHK, pi))), F)
+        zet(ws, 'J%d' % r, als(kq('IF(%s$%s$%d="",N(p_oplevering),%s$%s$%d)' % (OO, VER, pi, OO, VER, pi))), F)
+        zet(ws, 'K%d' % r, '=IF(%s,HYPERLINK("#A%d","→ blok %d"),"")' % (heeft, a, k),
+            Font(name='Heijmans-Light', size=9, color='FF003366', underline='single'))
+        stat = lambda rr: '%s$%s$%d&""' % (OO, STAT, rr)
+        plan_fout = 'COUNTIF(%s$%s$%d:$%s$%d,"FOUT*")' % (OO, STAT, plan(k, 1), STAT, plan(k, NTERM))
+        zet(ws, 'L%d' % r, ('=IF(NOT({h}),"",IF(LEFT({pi},4)="FOUT",{pi},IF(J{a}="FOUT","FOUT: aansluiting SKO / prijslijst / PEW sluit niet (blok {k})",'
+                            'IF({pf}>0,"FOUT: planning · "&{pf}&" termijn(en) niet (goed) ingepland",IF(LEFT({vk},2)<>"OK",IF({vk}="","OK",{vk}),'
+                            'IF(LEFT({tt},2)<>"OK",IF({tt}="","OK",{tt}),IF(LEFT(N{a}&"",6)="LET OP",N{a},"OK")))))))').format(
+            h=heeft, pi=stat(pi), a=a, k=k, pf=plan_fout, vk=stat(vk_rij(k)), tt=stat(tt_rij(k))), FB)
+        for cc in range(1, 13):
+            ws.cell(r, cc).border = Border(bottom=dun)
+    rt = R0 + NT + 1
+    zet(ws, 'A%d' % rt, 'Totaal', FB, LICHT)
+    for c in 'BCDEFGH':
+        zet(ws, '%s%d' % (c, rt), '=SUM(%s%d:%s%d)' % (c, R0 + 1, c, R0 + NT), FB, LICHT, '0' if c in 'BCD' else ('0;-0;"-"' if c == 'E' else NUM))
+    for c in 'IJK':
+        ws['%s%d' % (c, rt)].fill = LICHT
+    zet(ws, 'L%d' % rt, '=IF(COUNTIF(L{a}:L{b},"FOUT*")+COUNTIF(L{a}:L{b},"LET OP*")=0,"OK",COUNTIF(L{a}:L{b},"FOUT*")&" fout · "&'
+                        'COUNTIF(L{a}:L{b},"LET OP*")&" let op")'.format(a=R0 + 1, b=R0 + NT), FB, LICHT)
+    statuskleuren(ws, 'L%d:L%d' % (R0 + 1, rt))
+    ws.conditional_formatting.add('L%d' % rt, FormulaRule(formula=['AND(L%d<>"OK",L%d<>"")' % (rt, rt)],
+                                  font=Font(bold=True, color='FFB91C1C')))
+    ws.conditional_formatting.add('E%d:E%d' % (R0 + 1, rt), FormulaRule(formula=['AND(ISNUMBER(E%d),E%d<>0)' % (R0 + 1, R0 + 1)],
+                                  font=Font(bold=True, color='FFB91C1C'), fill=PatternFill('solid', fgColor='FFFECACA', bgColor='FFFECACA')))
+    ws.conditional_formatting.add('H%d:H%d' % (R0 + 1, rt), CellIsRule(operator='notBetween', formula=['-0.5', '0.5'],
+                                  font=Font(color='FF92400E', bold=True)))
     # 0 SKO per woningtype (zoals 'Aansluiting SKO' in het oude FO): per SKO-woningtype aantal, VON, grond,
     # ontwikkelkosten en termijnen per woning, en de categorie (= woningtype 1..NT hieronder)
     zet(ws, 'A%d' % SKO_KOP, '0 · SKO PER WONINGTYPE · vul hier de SKO in; kies per regel de categorie (woningtype 1 t/m %d hieronder)' % NT,
@@ -1038,13 +1106,13 @@ def maak_prijslijst(ws, wbn=None):
         for cc in range(1, 15):
             ws.cell(a, cc).fill = BAND['gebr']
         zet(ws, 'A%d' % a, 'Vergelijking excl. BTW - type %d' % k, FW, BAND['gebr'])
-        zet(ws, 'C%d' % a, '=B%d&""' % t, Font(name='Heijmans-BoldCon', size=11, color='FFFFFFFF'), BAND['gebr'])
+        zet(ws, 'C%d' % a, '=B%d&IF(N(S%d)>0,"  ·  "&S%d&" woningen","")' % (t, t, t), Font(name='Heijmans-BoldCon', size=11, color='FFFFFFFF'), BAND['gebr'])
         zet(ws, 'J%d' % a, '=IF(COUNTIF(J%d:J%d,"FOUT")=0,"OK","FOUT")' % (ra, rz), FW, BAND['gebr'])
         zet(ws, 'E%d' % a, '=IF(AND(N($D%d)=0,SUM(B%d:B%d)<>0),IF(N(S%d)=0,"LET OP: vul het aantal woningen in (kolom N, rij %d)",'
                            '"geen prijslijst: de cashflow rekent met de SKO"),"")' % (t, ra, rz, t, t),
             Font(name='Heijmans-Light', size=9, italic=True, color='FFFFFFFF'), BAND['gebr'])
-        zet(ws, 'N%d' % a, '=IF(ABS(%s%d-1)<0.0001,"OK",IF(%s%d=0,"","LET OP: niet 100%%"))'
-            % (P_TERM_PCT, rz + 1, P_TERM_PCT, rz + 1), FW, BAND['gebr'])
+        zet(ws, 'N%d' % a, '=IF(ABS(%s%d-1)<0.0001,"OK",IF(%s%d=0,"","LET OP: termijnen samen "&TEXT(%s%d,"0.0%%")&", niet 100%%"))'
+            % (P_EFF_PCT, rz + 1, P_EFF_PCT, rz + 1, P_EFF_PCT, rz + 1), FW, BAND['gebr'])
         for c, h in zip('BDFGHIJ', ['SKO', 'Prijslijst', 'Actueel budget', 'Corr', 'PEW', 'Verschil', 'Status']):
             zet(ws, '%s%d' % (c, a + 1), h, FB, LICHT)
         ws['A%d' % (a + 1)].fill = LICHT
@@ -1092,32 +1160,66 @@ def maak_prijslijst(ws, wbn=None):
             ws['%s%d' % (c, rz + 1)].fill = LICHT
         ws.conditional_formatting.add('G%d:G%d' % (ra, rz), CellIsRule(operator='notBetween', formula=['-0.5', '0.5'],
                                       font=Font(color='FF92400E', bold=True), fill=PatternFill('solid', fgColor='FFFEF3C7', bgColor='FFFEF3C7')))
-        zet(ws, '%s%d' % (P_TERM_KW, a + 1), 'Kwartalen na start bouw', FB, LICHT)
+        CFO = "'CF - opbrengsten'!"
+        pi = plan_inv(k)
+        zet(ws, '%s%d' % (P_TERM_KW, a + 1), 'Kwartalen na start bouw (berekend)', FB, LICHT)
         zet(ws, '%s%d' % (P_TERM_KPCT, a + 1), '% kosten (leeg = opbrengsten)', FB, LICHT)
         for c_, t_ in ((P_SB_J, 'Start bouw · jaar'), (P_SB_Q, 'kwartaal'), (P_SB_IDX, '')):
             zet(ws, '%s%d' % (c_, a + 1), t_, FB, LICHT)
-        zet(ws, '%s%d' % (P_SB_J, a + 2), None, FB, GEEL, '0')
-        zet(ws, '%s%d' % (P_SB_Q, a + 2), None, FB, GEEL, '0')
-        zet(ws, '%s%d' % (P_SB_IDX, a + 2), '=IF(OR(%s%d="",%s%d=""),N(p_startbouw),%s%d*4+%s%d)'
-            % (P_SB_J, a + 2, P_SB_Q, a + 2, P_SB_J, a + 2, P_SB_Q, a + 2), FN, None, ';;;')
-        zet(ws, '%s%d' % (P_SB_J, a + 3), 'leeg = start bouw op Start; de termijnen met "kwartalen na start bouw" komen '
-            'vanzelf in CF - opbrengsten en CF - kosten', FN)
+        # start bouw: invullen op CF - opbrengsten (planningsrij van het type); hier ter info
+        zet(ws, '%s%d' % (P_SB_IDX, a + 2), '=N(%s$%s$%d)' % (CFO, CHK, pi), FN, None, ';;;')
+        zet(ws, '%s%d' % (P_SB_J, a + 2), '=IF(N(%s%d)=0,"",INT((%s%d-1)/4))' % (P_SB_IDX, a + 2, P_SB_IDX, a + 2), FB, GRIJS, '0')
+        zet(ws, '%s%d' % (P_SB_Q, a + 2), '=IF(N(%s%d)=0,"",MOD(%s%d-1,4)+1)' % (P_SB_IDX, a + 2, P_SB_IDX, a + 2), FB, GRIJS, '0')
+        zet(ws, '%s%d' % (P_SB_J, a + 3), '=HYPERLINK("#\'CF - opbrengsten\'!B%d","Planning invullen op CF - opbrengsten (rij %d): start bouw, '
+            'oplevering, spreiding en kw na start per termijn  →")' % (pi, pi), Font(name='Heijmans-Light', size=9, italic=True,
+                                                                            color='FF003366', underline='single'))
         zet(ws, '%s%d' % (P_KBUDGET, a + 4), 'Kosten: budget aanneemsom (excl. KAO) voor CF - kosten', FB, LICHT)
         zet(ws, '%s%d' % (P_KBUDGET, a + 5), None, FB, GEEL, NUM)
+        # standaard schema: een type zonder eigen termijnschema (kolom L leeg) volgt type 1
+        a1 = p_aans(1)
+        r1_, rn_ = a + 2, a + 1 + NTERM
+        zet(ws, '%s%d' % (P_STD, a), ('=IF(COUNTIF($%s$%d:$%s$%d,"?*")=0,1,0)' % (P_TERM_NAAM, r1_, P_TERM_NAAM, rn_)) if k > 1 else 0,
+            FK, None, ';;;')
+        zet(ws, '%s%d' % (P_TERM_NAAM, a + 1), '=IF(%s%d=1,"Termijnschema · leeg = schema van type 1","Termijnschema · termijn")'
+            % (P_STD, a), FB, LICHT)
+        zet(ws, '%s%d' % (P_EFF_NAAM, a + 1), 'termijn (gebruikt)', FK)
+        zet(ws, '%s%d' % (P_EFF_PCT, a + 1), '% (gebruikt)', FK)
         for i in range(1, NTERM + 1):
             r = a + 1 + i
             zet(ws, '%s%d' % (P_TERM_NAAM, r), None, F, GEEL)
             zet(ws, '%s%d' % (P_TERM_PCT, r), None, F, GEEL, '0.0%')
-            zet(ws, '%s%d' % (P_TERM_KW, r), None, F, GEEL, '0')
             zet(ws, '%s%d' % (P_TERM_KPCT, r), None, F, GEEL, '0.0%')
+            if k == 1:
+                zet(ws, '%s%d' % (P_EFF_NAAM, r), '=%s%d&""' % (P_TERM_NAAM, r), FK)
+                zet(ws, '%s%d' % (P_EFF_PCT, r), '=N(%s%d)' % (P_TERM_PCT, r), FK, None, '0.0%')
+            else:
+                zet(ws, '%s%d' % (P_EFF_NAAM, r), '=IF($%s$%d=1,$%s$%d,%s%d&"")' % (P_STD, a, P_EFF_NAAM, a1 + 1 + i, P_TERM_NAAM, r), FK)
+                zet(ws, '%s%d' % (P_EFF_PCT, r), '=IF($%s$%d=1,$%s$%d,N(%s%d))' % (P_STD, a, P_EFF_PCT, a1 + 1 + i, P_TERM_PCT, r), FK, None, '0.0%')
+            # kwartalen na start bouw: eigen invoer (CF - opbrengsten kolom F), anders gelijk verdeeld tussen start bouw
+            # en oplevering (over de termijnen met een naam), anders die van type 1; geen van drieen = zelf plannen
+            eigen = '%s$F$%d' % (CFO, plan(k, i))
+            ix, ox = '%s$%s$%d' % (CFO, CHK, pi), '%s$%s$%d' % (CFO, VER, pi)
+            j_ = 'COUNTIF($%s$%d:$%s%d,"?*")' % (P_EFF_NAAM, r1_, P_EFF_NAAM, r)
+            n_ = 'COUNTIF($%s$%d:$%s$%d,"?*")' % (P_EFF_NAAM, r1_, P_EFF_NAAM, rn_)
+            gelijk = 'IF(%s<=1,0,ROUND((%s-1)*(%s-%s)/(%s-1),0))' % (n_, j_, ox, ix, n_)
+            std = '""' if k == 1 else 'IF($%s$%d="","",$%s$%d)' % (P_TERM_KW, a1 + 1 + i, P_TERM_KW, a1 + 1 + i)
+            zet(ws, '%s%d' % (P_TERM_KW, r), '=IF(%s%d="","",IF(%s&""<>"",N(%s),IF(AND(ISNUMBER(%s),ISNUMBER(%s)),%s,%s)))'
+                % (P_EFF_NAAM, r, eigen, eigen, ox, ix, gelijk, std), F, GRIJS, '0')
         zet(ws, '%s%d' % (P_TERM_NAAM, rz + 1), 'Totaal', FB, LICHT)
         zet(ws, '%s%d' % (P_TERM_PCT, rz + 1), '=SUM(%s%d:%s%d)' % (P_TERM_PCT, a + 2, P_TERM_PCT, a + 1 + NTERM), FB, LICHT, '0.0%')
+        zet(ws, '%s%d' % (P_EFF_PCT, rz + 1), '=SUM(%s%d:%s%d)' % (P_EFF_PCT, a + 2, P_EFF_PCT, a + 1 + NTERM), FK, None, '0.0%')
     rood = Font(color='FFB91C1C', bold=True)
     groen = Font(color='FF15803D', bold=True)
     for k in range(1, NT + 1):
         a = p_aans(k)
         ws.conditional_formatting.add('J%d:J%d' % (a + 2, a + 1 + len(P_REGELS)), CellIsRule(operator='equal', formula=['"FOUT"'], font=rood))
         ws.conditional_formatting.add('J%d:J%d' % (a + 2, a + 1 + len(P_REGELS)), CellIsRule(operator='equal', formula=['"OK"'], font=groen))
+        # het label in kolom A rood bij een fout op die regel (zodat je ziet waar je naartoe moet)
+        ws.conditional_formatting.add('A%d:A%d' % (a + 2, a + 1 + len(P_REGELS)), FormulaRule(formula=['LEFT($J%d,4)="FOUT"' % (a + 2)],
+                                      font=rood, fill=PatternFill('solid', fgColor='FFFECACA', bgColor='FFFECACA')))
+    ws.conditional_formatting.add('A%d:A%d' % (SKO1, SKO_TOT - 1), FormulaRule(
+        formula=['OR(LEFT($%s%d,4)="FOUT",LEFT($%s%d,6)="LET OP")' % (SKO['status'], SKO1, SKO['status'], SKO1)],
+        font=rood, fill=PatternFill('solid', fgColor='FFFECACA', bgColor='FFFECACA')))
     for c, w in {'A': 26, 'B': 24, 'C': 16}.items():
         ws.column_dimensions[c].width = w
     for c in range(4, 27):
@@ -1298,10 +1400,10 @@ def inklappen(wb, types, jaar, verleden_tot):
     """woningtypes zonder woningen ingeklapt; kwartalen vóór de laatste actuals (kwartaalindex) als ingeklapte groep"""
     o, k = wb['CF - opbrengsten'], wb['CF - kosten']
     for t in types:
-        for r in range(plan(t, 1), hb(t) + BLOK - 1):
+        for r in [plan_inv(t)] + list(range(plan(t, 1), hb(t) + BLOK - 2)):
             o.row_dimensions[r].hidden = True
         p = wb['Prijslijst']
-        for r in [P_TYPE1 + t - 1, KANS + t] + list(range(p_aans(t), p_aans(t) + P_BLOK - 1)):
+        for r in [P_OVZ1 + t - 1, P_TYPE1 + t - 1, KANS + t] + list(range(p_aans(t), p_aans(t) + P_BLOK - 1)):
             (o if r == KANS + t else p).row_dimensions[r].hidden = True
         for r in (vk_rij(t), tt_rij(t)):
             o.row_dimensions[r].hidden = True

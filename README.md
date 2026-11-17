@@ -118,7 +118,17 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
   - De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
 - **Vorige, huidig en realisatie** op het Dashboard (V93–V101): eindsaldo en laagste stand vorige ↔ huidig, kosten en omzet van het laatste afgesloten kwartaal vorige prognose ↔ gerealiseerd, en of de afgesloten periodes aansluiten op SAP. Details per periode: tab CF vorig en huidig.
 - **Tabbladkleuren:** Start donkerblauw, exports grijs, invoer en rekenwerk geel (Aansluiting opbrengsten, CF - opbrengsten, CF - kosten, 2. Ontw PEW), uitkomsten groen (Dashboard, Scenario's, CF - hulp VENA).
-- **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont FOUT of LET OP voor de rij; cel C1 telt ze.
+- **Fouten vooraan:** kolom A op CF - opbrengsten en CF - kosten toont de melding zelf, klein en rood, op de rij waar je moet zijn (bv. "LET OP: 4 woningen nog te verdelen (verkocht, type 1)"); B1 telt ze. Op Aansluiting opbrengsten wordt het label van een foute regel rood.
+- **Planning per woningtype** (CF - opbrengsten, rij *Planning* boven elk type):
+  - vul start bouw en oplevering in als tekst (bv. `Q1 2027`), en de spreiding (het aantal kwartalen waarover een termijn verdeeld wordt);
+  - in kolom F vul je per termijn de *kw na start* in;
+  - een lege kolom F verdeelt de termijnen gelijk tussen start bouw en oplevering, en zonder oplevering gelden de kwartalen van type 1;
+  - een type zonder eigen termijnschema (kolom L op Aansluiting opbrengsten leeg) volgt type 1;
+  - een lege start bouw neemt die van Start;
+  - Oud FO inlezen zet de planning als vaste getallen.
+- **Overzicht per woningtype** bovenaan Aansluiting opbrengsten:
+  - per type aantal woningen, verkocht en getransporteerd, nog te verdelen, prijslijst, SKO, start bouw en oplevering;
+  - de eerste melding staat erbij, met een link naar het blok.
 - **Kans grondtermijn:** vul op `Aansluiting opbrengsten` in kolom Y een ander grond-% van de koopsom in (bijvoorbeeld 50%).
   - De kans geldt alleen voor woningen die nog getransporteerd worden. Bij al getransporteerde woningen ligt de verdeling grond/bouwtermijnen vast (CF - opbrengsten, kolom C van de kansregels).
   - Per type staat het netto effect per kwartaal: meer grondtermijn bij transport, minder bouwtermijnen daarna.

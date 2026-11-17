@@ -1135,7 +1135,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                 wP.Cells(a0 + 1 + j, 13).Value = Nk(wO.Cells(term(j), 3).Value)
             Next j
             ' planning, verkocht, transport, kadastrale kosten
-            hb = 6 + BLOK * (i - 1)                 ' titelrij in dit werkbestand
+            hb = HB1 + BLOK * (i - 1)                 ' titelrij in dit werkbestand
             tr = hb + NTERM + 1
             For j = 1 To aantT
                 wD.Range(wD.Cells(hb + j, C_ACT), wD.Cells(hb + j, C_Q1 + NQ - 1)).ClearContents
@@ -1569,13 +1569,15 @@ Public Sub WeergaveBijwerken()
     Set wsO = ThisWorkbook.Worksheets("CF - opbrengsten")
     Set wsK = ThisWorkbook.Worksheets("CF - kosten")
     For k = 1 To NT
-        leeg = (Nk(wsO.Cells(5 + BLOK * (k - 1), 7).Value) = 0)
-        r1 = 6 + BLOK * (k - 1)
-        wsO.Range(wsO.Rows(r1 + 1), wsO.Rows(r1 + BLOK - 2)).EntireRow.Hidden = leeg
+        leeg = (Nk(wsO.Cells(WON1 + BLOK * (k - 1), 7).Value) = 0)
+        r1 = HB1 + BLOK * (k - 1)
+        wsO.Rows(WON1 - 1 + BLOK * (k - 1)).Hidden = leeg    ' planningsrij (start bouw, oplevering, spreiding)
+        wsO.Range(wsO.Rows(r1 + 1), wsO.Rows(r1 + BLOK - 3)).EntireRow.Hidden = leeg
         wsO.Rows(KANS_RIJ + k).Hidden = leeg
         wsO.Range(wsO.Rows(VK_RIJ + 2 * k - 1), wsO.Rows(VK_RIJ + 2 * k)).EntireRow.Hidden = leeg
         With ThisWorkbook.Worksheets(SH_AANSL)
             .Rows(P_TYPE1 + k - 1).Hidden = leeg
+            .Rows(P_OVZ1 + k - 1).Hidden = leeg
             .Range(.Rows(P_AANS1 + P_BLOK * (k - 1)), .Rows(P_AANS1 + P_BLOK * k - 2)).EntireRow.Hidden = leeg
         End With
         r1 = 3 + KBLOK * (k - 1)

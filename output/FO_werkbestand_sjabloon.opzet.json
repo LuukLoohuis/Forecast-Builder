@@ -62,9 +62,8 @@
    "types": [
     {
      "k": 1,
-     "hb": 6,
+     "hb": 7,
      "plan": [
-      7,
       8,
       9,
       10,
@@ -73,29 +72,30 @@
       13,
       14,
       15,
-      16
+      16,
+      17
      ],
-     "d": 167,
-     "tr": 17,
-     "omzet_kop": 172,
+     "d": 173,
+     "tr": 18,
+     "omzet_kop": 179,
      "omzet": [
-      173,
-      174,
-      175,
-      176,
-      177,
-      178,
-      179,
       180,
       181,
       182,
       183,
       184,
       185,
-      186
+      186,
+      187,
+      188,
+      189,
+      190,
+      191,
+      192,
+      193
      ],
-     "koop": 173,
-     "verkoop": 134,
+     "koop": 180,
+     "verkoop": 141,
      "won": 0,
      "verkoop_waarden": [
       0,
@@ -183,7 +183,7 @@
       0,
       0
      ],
-     "transport_tabel": 135,
+     "transport_tabel": 142,
      "kosten": [
       5,
       6,
@@ -198,16 +198,14 @@
       15,
       16
      ],
-     "rij_verkocht": 18,
-     "rij_transport_pct": 19,
-     "rij_grond": 20
+     "rij_verkocht": 19,
+     "rij_transport_pct": 20,
+     "rij_grond": 21
     },
     {
      "k": 2,
-     "hb": 27,
+     "hb": 29,
      "plan": [
-      28,
-      29,
       30,
       31,
       32,
@@ -215,29 +213,31 @@
       34,
       35,
       36,
-      37
+      37,
+      38,
+      39
      ],
-     "d": 163,
-     "tr": 38,
-     "omzet_kop": 189,
+     "d": 168,
+     "tr": 40,
+     "omzet_kop": 196,
      "omzet": [
-      190,
-      191,
-      192,
-      193,
-      194,
-      195,
-      196,
       197,
       198,
       199,
       200,
       201,
       202,
-      203
+      203,
+      204,
+      205,
+      206,
+      207,
+      208,
+      209,
+      210
      ],
-     "koop": 190,
-     "verkoop": 136,
+     "koop": 197,
+     "verkoop": 143,
      "won": 0,
      "verkoop_waarden": [
       0,
@@ -325,7 +325,7 @@
       0,
       0
      ],
-     "transport_tabel": 137,
+     "transport_tabel": 144,
      "kosten": [
       22,
       23,
@@ -340,46 +340,46 @@
       32,
       33
      ],
-     "rij_verkocht": 39,
-     "rij_transport_pct": 40,
-     "rij_grond": 41
+     "rij_verkocht": 41,
+     "rij_transport_pct": 42,
+     "rij_grond": 43
     },
     {
      "k": 3,
-     "hb": 48,
+     "hb": 51,
      "plan": [
-      49,
-      50,
-      51,
       52,
       53,
       54,
       55,
       56,
       57,
-      58
+      58,
+      59,
+      60,
+      61
      ],
-     "d": 159,
-     "tr": 59,
-     "omzet_kop": 206,
+     "d": 163,
+     "tr": 62,
+     "omzet_kop": 213,
      "omzet": [
-      207,
-      208,
-      209,
-      210,
-      211,
-      212,
-      213,
       214,
       215,
       216,
       217,
       218,
       219,
-      220
+      220,
+      221,
+      222,
+      223,
+      224,
+      225,
+      226,
+      227
      ],
-     "koop": 207,
-     "verkoop": 138,
+     "koop": 214,
+     "verkoop": 145,
      "won": 0,
      "verkoop_waarden": [
       0,
@@ -467,7 +467,7 @@
       0,
       0
      ],
-     "transport_tabel": 139,
+     "transport_tabel": 146,
      "kosten": [
       39,
       40,
@@ -482,46 +482,46 @@
       49,
       50
      ],
-     "rij_verkocht": 60,
-     "rij_transport_pct": 61,
-     "rij_grond": 62
+     "rij_verkocht": 63,
+     "rij_transport_pct": 64,
+     "rij_grond": 65
     },
     {
      "k": 4,
-     "hb": 69,
+     "hb": 73,
      "plan": [
-      70,
-      71,
-      72,
-      73,
       74,
       75,
       76,
       77,
       78,
-      79
+      79,
+      80,
+      81,
+      82,
+      83
      ],
-     "d": 155,
-     "tr": 80,
-     "omzet_kop": 223,
+     "d": 158,
+     "tr": 84,
+     "omzet_kop": 230,
      "omzet": [
-      224,
-      225,
-      226,
-      227,
-      228,
-      229,
-      230,
       231,
       232,
       233,
       234,
       235,
       236,
-      237
+      237,
+      238,
+      239,
+      240,
+      241,
+      242,
+      243,
+      244
      ],
-     "koop": 224,
-     "verkoop": 140,
+     "koop": 231,
+     "verkoop": 147,
      "won": 0,
      "verkoop_waarden": [
       0,
@@ -609,7 +609,7 @@
       0,
       0
      ],
-     "transport_tabel": 141,
+     "transport_tabel": 148,
      "kosten": [
       56,
       57,
@@ -624,46 +624,46 @@
       66,
       67
      ],
-     "rij_verkocht": 81,
-     "rij_transport_pct": 82,
-     "rij_grond": 83
+     "rij_verkocht": 85,
+     "rij_transport_pct": 86,
+     "rij_grond": 87
     },
     {
      "k": 5,
-     "hb": 90,
+     "hb": 95,
      "plan": [
-      91,
-      92,
-      93,
-      94,
-      95,
       96,
       97,
       98,
       99,
-      100
+      100,
+      101,
+      102,
+      103,
+      104,
+      105
      ],
-     "d": 151,
-     "tr": 101,
-     "omzet_kop": 240,
+     "d": 153,
+     "tr": 106,
+     "omzet_kop": 247,
      "omzet": [
-      241,
-      242,
-      243,
-      244,
-      245,
-      246,
-      247,
       248,
       249,
       250,
       251,
       252,
       253,
-      254
+      254,
+      255,
+      256,
+      257,
+      258,
+      259,
+      260,
+      261
      ],
-     "koop": 241,
-     "verkoop": 142,
+     "koop": 248,
+     "verkoop": 149,
      "won": 0,
      "verkoop_waarden": [
       0,
@@ -751,7 +751,7 @@
       0,
       0
      ],
-     "transport_tabel": 143,
+     "transport_tabel": 150,
      "kosten": [
       73,
       74,
@@ -766,46 +766,46 @@
       83,
       84
      ],
-     "rij_verkocht": 102,
-     "rij_transport_pct": 103,
-     "rij_grond": 104
+     "rij_verkocht": 107,
+     "rij_transport_pct": 108,
+     "rij_grond": 109
     },
     {
      "k": 6,
-     "hb": 111,
+     "hb": 117,
      "plan": [
-      112,
-      113,
-      114,
-      115,
-      116,
-      117,
       118,
       119,
       120,
-      121
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127
      ],
-     "d": 147,
-     "tr": 122,
-     "omzet_kop": 257,
+     "d": 148,
+     "tr": 128,
+     "omzet_kop": 264,
      "omzet": [
-      258,
-      259,
-      260,
-      261,
-      262,
-      263,
-      264,
       265,
       266,
       267,
       268,
       269,
       270,
-      271
+      271,
+      272,
+      273,
+      274,
+      275,
+      276,
+      277,
+      278
      ],
-     "koop": 258,
-     "verkoop": 144,
+     "koop": 265,
+     "verkoop": 151,
      "won": 0,
      "verkoop_waarden": [
       0,
@@ -893,7 +893,7 @@
       0,
       0
      ],
-     "transport_tabel": 145,
+     "transport_tabel": 152,
      "kosten": [
       90,
       91,
@@ -908,24 +908,24 @@
       100,
       101
      ],
-     "rij_verkocht": 123,
-     "rij_transport_pct": 124,
-     "rij_grond": 125
+     "rij_verkocht": 129,
+     "rij_transport_pct": 130,
+     "rij_grond": 131
     }
    ],
-   "verkoop_kop": 133,
-   "euro_kop": 277,
-   "totaal": 387,
-   "periode": 389,
-   "correctie": 385,
-   "daeb": 398,
+   "verkoop_kop": 140,
+   "euro_kop": 284,
+   "totaal": 394,
+   "periode": 396,
+   "correctie": 392,
+   "daeb": 405,
    "daeb_sjabloon": null,
-   "max": 434,
+   "max": 441,
    "daeb_totaal": null,
    "daeb_eind": null,
    "kop_markering": {},
    "mijlpalen": {},
-   "jaarrij": 276
+   "jaarrij": 283
   },
   "kosten": {
    "eerste": "G",

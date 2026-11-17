@@ -135,10 +135,10 @@ def vba_constanten():
     """vaste plekken van het standaard-FO voor de macro Oud FO inlezen (OmzettenOudFO)"""
     import standaard_fo as S
     from xlsxpkg import col2num as cn
-    w = {'NT': S.NT, 'NTERM': S.NTERM, 'NQ': S.NQ, 'C_ACT': S.C_ACT, 'C_Q1': S.C_Q1, 'BLOK': S.BLOK, 'VK_RIJ': S.VK,
+    w = {'NT': S.NT, 'NTERM': S.NTERM, 'NQ': S.NQ, 'C_ACT': S.C_ACT, 'C_Q1': S.C_Q1, 'BLOK': S.BLOK, 'WON1': S.won_rij(1), 'HB1': S.hb(1), 'VK_RIJ': S.VK,
          'OZ1': S.OZ1, 'KANS_RIJ': S.KANS, 'OBLOK': S.OBLOK, 'OV1_RIJ': S.OV1, 'OV2_RIJ': S.OV2, 'PER_RIJ': S.PER, 'DAEB_KOP_RIJ': S.DAEB_KOP,
          'DAEB_AANTAL_RIJ': S.DAEB_AANTAL, 'DAEB_VERKOOP_RIJ': S.DAEB_VERKOOP, 'KBLOK': S.KBLOK, 'K_POST1': S.K_POST1,
-         'NPOST': S.NPOST, 'C_TOEL': cn(S.TOEL), 'P_TYPE1': S.P_TYPE1, 'P_AANS1': S.P_AANS1, 'P_BLOK': S.P_BLOK,
+         'NPOST': S.NPOST, 'C_TOEL': cn(S.TOEL), 'P_TYPE1': S.P_TYPE1, 'P_OVZ1': S.P_OVZ1, 'P_AANS1': S.P_AANS1, 'P_BLOK': S.P_BLOK,
          'P_BN1': S.P_BN1, 'P_BNN': S.P_BNN}
     regels = ["' vaste plekken (gegenereerd uit tools/standaard_fo.py)"]
     regels += ['Private Const %s As Long = %d' % (k, v) for k, v in w.items()]
@@ -282,19 +282,18 @@ def harmoniseer_stijlen(t):
 
 
 def foutkolom(sh, kol, st, styles):
-    """kolom A: FOUT of LET OP uit de statuskolom van dezelfde rij (rood/oranje), C1: aantal fouten en let op"""
+    """kolom A: de melding uit de statuskolom van dezelfde rij (klein, rood), zodat je ziet waar je naartoe moet;
+    een kale FOUT krijgt de omschrijving van de rij erbij. C1/B1: aantal fouten en let op"""
     rijen = sorted({split_ref(c.get('r'))[1] for c in sh.t.iter(M + 'c')
                     if split_ref(c.get('r'))[0] == kol and c.find(M + 'f') is not None} - {1})     # A1 = '← Start'
     for r in rijen:
         s_ = '%s%d&""' % (kol, r)
-        sh.set('A%d' % r, '=IF(LEFT(%s,4)="FOUT","FOUT",IF(LEFT(%s,6)="LET OP","LET OP",""))' % (s_, s_), st['vet'])
-    sh.set('B1', '=IF(COUNTIF(A:A,"FOUT")+COUNTIF(A:A,"LET OP")=0,"Geen fouten",COUNTIF(A:A,"FOUT")&" fout · "&'
-                 'COUNTIF(A:A,"LET OP")&" let op · zie kolom A")', st['vet'])
-    rood = styles.add_dxf('<font><b val="1"/><color rgb="FFB91C1C"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFFECACA"/></patternFill></fill>')
-    oranje = styles.add_dxf('<font><b val="1"/><color rgb="FF92400E"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFFEF3C7"/></patternFill></fill>')
-    sh.add_cf('A1:A1000', 'A1="FOUT"', rood)
-    sh.add_cf('A1:A1000', 'A1="LET OP"', oranje)
-    sh.add_cf('B1', 'LEFT(B1,5)<>"Geen "', rood)
+        sh.set('A%d' % r, '=IF(LEFT({s},4)="FOUT",IF(LEN({s})>6,{s},"FOUT: controleer "&LEFT(B{r}&"",40)),'
+                          'IF(LEFT({s},6)="LET OP",{s},IF({s}="OVERSCHRIJDING","LET OP: overschrijding "&LEFT(B{r}&"",40),"")))'
+               .format(s=s_, r=r), st['melding'])
+    sh.set('B1', '=IF(COUNTIF(A:A,"FOUT*")+COUNTIF(A:A,"LET OP*")=0,"Geen fouten",COUNTIF(A:A,"FOUT*")&" fout · "&'
+                 'COUNTIF(A:A,"LET OP*")&" let op · zie de rode meldingen in kolom A")', st['vet'])
+    sh.add_cf('B1', 'LEFT(B1,5)<>"Geen "', styles.add_dxf('<font><b val="1"/><color rgb="FFB91C1C"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFFECACA"/></patternFill></fill>'))
     return len(rijen)
 
 

@@ -838,6 +838,7 @@ STIJLEN = {
     'hulp_links': (F_HELP, None, None, None),
     'sectie': (F_SECTION, FILL_SECTION, None, None),
     'vet': (F_BOLD, None, None, None),
+    'melding': (Font(name='Heijmans-Light', size=8, bold=True, color='FFB91C1C'), None, None, Alignment(horizontal='right')),
     'tekst': (F_BASE, None, None, None),
     'aantal': (F_BASE, FILL_CALC, '0', Alignment(horizontal='center')),
     'pct': (F_HELP, FILL_CALC, '0%', None),

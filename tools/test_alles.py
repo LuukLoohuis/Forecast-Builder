@@ -432,14 +432,17 @@ def t_sko_invoer():
             r = S.SKO1 + i
             cel += [('%s%d' % (S.SKO['naam'], r), naam), ('%s%d' % (S.SKO['cat'], r), 1), ('%s%d' % (S.SKO['aantal'], r), n),
                     ('%s%d' % (S.SKO['von'], r), von), ('%s%d' % (S.SKO['grond'], r), grond), ('%s%d' % (S.SKO['termijnen'], r), term)]
-        cel += [('%s%d' % (S.P_TERM_NAAM, a + 2), 'Start bouw'), ('%s%d' % (S.P_TERM_PCT, a + 2), 0.5), ('%s%d' % (S.P_TERM_KW, a + 2), 0),
-                ('%s%d' % (S.P_TERM_NAAM, a + 3), 'Oplevering'), ('%s%d' % (S.P_TERM_PCT, a + 3), 0.5), ('%s%d' % (S.P_TERM_KW, a + 3), 2),
-                ('%s%d' % (S.P_SB_J, a + 2), 2027), ('%s%d' % (S.P_SB_Q, a + 2), sb_q), ('%s%d' % (S.P_KBUDGET, a + 5), 3000000)]
+        cel += [('%s%d' % (S.P_TERM_NAAM, a + 2), 'Start bouw'), ('%s%d' % (S.P_TERM_PCT, a + 2), 0.5),
+                ('%s%d' % (S.P_TERM_NAAM, a + 3), 'Oplevering'), ('%s%d' % (S.P_TERM_PCT, a + 3), 0.5),
+                ('%s%d' % (S.P_KBUDGET, a + 5), 3000000)]
         for ref, v in cel:
             sh.set_value(ref, v)
         pkg.put(part, sh.t)
         po = pkg.sheet_part('CF - opbrengsten')                # verkocht en getransporteerd (nodig voor de opbrengsten)
         so = Sheet(pkg.x(po), sst)
+        so.set_value('D%d' % S.plan_inv(1), 'Q%d 2027' % sb_q)      # planning: start bouw en kw na start per termijn
+        so.set_value('F%d' % S.plan(1, 1), 0)
+        so.set_value('F%d' % S.plan(1, 2), 2)
         so.set_value('%s%d' % (S.QCOLS[2], S.vk_rij(1)), 10)
         so.set_value('%s%d' % (S.QCOLS[3], S.tt_rij(1)), 10)
         pkg.put(po, so.t)
@@ -472,6 +475,62 @@ def t_sko_invoer():
        'Q2: %s / %s · Q3: %s / %s' % (u0['plan1'], u0['plan2'], u1['plan1'], u1['plan2']))
     ok('kosten: budget en % per termijn op Aansluiting opbrengsten → CF - kosten (aanneemsom)', abs(u0['kosten'] - 3000000) < 1,
        'aanneemsom kosten %s' % u0['kosten'])
+
+
+def t_planning():
+    """planning: start + oplevering verdeelt de termijnen gelijk, spreiding over kwartalen (totaal blijft gelijk), een type
+    zonder eigen termijnschema volgt type 1; een onleesbare start bouw geeft een melding in kolom A"""
+    import tempfile
+    import openpyxl
+    from xlsxpkg import Package, Sheet, SST
+    from openpyxl.utils import column_index_from_string as ci_, get_column_letter as L_
+    tmp = tempfile.mkdtemp(prefix='plan_')
+    k, k2, d = (os.path.join(tmp, x) for x in ('k.xlsm', 'k2.xlsm', 'd.xlsx'))
+    controleer.testkopie(SJABLOON, k)
+    pkg = Package(k)
+    sst = SST(pkg.x('xl/sharedStrings.xml'))
+    part = pkg.sheet_part('Aansluiting opbrengsten')
+    sh = Sheet(pkg.x(part), sst)
+    a = S.p_aans(1)
+    cel = [('B%d' % S.P_TYPE1, 'Rij'), ('B%d' % (S.P_TYPE1 + 1), 'Appartement'), ('B%d' % (S.P_TYPE1 + 2), 'Leeg')]
+    for i, (naam, cat, n) in enumerate((('Rij A', 1, 10), ('App B', 2, 4), ('Fout C', 3, 2))):
+        r = S.SKO1 + i
+        cel += [('%s%d' % (S.SKO['naam'], r), naam), ('%s%d' % (S.SKO['cat'], r), cat), ('%s%d' % (S.SKO['aantal'], r), n),
+                ('%s%d' % (S.SKO['von'], r), 400000 * 1.21), ('%s%d' % (S.SKO['grond'], r), 60000), ('%s%d' % (S.SKO['termijnen'], r), 340000)]
+    for t, naam in enumerate(('Start bouw', 'Fundering', 'Ruwbouw', 'Oplevering'), 2):
+        cel += [('%s%d' % (S.P_TERM_NAAM, a + t), naam), ('%s%d' % (S.P_TERM_PCT, a + t), 0.25)]
+    a3 = S.p_aans(3)
+    cel += [('%s%d' % (S.P_TERM_NAAM, a3 + 2), 'Alles'), ('%s%d' % (S.P_TERM_PCT, a3 + 2), 1)]
+    for ref, v in cel:
+        sh.set_value(ref, v)
+    pkg.put(part, sh.t)
+    po = pkg.sheet_part('CF - opbrengsten')
+    so = Sheet(pkg.x(po), sst)
+    for ref, v in (('D%d' % S.plan_inv(1), 'Q1 2027'), ('E%d' % S.plan_inv(1), 'q4 2027'), ('F%d' % S.plan_inv(1), 2),
+                   ('D%d' % S.plan_inv(2), '2027 Q3'), ('D%d' % S.plan_inv(3), 'Q5 20x7')):
+        so.set_value(ref, v)
+    pkg.put(po, so.t)
+    sst.finish()
+    pkg.put('xl/sharedStrings.xml', sst.t)
+    pkg.save(k2)
+    controleer.doorrekenen(k2, d)
+    wb = openpyxl.load_workbook(d, data_only=True)
+    o = wb['CF - opbrengsten']
+    jaar = o['D3'].value
+    kol = lambda key: L_(ci_(S.QCOLS[0]) + key - (jaar * 4 + 1))
+    rij = lambda r: {c: o['%s%d' % (c, r)].value for c in S.QCOLS if isinstance(o['%s%d' % (c, r)].value, (int, float)) and o['%s%d' % (c, r)].value}
+    q = lambda j, kw: 2027 * 4 + kw + 4 * (j - 2027)
+    t1 = [rij(S.plan(1, t)) for t in range(1, 5)]
+    v1 = [{kol(q(2027, 1) + i): 5, kol(q(2027, 1) + i + 1): 5} for i in range(4)]
+    ok('planning: start Q1 2027 + oplevering Q4 2027 → termijnen gelijk verdeeld; spreiding 2 kwartalen (5 + 5)',
+       t1 == v1, '%s (verwacht %s)' % (t1, v1))
+    t2 = [rij(S.plan(2, t)) for t in range(1, 5)]
+    v2 = [{kol(q(2027, 3) + i): 4} for i in range(4)]
+    ok('planning: type zonder eigen termijnschema volgt type 1 (namen, %, kwartalen) vanaf de eigen start bouw',
+       t2 == v2 and o['B%d' % S.plan(2, 3)].value == 'Ruwbouw' and abs((o['C%d' % S.plan(2, 3)].value or 0) - 0.25) < 1e-9,
+       '%s (verwacht %s), %s %s' % (t2, v2, o['B%d' % S.plan(2, 3)].value, o['C%d' % S.plan(2, 3)].value))
+    a_pi = str(o['A%d' % S.plan_inv(3)].value or '')
+    ok('planning: onleesbare start bouw → rode melding in kolom A van die rij', a_pi.startswith('FOUT') and 'start bouw' in a_pi, a_pi)
 
 
 def t_gedeelde_formules():
@@ -831,6 +890,7 @@ def main():
     t_gedeelde_formules()
     t_zonder_prijslijst()
     t_sko_invoer()
+    t_planning()
     t_dianummers()
     t_bereik_en_totaal()
     print('== 3-5 Met LibreOffice: macro\'s en scenario\'s')

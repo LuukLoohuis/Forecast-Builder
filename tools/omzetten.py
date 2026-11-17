@@ -281,6 +281,10 @@ def omzetten(oud, uit, project=None):
         oc = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
         val = lambda ws, r: {c: ws.cell(r, c).value for c in oc}
         for i, r in enumerate(termijnen, 1):
+            # planning uit het oude FO = vaste getallen: de hele rij leeg (geen formules die bij een later ingevulde
+            # oplevering ernaast gaan meetellen), zoals de macro (ClearContents)
+            for c in S.COLS:
+                O['%s%d' % (c, S.plan(k, i))].value = None
             d.rij('CF - opbrengsten', S.plan(k, i), val(o_v, r - t['d']), okeys)
         d.rij('CF - opbrengsten', S.vk_rij(k), val(o_v, t['verkoop']), okeys, alleen_q=True)
         # verkoop in de jaarkolom van het lopende jaar (bijvoorbeeld '2026' terwijl het kwartaalraster pas in 2027

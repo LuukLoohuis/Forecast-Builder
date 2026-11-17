@@ -141,7 +141,7 @@ def opbrengsten(sh: Sheet, oz: dict, st: dict, sjabloon: list, log):
         f = sh.get('%s%d' % (c, tot))
         assert isinstance(f, str) and f.startswith('='), (c, tot, f)
         sh.set('%s%d' % (c, tot), f + '+%s%d' % (c, corr))
-    z('C2', 'Geel = invullen. Per woningtype de bouwtermijnen (planning). Verkoop en transport (tabel vanaf rij %d-%d, per '
+    z('C2', 'Geel = invullen. Per woningtype de bouwtermijnen (planning): in de rij Planning start bouw, oplevering (bv. Q1 2027) en spreiding; per termijn kw na start (kolom F), leeg = gelijk verdeeld tot oplevering of zoals type 1. Verkoop en transport (tabel vanaf rij %d-%d, per '
             'type verkocht en getransporteerd) in aantallen per kwartaal; kolom 1 = t/m de exportdatum van de prijslijst (Salesforce-status); kwartalen vóór dat '
             'kwartaal tellen daarom niet nog eens mee. '
             'Verkocht %% en getransporteerd %% rekenen daaruit. Correctie: rij %d.' % (verkoop[0], verkoop[-1], corr), st['notitie'])
