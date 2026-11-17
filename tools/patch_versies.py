@@ -140,7 +140,7 @@ def build(bk, st):
             w = W0 + vi*NP + p - 1
             for (kg, dj, key) in SLOTS:
                 R.set(f'A{row}', text='PLAK'); R.set(f'B{row}', text=zs(v) if key[0] != 'w' else es(v))
-                R.set(f'D{row}', text='Vastgesteld'); R.set(f'F{row}', text=v); R.set(f'G{row}', formula='0')
+                R.set(f'D{row}', is_str=True, formula=f'IF(O{row}="","","Vastgesteld")'); R.set(f'F{row}', text=v); R.set(f'G{row}', formula='0')
                 R.set(f'E{row}', formula=f'Versies!$F${r}')
                 R.set(f'H{row}', formula=f'Versies!$D${r}')
                 R.set(f'I{row}', formula=f'Versies!$F${r}+{dj}')
