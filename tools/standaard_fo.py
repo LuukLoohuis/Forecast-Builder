@@ -609,10 +609,12 @@ def maak_opbrengsten(ws):
     zet(ws, 'E%d' % OV_KOP, 'te verdelen', FB, KOP)
     zet(ws, '%s%d' % (CHK, OV_KOP), 'Verdeeld', FB, KOPLICHT)
     zet(ws, '%s%d' % (VER, OV_KOP), 'Verschil', FB, KOPLICHT)
-    dv = DataValidation(type='list', formula1='"bouwtermijnen,handmatig"', allow_blank=False)
+    dv = DataValidation(type='list', formula1='"grond + bouwtermijnen,bouwtermijnen,handmatig"', allow_blank=False)
     ws.add_data_validation(dv)
-    # verdeelsleutel: aandeel van de gefactureerde bouwtermijnen (alle woningtypes) in het kwartaal
+    # verdeelsleutel: aandeel van de gefactureerde bouwtermijnen (alle woningtypes) in het kwartaal, of van grond (bij
+    # transport) + bouwtermijnen (volgt ook verkoop en transport, zoals parkeren in het oude FO)
     bt_tot = '+'.join('$D$%d' % (tr(k) + 5) for k in range(1, NT + 1))
+    gb_tot = '+'.join('$D$%d+$D$%d' % (tr(k) + 4, tr(k) + 5) for k in range(1, NT + 1))
     for r, h, lab in ((OVR1, OV1, 'Opbrengsten commercieel'), (OVR2, OV2, 'Opbrengsten parkeren')):
         std = '%s · handmatig (€)' % lab
         zet(ws, 'B%d' % r, '=IF($B%d="%s","%s",$B%d)' % (h, std, lab, h), FB)
@@ -623,13 +625,16 @@ def maak_opbrengsten(ws):
         zet(ws, 'D%d' % r, '=IF($B%d<>"%s","",%s)' % (h, std, '+'.join(pl('$H$%d' % (p_aans(k) + 2 + i_)) for k in range(1, NT + 1))), FB, None, NUM)
         zet(ws, 'E%d' % r, '=IF(D%d="","",ROUND(D%d-%s%d,2))' % (r, r, CHK, r), F, None, NUM)
         bt_rato = 'AND($C%d="bouwtermijnen",$B%d="%s")' % (r, h, std)
+        gb_rato = 'AND($C%d="grond + bouwtermijnen",$B%d="%s")' % (r, h, std)
         for c in COLS:
             bt_c = '+'.join('%s%d' % (c, tr(k) + 5) for k in range(1, NT + 1))
-            zet(ws, '%s%d' % (c, r), '=IF(%s,IFERROR(N($D%d)*(%s)/(%s),0),N(%s%d))' % (bt_rato, r, bt_c, bt_tot, c, h), F, None, NUM)
+            gb_c = '+'.join('%s%d+%s%d' % (c, tr(k) + 4, c, tr(k) + 5) for k in range(1, NT + 1))
+            zet(ws, '%s%d' % (c, r), '=IF(%s,IFERROR(N($D%d)*(%s)/(%s),0),IF(%s,IFERROR(N($D%d)*(%s)/(%s),0),N(%s%d)))'
+                % (gb_rato, r, gb_c, gb_tot, bt_rato, r, bt_c, bt_tot, c, h), F, None, NUM)
         zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, NUM)
         zet(ws, '%s%d' % (VER, r), '=E%d' % r, F, None, NUM)
-        zet(ws, '%s%d' % (STAT, r), ('=IF(AND($C{r}="bouwtermijnen",$B{h}="{std}",SUM({c0}{h}:{cn}{h})<>0),'
-                                     '"LET OP: handmatige bedragen (rij {h}) tellen niet mee bij bouwtermijnen",'
+        zet(ws, '%s%d' % (STAT, r), ('=IF(AND($C{r}<>"handmatig",$B{h}="{std}",SUM({c0}{h}:{cn}{h})<>0),'
+                                     '"LET OP: handmatige bedragen (rij {h}) tellen niet mee bij "&$C{r},'
                                      'IF(D{r}="","",IF(AND(D{r}=0,{chk}{r}=0),"",IF(ABS(E{r})<1,"OK",'
                                      '"LET OP: "&TEXT(E{r},"#,##0")&" nog te verdelen"))))').format(
             r=r, h=h, std=std, c0=COLS[0], cn=COLS[-1], chk=CHK), FB)

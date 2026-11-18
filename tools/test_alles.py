@@ -328,6 +328,15 @@ def t_scenarios(doc):
     bereken()
     som = waarde(o, '%s%d' % (S.CHK, S.OVR2))
     ok('parkeren €1 mln naar rato van de bouwtermijnen: volledig verdeeld', abs(som - 1000000) < 1, 'verdeeld %.0f' % som)
+    bt = [waarde(o, '%s%d' % (c, S.OVR2)) for c in S.COLS]
+    o.getCellRangeByName('C%d' % S.OVR2).setString('grond + bouwtermijnen')
+    bereken()
+    gb = [waarde(o, '%s%d' % (c, S.OVR2)) for c in S.COLS]
+    basis = [sum(waarde(o, '%s%d' % (c, S.tr(k) + r_)) for k in range(1, S.NT + 1) for r_ in (4, 5)) for c in S.COLS]
+    ok('parkeren €1 mln naar rato van grond + bouwtermijnen: volledig verdeeld, volgt grond en bouw, anders dan alleen bouwtermijnen',
+       abs(sum(gb) - 1000000) < 1 and sum(basis) > 0 and all(abs(g - 1000000 * b / sum(basis)) < 1 for g, b in zip(gb, basis))
+       and any(abs(g - b) > 1 for g, b in zip(gb, bt)), 'verdeeld %.0f' % sum(gb))
+    o.getCellRangeByName('C%d' % S.OVR2).setString('bouwtermijnen')
     p.getCellRangeByName(cel).setString('')
     # Voorstel met een zelf ingevuld kwartaal
     r = S.K_POST1

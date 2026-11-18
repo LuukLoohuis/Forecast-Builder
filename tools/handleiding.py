@@ -101,6 +101,8 @@ ALGEMEEN = [
         ('Standaard schema', 'een type zonder eigen termijnschema (Aansluiting opbrengsten, kolom L leeg) volgt type 1.'),
         ('Naar rato', 'Aansluiting opbrengsten, blok van het type, Verdeling = naar rato met de types (bv. 1;2): opbrengsten '
                       'en kosten volgen die types (zoals parkeren in het oude FO).'),
+        ('Parkeren / commercieel', 'CF - opbrengsten, Overige opbrengsten, kolom C: grond + bouwtermijnen (volgt transport en '
+                                   'bouw van alle woningtypes), bouwtermijnen (alleen de bouw) of handmatig (de gele regel eronder).'),
         ('Nog te verdelen', 'verkooptempo: aantal woningen min t/m nu en de kwartalen; anders dan 0 = rode melding.'),
     ]),
     ('Knoppen', [
