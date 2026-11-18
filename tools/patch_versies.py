@@ -8,7 +8,8 @@ from openpyxl.utils import get_column_letter as CL, column_index_from_string as 
 
 VERS = ['Budget', 'Q1', 'Q2', 'Q3', 'Q4']
 VROW = {v: 6 + i for i, v in enumerate(VERS)}          # rij op tabblad Versies
-NP = 100                                              # projecten (V_WBS)
+NP = 150                                              # projecten per versie (uit de eigen export)
+NSRC = 600                                            # regels per plakblad
 RNG = '$A$1:$GZ$600'
 ZKEYS = [('BLJ', '"Bedrijfsopbrengsten LJ"'), ('RLJ', '"Bruto (omzet) result. LJ"'), ('KLJ', '"Kosten LJ"'),
          ('BX', '"OP.BOB "&{X}'), ('RX', '"OP.BOR "&{X}'), ('KX', '"Kosten "&{X}'),
@@ -24,7 +25,7 @@ SLOTS = [('Omzet FY', 0, 'd0_omz'), ('BOR FY', 0, 'd0_bor'), ('Omzet actual YTD'
          ('Woningverkopen FY', 1, 'w_fy1')]
 NS = len(SLOTS)
 L0 = 6; LN = L0 + len(VERS) * NP * NS - 1            # lange tabel rijen
-W0 = 6                                                # brede hulptabel rijen 6..505
+W0 = 6                                                # brede hulptabel rijen 6..
 
 def zs(v): return f'{v} ZPMW03'
 def es(v): return f'{v} Woningetalage'
@@ -67,7 +68,7 @@ def build(bk, st):
             V.set(f'{col}{r}', style=st['num'], formula=
                   f'IF(VERSIE_REKEN!$CE${r}=0,"",SUMIFS(L_Waarde,L_Versie,$B{r},L_Versiejaar,$F{r},L_Doeljaar,$F{r},L_Kengetal,"{k}"))')
         V.set(f'O{r}', style=st['text'], is_str=True, formula=
-              f'IF(AND(VERSIE_REKEN!$CE${r}=0,VERSIE_REKEN!$CF${r}=0),"",IF(VERSIE_REKEN!$CE${r}=0,"ZPMW03 ontbreekt",IF(VERSIE_REKEN!$CG${r}=0,"kolom WBS-element niet gevonden",IF($F{r}<>P_VJ,"versiejaar "&$F{r}&" (rapport toont "&P_VJ&")",IF(K{r}<>"","AK: officieel bedrag telt","")))))')
+              f'IF(AND(VERSIE_REKEN!$CE${r}=0,VERSIE_REKEN!$CF${r}=0),"",IF(VERSIE_REKEN!$CE${r}=0,"ZPMW03 ontbreekt",IF(VERSIE_REKEN!$CG${r}=0,"kolom WBS-element niet gevonden",IF($F{r}<>P_VJ,"versiejaar "&$F{r}&" (rapport toont "&P_VJ&")",IF(K{r}<>"","AK: officieel bedrag telt","")&IF(SUMPRODUCT((VERSIE_REKEN!$Z${a}:$Z${b}<>"")*(COUNTIF(Projectlijst!$A$8:$A$107,VERSIE_REKEN!$Z${a}:$Z${b})=0))>0," · "&SUMPRODUCT((VERSIE_REKEN!$Z${a}:$Z${b}<>"")*(COUNTIF(Projectlijst!$A$8:$A$107,VERSIE_REKEN!$Z${a}:$Z${b})=0))&" project(en) niet op de Projectlijst (tellen als Opstal)","")))))')
     V.set('B12', style=st['text'], text="AK-dekking per versie = kosten / 1,05 x AK %. Vul 'AK-dekking officieel' in om het gerapporteerde bedrag te tonen.")
     V.set('B13', style=st['text'], text="Projecten die niet op de Projectlijst staan of op Nee staan, tellen niet mee. Zie Handleiding.")
     V.root.find('{http://schemas.openxmlformats.org/spreadsheetml/2006/main}dimension').set('ref', 'A1:O13')
@@ -94,6 +95,20 @@ def build(bk, st):
         R.set(f'CX{r}', formula=look(Wn, 'CF', '"Stufe 3"'))
         for k, expr in ZKEYS: R.set(f'{zcol[k]}{r}', formula=look(Z, 'CE', expr.format(X=X, E=E)))
         for k, expr in EKEYS: R.set(f'{ecol[k]}{r}', formula=look(Wn, 'CF', expr.format(X=X, E=E)))
+    # WBS-lijst per versie uit de eigen plakbladen
+    PL = 'Projectlijst!$A$8:$A$107'; PE = 'Projectlijst!$E$8:$E$107'
+    for vi, v in enumerate(VERS):
+        r = VROW[v]; Z, Wn = q(zs(v)), q(es(v))
+        cz, rz, ce, re_ = (CL(CI('EA') + 4*vi + k) for k in range(4))
+        R.set(f'{cz}5', text=f'{v} WBS Z'); R.set(f'{rz}5', text='nr'); R.set(f'{ce}5', text=f'{v} WBS E'); R.set(f'{re_}5', text='nr')
+        for i in range(1, NSRC + 1):
+            row = 5 + i
+            R.set(f'{cz}{row}', is_str=True, formula=f'IF(OR($CE${r}=0,$CG${r}=0,{i}<=$CE${r}),"",TRIM(INDEX({Z}!{RNG},{i},$CG${r})&""))')
+            R.set(f'{rz}{row}', formula=f'IF(OR(LEN({cz}{row})<6,ISERROR(FIND(".",{cz}{row})),COUNTIF(${cz}$6:{cz}{row},{cz}{row})>1,COUNTIFS({PL},{cz}{row},{PE},"Nee")>0),"",MAX(${rz}$5:{rz}{row-1})+1)')
+            R.set(f'{ce}{row}', is_str=True, formula=f'IF(OR($CF${r}=0,$CX${r}=0,{i}<=$CF${r}),"",TRIM(INDEX({Wn}!{RNG},{i},$CX${r})&""))')
+            R.set(f'{re_}{row}', formula=f'IF(OR(LEN({ce}{row})<6,ISERROR(FIND(".",{ce}{row})),COUNTIF(${ce}$6:{ce}{row},{ce}{row})>1,COUNTIF(${cz}$6:${cz}${5+NSRC},{ce}{row})>0,COUNTIFS({PL},{ce}{row},{PE},"Nee")>0),"",MAX(${re_}$5:{re_}{row-1})+1)')
+        R.set(f'DR{r}', formula=f'IF($CE${r}=0,0,IFERROR(MATCH("IFRS J/N",INDEX({Z}!$A$1:$GZ$15,$CE${r},0),0),0))')
+        R.set(f'DS{r}', formula=f'N(MAX(${rz}$6:${rz}${5+NSRC}))')
     # brede tabel
     zraw = {k: CL(CI('AC') + j) for j, (k, _) in enumerate(ZKEYS)}        # AC..AR
     eraw = {k: CL(CI('AS') + j) for j, (k, _) in enumerate(EKEYS)}        # AS..BK
@@ -103,14 +118,17 @@ def build(bk, st):
         for p in range(1, NP + 1):
             w = W0 + vi*NP + p - 1
             R.set(f'X{w}', text=v); R.set(f'Y{w}', formula=str(p))
-            R.set(f'Z{w}', is_str=True, formula=f'IF(INDEX(V_WBS,{p})="","",INDEX(V_WBS,{p})&"")')
+            cz, rz, ce, re_ = (CL(CI('EA') + 4*vi + k) for k in range(4))
+            R.set(f'Z{w}', is_str=True, formula=f'IFERROR(INDEX(${cz}$6:${cz}${5+NSRC},MATCH({p},${rz}$6:${rz}${5+NSRC},0)),IFERROR(INDEX(${ce}$6:${ce}${5+NSRC},MATCH({p}-$DS${r},${re_}$6:${re_}${5+NSRC},0)),""))')
             R.set(f'AA{w}', formula=f'IF(OR($Z{w}="",$CG${r}=0),0,COUNTIF(INDEX({Z}!{RNG},0,$CG${r}),$Z{w}))')
             R.set(f'AB{w}', formula=f'IF(OR($Z{w}="",$CX${r}=0),0,COUNTIF(INDEX({Wn}!{RNG},0,$CX${r}),$Z{w}))')
             for k, c in zraw.items():
                 R.set(f'{c}{w}', formula=f'IF(OR($AA{w}=0,${zcol[k]}${r}=0),"",SUMIFS(INDEX({Z}!{RNG},0,${zcol[k]}${r}),INDEX({Z}!{RNG},0,$CG${r}),$Z{w}))')
             for k, c in eraw.items():
                 R.set(f'{c}{w}', formula=f'IF(OR($AB{w}=0,${ecol[k]}${r}=0),"",SUMIFS(INDEX({Wn}!{RNG},0,${ecol[k]}${r}),INDEX({Wn}!{RNG},0,$CX${r}),$Z{w}))')
-            R.set(f'BL{w}', formula=f'IF($Z{w}="","",INDEX(VERW_Project!$N$6:$N$105,{p}))')
+            plm = f'MATCH($Z{w},{PL},0)'
+            R.set(f'BL{w}', formula=f'IF($Z{w}="","",IF(COUNTIFS({PL},$Z{w},Projectlijst!$G$8:$G$107,"Nee")>0,"",IF(IFERROR(INDEX(Projectlijst!$I$8:$I$107,{plm})&"","")<>"",VALUE(INDEX(Projectlijst!$I$8:$I$107,{plm})&""),IFERROR(INDEX(Bron_AK!$A$2:$Z$3000,MATCH($Z{w},INDEX(Bron_AK!$A$2:$Z$3000,0,AK_KolWBS),0),AK_KolPct),""))))')
+            R.set(f'BM{w}' if False else f'CD{w}', is_str=True, formula=f'IF($Z{w}="","",IFERROR(INDEX(Projectlijst!$C$8:$C$107,{plm})&"",""))')
             g = lambda k: f'N({zraw[k]}{w})'; h = lambda k: f'N({eraw[k]}{w})'
             aZ, aE = f'$AA{w}=0', f'$AB{w}=0'
             months = '+'.join(f'IF({pm}>={m},{h(f"M{m:02d}")},0)' for m in range(1, 13))
@@ -145,15 +163,15 @@ def build(bk, st):
                 R.set(f'H{row}', formula=f'Versies!$D${r}')
                 R.set(f'I{row}', formula=f'Versies!$F${r}+{dj}')
                 R.set(f'J{row}', is_str=True, formula=f'$Z${w}')
-                R.set(f'M{row}', is_str=True, formula=f'IF($Z${w}="","",INDEX(V_Type,{p})&"")')
-                R.set(f'N{row}', is_str=True, formula=f'IF($Z${w}="","",INDEX(V_IFRS,{p})&"")')
+                R.set(f'M{row}', is_str=True, formula=f'IF($Z${w}="","",IF($CD${w}<>"",$CD${w},"Opstal"))')
+                R.set(f'N{row}', is_str=True, formula=f'IF($Z${w}="","",IFERROR(INDEX(V_IFRS,MATCH($Z${w},V_WBS,0))&"",IFERROR(INDEX({q(zs(v))}!{RNG},MATCH($Z${w},INDEX({q(zs(v))}!{RNG},0,$CG${r}),0),$DR${r})&"","J")))')
                 R.set(f'P{row}', formula=f'${dcol[key]}${w}')
                 R.set(f'O{row}', is_str=True, formula=f'IF(OR($Z${w}="",P{row}=""),"","{kg}")')
                 R.set(f'S{row}', is_str=True, formula=f'IF(O{row}="","",J{row}&"|"&E{row}&"|"&F{row}&"|"&I{row}&"|"&O{row})')
                 R.set(f'T{row}', formula='0'); R.set(f'U{row}', formula=f'IF(O{row}="",0,1)'); R.set(f'V{row}', formula='0')
                 row += 1
     assert row - 1 == LN
-    R.root.find('{http://schemas.openxmlformats.org/spreadsheetml/2006/main}dimension').set('ref', f'A1:DQ{LN}')
+    R.root.find('{http://schemas.openxmlformats.org/spreadsheetml/2006/main}dimension').set('ref', f'A1:{CL(CI("EA")+4*len(VERS)-1)}{LN}')
     # ---------- namen naar VERSIE_REKEN
     for nm, c in (('L_ImportID','A'),('L_Status','D'),('L_Versiejaar','E'),('L_Versie','F'),('L_Revisie','G'),('L_Doeljaar','I'),
                   ('L_WBS','J'),('L_Type','M'),('L_IFRS','N'),('L_Kengetal','O'),('L_Waarde','P'),('L_Toelichting','R'),

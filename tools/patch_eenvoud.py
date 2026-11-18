@@ -298,7 +298,7 @@ def akdekking(bk):
     kq = ['AO', 'AP', 'AQ', 'AR']
     for q in range(4):
         c = 'FGHI'[q]
-        s.set(f'{c}{r1+2}', style=NUM, formula=f'IF(NOT(ISNUMBER(Versies!$I$6)),"n.b.",SUMPRODUCT(VERSIE_REKEN!${kq[q]}$6:${kq[q]}$105,VERSIE_REKEN!$BL$6:$BL$105)/P_AKFactor)')
+        s.set(f'{c}{r1+2}', style=NUM, formula=f'IF(NOT(ISNUMBER(Versies!$I$6)),"n.b.",SUMPRODUCT(VERSIE_REKEN!${kq[q]}$6:${kq[q]}$155,VERSIE_REKEN!$BL$6:$BL$155)/P_AKFactor)')
         s.set(f'{c}{r1+3}', style=NUM, formula=f'IF(OR(AKR_N=0,{q+1}>AK_PeilQ),"–",SUMIFS(AKR_Bedrag,AKR_Jaar,P_RJ,AKR_Kw,{q+1}))')
         s.set(f'{c}{r1+4}', style=NUM, formula=f'IF(AND(ISNUMBER({c}{r1+2}),ISNUMBER({c}{r1+3})),{c}{r1+3}-{c}{r1+2},"")')
         s.set(f'{c}{r1+5}', style=LBL, is_str=True, formula=f'IF(ISNUMBER({c}{r1+4}),IF({c}{r1+4}<0,"onderdekking","overdekking"),"")')
