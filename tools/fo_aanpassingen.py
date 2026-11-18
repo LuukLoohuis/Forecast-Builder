@@ -22,6 +22,13 @@ import re
 from xlsxpkg import Sheet, col2num, num2col
 
 P_H, P_O = 'p_huidig', 'p_oplevering'
+PCT = '% van kosten'                     # methode: % van de kosten van de andere posten in dat kwartaal (zoals ABK)
+METHODES = ['Handmatig', 'Voorstel', 'Transport', PCT]
+
+
+def via_voorstel(p):
+    """de post rekent via het voorstelblok (Voorstel, Transport of % van kosten)"""
+    return 'OR($C{p}="Voorstel",$C{p}="Transport",$C{p}="{pct}")'.format(p=p, pct=PCT)
 MIJLPALEN = ['na akkoord SO', 'na akkoord VO', 'na akkoord DO', 'na omgevingsvergunning', 'na tekenen TKO',
              'bij start bouw', 'bij gevelsluiting', 'bij oplevering']
 
@@ -162,23 +169,28 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
             z('%s%d' % (k['werkelijk'], p), "=SUMIFS('FO - huidig'!$M:$M,'FO - huidig'!$Y:$Y,$B%d)" % p)
     z('C%d' % k['onderdelen'], 'Methode', st['kop'])
     for p in posten:
-        z('C%d' % p, 'Handmatig', st['invoer'])
+        # methode: Handmatig, tenzij Oud FO inlezen er al een koos (bv. % van kosten voor de ABK)
+        z('C%d' % p, sh.get('C%d' % p) if sh.get('C%d' % p) in METHODES else 'Handmatig', st['invoer'])
         # FOUT pas bij meer dan €10 verschil (afrondingen uit het oude FO geven OK)
-        z('%s%d' % (st_k, p), '=IF(OR($C%d="Voorstel",$C%d="Transport"),IF(ABS(%s%d-D%d)<10,"OK","FOUT"),'
-                              'IF(ABS(%s%d-D%d)<10,"OK","FOUT"))' % (p, p, tk, p + off, p, tk, p, p))
-    sh.add_list_validation('C%d:C%d' % (p1, pn), ['Handmatig', 'Voorstel', 'Transport'])
+        z('%s%d' % (st_k, p), '=IF(%s,IF(ABS(%s%d-D%d)<10,"OK","FOUT"),'
+                              'IF(ABS(%s%d-D%d)<10,"OK","FOUT"))' % (via_voorstel(p), tk, p + off, p, tk, p, p))
+    # '% van kosten' alleen voor de laatste post (Direct doorbelaste projectkosten / ABK): die verwijst naar de andere
+    # posten en nooit andersom (geen kringverwijzing)
+    sh.add_list_validation('C%d:C%d' % (p1, pn - 1), METHODES[:3])
+    sh.add_list_validation('C%d' % pn, METHODES)
     if oz.get('standaard'):
         z('E%d' % k['onderdelen'], 'Verdeeld', st['kop'])
         z('F%d' % k['onderdelen'], 'Nog te verdelen', st['kop'])
         for p in posten:
-            z('E%d' % p, '=IF(OR($C%d="Voorstel",$C%d="Transport"),%s%d,SUM(%s%d:%s%d))' % (p, p, tk, p + off, cols[0], p, cols[-1], p),
+            z('E%d' % p, '=IF(%s,%s%d,SUM(%s%d:%s%d))' % (via_voorstel(p), tk, p + off, cols[0], p, cols[-1], p),
               st['getal'])
             z('F%d' % p, '=IF(B%d="","",IF(ABS(N(D%d)-E%d)<10,0,ROUND(N(D%d)-E%d,0)))' % (p, p, p, p, p), st['getal_tot'])
     m = '$C$%d:$C$%d' % (p1, pn)
     for c in cols:
         hand, vs = '%s%d:%s%d' % (c, p1, c, pn), '%s%d:%s%d' % (c, v1, c, vn)
-        z('%s%d' % (c, k['totaal']), '=SUM(%s)-SUMIFS(%s,%s,"Voorstel")-SUMIFS(%s,%s,"Transport")'
-                                     '+SUMIFS(%s,%s,"Voorstel")+SUMIFS(%s,%s,"Transport")' % (hand, hand, m, hand, m, vs, m, vs, m))
+        z('%s%d' % (c, k['totaal']), '=SUM(%s)-SUMIFS(%s,%s,"Voorstel")-SUMIFS(%s,%s,"Transport")-SUMIFS(%s,%s,"%s")'
+                                     '+SUMIFS(%s,%s,"Voorstel")+SUMIFS(%s,%s,"Transport")+SUMIFS(%s,%s,"%s")'
+          % (hand, hand, m, hand, m, hand, m, PCT, vs, m, vs, m, vs, m, PCT))
     # de uitleg van de methodes staat één keer, boven de kostenposten (standaard_fo, rij K_PEW + 1)
     z('%s4' % toel, 'Bouwtermijnen volgen de geplande bouwtermijnen van CF - opbrengsten; overschrijven mag.', st['notitie'])
 
@@ -220,6 +232,12 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
                     ['Post', '', 'PEW (huidig)', 'Verwerkt', 'Restant', 'Kw. / won.', 'Totaal', 'Check']):
         z('%s%d' % (c, hkop), h or None, st['kop_links'] if c == 'B' else st['kop'])
     rk = '$%s$%d:$%s$%d' % (cols[0], hk, cols[-1], hk)
+    # kolom voor het % bij de methode '% van kosten': de lege kolom tussen de status en de toelichting
+    pct_k = num2col(col2num(st_k) + 1)
+    assert pct_k != toel and not sh.get('%s%d' % (pct_k, p1)), (pct_k, toel)
+    z('%s%d' % (pct_k, k['onderdelen']), '% (bij % van kosten)', st['kop'])
+    for p in posten:
+        z('%s%d' % (pct_k, p), sh.get('%s%d' % (pct_k, p)), st['pct_invoer'])
     for p in posten:
         r = p + off
         z('B%d' % r, '=IF(B%d="","",B%d)' % (p, p), st['tekst'])
@@ -233,10 +251,23 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
         z('%s%d' % (N_, r), '=IF($C%d="Transport",SUMPRODUCT(%s*(%s>=%s)*(((%s&"")="")+((%s&"")="0"))),'
                             'COUNTIFS(%s,">="&%s,%s,"<="&%s,%s,"")+COUNTIFS(%s,">="&%s,%s,"<="&%s,%s,0))'
           % (p, rt, rk, P_H, rp, rp, rk, P_H, rk, eind, rp, rk, P_H, rk, eind, rp), st['aantal'])
+        # % van kosten (bv. ABK): het % (kolom pct_k, leeg = PEW van deze post / PEW van de andere posten, zoals in het
+        # oude FO) x de definitieve kosten van de andere posten in dat kwartaal (Handmatig: de post zelf, Voorstel en
+        # Transport: hun voorstelregel; andere %-posten tellen niet mee)
+        pct = 'IF(N($%s%d)<>0,$%s%d,IFERROR($D%d/(SUM($D$%d:$D$%d)-$D%d),0))' % (pct_k, p, pct_k, p, p, p1, pn, p)
         for c in cols:
-            z('%s%d' % (c, r), '=IF(%s$%d<%s,N(%s%d),IF(N(%s%d)<>0,%s%d,IF($C%d="Transport",IF($%s%d=0,0,$F%d*%s$%d/$%s%d),'
-                               'IF(%s$%d<=%s,IF($%s%d=0,0,$F%d/$%s%d),0))))'
-              % (c, hk, P_H, c, p, c, p, c, p, p, N_, r, r, c, ht, N_, r, c, hk, eind, N_, r, r, N_, r), st['getal'])
+            basis = ('=IF(%s$%d<%s,N(%s%d),IF(N(%s%d)<>0,%s%d,IF($C%d="Transport",IF($%s%d=0,0,$F%d*%s$%d/$%s%d),'
+                     'IF(%s$%d<=%s,IF($%s%d=0,0,$F%d/$%s%d),0))))'
+                     % (c, hk, P_H, c, p, c, p, c, p, p, N_, r, r, c, ht, N_, r, c, hk, eind, N_, r, r, N_, r))
+            if p == pn:
+                # de andere posten, definitief (Handmatig: de post; Voorstel en Transport: hun voorstelregel)
+                a, b, va, vb = p1, pn - 1, v1, vn - 1
+                ander = ('(SUM({c}{a}:{c}{b})-SUMIFS({c}{a}:{c}{b},$C${a}:$C${b},"Voorstel")-SUMIFS({c}{a}:{c}{b},$C${a}:$C${b},"Transport")'
+                         '+SUMIFS({c}{va}:{c}{vb},$C${a}:$C${b},"Voorstel")+SUMIFS({c}{va}:{c}{vb},$C${a}:$C${b},"Transport"))'
+                         ).format(c=c, a=a, b=b, va=va, vb=vb)
+                # een zelf ingevuld bedrag in een prognosekwartaal gaat voor (zoals de sluitpost in het oude FO)
+                basis = '=IF(AND($C%d="%s",%s$%d>=%s),IF(N(%s%d)<>0,%s%d,%s*%s),%s)' % (p, PCT, c, hk, P_H, c, p, c, p, pct, ander, basis[1:])
+            z('%s%d' % (c, r), basis, st['getal'])
         z('%s%d' % (tk, r), '=SUM(%s%d:%s%d)' % (cols[0], r, cols[-1], r), st['getal_tot'])
         z('%s%d' % (st_k, r), '=IF(B%d="","",IF(D%d-E%d<-1,"OVERSCHRIJDING",IF(ABS(%s%d-D%d)<10,"OK","FOUT")))'
           % (r, r, r, tk, r, r), st['vet'])
@@ -252,11 +283,9 @@ def kosten(sh: Sheet, oz: dict, st: dict, sjabloon: list, styles, log):
     geel = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFDE68A"/></patternFill></fill>')
     groen = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFD1FAE5"/></patternFill></fill>')
     rood = styles.add_dxf('<fill><patternFill patternType="solid"><bgColor rgb="FFFECACA"/></patternFill></fill>')
-    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(OR($C%d="Voorstel",$C%d="Transport"),N(%s%d)=0)'
-              % (p1, p1, cols[0], p1), grijs)
-    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(OR($C%d="Voorstel",$C%d="Transport"),N(%s%d)<>0)'
-              % (p1, p1, cols[0], p1), geel)
-    sh.add_cf('%s%d:%s%d' % (cols[0], v1, cols[-1], vn), 'OR($C%d="Voorstel",$C%d="Transport")' % (p1, p1), geel)
+    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(%s,N(%s%d)=0)' % (via_voorstel(p1), cols[0], p1), grijs)
+    sh.add_cf('%s%d:%s%d' % (cols[0], p1, cols[-1], pn), 'AND(%s,N(%s%d)<>0)' % (via_voorstel(p1), cols[0], p1), geel)
+    sh.add_cf('%s%d:%s%d' % (cols[0], v1, cols[-1], vn), via_voorstel(p1), geel)
     sh.add_cf('%s%d:%s%d' % (st_k, v1, st_k, vn), '%s%d="OK"' % (st_k, v1), groen)
     sh.add_cf('%s%d:%s%d' % (st_k, v1, st_k, vn), 'OR(%s%d="FOUT",%s%d="OVERSCHRIJDING")' % (st_k, v1, st_k, v1), rood)
     log('  CF - kosten: methode per post (rij %d-%d), voorstelblok rij %d-%d, rij %d = definitief, werkelijk uit FO - huidig'

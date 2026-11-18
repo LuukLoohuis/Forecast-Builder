@@ -274,9 +274,9 @@ def maak_start(wb, demo, R):
         cell(ws, 'C%d' % r, a, F_BASE, FILL_CALC, NUM)
         cell(ws, 'D%d' % r, b, F_BASE, FILL_CALC, NUM)
         cell(ws, 'E%d' % r, '=C%d-D%d' % (r, r), F_BASE, FILL_CALC, NUM)
-    cell(ws, 'B25', 'Kostenposten op Voorstel of Transport')
-    cell(ws, 'C25', "=(COUNTIF(%s,\"Voorstel\")+COUNTIF(%s,\"Transport\"))&\" van \"&COUNTIF(%s,\"?*\")"
-         % (R['k_methode'], R['k_methode'], R['k_namen']),
+    cell(ws, 'B25', 'Kostenposten op Voorstel, Transport of %')
+    cell(ws, 'C25', "=(COUNTIF(%s,\"Voorstel\")+COUNTIF(%s,\"Transport\")+COUNTIF(%s,\"%% van kosten\"))&\" van \"&COUNTIF(%s,\"?*\")"
+         % (R['k_methode'], R['k_methode'], R['k_methode'], R['k_namen']),
          F_BASE, FILL_CALC, None, Alignment(horizontal='right'))
     cell(ws, 'G25', 'kies per post op CF - kosten, kolom C (blok Onderdelen)', F_NOTE)
     cell(ws, 'B26', 'Handmatige correctie opbrengsten')

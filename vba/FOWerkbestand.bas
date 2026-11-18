@@ -1340,6 +1340,22 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
                 If lab <> "aanneemsom" And lab <> "kopersmeerwerk" Then
                     wK.Range(wK.Cells(K_POST1 + posten, C_Q1), wK.Cells(K_POST1 + posten, C_Q1 + NQ - 1)).ClearContents
                     RijOver wKo, r, ksl, 7, kc2, wK, K_POST1 + posten, k1, True, 0, lg
+                    ' ABK als % van de andere kosten (=SUM(L59:L69)*$E$70): methode '% van kosten' (alleen de laatste post)
+                    If posten = NPOST - 1 Then
+                        For c = 7 To kc2
+                            If wKo.Cells(r, c).HasFormula Then
+                                If UCase$(Replace(wKo.Cells(r, c).Formula, " ", "")) Like "=SUM(*:*)[*]*" Then
+                                    ' het %-kwartaal rekent zelf (leeg); de vaste bedragen (sluitpost) blijven staan
+                                    If wK.Cells(K_POST1 + posten, 3).Value <> "% van kosten" Then
+                                        lg = lg & "- CF - kosten: " & Tk(wKo.Cells(r, 2).Value) & " als % van de andere kosten (zoals in het oude FO): methode % van kosten; alleen de vaste bedragen (sluitpost) overgenomen" & vbCrLf
+                                    End If
+                                    wK.Cells(K_POST1 + posten, 3).Value = "% van kosten"
+                                    k = KolStd(CLng(ksl(c)), k1)
+                                    If k > 0 Then wK.Cells(K_POST1 + posten, k).ClearContents
+                                End If
+                            End If
+                        Next c
+                    End If
                     ' prognose in een kwartaal dat volgens de SAP-export al is afgesloten (de cashflow neemt daar de
                     ' actuals): naar het eerste prognosekwartaal, anders telt die prognose nergens mee
                     If pAct >= k1 And KolStd(pAct + 1, k1) > 0 Then

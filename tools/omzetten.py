@@ -446,7 +446,16 @@ def omzetten(oud, uit, project=None):
             K['%s%d' % (S.TOEL, rr)] = toel
         if naam.lower() in ('aanneemsom', 'kopersmeerwerk'):
             continue
-        w = {c: kv.cell(r, c).value for c in kc if c != (ci(ko['werkelijk']) if ko['werkelijk'] else -1)}
+        # ABK als % van de andere kosten (=SUM(L59:L69)*$E$70 in het oude FO): methode '% van kosten' (alleen de laatste
+        # post, Direct doorbelaste projectkosten), zodat hij meeloopt als de andere kosten schuiven
+        kf_ = wf['CF - kosten']
+        pct_kol = [c for c in kc if re.match(r'^=SUM\(\$?[A-Z]{1,3}\$?\d+:\$?[A-Z]{1,3}\$?\d+\)\*\$?[A-Z]{1,3}\$?\d+',
+                                             str(kf_.cell(r, c).value or '').replace(' ', ''), re.I)] if rr == S.K_POSTN else []
+        if pct_kol:
+            K['C%d' % rr] = '% van kosten'
+            log.append('CF - kosten: %s als %% van de andere kosten (zoals in het oude FO): methode %% van kosten; '
+                       'alleen de vaste bedragen (sluitpost) overgenomen' % naam)
+        w = {c: kv.cell(r, c).value for c in kc if c != (ci(ko['werkelijk']) if ko['werkelijk'] else -1) and c not in pct_kol}
         d.rij('CF - kosten', rr, w, kkeys, alleen_q=True)
         # prognose in een kwartaal dat volgens de SAP-export al is afgesloten (de cashflow neemt daar de actuals):
         # naar het eerste prognosekwartaal, anders telt die prognose nergens mee

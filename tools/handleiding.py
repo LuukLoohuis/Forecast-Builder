@@ -106,6 +106,9 @@ ALGEMEEN = [
                       'en kosten volgen die types (zoals parkeren in het oude FO).'),
         ('Parkeren / commercieel', 'CF - opbrengsten, Overige opbrengsten, kolom C: grond + bouwtermijnen (volgt transport en '
                                    'bouw van alle woningtypes), bouwtermijnen (alleen de bouw) of handmatig (de gele regel eronder).'),
+        ('ABK (% van kosten)', 'CF - kosten, laatste post (Direct doorbelaste projectkosten): methode % van kosten = per kwartaal '
+                               'een % van de andere kosten (kolom AY, leeg = PEW van de post / PEW van de andere posten, zoals in '
+                               'het oude FO); loopt mee als de andere kosten schuiven. Oud FO inlezen kiest dit zelf.'),
         ('Nog te verdelen', 'verkooptempo: aantal woningen min t/m nu en de kwartalen; anders dan 0 = rode melding.'),
     ]),
     ('Knoppen', [

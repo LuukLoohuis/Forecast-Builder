@@ -336,8 +336,8 @@ def scenario_kosten(sk: Sheet, st):
         sk.set('C%d' % r, '=IF(B%d="","",IF(OR(ISNUMBER(SEARCH({"promotie","verkoop","verhuur","makelaar","marketing"},B%d))),'
                           '"verkoop",IF(OR(ISNUMBER(SEARCH({"aanneemsom","bouwkosten","meerwerk","aansluit","reserve",'
                           '"bouwplaats","nutsvoorziening"},B%d))),"start bouw","vast")))' % (r, r, r))
-        hv = ('(%sC%d<>"Voorstel")*(%sC%d<>"Transport")' % (KK, p, KK, p),
-              '((%sC%d="Voorstel")+(%sC%d="Transport"))' % (KK, p, KK, p))
+        hv = ('(%sC%d<>"Voorstel")*(%sC%d<>"Transport")*(%sC%d<>"%% van kosten")' % (KK, p, KK, p, KK, p),
+              '((%sC%d="Voorstel")+(%sC%d="Transport")+(%sC%d="%% van kosten"))' % (KK, p, KK, p, KK, p))
         jaren = lambda q: ('+SUM(%s%s%d:%s%d)' % (KK, jaar_kol[0], q, jaar_kol[1], q)) if col2num(WK) > col2num(K1) else ''
         gr = lambda q: 'N(%s%s%d)%s+SUMIFS(%s%s%d:%s%d,%s%s$%d:%s$%d,"<="&%s)' % (
             KK, WK, q, jaren(q), KK, q1, q, KN, q, KK, q1, sl, KN, sl, ACT)

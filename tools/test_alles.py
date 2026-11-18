@@ -353,6 +353,23 @@ def t_scenarios(doc):
     k.getCellRangeByName('C%d' % r).setString(methode)
     for c, f in oud.items():
         k.getCellByPosition(c, r - 1).setFormula(f)
+    # ABK als % van de andere kosten (demo-FO: =SUM(L59:L69)*$E$70): loopt mee als een andere post schuift
+    pn = S.K_POSTN
+    vr = next(r for r in range(S.K_POSTN + 1, S.K_POSTN + 120)
+              if k.getCellRangeByName('B%d' % r).getFormula().replace(';', ',') == '=IF(B%d="","",B%d)' % (pn, pn))
+    hand = next(p for p in range(S.K_POST1, pn) if tekst(k, 'C%d' % p) == 'Handmatig')
+    qk = S.QCOLS[12]                     # een prognosekwartaal
+    voor = waarde(k, '%s%d' % (qk, vr))
+    oud_h = k.getCellRangeByName('%s%d' % (qk, hand)).getFormula()
+    k.getCellRangeByName('%s%d' % (qk, hand)).setValue(waarde(k, '%s%d' % (qk, hand)) + 1000000)
+    bereken()
+    na = waarde(k, '%s%d' % (qk, vr))
+    pct = waarde(k, 'D%d' % pn) / (sum(waarde(k, 'D%d' % p) for p in range(S.K_POST1, pn + 1)) - waarde(k, 'D%d' % pn))
+    ok('ABK als %% van de andere kosten (demo): methode %s, +€1 mln op een andere post = +%% x €1 mln ABK' % tekst(k, 'C%d' % pn),
+       tekst(k, 'C%d' % pn) == '% van kosten' and abs((na - voor) - pct * 1000000) < 1,
+       'ABK %.0f -> %.0f (verwacht +%.0f, %.2f%%)' % (voor, na, pct * 1000000, pct * 100))
+    k.getCellRangeByName('%s%d' % (qk, hand)).setFormula(oud_h)
+    bereken()
     # verkoop vóór het kwartaal van de prijslijstexport telt niet mee
     c1 = p.getCellRangeByName('C1').getFormula()
     p.getCellRangeByName('C1').setFormula('=DATE(2026;11;4)')
