@@ -1,6 +1,7 @@
 """Alles bouwen: het lege sjabloon en het demo-werkbestand (het demo-FO omgezet, zoals Oud FO inlezen dat doet).
 
-    python tools/bouw.py                      -> output/FO_werkbestand_sjabloon.xlsm en output/FO_Parkzoom_werkbestand.xlsm
+    python tools/bouw.py                      -> output/FO_werkbestand_sjabloon.xlsm, output/FO_werkbestand_bouwnummer.xlsm
+                                                 en output/FO_Parkzoom_werkbestand.xlsm
     python tools/bouw.py --oud FO.xlsx --project "Naam" --out werkbestand.xlsm      (een ander oud FO omzetten)
 """
 from __future__ import annotations
@@ -46,6 +47,10 @@ def main():
     std = os.path.join(tmp, 'sjabloon.xlsx')
     standaard_fo.maak(std, leeg=True)
     bouwen(std, os.path.join(ROOT, 'output', 'FO_werkbestand_sjabloon.xlsm'), ['--project', ''])
+    print('== Leeg sjabloon per bouwnummer')
+    std = os.path.join(tmp, 'sjabloon_bn.xlsx')
+    standaard_fo.maak(std, leeg=True, per_bouwnummer=True)
+    bouwen(std, os.path.join(ROOT, 'output', 'FO_werkbestand_bouwnummer.xlsm'), ['--project', '', '--per-bouwnummer'])
     print('== Demo (het demo-FO omgezet)')
     std = os.path.join(tmp, 'demo.xlsx')
     r = omzetten.omzetten(standaard_fo.DEMO, std)

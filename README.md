@@ -118,6 +118,11 @@ Op Start (kolom M) staan de tabbladen in werkvolgorde met een link. Elk tabblad 
   - De cashflowgrafiek en de andere grafieken over de hele looptijd volgen deze periode.
 - **Vorige, huidig en realisatie** op het Dashboard (V93–V101): eindsaldo en laagste stand vorige ↔ huidig, kosten en omzet van het laatste afgesloten kwartaal vorige prognose ↔ gerealiseerd, en of de afgesloten periodes aansluiten op SAP. Details per periode: tab CF vorig en huidig.
 - **Tabbladkleuren:** Start donkerblauw, exports grijs, invoer en rekenwerk geel (Aansluiting opbrengsten, CF - opbrengsten, CF - kosten, 2. Ontw PEW), uitkomsten groen (Dashboard, Scenario's, CF - hulp VENA).
+- **FO per bouwnummer** (`output/FO_werkbestand_bouwnummer.xlsm`), voor projecten waar prijs, verkoopmoment of bouwplanning per bouwnummer verschilt (bv. een flat):
+  - op *Planning bouwnummers* staan tot 3 termijnverdelingen (eigen termijnen en %) en tot 20 planningen (start bouw, oplevering, eventueel kw per termijn);
+  - op *Bouwnummers* kies je per bouwnummer verdeling, planning, verkocht in en transport in;
+  - de opbrengsten (grond bij transport, termijnen per bouwnummer) en de aanneemsom-kosten komen in type 1 "Alle bouwnummers";
+  - Oud FO inlezen is in deze variant uitgeschakeld (`tools/per_bouwnummer.py`).
 - **Handleiding (tabblad na Start):**
   - de tabbladen hebben alleen korte koppen en labels;
   - de uitleg staat in de Handleiding, per tabblad, met de werkwijze per kwartaal, de kleuren en de knoppen;

@@ -32,7 +32,7 @@ GRENS = 60
 GRENS_NOTITIE = 45
 
 # tabbladen in de volgorde van de Handleiding (de naam tijdens de bouw; Prijslijst heet daarna Aansluiting opbrengsten)
-BLADEN = ['Start', 'Prijslijst', 'CF - opbrengsten', 'CF - kosten', 'Dashboard', "Scenario's", '2. Ontw PEW', 'CF - hulp VENA']
+BLADEN = ['Start', 'Prijslijst', 'Planning bouwnummers', 'CF - opbrengsten', 'CF - kosten', 'Dashboard', "Scenario's", '2. Ontw PEW', 'CF - hulp VENA']
 TITEL = {'Prijslijst': 'Aansluiting opbrengsten'}
 
 # niet aankomen: de controles en de prognose op Start (rij 21 t/m 45), en de teksten van de macro's
@@ -104,6 +104,27 @@ ALGEMEEN = [
         ('Verborgen tabbladen', 'toont of verbergt de naslag: Bouwnummers, CF vorig en huidig, Woningtypes, Scenario kosten en '
                                 'de exports.'),
     ]),
+]
+
+
+PER_BOUWNUMMER = [
+    ('Wanneer', 'een project waar de prijs, het verkoopmoment of de bouwplanning per bouwnummer verschilt (bv. een flat: '
+                'verdieping 13 heeft een andere planning dan verdieping 2).'),
+    ('Planning bouwnummers · A', 'tot 3 termijnverdelingen, elk met eigen termijnen (naam en % van aanneemsom + KAO), samen 100%.'),
+    ('Planning bouwnummers · B', 'tot 20 planningen: naam, start bouw en oplevering (bv. Q1 2027) en per termijnnummer '
+                                 'optioneel kw na start; leeg = gelijk verdeeld tussen start bouw en oplevering.'),
+    ('Bouwnummers', 'per bouwnummer de prijs (uit de Salesforce-dump of zelf invullen) en de keuzes: verdeling (1-3), '
+                    'planning (1-20), verkocht in en transport in (bv. Q2 2027).'),
+    ('Verkocht / transport', 'al verkocht of getransporteerd volgens Salesforce = t/m nu; leeg transport = het kwartaal van '
+                             'verkoop, niet voor de start bouw van de planning (verkocht maar nog niet getransporteerd: '
+                             'huidig kwartaal of start bouw).'),
+    ('Opbrengsten', 'grond bij transport; elke termijn = aanneemsom + KAO x % uit de verdeling, in het kwartaal van de '
+                    'planning maar niet voor het transport; kopersmeerwerk 25% bij start bouw, 75% bij oplevering.'),
+    ('Kosten', 'het budget aanneemsom volgt de termijnen van de planningen (de bouw), niet het transport.'),
+    ('CF - opbrengsten', 'type 1 = alle bouwnummers (opgeteld); de types 2-6 worden niet gebruikt. Het verkooptempo komt '
+                         'uit de bouwnummers.'),
+    ('Oud FO inlezen', 'niet beschikbaar in deze variant; de exports (FO - vorig, huidig, actuals) wel.'),
+    ('Dashboard en scenario\'s', 'rekenen op het totaal; de knoppen schuiven alle bouwnummers samen.'),
 ]
 
 
@@ -343,6 +364,8 @@ def verwerk(dst, part_of, sst, styles, st, note):
         'notitie')
     alle = [('Werkwijze per kwartaal', None, [('', re.sub(r'^\d+\.\s+', '', s), []) for s in stappen])]
     alle += [(t, None, [(a, b, []) for a, b in regels]) for t, regels in ALGEMEEN]
+    if 'Planning bouwnummers' in part_of:
+        alle.append(('FO per bouwnummer', 'Planning bouwnummers', [(a, b, []) for a, b in PER_BOUWNUMMER]))
     alle += hoofdstukken
     rij = 6 + len(alle) + 2
     for i, (titel, blad, regels) in enumerate(alle):

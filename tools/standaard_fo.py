@@ -1393,7 +1393,7 @@ def maak_cashflow_plek(ws, jaar=2026, rijen=None):
     ws['F%d' % (t + 3)] = 'OK'
 
 
-def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=None, verleden_tot=None):
+def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=None, verleden_tot=None, per_bouwnummer=False):
     wb = openpyxl.load_workbook(bron)
     weg = [n for n in wb.sheetnames if n not in ('FO - vorig', 'FO - huidig', 'FO - actuals', 'Prijslijst dump', 'Prijslijst',
                                                  'Behind the scens', '2. Ontw PEW', 'CF - hulp VENA', '1. Cashflow',
@@ -1435,6 +1435,10 @@ def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=No
         act['S%d' % r] = ('=IF(AND($Q{r}="Kosten",$P{r}&""=Start!$C$12&"",$R{r}="Q"&Start!$D$12),'
                           'IF(COUNTIFS($E$2:$E{r},$E{r},$Q$2:$Q{r},"Kosten",$P$2:$P{r},$P{r},$R$2:$R{r},$R{r})=1,'
                           'SUMIFS($K:$K,$E:$E,$E{r},$Q:$Q,"Kosten",$P:$P,$P{r},$R:$R,$R{r}),""),"")').format(r=r)
+    if per_bouwnummer:                  # FO per bouwnummer: type 1 = alle bouwnummers, de types 2-6 ingeklapt
+        import per_bouwnummer as PB
+        PB.pas_toe(wb, sys.modules[__name__])
+        verborgen_types = sorted(set(verborgen_types or []) | set(range(2, NT + 1)))
     if verborgen_types or verleden_tot:
         inklappen(wb, verborgen_types or [], jaar, verleden_tot)
     wb.save(uit)

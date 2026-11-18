@@ -596,6 +596,11 @@ Public Sub OudFOInlezen()
     Dim pad As Variant, wbO As Workbook, wsO As Worksheet, wsN As Worksheet, bladen() As String, i As Long
     Dim waarschuwing As String, rekenmodus As Long, stap As String, foutNr As Long, foutOms As String, n As Long
     Dim zelfGeopend As Boolean, wb As Workbook, verschil As Long, bericht As String
+    If Cfg("per_bouwnummer", "0") = "1" Then
+        MsgBox "Oud FO inlezen is niet beschikbaar in het FO per bouwnummer. Vul de bouwnummers in op het tabblad Bouwnummers " & _
+               "en de verdelingen en planningen op Planning bouwnummers.", vbInformation, TITEL
+        Exit Sub
+    End If
 #If Mac Then
     pad = Application.GetOpenFilename()
 #Else

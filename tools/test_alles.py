@@ -606,6 +606,79 @@ def t_naar_rato():
        and all(abs(k3[c] - 500000 * k1[c] / sk1) < 1 for c in S.COLS), 'kosten %.0f' % sk3)
 
 
+def t_per_bouwnummer():
+    """FO per bouwnummer: opbrengsten = som van de bouwnummers; later transport schuift precies dat bouwnummer; een latere
+    start bouw schuift alleen de termijnen van die planning; geen foutwaarden"""
+    import tempfile
+    import openpyxl
+    import per_bouwnummer as PB
+    from xlsxpkg import Package, Sheet, SST
+    from openpyxl.utils import get_column_letter as L_
+    bron = os.path.join(OUT, 'FO_werkbestand_bouwnummer.xlsm')
+    tmp = tempfile.mkdtemp(prefix='bn_')
+    uitkomst = {}
+    for variant in ('basis', 'later', 'start'):
+        k, k2, d = (os.path.join(tmp, '%s_%s' % (variant, x)) for x in ('k.xlsm', 'k2.xlsm', 'd.xlsx'))
+        controleer.testkopie(bron, k)
+        pkg = Package(k)
+        sst = SST(pkg.x('xl/sharedStrings.xml'))
+        zet = {}
+        st = Sheet(pkg.x(pkg.sheet_part('Start')), sst)
+        st.set_value('F8', 2026 * 4 + 4)
+        pkg.put(pkg.sheet_part('Start'), st.t)
+        pl = Sheet(pkg.x(pkg.sheet_part(PB.SH_PL)), sst)
+        for j, (n, p) in enumerate((('Start bouw', .1), ('Casco', .4), ('Dicht', .4), ('Oplevering', .1))):
+            pl.set_value('%s%d' % (PB.A_NAAM[1], PB.A1 + j), n)
+            pl.set_value('%s%d' % (PB.A_PCT[1], PB.A1 + j), p)
+        for j, (n, p) in enumerate((('Start', .5), ('Einde', .5))):
+            pl.set_value('%s%d' % (PB.A_NAAM[2], PB.A1 + j), n)
+            pl.set_value('%s%d' % (PB.A_PCT[2], PB.A1 + j), p)
+        for p_, (s_, o_) in enumerate((('Q1 2027', 'Q4 2027'), ('Q3 2027' if variant != 'start' else 'Q1 2028', 'Q2 2028')), 1):
+            pl.set_value('C%d' % (PB.B1 + p_ - 1), 'Verdieping %d' % p_)
+            pl.set_value('D%d' % (PB.B1 + p_ - 1), s_)
+            pl.set_value('E%d' % (PB.B1 + p_ - 1), o_)
+        pkg.put(pkg.sheet_part(PB.SH_PL), pl.t)
+        bn = Sheet(pkg.x(pkg.sheet_part('Bouwnummers')), sst)
+        tot = 0
+        for i in range(12):
+            r = S.P_BN1 + i
+            von = 400000 + 20000 * i
+            vals = {'A': 'BN %02d' % (i + 1), 'I': 'Te koop', 'J': 0, 'K': von * 0.2, 'L': von * 0.8, 'N': 0, 'P': 0,
+                    'Q': 0, 'R': 0, 'S': 0, PB.BN['verdeling']: 1 if i < 8 else 2, PB.BN['planning']: 1 if i < 6 else 2,
+                    PB.BN['verkocht']: 'Q%d 2027' % (i % 4 + 1)}
+            if variant == 'later' and i == 11:
+                vals[PB.BN['transport']] = 'Q2 2028'
+            for c, v in vals.items():
+                bn.set_value('%s%d' % (c, r), v)
+            tot += von
+        pkg.put(pkg.sheet_part('Bouwnummers'), bn.t)
+        sst.finish()
+        pkg.put('xl/sharedStrings.xml', sst.t)
+        pkg.save(k2)
+        controleer.doorrekenen(k2, d)
+        wb = openpyxl.load_workbook(d, data_only=True)
+        o = wb['CF - opbrengsten']
+        rij = lambda r: [o['%s%d' % (c, r)].value or 0 for c in S.COLS]
+        fouten = [('%s!%s' % (ws.title, c.coordinate)) for ws in wb.worksheets if ws.sheet_state == 'visible'
+                  for row in ws.iter_rows() for c in row if isinstance(c.value, str) and c.value.startswith('#')
+                  and c.value[1:4] in ('VAL', 'REF', 'NAM', 'DIV', 'N/A', 'NUM')]
+        uitkomst[variant] = {'tot': sum(rij(S.TOT)), 'verwacht': tot, 'grond': rij(S.eu_rij(1, 0)),
+                             'termijnen': [sum(x) for x in zip(*[rij(S.eu_rij(1, j)) for j in range(1, 5)])],
+                             'fouten': fouten, 'p1': [rij(S.eu_rij(1, j)) for j in range(1, 5)]}
+    b, l, s_ = uitkomst['basis'], uitkomst['later'], uitkomst['start']
+    ok('FO per bouwnummer: totaal opbrengsten = som van de bouwnummers, geen foutwaarden',
+       abs(b['tot'] - b['verwacht']) < 1 and not b['fouten'], 'totaal %.0f, verwacht %.0f, fouten %s' % (b['tot'], b['verwacht'], b['fouten'][:4]))
+    i28 = 1 + (2028 * 4 + 2) - (2026 * 4 + 1)          # kolom Q2 2028 (G = t/m nu, H = Q1 2026)
+    verschil_grond = [y - x for x, y in zip(b['grond'], l['grond'])]
+    von12 = 400000 + 20000 * 11
+    ok('FO per bouwnummer: later transport schuift precies dat bouwnummer (grond en termijnen tot dan)',
+       abs(sum(verschil_grond)) < 1 and abs(verschil_grond[i28] - von12 * 0.2) < 1 and abs(l['tot'] - b['tot']) < 1,
+       'grond Q2 2028 +%.0f (verwacht %.0f), totaal gelijk %s' % (verschil_grond[i28], von12 * 0.2, abs(l['tot'] - b['tot']) < 1))
+    ok('FO per bouwnummer: latere start bouw van planning 2 schuift de termijnen (en het transport niet vóór start bouw); totaal gelijk',
+       abs(s_['tot'] - b['tot']) < 1 and s_['termijnen'] != b['termijnen'],
+       'totaal %.0f / %.0f' % (s_['tot'], b['tot']))
+
+
 def t_gedeelde_formules():
     """het sjabloon bewaart doorgetrokken formules als gedeelde formule (kleiner, sneller openen); de opbouw klopt"""
     import zipfile
@@ -1021,6 +1094,7 @@ def main():
     t_sko_invoer()
     t_planning()
     t_naar_rato()
+    t_per_bouwnummer()
     t_dianummers()
     t_dia3_realisatie()
     t_weinig_tekst()

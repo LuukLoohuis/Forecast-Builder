@@ -44,6 +44,7 @@ LAYOUT = [
     ('Prijslijst dump', 'fo', 'Prijslijst dump', 'shPrijslijstDump'),
     ('Prijslijst', 'fo', 'Prijslijst', 'shPrijslijst'),
     ('Bouwnummers', 'fo', 'Bouwnummers', 'shBouwnummers'),
+    ('Planning bouwnummers', 'fo', 'Planning bouwnummers', 'shPlanningBN'),     # alleen in het FO per bouwnummer
     ('Aansluiting opbrengsten', 'fo', 'Aansluiting opbrengsten', 'shAansluiting'),
     ('CF - opbrengsten', 'fo', 'CF - opbrengsten', 'shCFOpbrengsten'),
     ('CF - kosten', 'fo', 'CF - kosten', 'shCFKostenFO'),
@@ -538,6 +539,7 @@ def main():
     ap.add_argument('--oud', help='het oude FO waaruit het standaard-FO is omgezet (voor de controle)')
     ap.add_argument('--demo', action='store_true', help='teksten van het demo-FO (dia 10)')
     ap.add_argument('--startbouw', help='jaar-kwartaal, bv. 2027-2 (standaard de markering Start bouw op CF - opbrengsten)')
+    ap.add_argument('--per-bouwnummer', action='store_true', help='FO per bouwnummer (Bouwnummers en Planning bouwnummers zichtbaar)')
     ap.add_argument('--oplevering', help='jaar-kwartaal, bv. 2028-3 (standaard de markering Oplevering op CF - opbrengsten)')
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
@@ -631,7 +633,7 @@ def main():
                 if v:
                     note('%s: %d formules met een verwijzing naar een vervallen tabblad (%s) zijn waarde geworden'
                          % (name, v, ', '.join(sorted(VERVALLEN - {'2. Ontw PEW'}))))
-        if name in VERBORGEN:
+        if name in VERBORGEN and not (a.per_bouwnummer and name == 'Bouwnummers'):
             state = 'hidden'
         final.append((name, part, state, code))
     note('%d tabbladen' % len(final))
@@ -677,7 +679,7 @@ def main():
     # sjabloonlijst op het verborgen blad _sjabloon
     # (alleen de opzet in E:F: de macro's lezen geen sjabloonlijst meer, het sjabloon is zelf de bron)
     sh = Sheet(dst.x(part_of['_sjabloon']), sst)
-    for i, (sleutel, waarde) in enumerate(config(oz, layout) + [('top3_rij', info.get('top3_row', 0))], 1):
+    for i, (sleutel, waarde) in enumerate(config(oz, layout) + [('top3_rij', info.get('top3_row', 0)), ('per_bouwnummer', 1 if a.per_bouwnummer else 0)], 1):
         sh.set_value('E%d' % i, sleutel)
         sh.set_value('F%d' % i, waarde)
     dst.put(part_of['_sjabloon'], sh.t)

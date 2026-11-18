@@ -242,3 +242,56 @@ def cf_formules(bn, bn1, bnn, q_cel, eerste_q):
         uit['termijn'][j] = '=' + sf(L(BN_EUR1 + j - 1), L(BN_FACT1 + j - 1))
         uit['kosten'][j] = sf(L(BN_EUR1 + j - 1), L(BN_PLAN1 + j - 1))
     return uit
+
+
+# ------------------------------------------------------------------------------------------------------------------
+def pas_toe(wb, S):
+    """het standaard-FO (tools/standaard_fo.py, module S) ombouwen tot het FO per bouwnummer: tabblad Planning bouwnummers,
+    keuzekolommen op Bouwnummers, en type 1 = 'Alle bouwnummers' met opbrengsten, aantallen en kosten uit de bouwnummers"""
+    bn, b1, bn_ = S.SH_BN, S.P_BN1, S.P_BNN
+    nu = 'Start!$F$8'
+    ws_bn = wb[bn]
+    maak_bouwnummer_kolommen(ws_bn, b1, bn_, nu=nu)
+    zet(ws_bn, 'A1', 'BOUWNUMMERS · per bouwnummer de prijs (uit de Salesforce-dump of zelf invullen), verdeling, planning, '
+                     'verkocht in en transport in', FW, KOP)
+    ws_bn.sheet_properties.tabColor = 'FEB900'
+    ws_pl = wb.create_sheet(SH_PL, wb.sheetnames.index(bn) + 1)
+    maak_planning(ws_pl, bn, b1, bn_, nu=nu)
+    ws_pl.sheet_properties.tabColor = 'FEB900'
+    zet(ws_pl, 'L1', '=HYPERLINK("#Start!A1","← Start")', Font(name='Heijmans-Light', size=10, color='FF003366', underline='single'))
+    # Aansluiting (Prijslijst): type 1 = alle bouwnummers; het termijnschema van type 1 = het gewogen gemiddelde
+    P = wb['Prijslijst']
+    P['B%d' % S.P_TYPE1] = 'Alle bouwnummers'
+    P['C%d' % S.P_TYPE1] = '*'
+    a = S.p_aans(1)
+    rng = lambda c: "%s!$%s$%d:$%s$%d" % (bn, c, b1, c, bn_)
+    som_aanneem = 'SUM(%s)+SUM(%s)' % (rng('L'), rng('N'))
+    for j in range(1, NJ + 1):
+        r = a + 1 + j
+        P['%s%d' % (S.P_TERM_NAAM, r)] = 'Termijn %d' % j
+        P['%s%d' % (S.P_TERM_PCT, r)] = '=IFERROR(SUM(%s)/(%s),0)' % (rng(L(BN_EUR1 + j - 1)), som_aanneem)
+    # CF - opbrengsten: type 1 uit de bouwnummers (kolom G = t/m nu: alles vóór het eerste kwartaal)
+    O = wb['CF - opbrengsten']
+    K = wb['CF - kosten']
+    eerste = '(%s*4+1)' % S.JAAR
+    for i, c in enumerate(S.COLS):
+        q = None if i == 0 else '(%s*4+%d)' % (S.JAAR, i)
+        f = cf_formules(bn, b1, bn_, q, eerste)
+        crit = ('"<"&%s' % eerste) if q is None else q
+        for j in range(1, NJ + 1):
+            O['%s%d' % (c, S.plan(1, j))] = '=COUNTIFS(%s,%s)' % (rng(L(BN_PLAN1 + j - 1)), crit)
+            O['%s%d' % (c, S.eu_rij(1, j))] = f['termijn'][j]
+        O['%s%d' % (c, S.eu_rij(1, 0))] = f['grond']
+        O['%s%d' % (c, S.eu_rij(1, S.NTERM + 1))] = f['kmw25']
+        O['%s%d' % (c, S.eu_rij(1, S.NTERM + 2))] = f['kmw75']
+        O['%s%d' % (c, S.eu_rij(1, S.NTERM + 3))] = '=' + '+'.join('SUMIFS(%s,%s,%s)' % (rng(x), rng(BN['t_idx']), crit) for x in 'JQRS')
+        if q is not None:
+            O['%s%d' % (c, S.vk_rij(1))] = f['verkocht']
+            O['%s%d' % (c, S.tt_rij(1))] = f['transport']
+        # kosten: budget aanneemsom naar rato van de termijnbedragen per plan-kwartaal (de bouw, niet het transport)
+        tel = '+'.join(f['kosten'][j] for j in range(1, NJ + 1))
+        noem = '+'.join('SUM(%s)' % rng(L(BN_EUR1 + j - 1)) for j in range(1, NJ + 1))
+        K['%s%d' % (c, S.k_aanneem(1))] = '=IFERROR($D$%d*(%s)/(%s),0)' % (S.kb(1), tel, noem)
+        K['%s%d' % (c, S.k_aanneem(1) + 1)] = 0
+    O['B%d' % S.plan_inv(1)] = 'Planning: zie het tabblad Planning bouwnummers'
+    return ws_pl
