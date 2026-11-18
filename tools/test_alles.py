@@ -729,6 +729,49 @@ def t_dump_sko():
        'gelijk %s · meer %s' % (g, m))
 
 
+def t_daeb_dia2():
+    """DAEB-blok op CF - opbrengsten: het model herkent de DAEB-woningen (aantal en levering), dia 2 noemt koop en DAEB apart"""
+    import tempfile
+    import openpyxl
+    from xlsxpkg import Package, Sheet, SST
+    tmp = tempfile.mkdtemp(prefix='daeb_')
+    k, k2, d = (os.path.join(tmp, x) for x in ('k.xlsm', 'k2.xlsm', 'd.xlsx'))
+    controleer.testkopie(SJABLOON, k)
+    pkg = Package(k)
+    sst = SST(pkg.x('xl/sharedStrings.xml'))
+    st_ = Sheet(pkg.x(pkg.sheet_part('Start')), sst)
+    st_.set_value('F8', 2026 * 4 + 4)
+    pkg.put(pkg.sheet_part('Start'), st_.t)
+    sh = Sheet(pkg.x(pkg.sheet_part('Aansluiting opbrengsten')), sst)
+    sh.set_value('B%d' % S.P_TYPE1, 'Koop')
+    sh.set_value('%s%d' % (S.P_HAND['aantal'], S.P_TYPE1), 30)
+    sh.set_value('%s%d' % (S.P_HAND['grond'], S.P_TYPE1), 3000000)
+    sh.set_value('%s%d' % (S.P_HAND['aanneemkao'], S.P_TYPE1), 9000000)
+    pkg.put(pkg.sheet_part('Aansluiting opbrengsten'), sh.t)
+    o = Sheet(pkg.x(pkg.sheet_part('CF - opbrengsten')), sst)
+    o.set_value('C%d' % (S.DAEB_KOP - 3), 'AK fee')
+    o.set_value('E%d' % (S.DAEB_KOP - 3), 2000000)
+    o.set_value('B%d' % (S.DAEB_KOP + 1), 'AK fee')
+    for i, c in enumerate(S.QCOLS[4:8]):
+        o.set_value('%s%d' % (c, S.DAEB_KOP + 1), 500000)
+    o.set_value('D%d' % S.DAEB_AANTAL, 20)
+    o.set_value('%s%d' % (S.QCOLS[7], S.DAEB_VERKOOP), 20)
+    for c, n in zip(S.QCOLS[4:7], (10, 10, 10)):
+        o.set_value('%s%d' % (c, S.vk_rij(1)), n)
+        o.set_value('%s%d' % (c, S.tt_rij(1)), n)
+    pkg.put(pkg.sheet_part('CF - opbrengsten'), o.t)
+    sst.finish()
+    pkg.put('xl/sharedStrings.xml', sst.t)
+    pkg.save(k2)
+    controleer.doorrekenen(k2, d)
+    wb = openpyxl.load_workbook(d, data_only=True)
+    m, pp = wb['Model'], wb['PowerPoint']
+    tekst = {str(pp['F%d' % r].value): str(pp['D%d' % r].value) for r in range(7, 200) if pp['F%d' % r].value}
+    ok('DAEB-blok: het model telt de DAEB-woningen (Woningen DAEB) en dia 2 noemt koop en DAEB apart',
+       m['BY135'].value == 20 and 'koop + 20 DAEB' in tekst.get('KPI7_SUB', '') and 'koopwoningen' in tekst.get('KPI6_SUB', ''),
+       'DAEB %s, totaal %s · %s · %s' % (m['BY135'].value, m['BY39'].value, tekst.get('KPI7_SUB'), tekst.get('KPI6_SUB')))
+
+
 def t_gedeelde_formules():
     """het sjabloon bewaart doorgetrokken formules als gedeelde formule (kleiner, sneller openen); de opbouw klopt"""
     import zipfile
@@ -812,6 +855,7 @@ def t_weinig_tekst():
         for rij in ws.iter_rows():
             for c in rij:
                 if isinstance(c.value, str) and not c.value.startswith('=') and len(c.value) > H.GRENS \
+                        and not c.value.startswith(H.BESCHERMD) \
                         and not (r1 <= c.row <= r2) and not ws.row_dimensions[c.row].hidden:
                     lang.append('%s!%s' % (ws.title, c.coordinate))
     hl = wb['Handleiding']
@@ -1146,6 +1190,7 @@ def main():
     t_naar_rato()
     t_per_bouwnummer()
     t_dump_sko()
+    t_daeb_dia2()
     t_dianummers()
     t_dia3_realisatie()
     t_weinig_tekst()

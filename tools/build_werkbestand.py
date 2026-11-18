@@ -1362,6 +1362,14 @@ def powerpoint_v22(sh, style, r0, d10):
             sh.set('D%d' % r, '=IF(AND(N(%s)=0,N(%s)=0),"",IF(%s<0,"−","+")&"€"&FIXED(ABS(%s)/1000000,1)'
                               '&"M eerder")' % (W('Z', 85), W('Z', 86), W('Z', 85), W('Z', 85)))
             sh.set_value('F%d' % r, 'CF_KANS_WAARDE')
+        elif vorm == 'KPI7_SUB':            # dia 2: DAEB-woningen apart in de ondertitel (koop + DAEB)
+            assert sh.get('D%d' % r) == '="van "&Model!$BY$39&" · t/m "&Model!$BY$11', sh.get('D%d' % r)
+            sh.set('D%d' % r, '=IF(N(Model!$BY$135)>0,"van "&(Model!$BY$39-Model!$BY$135)&" koop + "&Model!$BY$135&" DAEB",'
+                              '"van "&Model!$BY$39)&" · t/m "&Model!$BY$11')
+        elif vorm == 'KPI6_SUB':            # verkocht bij start bouw: alleen koopwoningen (de norm geldt voor koop)
+            f_ = sh.get('D%d' % r)
+            assert f_.endswith('&" woningen"'), f_
+            sh.set('D%d' % r, f_[:-len('&" woningen"')] + '&IF(N(Model!$BY$135)>0," koopwoningen"," woningen")')
         elif vorm in ('VP_STAT1_ACCENT', 'VP_STAT3_ACCENT'):
             sh.set_value('D%d' % r, '003366')            # tekst (sh.set zou er een getal van maken)
         elif vorm == 'VP_STAT2_ACCENT':

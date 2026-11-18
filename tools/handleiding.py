@@ -41,6 +41,10 @@ BEHOUD_RIJEN = {'Start': (21, 45)}
 # komt geen '?' op het blad (anders staat het op de dia)
 GEEN_VRAAG = {'2. Ontw PEW', '2B. Ontw PEW'}
 
+# teksten die formules of macro's zoeken (MATCH / SEARCH op het label): nooit aankomen
+BESCHERMD = ('Verkoop en levering DAEB', 'Aantal DAEB', 'Opbrengsten DAEB', 'Transport', 'Overige opbrengsten in',
+             'Periode in cashflow', 'Totaal opbrengsten', 'Termijnen ', 'Omzet HVG', 'Koopsom', 'Startbouw', 'Oplevering')
+
 # hele blokken die naar de Handleiding gaan (rijen verbergen): de uitleg 'Zo werkt het' van het scenariomodel
 BLOKKEN = {'Dashboard': [(136, 161, 'Scenariomodel · zo werkt het')]}
 
@@ -54,7 +58,6 @@ KORT = {
     'Cashflow cumulatief · huidig (€, hulp voor het Dashboard)': 'Cashflow cumulatief (hulp)',
     'Extra opbrengst grondtermijn (€, eerder ontvangen)': 'Extra grondtermijn (€)',
     'KANS · grondtermijn naar het % op Prijslijst (kolom Y) · effect op de opbrengsten': 'KANS GRONDTERMIJN',
-    'Verkoop en levering DAEB (aantal woningen per kwartaal; transport = verkoop)': 'Verkoop DAEB (aantal)',
     'Alle woningen · getransporteerd % per kwartaal': 'Alle woningen · getransp. %/kw',
     'Alle woningen · getransporteerd % cumulatief': 'Alle woningen · getransp. % cum.',
     'Grond % · grond / (grond + aanneemsom), excl. KAO': 'Grond %',
@@ -312,7 +315,7 @@ def verwerk(dst, part_of, sst, styles, st, note):
                 if not isinstance(t, str) or not t or t.startswith('='):
                     continue
                 s = c.get('s')
-                if _invoer(styles, s):
+                if _invoer(styles, s) or t.startswith(BESCHERMD):
                     continue
                 kort = KORT.get(t)
                 if kort is None:
