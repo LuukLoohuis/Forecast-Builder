@@ -679,6 +679,47 @@ def t_per_bouwnummer():
        'totaal %.0f / %.0f' % (s_['tot'], b['tot']))
 
 
+def t_dump_sko():
+    """check prijslijst-dump <-> SKO (excl. btw): gelijk = OK, aanneemsom 10.000 hoger in de dump = LET OP, ook op Start"""
+    import tempfile
+    import openpyxl
+    from xlsxpkg import Package, Sheet, SST
+    uit = {}
+    for variant, extra in (('gelijk', 0), ('meer', 10000)):
+        tmp = tempfile.mkdtemp(prefix='dsko_')
+        k, k2, d = (os.path.join(tmp, x) for x in ('k.xlsm', 'k2.xlsm', 'd.xlsx'))
+        controleer.testkopie(SJABLOON, k)
+        pkg = Package(k)
+        sst = SST(pkg.x('xl/sharedStrings.xml'))
+        a = S.p_aans(1)
+        sh = Sheet(pkg.x(pkg.sheet_part('Aansluiting opbrengsten')), sst)
+        sh.set_value('B%d' % S.P_TYPE1, 'Rij')
+        sh.set_value('B%d' % (a + 2 + S.P_REGELS.index('Grond + Ontwikkelkosten')), 2 * 100000)
+        sh.set_value('B%d' % (a + 2 + S.P_REGELS.index('Kadastrale kosten')), 2 * 1000)
+        sh.set_value('B%d' % (a + 2 + S.P_REGELS.index('Aanneemsom')), 2 * 300000)
+        pkg.put(pkg.sheet_part('Aansluiting opbrengsten'), sh.t)
+        dp = Sheet(pkg.x(pkg.sheet_part('Prijslijst dump')), sst)
+        for i in range(2):
+            r = 2 + i
+            dp.set_value('A%d' % r, i + 1)
+            dp.set_value('B%d' % r, 101000 * 1.21)
+            dp.set_value('C%d' % r, 300000 * 1.21 + (extra * 1.21 if i == 0 else 0))
+        pkg.put(pkg.sheet_part('Prijslijst dump'), dp.t)
+        sst.finish()
+        pkg.put('xl/sharedStrings.xml', sst.t)
+        pkg.save(k2)
+        controleer.doorrekenen(k2, d)
+        wb = openpyxl.load_workbook(d, data_only=True)
+        p, st = wb['Aansluiting opbrengsten'], wb['Start']
+        r = next(r for r in range(20, 60) if str(st['B%d' % r].value or '').startswith('Prijslijst-dump'))
+        uit[variant] = (p['Q4'].value, p['Q5'].value, p['R6'].value, st['D%d' % r].value, st['C%d' % r].value)
+    g, m = uit['gelijk'], uit['meer']
+    ok('dump ↔ SKO: gelijk = OK; aanneemsom 10.000 hoger in de dump = LET OP (Aansluiting en Start)',
+       abs(g[0]) < 1 and abs(g[1]) < 1 and g[2] == 'OK' and g[3] == 'OK'
+       and abs(m[1] - 10000) < 1 and str(m[2]).startswith('LET OP') and m[3] == 'LET OP',
+       'gelijk %s · meer %s' % (g, m))
+
+
 def t_gedeelde_formules():
     """het sjabloon bewaart doorgetrokken formules als gedeelde formule (kleiner, sneller openen); de opbouw klopt"""
     import zipfile
@@ -1095,6 +1136,7 @@ def main():
     t_planning()
     t_naar_rato()
     t_per_bouwnummer()
+    t_dump_sko()
     t_dianummers()
     t_dia3_realisatie()
     t_weinig_tekst()

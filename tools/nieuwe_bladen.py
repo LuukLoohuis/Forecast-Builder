@@ -339,6 +339,11 @@ def maak_start(wb, demo, R):
         ('Scenariomodel dekt de opbrengsten (aantal × koopsom ÷ opbrengsten)',
          "=FIXED(N(Dashboard!W13)*100,1)&\"%\"",
          "=IF(N(Dashboard!W13)=0,\"LET OP\",\"INFO\")", 'Dashboard W13'),
+        ('Prijslijst-dump ↔ SKO (grond incl. kad., aanneemsom; excl. btw)',
+         "=IF(COUNT('Prijslijst dump'!$B:$C)=0,\"geen prijslijst\",\"grond \"&FIXED('Aansluiting opbrengsten'!$Q$4/1000,0)&\"k · "
+         "aanneemsom \"&FIXED('Aansluiting opbrengsten'!$Q$5/1000,0)&\"k\")",
+         "=IF(LEFT('Aansluiting opbrengsten'!$R$6&\"\",2)=\"OK\",\"OK\",IF(LEFT('Aansluiting opbrengsten'!$R$6&\"\",5)=\"geen \",\"INFO\",\"LET OP\"))",
+         'Aansluiting opbrengsten, rechtsboven'),
         ('Verschil met oud FO (alleen zinvol direct na Oud FO inlezen)',
          "=COUNTIF('Controle oud FO'!M9:M60,\"VERSCHIL\")&\" periode(s)\"",
          "=IF(COUNTIF('Controle oud FO'!M9:M60,\"VERSCHIL\")=0,\"OK\",\"INFO\")", 'tab Controle oud FO'),

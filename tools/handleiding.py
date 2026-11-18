@@ -37,6 +37,9 @@ TITEL = {'Prijslijst': 'Aansluiting opbrengsten'}
 
 # niet aankomen: de controles en de prognose op Start (rij 21 t/m 45), en de teksten van de macro's
 BEHOUD_RIJEN = {'Start': (21, 45)}
+# tabbladen die als afbeelding naar de PowerPoint gaan (dia Update PEW): de uitleg gaat wel naar de Handleiding, maar er
+# komt geen '?' op het blad (anders staat het op de dia)
+GEEN_VRAAG = {'2. Ontw PEW', '2B. Ontw PEW'}
 
 # hele blokken die naar de Handleiding gaan (rijen verbergen): de uitleg 'Zo werkt het' van het scenariomodel
 BLOKKEN = {'Dashboard': [(136, 161, 'Scenariomodel · zo werkt het')]}
@@ -71,6 +74,7 @@ KORT = {
     'Grondtermijn (% koopsom) · bouwtermijnen naar rato lager': 'Grondtermijn (% koopsom)',
 }
 KORT_RE = [
+    (re.compile(r'^x € 1\.000 · .*$'), 'x € 1.000'),
     (re.compile(r'^Budget aanneemsom \(kosten, excl\. KAO\) en KAO/meerwerk · type (\d+)$'), r'Budget aanneemsom · type \1'),
     (re.compile(r'^Totaal opbrengsten \(CF - opbrengsten, rij \d+ ↔ PEW\)$'), 'Totaal opbrengsten ↔ PEW'),
 ]
@@ -85,6 +89,8 @@ ALGEMEEN = [
         ('Rode melding in kolom A', 'op CF - opbrengsten en CF - kosten: op die regel moet je iets doen (bv. "4 woningen nog '
                                     'te verdelen"). B1 telt de meldingen.'),
         ('Controles', 'op Start, blok 4: alles op OK voordat je de PowerPoint maakt.'),
+        ('Dump ↔ SKO', 'Aansluiting opbrengsten, rechtsboven (en op Start): totaal grond (incl. kadastrale kosten) en aanneemsom '
+                       'uit de Salesforce-dump, excl. btw, tegen de SKO. Een verschil wordt via Corr geboekt (LET OP, geen FOUT).'),
         ('?', 'achter een kop of naast een veld: de uitleg in deze handleiding (klik erop).'),
     ]),
     ('Planning en verdeling (kort)', [
@@ -333,11 +339,11 @@ def verwerk(dst, part_of, sst, styles, st, note):
                         cc += 1
                     doel = '%s%d' % (num2col(cc), r)
                     vrij = _get(sh, doel) in (None, '')
-                    regels.append((kop, rest, [(blad, doel, sh.style_of(doel) or s)] if vrij else []))
+                    regels.append((kop, rest, [(blad, doel, sh.style_of(doel) or s)] if vrij and blad not in GEEN_VRAAG else []))
                 else:
                     titel = _label_links(sh, r, ci)
                     sh.set_value(ref, None, s)
-                    regels.append((titel, t, [(blad, ref, s)]))
+                    regels.append((titel, t, [] if blad in GEEN_VRAAG else [(blad, ref, s)]))
                 n += 1
         dst.put(part_of[blad], sh.t)
         uniek, waar = [], {}

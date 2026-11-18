@@ -980,6 +980,29 @@ def maak_prijslijst(ws, wbn=None):
     zet(ws, 'L%d' % rt, '=IF(COUNTIF(L{a}:L{b},"FOUT*")+COUNTIF(L{a}:L{b},"LET OP*")=0,"OK",COUNTIF(L{a}:L{b},"FOUT*")&" fout · "&'
                         'COUNTIF(L{a}:L{b},"LET OP*")&" let op")'.format(a=R0 + 1, b=R0 + NT), FB, LICHT)
     statuskleuren(ws, 'L%d:L%d' % (R0 + 1, rt))
+    # check prijslijst-dump <-> SKO op projectniveau (excl. btw): grond incl. kadastrale kosten en aanneemsom
+    sko_som = lambda *regels: '+'.join('N(B%d)' % (p_aans(k) + 2 + P_REGELS.index(x)) for k in range(1, NT + 1) for x in regels)
+    for c_, t_ in zip('NOPQR', ['DUMP ↔ SKO (excl. btw)', 'Dump', 'SKO', 'Verschil', 'Status']):
+        cel = zet(ws, '%s%d' % (c_, R0), t_, FW, DONKER)
+        cel.alignment = Alignment(wrap_text=True, vertical='center', horizontal='left' if c_ in 'NR' else 'center')
+    leeg_dump = "COUNT('Prijslijst dump'!$B:$C)=0"
+    for i_, (lab, kol, sko) in enumerate((('Grond (incl. kad.)', 'B', sko_som('Grond + Ontwikkelkosten', 'Kadastrale kosten')),
+                                          ('Aanneemsom', 'C', sko_som('Aanneemsom')))):
+        r = R0 + 1 + i_
+        zet(ws, 'N%d' % r, lab, FB)
+        zet(ws, 'O%d' % r, "=SUM('Prijslijst dump'!$%s:$%s)/1.21" % (kol, kol), F, GRIJS, NUM)
+        zet(ws, 'P%d' % r, '=' + sko, F, None, NUM)
+        zet(ws, 'Q%d' % r, '=O%d-P%d' % (r, r), FB, None, NUM)
+        zet(ws, 'R%d' % r, '=IF(%s,"geen prijslijst",IF(ABS(Q%d)<1,"OK","LET OP: "&TEXT(Q%d,"#,##0")))' % (leeg_dump, r, r), FB)
+        for cc in range(ci_('N'), ci_('R') + 1):
+            ws.cell(r, cc).border = Border(bottom=dun)
+    r = R0 + 3
+    zet(ws, 'N%d' % r, 'Totaal', FB, LICHT)
+    for c_ in 'OPQ':
+        zet(ws, '%s%d' % (c_, r), '=%s%d+%s%d' % (c_, R0 + 1, c_, R0 + 2), FB, LICHT, NUM)
+    zet(ws, 'R%d' % r, ('=IF({l},"geen prijslijst",IF(AND(ABS(Q{a})<1,ABS(Q{b})<1),"OK","LET OP: grond "&TEXT(Q{a},"#,##0")&'
+                        '" · aanneemsom "&TEXT(Q{b},"#,##0")&" t.o.v. SKO"))').format(l=leeg_dump, a=R0 + 1, b=R0 + 2), FB, LICHT)
+    statuskleuren(ws, 'R%d:R%d' % (R0 + 1, r))
     ws.conditional_formatting.add('L%d' % rt, FormulaRule(formula=['AND(L%d<>"OK",L%d<>"")' % (rt, rt)],
                                   font=Font(bold=True, color='FFB91C1C')))
     ws.conditional_formatting.add('E%d:E%d' % (R0 + 1, rt), FormulaRule(formula=['AND(ISNUMBER(E%d),E%d<>0)' % (R0 + 1, R0 + 1)],
