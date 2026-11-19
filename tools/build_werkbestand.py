@@ -1095,6 +1095,14 @@ def main():
     if t_.get('M14') in (None, ''):
         t_.set('M14', '=HYPERLINK("#Handleiding!A1","→ Handleiding")', st['link'])
         dst.put(part_of['Start'], t_.t)
+    # Start rij 8 (huidig kwartaal): andere formules dan de buren (rij 7/9) -> geen groene driehoekjes
+    t_ = Sheet(dst.x(part_of['Start']), sst)
+    for oud in t_.t.findall(M + 'ignoredErrors'):
+        t_.t.remove(oud)
+    ie = etree.Element(M + 'ignoredErrors')
+    etree.SubElement(ie, M + 'ignoredError', sqref='C8:G8', formula='1', numberStoredAsText='1', unlockedFormula='1')
+    t_.add_element(ie)
+    dst.put(part_of['Start'], t_.t)
     dst.parts.pop('xl/calcChain.xml', None)
     copier.remove_override('xl/calcChain.xml')
     dst.put('[Content_Types].xml', copier.ct)

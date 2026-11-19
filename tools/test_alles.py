@@ -261,6 +261,19 @@ def t_nieuw_kwartaal(lo, doc):
     ok('Nieuw kwartaal: FO - huidig en FO - actuals leeg voor de nieuwe exports', leeg)
 
 
+def t_start_driehoekjes():
+    """Start rij 8: geen groene driehoekjes (ignoredErrors op de juiste plek in de werkblad-XML)"""
+    from xlsxpkg import Package, SHEET_ORDER
+    from lxml import etree
+    pkg = Package(SJABLOON)
+    t = pkg.x(pkg.sheet_part('Start'))
+    namen = [etree.QName(c).localname for c in t]
+    ie = [c for c in t if etree.QName(c).localname == 'ignoredErrors']
+    volgorde = [SHEET_ORDER.index(n) for n in namen if n in SHEET_ORDER]
+    ok('Start rij 8: geen groene driehoekjes (ignoredErrors, in schemavolgorde)',
+       ie and 'C8' in ie[0][0].get('sqref', '') and volgorde == sorted(volgorde), ' '.join(namen))
+
+
 def t_prognose(doc):
     """prognose = PEW − actuals: totaal Invoer = PEW, kwartalen vóór het huidige = actuals; huidig kwartaal zelf kiezen
     (Start C8/D8, leeg = automatisch); CODA-posten in Behind the scens als getal"""
@@ -1254,6 +1267,7 @@ def main():
     t_naar_rato()
     t_per_bouwnummer()
     t_dump_sko()
+    t_start_driehoekjes()
     t_daeb_dia2()
     t_dianummers()
     t_dia3_realisatie()
