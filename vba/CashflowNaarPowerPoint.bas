@@ -353,6 +353,7 @@ Public Sub NaarPowerPoint()
 
     stap = "dia verkoopscenario's schikken": MeetStap stap
     SchikDiaScenarios pres, wsP
+    If Daeb100() Then DiasWegDaeb100 pres
 
     stap = "tabellen vullen": MeetStap stap
     t = Tabellen()
@@ -1177,6 +1178,24 @@ Private Sub SchikGrafiekDia2(shp As Object, ch As Object)
         If Not blok Is Nothing Then blok.Left = xNu + 7 + 14.4
     End If
     On Error GoTo 0
+End Sub
+
+Private Function Daeb100() As Boolean
+    ' Start D6 = 100% DAEB: alleen fees, kosten, PEW en cashflow (geen verkoop, transport of scenario's)
+    On Error Resume Next
+    Daeb100 = (CStr(ThisWorkbook.Worksheets("Start").Range("D6").Value) = "100% DAEB")
+End Function
+
+Private Sub DiasWegDaeb100(pres As Object)
+    ' 100% DAEB: de dia's over verkoop, transport, scenario's en verkoopprijzen gaan weg
+    Dim nm As Variant, shp As Object
+    On Error Resume Next
+    For Each nm In Array("VS_KICKER", "SC_KICKER", "VP_KICKER", "PT_KICKER")
+        Set shp = Nothing
+        Set shp = ZoekVorm(pres, CStr(nm))
+        If Not shp Is Nothing Then shp.Parent.Delete
+    Next nm
+    Err.Clear
 End Sub
 
 Private Function VsDiaAan() As Boolean

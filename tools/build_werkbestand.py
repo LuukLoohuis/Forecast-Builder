@@ -1020,7 +1020,7 @@ def main():
                     ('cf_omzet', 'Invoer!$F$8:$F$%d' % ri), ('cf_kosten_tot', 'Invoer!$D$%d' % rt),
                     ('cf_omzet_tot', 'Invoer!$F$%d' % rt),
                     ('p_huidig', 'Start!$F$8'), ('p_oplevering', 'Start!$F$9'), ('p_actuals', 'Start!$F$12'),
-                    ('p_startbouw', 'Start!$F$7')):
+                    ('p_startbouw', 'Start!$F$7'), ('p_daeb100', 'Start!$D$6')):
         d = etree.SubElement(new_dn, M + 'definedName', name=nm)
         d.text = ref
     # grafieken over de hele looptijd: periode vanaf/t-m van het Dashboard (Model!BY336:BY338)

@@ -1666,6 +1666,11 @@ Public Sub WeergaveBijwerken()
         .Visible = IIf(Nk(ThisWorkbook.Worksheets("Model").Range("BY135").Value) > 0 Or _
                        Application.WorksheetFunction.Count(.Range("F7:G26")) > 0, -1, 0)
     End With
+    ' 100% DAEB (Start D6): geen prijslijst en aansluiting
+    Dim d100 As Boolean
+    d100 = (CStr(ThisWorkbook.Worksheets(SH_START).Range("D6").Value) = "100% DAEB")
+    ThisWorkbook.Worksheets(SH_AANSL).Visible = IIf(d100, 0, -1)
+    ThisWorkbook.Worksheets("Prijslijst dump").Visible = IIf(d100, 0, -1)
     On Error GoTo 0
     Set wsO = ThisWorkbook.Worksheets("CF - opbrengsten")
     Set wsK = ThisWorkbook.Worksheets("CF - kosten")

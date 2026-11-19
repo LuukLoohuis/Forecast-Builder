@@ -274,6 +274,45 @@ def t_start_driehoekjes():
        ie and 'C8' in ie[0][0].get('sqref', '') and volgorde == sorted(volgorde), ' '.join(namen))
 
 
+def t_daeb100(doc, vba_doc=None):
+    """Start D6 = 100% DAEB: fee gelijk verdeeld van start bouw t/m oplevering, controles n.v.t., tabbladen verborgen"""
+    st, o = doc.Sheets.getByName('Start'), doc.Sheets.getByName('CF - opbrengsten')
+    st.getCellRangeByName('D6').setString('100% DAEB')
+    r1 = S.DAEB_KOP - 3
+    o.getCellRangeByName('C%d' % r1).setString('AK fee')
+    o.getCellRangeByName('E%d' % r1).setValue(1200000)
+    o.getCellRangeByName('D%d' % r1).setString('gelijk verdeeld')
+    doc.calculateAll()
+    sb, op = waarde(st, 'F7'), waarde(st, 'F9')
+    jaar = waarde(o, 'D3')
+    per = [waarde(o, '%s%d' % (c, S.DAEB_TOT)) for c in S.QCOLS]
+    idx = [jaar * 4 + 1 + i for i in range(len(S.QCOLS))]
+    binnen = [v for v, q in zip(per, idx) if sb <= q <= op]
+    buiten = [v for v, q in zip(per, idx) if not sb <= q <= op]
+    ok('100% DAEB: fee gelijk verdeeld van start bouw t/m oplevering (totaal = fee)',
+       sb > 0 and op >= sb and abs(sum(per) - 1200000) < 1 and len(set(round(v) for v in binnen)) == 1 and not any(buiten),
+       'start %s, oplevering %s, totaal %.0f, per kwartaal %.0f' % (sb, op, sum(per), binnen[0] if binnen else 0))
+    nvt = [tekst(st, 'B%d' % r) for r in range(31, 50) if tekst(st, 'C%d' % r).startswith('n.v.t.')]
+    fout = [tekst(st, 'B%d' % r) for r in range(31, 50) if tekst(st, 'D%d' % r) == 'FOUT']
+    ok('100% DAEB: controles prijslijst, aansluiting en verkoop n.v.t., geen FOUT daarvoor',
+       len(nvt) >= 5 and not [f for f in fout if f in nvt], '%d n.v.t.; FOUT: %s' % (len(nvt), fout))
+    st.getCellRangeByName('D6').setString('standaard')
+    o.getCellRangeByName('D%d' % r1).setString('handmatig')
+    o.getCellRangeByName('C%d' % r1).setString('')
+    o.getCellRangeByName('E%d' % r1).setString('')
+    doc.calculateAll()
+    if vba_doc is not None:
+        vst = vba_doc.Sheets.getByName('Start')
+        vst.getCellRangeByName('D6').setString('100% DAEB')
+        sp = vba_doc.getScriptProvider()
+        sp.getScript('vnd.sun.star.script:VBAProject.FOWerkbestand.WeergaveBijwerken?language=Basic&location=document').invoke((), (), ())
+        weg = [n for n in ('Aansluiting opbrengsten', 'Prijslijst dump') if not vba_doc.Sheets.getByName(n).IsVisible]
+        vst.getCellRangeByName('D6').setString('standaard')
+        sp.getScript('vnd.sun.star.script:VBAProject.FOWerkbestand.WeergaveBijwerken?language=Basic&location=document').invoke((), (), ())
+        terug = all(vba_doc.Sheets.getByName(n).IsVisible for n in ('Aansluiting opbrengsten', 'Prijslijst dump'))
+        ok('100% DAEB (macro): Aansluiting en Prijslijst dump verborgen, bij standaard weer zichtbaar', len(weg) == 2 and terug, str(weg))
+
+
 def t_prognose(doc):
     """prognose = PEW − actuals: totaal Invoer = PEW, kwartalen vóór het huidige = actuals; huidig kwartaal zelf kiezen
     (Start C8/D8, leeg = automatisch); CODA-posten in Behind the scens als getal"""
@@ -1287,6 +1326,7 @@ def main():
         tc = [bs_.getCellByPosition(0, r).getString() for r in range(120) if bs_.getCellByPosition(0, r).getType().value == 'TEXT'
               and bs_.getCellByPosition(0, r).getString().strip().isdigit()]
         ok('Oud FO inlezen (VBA): CODA-posten in Behind the scens als getal', not tc, str(tc[:5]))
+        t_daeb100(demo, vba_doc)
         t_nieuw_kwartaal(lo, vba_doc)
         try:                                       # de PowerPoint-module moet compileren (de knop zelf vraagt PowerPoint)
             sp = vba_doc.getScriptProvider()

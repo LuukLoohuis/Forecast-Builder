@@ -665,6 +665,15 @@ def maak_opbrengsten(ws):
         zet(ws, 'B%d' % r, 'Fee-component %d · naam (C) en totaal € (E)' % i)
         zet(ws, 'C%d' % r, None, F, GEEL)
         zet(ws, 'E%d' % r, None, F, GEEL, NUM)
+        zet(ws, 'D%d' % r, 'handmatig', F, GEEL)
+    from openpyxl.worksheet.datavalidation import DataValidation
+    dv_f = DataValidation(type='list', formula1='"handmatig,gelijk verdeeld"', allow_blank=False)
+    ws.add_data_validation(dv_f)
+    dv_f.add('D%d:D%d' % (DAEB_KOP - 3, DAEB_KOP - 2))
+    zet(ws, 'F%d' % (DAEB_KOP - 3), '=IF(D%d="gelijk verdeeld","gelijk verdeeld van start bouw t/m oplevering (Start): '
+                                   'de regels van groep 1 tellen niet","groep 1 hieronder")' % (DAEB_KOP - 3), FN)
+    zet(ws, 'F%d' % (DAEB_KOP - 2), '=IF(D%d="gelijk verdeeld","gelijk verdeeld van start bouw t/m oplevering (Start): '
+                                   'de regels van groep 2 tellen niet","groep 2 hieronder")' % (DAEB_KOP - 2), FN)
     kopregels(ws, DAEB_KOP - 1, DAEB_KOP, act='actuals')
     zet(ws, 'B%d' % DAEB_KOP, 'Opbrengsten DAEB', FB, KOP)
     for r in list(range(DAEB_KOP + 1, DAEB_KOP + 9)) + list(range(DAEB_KOP + 10, DAEB_KOP + 18)):
@@ -672,8 +681,22 @@ def maak_opbrengsten(ws):
             zet(ws, '%s%d' % (c, r), None, F, GEEL, NUM if c not in ('B', 'C') else ('0%' if c == 'C' else None))
         zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, NUM)
     zet(ws, 'B%d' % DAEB_TOT, 'Totaal opbrengsten DAEB', FB)
-    for c in COLS + [CHK]:
-        zet(ws, '%s%d' % (c, DAEB_TOT), '=SUM(%s%d:%s%d)' % (c, DAEB_KOP + 1, c, DAEB_TOT - 2), FB, None, NUM)
+    # per groep (= fee-component 1 en 2): handmatig de regels, of gelijk verdeeld (totaal E) van start bouw t/m oplevering
+    for j, c in enumerate(COLS + [CHK]):
+        delen = []
+        for g, rc in enumerate((DAEB_KOP - 3, DAEB_KOP - 2)):
+            g1 = DAEB_KOP + 1 + 9 * g
+            hand = 'SUM(%s%d:%s%d)' % (c, g1, c, g1 + 7)
+            if c == CHK:
+                gel = 'N($E$%d)' % rc
+            elif c == COLS[0]:
+                gel = '0'
+            else:
+                q = '(%s*4+%d)' % (JAAR, j)
+                gel = ('IF(AND(N(p_startbouw)>0,N(p_oplevering)>=N(p_startbouw),%s>=p_startbouw,%s<=p_oplevering),'
+                       'N($E$%d)/(p_oplevering-p_startbouw+1),0)' % (q, q, rc))
+            delen.append('IF($D$%d="gelijk verdeeld",%s,%s)' % (rc, gel, hand))
+        zet(ws, '%s%d' % (c, DAEB_TOT), '=' + '+'.join(delen), FB, None, NUM)
     zet(ws, 'B%d' % DAEB_AANTAL, 'Aantal DAEB-woningen')
     zet(ws, 'D%d' % DAEB_AANTAL, None, F, GEEL, '0')
     zet(ws, 'B%d' % DAEB_VERKOOP, 'Verkoop en levering DAEB (aantal woningen per kwartaal; transport = verkoop)')

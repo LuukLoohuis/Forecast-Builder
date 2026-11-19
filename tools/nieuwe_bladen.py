@@ -185,7 +185,14 @@ def maak_start(wb, demo, R):
     section(ws, 5, '1 · PROJECT EN PERIODE')
     cell(ws, 'B6', 'Projectnaam')
     cell(ws, 'C6', demo['project'], F_BASE, FILL_INPUT)
-    cell(ws, 'G6', 'op de titeldia en in de voettekst', F_NOTE)
+    cell(ws, 'B6', 'Projectnaam · projectsoort')
+    cell(ws, 'D6', 'standaard', F_BASE, FILL_INPUT)
+    from openpyxl.worksheet.datavalidation import DataValidation as _DV
+    dv_s = _DV(type='list', formula1='"standaard,100% DAEB"', allow_blank=False)
+    ws.add_data_validation(dv_s)
+    dv_s.add('D6')
+    cell(ws, 'G6', '=IF($D$6="100% DAEB","100% DAEB: alleen fees (CF - opbrengsten, blok Opbrengsten DAEB), kosten, PEW en cashflow; '
+                   'geen prijslijst, aansluiting of verkoop","naam op de titeldia · projectsoort: standaard of 100% DAEB")', F_NOTE)
     # SAP-boekingsperiode van FO - huidig (uit de export, cel E4): hulpcel
     cell(ws, 'F6', "=IFERROR(--('FO - huidig'!E4&\"\"),\"\")", F_HELP, None, ';;;')
     sb = demo.get('startbouw') or (None, None)
@@ -307,7 +314,8 @@ def maak_start(wb, demo, R):
     ven_o = "SUMPRODUCT((%s>=1)*(%s<=60)*%s)" % (R['o_per_abs'], R['o_per_abs'], R['o_tot_abs'])
     ven_k = "SUMPRODUCT((%s>=1)*(%s<=60)*%s)" % (R['k_per_abs'], R['k_per_abs'], R['k_tot_abs'])
     checks = [
-        ('Invoer compleet', '=COUNTIF(H15:H18,"OK")&" van 4 OK"', '=IF(COUNTIF(H15:H18,"OK")=4,"OK","LET OP")', 'blok 2'),
+        ('Invoer compleet', '=IF($D$6="100% DAEB",COUNTIF(H15:H17,"OK")&" van 3 OK (geen prijslijst)",COUNTIF(H15:H18,"OK")&" van 4 OK")',
+         '=IF(COUNTIF(H15:H18,"OK")=4,"OK",IF(AND($D$6="100% DAEB",COUNTIF(H15:H17,"OK")=3),"OK","LET OP"))', 'blok 2'),
         ('Aansluiting prijslijst ↔ SKO ↔ PEW (per woningtype)',
          "=COUNTIF(%sJ1:J300,\"FOUT\")&\" fout\"" % R['aansl'],
          "=IF(COUNTIF(%sJ1:J300,\"FOUT\")=0,\"OK\",\"FOUT\")" % R['aansl'], 'Prijslijst, blok 2 (kolom J)'),
@@ -360,7 +368,13 @@ def maak_start(wb, demo, R):
          "=IF(COUNTIF('Controle oud FO'!M9:M60,\"VERSCHIL\")=0,\"OK\",\"INFO\")", 'tab Controle oud FO'),
     ]
     r = 31
+    # 100% DAEB (Start D6): geen prijslijst, aansluiting, verkoop of scenariomodel -> n.v.t.
+    NVT = ('Aansluiting prijslijst', 'Opbrengsten volledig ingepland', 'Verkoop en transport', 'SAP-correcties',
+           'Scenariomodel dekt', 'Prijslijst-dump', 'Controles van het scenariomodel', 'DAEB-fees = DAEB-blok')
     for lab, uit, st, waar in checks:
+        if lab.startswith(NVT):
+            uit = '=IF(%s,"n.v.t. (100%% DAEB)",%s)' % ('$D$6="100% DAEB"', uit[1:])
+            st = '=IF(%s,"OK",%s)' % ('$D$6="100% DAEB"', st[1:])
         cell(ws, 'B%d' % r, lab)
         cell(ws, 'C%d' % r, uit, F_BASE, FILL_CALC, None, Alignment(horizontal='right'))
         cell(ws, 'D%d' % r, st, F_BOLD)
