@@ -182,6 +182,14 @@ def vergelijk_cashflow(wb, oud, toon=5):
         b, c = inv.cell(r, 2).value, inv.cell(r, 3).value
         if isinstance(b, (int, float)):
             nieuw[(int(b), c or '')] = r
+    # prognose = PEW − actuals: de planning is geschaald met een factor (Invoer, rij 'factor'); verschil tot |factor−1|
+    # van het bedrag is die schaling, geen omzetfout
+    fac = {4: 1, 6: 1}
+    for r in range(50, 80):
+        if inv.cell(r, 3).value == 'factor':
+            for c in (4, 6):
+                v = inv.cell(r, c).value
+                fac[c] = v if isinstance(v, (int, float)) else 1
     n = m = 0
     for r in range(4, 80):
         b = ov.cell(r, 2).value
@@ -196,7 +204,7 @@ def vergelijk_cashflow(wb, oud, toon=5):
             a = a if isinstance(a, (int, float)) else 0
             x = inv.cell(rr, c).value if rr else None
             x = x if isinstance(x, (int, float)) else 0
-            if abs(a - x) > 1:
+            if abs(a - x) > 1 + abs(a) * abs(fac.get(c, 1) - 1):
                 n += 1
                 if n <= toon:
                     print('    VERSCHIL %s%s %s: oud FO %s, werkbestand %s' % (b, q, naam, round(a), round(x)))

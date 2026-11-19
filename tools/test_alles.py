@@ -261,6 +261,53 @@ def t_nieuw_kwartaal(lo, doc):
     ok('Nieuw kwartaal: FO - huidig en FO - actuals leeg voor de nieuwe exports', leeg)
 
 
+def t_prognose(doc):
+    """prognose = PEW − actuals: totaal Invoer = PEW, kwartalen vóór het huidige = actuals; huidig kwartaal zelf kiezen
+    (Start C8/D8, leeg = automatisch); CODA-posten in Behind the scens als getal"""
+    inv, st = doc.Sheets.getByName('Invoer'), doc.Sheets.getByName('Start')
+    rij = {tekst(inv, 'C%d' % r): r for r in range(8, 90) if tekst(inv, 'C%d' % r)}
+    rt, rp, ra = rij.get('Totaal'), rij.get('PEW'), rij.get('actuals (dump, alles)')
+    if not (rt and rp and ra):
+        ok('prognose = PEW − actuals: hulpregels op Invoer', False, str(sorted(rij))[:200])
+        return
+
+    def stand():
+        doc.calculateAll()
+        nu = waarde(st, 'F8')
+        voor = {c: sum(waarde(inv, '%s%d' % (c, r)) for r in range(8, rt - 1)
+                       if tekst(inv, 'B%d' % r) and (waarde(inv, 'A%d' % r) < nu)) for c in 'DF'}
+        return nu, {c: (waarde(inv, '%s%d' % (c, rt)), waarde(inv, '%s%d' % (c, rp)), waarde(inv, '%s%d' % (c, ra)), voor[c])
+                    for c in 'DF'}
+    nu0, a = stand()
+    ok('prognose = PEW − actuals: totaal Invoer = PEW (kosten en omzet), kwartalen vóór nu = actuals',
+       nu0 > 0 and all(abs(t - p_) < 1 and abs(v - x) < 1 for t, p_, x, v in a.values()),
+       'huidig %s · %s' % (nu0, {c: [round(x) for x in v] for c, v in a.items()}))
+    pew_f = inv.getCellRangeByName('D%d' % rp).getFormula()
+    inv.getCellRangeByName('D%d' % rp).setValue(a['D'][1] + 1000000)
+    _, b = stand()
+    ok('prognose = PEW − actuals: PEW kosten +€1 mln → totaal kosten +€1 mln, actuals gelijk',
+       abs(b['D'][0] - a['D'][0] - 1000000) < 1 and abs(b['D'][3] - a['D'][3]) < 1, '%.0f → %.0f' % (a['D'][0], b['D'][0]))
+    inv.getCellRangeByName('D%d' % rp).setFormula(pew_f)
+    j = int(nu0) // 4                     # één kwartaal later: index nu0 + 1 = j*4 + q
+    q = int(nu0) + 1 - 4 * j
+    st.getCellRangeByName('C8').setValue(j)
+    st.getCellRangeByName('D8').setValue(q)
+    nu1, c_ = stand()
+    ok('huidig kwartaal zelf gekozen (Start C8/D8, één later): prognose schuift mee, totaal blijft PEW',
+       nu1 == nu0 + 1 and all(abs(t - p_) < 1 and abs(v - x) < 1 for t, p_, x, v in c_.values()),
+       '%s → %s, E8 %s' % (nu0, nu1, tekst(st, 'E8')))
+    st.getCellRangeByName('C8').setString('')
+    st.getCellRangeByName('D8').setString('')
+    nu2, _ = stand()
+    ok('huidig kwartaal leeg = automatisch uit de dump (AA8)', nu2 == nu0 == waarde(st, 'AA8'), '%s' % nu2)
+    bs = doc.Sheets.getByName('Behind the scens')
+    codes = [bs.getCellByPosition(0, r) for r in range(0, 120)]
+    tekst_cijfers = [c.getString() for c in codes if c.getType().value == 'TEXT' and c.getString().strip().isdigit()]
+    getallen = [c for c in codes if c.getType().value == 'VALUE']
+    ok('Behind the scens: CODA-posten als getal (geen tekst-getallen in kolom A)', getallen and not tekst_cijfers,
+       '%d getallen, tekst: %s' % (len(getallen), tekst_cijfers[:5]))
+
+
 def t_scenarios(doc):
     p, o, k = (doc.Sheets.getByName(n) for n in ('Aansluiting opbrengsten', 'CF - opbrengsten', 'CF - kosten'))
 
@@ -1222,6 +1269,10 @@ def main():
         jaren_als_getal(demo)
         demo.calculateAll()
         vba_doc = t_vba(lo, S.DEMO, 'demo', python_doc=demo)
+        bs_ = vba_doc.Sheets.getByName('Behind the scens')
+        tc = [bs_.getCellByPosition(0, r).getString() for r in range(120) if bs_.getCellByPosition(0, r).getType().value == 'TEXT'
+              and bs_.getCellByPosition(0, r).getString().strip().isdigit()]
+        ok('Oud FO inlezen (VBA): CODA-posten in Behind the scens als getal', not tc, str(tc[:5]))
         t_nieuw_kwartaal(lo, vba_doc)
         try:                                       # de PowerPoint-module moet compileren (de knop zelf vraagt PowerPoint)
             sp = vba_doc.getScriptProvider()
@@ -1231,6 +1282,7 @@ def main():
         except Exception as e:
             ok('PowerPoint-module compileert en de knoppen worden gezet', False, str(e)[:200])
         vba_doc.close(True)
+        t_prognose(demo)
         t_scenarios(demo)
         demo.close(True)
         if a.fo:

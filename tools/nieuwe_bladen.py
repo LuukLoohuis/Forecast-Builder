@@ -200,12 +200,23 @@ def maak_start(wb, demo, R):
     cell(ws, 'B8', 'Huidig kwartaal · jaar en kwartaal')
     cell(ws, 'AA8', '=IF(ISNUMBER(D17),INT(D17/100)*4+ROUNDUP(MOD(D17,100)/3,0)+IF(MOD(MOD(D17,100),3)=0,1,0),'
                    'IF(F6="",0,INT(F6/100)*4+ROUNDUP(MOD(F6,100)/3,0)))', F_HELP, None, ';;;')
-    cell(ws, 'C8', '=IF(AA8=0,"",INT((AA8-1)/4))', F_BASE, FILL_INPUT)
-    cell(ws, 'D8', '=IF(AA8=0,"",AA8-4*INT((AA8-1)/4))', F_BASE, FILL_INPUT)
-    cell(ws, 'E8', '=IF(C8="","","Q"&D8&" "&C8)', F_BOLD)
-    cell(ws, 'F8', '=IF(C8="",0,C8*4+D8)', F_HELP, None, ';;;')
-    cell(ws, 'G8', 'het kwartaal waarin we nu zitten: hier telt wat al geboekt is in SAP plus wat je nog als prognose invult · '
-                   'standaard uit de laatste boekingsperiode (FO - actuals); overschrijven mag', F_NOTE)
+    # C8/D8: zelf kiezen (keuzelijst); leeg = automatisch (AA8). AB8:AG8 = keuzelijst jaren rond het automatische jaar
+    cell(ws, 'C8', None, F_BASE, FILL_INPUT)
+    cell(ws, 'D8', None, F_BASE, FILL_INPUT)
+    for j, c in enumerate('AB AC AD AE AF AG'.split()):
+        cell(ws, '%s8' % c, '=IF(AA8=0,%d,INT((AA8-1)/4)%+d)' % (2024 + j, j - 2), F_HELP, None, ';;;')
+    from openpyxl.worksheet.datavalidation import DataValidation
+    dv_j = DataValidation(type='list', formula1='$AB$8:$AG$8', allow_blank=True)
+    dv_q = DataValidation(type='list', formula1='"1,2,3,4"', allow_blank=True)
+    ws.add_data_validation(dv_j)
+    ws.add_data_validation(dv_q)
+    dv_j.add('C8')
+    dv_q.add('D8')
+    cell(ws, 'F8', '=IF(AND(N(C8)>0,N(D8)>0),C8*4+D8,AA8)', F_HELP, None, ';;;')
+    cell(ws, 'E8', '=IF(N(F8)=0,"","Q"&(F8-4*INT((F8-1)/4))&" "&INT((F8-1)/4))', F_BOLD)
+    cell(ws, 'G8', '=IF(AND(N(C8)>0,N(D8)>0),"zelf gekozen · leeg maken = automatisch"&IF(AA8>0," (Q"&(AA8-4*INT((AA8-1)/4))&" "&INT((AA8-1)/4)&")",""),'
+                   '"automatisch uit de dump"&IF(AA8>0,": Q"&(AA8-4*INT((AA8-1)/4))&" "&INT((AA8-1)/4),"")&" · kies jaar en kwartaal om te overschrijven")'
+                   ' & " · prognose vanaf dit kwartaal = PEW − actuals"', F_NOTE)
     cell(ws, 'B9', 'Oplevering · jaar en kwartaal')
     cell(ws, 'C9', demo['oplevering'][0], F_BASE, FILL_INPUT)
     cell(ws, 'D9', demo['oplevering'][1], F_BASE, FILL_INPUT)
@@ -436,7 +447,7 @@ def maak_start(wb, demo, R):
 
 NUM_PEW = '#,##0;-#,##0;"-"'
 PEW_KOP_VORIG = '=IF(N(Start!$F$12)=0,"Vorig","Vorig Q"&Start!$D$12&" ’"&RIGHT(Start!$C$12,2))'
-PEW_KOP_HUIDIG = '=IF(N(Start!$F$8)=0,"Huidig","Huidig Q"&Start!$D$8&" ’"&RIGHT(Start!$C$8,2))'
+PEW_KOP_HUIDIG = '=IF(N(Start!$F$8)=0,"Huidig","Huidig Q"&(Start!$F$8-4*INT((Start!$F$8-1)/4))&" ’"&RIGHT(INT((Start!$F$8-1)/4),2))'
 
 
 def maak_pew(wb, inhoud, pw):

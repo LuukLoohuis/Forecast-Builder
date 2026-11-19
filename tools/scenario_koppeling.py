@@ -273,6 +273,23 @@ def invoer(inv: Sheet, types, st):
             inv.set('F%d' % r, '=-' + act('Omzet', '$B%d' % r), st['getal'])
     kt = '%s$%s$%d:$%s$%d' % (KK, K1, K_TOT, KN, K_TOT)
     ot = '%s$%s$%d:$%s$%d' % (OK, O1, O_TOT, ON, O_TOT)
+    # prognose (huidig kwartaal en later) = PEW - alle actuals uit de dump; de planning van de CF-tabbladen bepaalt alleen
+    # de verdeling over de kwartalen (factor). Zonder planning: het restant in het huidige kwartaal; zonder PEW: factor 1
+    hr = INV_RN + 7
+    tot_ = INV_RN + 2
+    inv.set('C%d' % (hr - 1), 'Prognose = PEW − actuals (planning × factor)', st['vet'])
+    for c, kant, rng_, key in (('D', 'Kosten', kt, KEYK), ('F', 'Omzet', ot, KEYO)):
+        teken = '' if kant == 'Kosten' else '-'
+        inv.set('C%d' % hr, 'actuals (dump, alles)', st['tekst'])
+        inv.set('%s%d' % (c, hr), '=%sSUMIFS(%s$K:$K,%s$Q:$Q,"%s")' % (teken, a, a, kant), st['getal'])
+        inv.set('C%d' % (hr + 1), 'restant = PEW − actuals', st['tekst'])
+        inv.set('%s%d' % (c, hr + 1), '=N(%s%d)-%s%d' % (c, tot_ + 1, c, hr), st['getal'])
+        inv.set('C%d' % (hr + 2), 'planning vanaf huidig kwartaal', st['tekst'])
+        inv.set('%s%d' % (c, hr + 2), '=SUMIFS(%s,%s,">="&p_huidig)' % (rng_, key), st['getal'])
+        inv.set('C%d' % (hr + 3), 'factor', st['tekst'])
+        inv.set('%s%d' % (c, hr + 3), '=IF(OR(N(%s%d)=0,%s%d=0),1,%s%d/%s%d)' % (c, tot_ + 1, c, hr + 2, c, hr + 1, c, hr + 2), st['pct'])
+    fac = lambda c: '$%s$%d' % (c, hr + 3)
+    los = lambda c: 'IF(AND($A{r}=p_huidig,$%s$%d=0,N($%s$%d)<>0),$%s$%d,0)' % (c, hr + 2, c, tot_ + 1, c, hr + 1)
     for r in range(q1, INV_RN + 1):
         if r == q1:
             a0 = '=IFERROR(_xlfn.AGGREGATE(15,6,%s/(%s>0),1)%s,"")' % (KEYK, KEYK, '-%d' % N_PRE if N_PRE else '')
@@ -281,10 +298,10 @@ def invoer(inv: Sheet, types, st):
         inv.set('A%d' % r, a0, st['verborgen'])
         inv.set('B%d' % r, '=IF($A%d="","",INT(($A%d-1)/4))' % (r, r), st['vet'])
         inv.set('C%d' % r, '=IF($A%d="","","Q"&($A%d-4*$B%d))' % (r, r, r), st['vet'])
-        inv.set('D%d' % r, '=IF($A%d="","",%s+IF($A%d>=p_huidig,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0))'
-                % (r, act('Kosten', '$B%d' % r, '$C%d' % r), r, kt, r, KEYK), st['getal'])
-        inv.set('F%d' % r, '=IF($A%d="","",-%s+IF($A%d>=p_huidig,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0),0))'
-                % (r, act('Omzet', '$B%d' % r, '$C%d' % r), r, ot, r, KEYO), st['getal'])
+        inv.set('D%d' % r, '=IF($A%d="","",%s+IF($A%d>=p_huidig,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0)*%s,0)+%s)'
+                % (r, act('Kosten', '$B%d' % r, '$C%d' % r), r, kt, r, KEYK, fac('D'), los('D').format(r=r)), st['getal'])
+        inv.set('F%d' % r, '=IF($A%d="","",-%s+IF($A%d>=p_huidig,IFERROR(INDEX(%s,MATCH($A%d,%s,0)),0)*%s,0)+%s)'
+                % (r, act('Omzet', '$B%d' % r, '$C%d' % r), r, ot, r, KEYO, fac('F'), los('F').format(r=r)), st['getal'])
     tot = INV_RN + 2
     for r in range(r1, INV_RN + 1):
         inv.set('E%d' % r, '=IF(D%d="","",IFERROR(D%d/$D$%d,0))' % (r, r, tot), st['pct'])

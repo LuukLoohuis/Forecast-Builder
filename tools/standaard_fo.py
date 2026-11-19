@@ -1421,6 +1421,15 @@ def maak_cashflow_plek(ws, jaar=2026, rijen=None):
     ws['F%d' % (t + 3)] = 'OK'
 
 
+def coda_als_getal(ws):
+    """Behind the scens kolom A: CODA-posten die als tekst staan ('5100') als getal (geen groene driehoekjes);
+    teksten als "50 & '51" blijven tekst. Kolom Y van FO - vorig/huidig zoekt als tekst én als getal."""
+    for r in range(1, ws.max_row + 1):
+        v = ws.cell(r, 1).value
+        if isinstance(v, str) and v.strip().isdigit():
+            ws.cell(r, 1).value = int(v.strip())
+
+
 def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=None, verleden_tot=None, per_bouwnummer=False):
     wb = openpyxl.load_workbook(bron)
     weg = [n for n in wb.sheetnames if n not in ('FO - vorig', 'FO - huidig', 'FO - actuals', 'Prijslijst dump', 'Prijslijst',
@@ -1456,6 +1465,7 @@ def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=No
             if isinstance(v, str) and 'VLOOKUP' in v.upper() and 'Behind the scens' in v:
                 ws_['Y%d' % r] = ('=IF(X{r}="","",IFERROR(VLOOKUP(X{r}&"",\'Behind the scens\'!$A:$C,3,0),'
                                   'IFERROR(VLOOKUP(--X{r},\'Behind the scens\'!$A:$C,3,0),"")))').format(r=r)
+    coda_als_getal(wb['Behind the scens'])
     # FO - actuals: hulpkolom S voor de top 3 kosten in het reviewkwartaal (per kostensoortomschrijving, kolom E)
     act = wb['FO - actuals']
     act['S1'] = 'Top 3 (hulp)'

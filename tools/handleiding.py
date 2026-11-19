@@ -109,6 +109,11 @@ ALGEMEEN = [
         ('ABK (% van kosten)', 'CF - kosten, laatste post (Direct doorbelaste projectkosten): methode % van kosten = per kwartaal '
                                'een % van de andere kosten (kolom AY, leeg = PEW van de post / PEW van de andere posten, zoals in '
                                'het oude FO); loopt mee als de andere kosten schuiven. Oud FO inlezen kiest dit zelf.'),
+        ('Huidig kwartaal', 'Start, rij 8: leeg = automatisch uit de dump (laatste boekingsperiode); kies jaar en kwartaal om '
+                            'het zelf vast te zetten. Actuals = alles uit de dump; de prognose begint in dit kwartaal.'),
+        ('Prognose = PEW − actuals', 'per kant (kosten en opbrengsten) is de prognose vanaf het huidige kwartaal precies '
+                                     'PEW min alle actuals; de planning op de CF-tabbladen bepaalt alleen de verdeling over '
+                                     'de kwartalen (Invoer, onder de controle: factor). Geen inhaalregel.'),
         ('Nog te verdelen', 'verkooptempo: aantal woningen min t/m nu en de kwartalen; anders dan 0 = rode melding.'),
     ]),
     ('Knoppen', [

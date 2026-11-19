@@ -136,6 +136,8 @@ def omzetten(oud, uit, project=None):
             for c in row:
                 if c.column <= w and c.value is not None and type(b.cell(c.row, c.column)).__name__ != 'MergedCell':
                     b.cell(c.row, c.column).value = av.cell(c.row, c.column).value if breedte[n] else c.value
+        if n == 'Behind the scens':
+            S.coda_als_getal(b)
 
     # ---- prijslijst per bouwnummer ------------------------------------------------------------------------
     pf, pv = wf['Prijslijst'], wv['Prijslijst']
