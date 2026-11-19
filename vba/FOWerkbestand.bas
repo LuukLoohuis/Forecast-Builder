@@ -1287,6 +1287,7 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
     End If
     ' DAEB
     DaebOmzetten wbO, wO, kops, nKop, sl, laatste, k1, lg
+    DaebAlles wbO, wO, sl, laatste, k1, lg
     ' kostenposten (prognose; Aanneemsom en Kopersmeerwerk volgen de termijnen)
     Dim wKo As Worksheet, posten As Long, toel As Long, pAct As Long, q As Long, weg As Double, verschoven As Double
     Set wKo = ZoekBlad(wbO, "CF - kosten")
@@ -1593,6 +1594,47 @@ Private Sub DaebOmzetten(ByVal wbO As Workbook, ByVal wO As Worksheet, kops() As
     lg = lg & "- DAEB-blok overgenomen (" & comp & " componenten, aantal " & aantal & ")" & vbCrLf
 End Sub
 
+Private Sub DaebAlles(ByVal wbO As Workbook, ByVal wO As Worksheet, ByVal sl As Variant, ByVal laatste As Long, _
+                      ByVal k1 As Long, ByRef lg As String)
+    ' 100% DAEB (gescheiden KAO, alleen fees): geen DAEB-blok in het oude FO, aanneemsom 0 en opbrengsten > 0 in
+    ' 2. Ontw PEW (huidig). Dan fee-component 1 = de opbrengsten uit het PEW en groep 1 regel 1 = de regel Totaal opbrengsten
+    ' van het oude CF - opbrengsten; Start D6 = 100% DAEB. Zelfde regels als daeb100_omzetten (Python)
+    Dim wP As Worksheet, wD As Worksheet, r As Long, c As Long, kop As Long, hc As Long, ar As Long, tr As Long, rt As Long, lab As String
+    ThisWorkbook.Worksheets(SH_START).Range("D6").Value = "standaard"
+    For r = 2 To wO.UsedRange.Row + wO.UsedRange.Rows.Count
+        lab = LCase$(Tk(wO.Cells(r, 2).Value))
+        If InStr(lab, "daeb") > 0 And Left$(lab, 9) <> "omzet hvg" And Left$(lab, 10) <> "termijnen " Then Exit Sub
+    Next r
+    Set wP = ZoekBlad(wbO, "2. Ontw PEW")
+    If wP Is Nothing Then Exit Sub
+    For r = 1 To 12
+        For c = 3 To 16
+            If LCase$(Tk(wP.Cells(r, c).Value)) Like "huidig*" Then kop = r: hc = c
+        Next c
+        If kop > 0 Then Exit For
+    Next r
+    If hc = 0 Then Exit Sub
+    For r = 1 To 45
+        If LCase$(Tk(wP.Cells(r, 3).Value)) = "aanneemsom" And ar = 0 Then ar = r
+        If LCase$(Tk(wP.Cells(r, 3).Value)) = "totaal opbrengsten" And tr = 0 Then tr = r
+    Next r
+    If ar = 0 Or tr = 0 Then Exit Sub
+    If Abs(Nk(wP.Cells(ar, hc).Value)) >= 0.5 Or Nk(wP.Cells(tr, hc).Value) <= 0 Then Exit Sub
+    For r = 1 To wO.UsedRange.Row + wO.UsedRange.Rows.Count
+        lab = LCase$(Tk(wO.Cells(r, 2).Value))
+        If Left$(lab, 18) = "totaal opbrengsten" And InStr(lab, "daeb") = 0 Then rt = r
+    Next r
+    If rt = 0 Then Exit Sub
+    Set wD = ThisWorkbook.Worksheets("CF - opbrengsten")
+    wD.Cells(DAEB_KOP_RIJ - 3, 3).Value = "Fees (uit het oude FO)"
+    wD.Cells(DAEB_KOP_RIJ - 3, 5).Value = Round(Nk(wP.Cells(tr, hc).Value) * 1000, 2)
+    wD.Cells(DAEB_KOP_RIJ - 3, 4).Value = "handmatig"
+    wD.Cells(DAEB_KOP_RIJ + 1, 2).Value = "Fees (uit het oude FO)"
+    RijOver wO, rt, sl, 7, laatste, wD, DAEB_KOP_RIJ + 1, k1, False, 0, lg
+    ThisWorkbook.Worksheets(SH_START).Range("D6").Value = "100% DAEB"
+    lg = lg & "- 100% DAEB herkend (aanneemsom 0 in PEW): opbrengsten als fee in het DAEB-blok" & vbCrLf
+End Sub
+
 Private Sub PewOmzetten(ByVal wbO As Workbook, ByRef lg As String)
     Dim wO As Worksheet, wN As Worksheet, kop As Long, r As Long, c As Long, fd As Long, toel As Long, eind As Long
     Set wO = ZoekBlad(wbO, "2. Ontw PEW")
@@ -1675,7 +1717,7 @@ Public Sub WeergaveBijwerken()
     Set wsO = ThisWorkbook.Worksheets("CF - opbrengsten")
     Set wsK = ThisWorkbook.Worksheets("CF - kosten")
     For k = 1 To NT
-        leeg = (Nk(wsO.Cells(WON1 + BLOK * (k - 1), 7).Value) = 0)
+        leeg = (Nk(wsO.Cells(WON1 + BLOK * (k - 1), 7).Value) = 0) Or d100
         r1 = HB1 + BLOK * (k - 1)
         wsO.Rows(WON1 - 1 + BLOK * (k - 1)).Hidden = leeg    ' planningsrij (start bouw, oplevering, spreiding)
         wsO.Range(wsO.Rows(r1 + 1), wsO.Rows(r1 + BLOK - 3)).EntireRow.Hidden = leeg

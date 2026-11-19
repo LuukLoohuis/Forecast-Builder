@@ -186,7 +186,7 @@ def maak_start(wb, demo, R):
     cell(ws, 'B6', 'Projectnaam')
     cell(ws, 'C6', demo['project'], F_BASE, FILL_INPUT)
     cell(ws, 'B6', 'Projectnaam · projectsoort')
-    cell(ws, 'D6', 'standaard', F_BASE, FILL_INPUT)
+    cell(ws, 'D6', demo.get('projectsoort') or 'standaard', F_BASE, FILL_INPUT)
     from openpyxl.worksheet.datavalidation import DataValidation as _DV
     dv_s = _DV(type='list', formula1='"standaard,100% DAEB"', allow_blank=False)
     ws.add_data_validation(dv_s)

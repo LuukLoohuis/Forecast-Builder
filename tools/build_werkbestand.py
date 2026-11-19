@@ -573,6 +573,13 @@ def main():
         project['startbouw'] = (int(j), int(q))
     elif 'startbouw' not in project:
         project['startbouw'] = ob['mijlpalen'].get('startbouw') or (None, None)
+    try:                                    # projectsoort (Start D6) zoals de omzetter hem herkende
+        import openpyxl as _ox
+        _w = _ox.load_workbook(fo_bron, read_only=True)
+        if '_omzetting' in _w.sheetnames:
+            project['projectsoort'] = _w['_omzetting']['H1'].value or 'standaard'
+    except Exception:
+        pass
     note('project %s, oplevering %s' % (project['project'], project['oplevering']))
     layout = indeling(oz)
     scenario_koppeling.configureer(oz)

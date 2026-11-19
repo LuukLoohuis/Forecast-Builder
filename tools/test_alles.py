@@ -313,6 +313,50 @@ def t_daeb100(doc, vba_doc=None):
         ok('100% DAEB (macro): Aansluiting en Prijslijst dump verborgen, bij standaard weer zichtbaar', len(weg) == 2 and terug, str(weg))
 
 
+def daeb100_fo(pad):
+    """test-FO 100% DAEB uit het demo-FO: aanneemsom in 2. Ontw PEW (huidig, G8) = 0 (geanonimiseerd, alleen tijdelijk)"""
+    from xlsxpkg import Package, Sheet, SST
+    shutil.copy(S.DEMO, pad)
+    pkg = Package(pad)
+    sst = SST(pkg.x('xl/sharedStrings.xml'))
+    part = pkg.sheet_part('2. Ontw PEW')
+    sh = Sheet(pkg.x(part), sst)
+    sh.set_value('G8', 0)
+    pkg.put(part, sh.t)
+    pkg.save(pad)
+    return pad
+
+
+def t_daeb100_inlezen(lo):
+    """Oud FO inlezen herkent 100% DAEB (aanneemsom 0 in het PEW): Start D6, opbrengsten als fee, cashflow gelijk"""
+    import openpyxl
+    tmp = tempfile.mkdtemp(prefix='daeb100_')
+    fo = daeb100_fo(os.path.join(tmp, 'daeb100_fo.xlsx'))
+    uit = os.path.join(tmp, 'daeb100.xlsm')
+    code, log = run([sys.executable, 'tools/bouw.py', '--oud', fo, '--project', 'Test', '--out', uit])
+    ok('100% DAEB inlezen (Python): omzetten', code == 0 and '100% DAEB herkend' in log, log[-300:])
+    if code != 0:
+        return
+    wb = openpyxl.load_workbook(uit)
+    o = wb['CF - opbrengsten']
+    ok('100% DAEB inlezen (Python): Start D6 = 100% DAEB, fee = PEW-opbrengsten',
+       wb['Start']['D6'].value == '100% DAEB' and abs((o['E%d' % (S.DAEB_KOP - 3)].value or 0) - 26939545.45) < 1,
+       '%r, fee %r' % (wb['Start']['D6'].value, o['E%d' % (S.DAEB_KOP - 3)].value))
+    t_controleer(uit, fo, '100% DAEB inlezen (Python)', 4)
+    kopie = os.path.join(lo.tmp, 'daeb100_py.xlsm')
+    controleer.testkopie(uit, kopie)
+    py = lo.open(kopie)
+    jaren_als_getal(py)
+    py.calculateAll()
+    vd = t_vba(lo, fo, '100% DAEB inlezen', python_doc=py)
+    try:
+        ok('100% DAEB inlezen (VBA): Start D6 = 100% DAEB', tekst(vd.Sheets.getByName('Start'), 'D6') == '100% DAEB',
+           tekst(vd.Sheets.getByName('Start'), 'D6'))
+    finally:
+        vd.close(True)
+        py.close(True)
+
+
 def t_prognose(doc):
     """prognose = PEW − actuals: totaal Invoer = PEW, kwartalen vóór het huidige = actuals; huidig kwartaal zelf kiezen
     (Start C8/D8, leeg = automatisch); CODA-posten in Behind the scens als getal"""
@@ -1327,6 +1371,8 @@ def main():
               and bs_.getCellByPosition(0, r).getString().strip().isdigit()]
         ok('Oud FO inlezen (VBA): CODA-posten in Behind the scens als getal', not tc, str(tc[:5]))
         t_daeb100(demo, vba_doc)
+        ok('standaard demo (VBA): Start D6 blijft standaard', tekst(vba_doc.Sheets.getByName('Start'), 'D6') == 'standaard',
+           tekst(vba_doc.Sheets.getByName('Start'), 'D6'))
         t_nieuw_kwartaal(lo, vba_doc)
         try:                                       # de PowerPoint-module moet compileren (de knop zelf vraagt PowerPoint)
             sp = vba_doc.getScriptProvider()
@@ -1338,6 +1384,7 @@ def main():
         vba_doc.close(True)
         t_prognose(demo)
         t_scenarios(demo)
+        t_daeb100_inlezen(lo)
         demo.close(True)
         if a.fo:
             eigen = os.path.join(lo.tmp, 'eigen.xlsm')

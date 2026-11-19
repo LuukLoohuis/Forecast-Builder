@@ -435,6 +435,9 @@ def omzetten(oud, uit, project=None):
     # ---- DAEB --------------------------------------------------------------------------------------------
     if ob['daeb']:
         daeb_omzetten(o_v, ob, okeys, O, d, wv)
+    d100 = daeb100_omzetten(o_v, ob, okeys, O, d, wv, oz['pew'])
+    if d100:
+        log.append('100% DAEB herkend (aanneemsom 0 in PEW): opbrengsten als fee in het DAEB-blok')
     # ---- kostenposten (prognose; Aanneemsom en Kopersmeerwerk volgen de termijnen) ----------------------
     kv = wv['CF - kosten']
     kkeys = sleutels(kv, ko['onderdelen'] - 1, ko['onderdelen'], ci(ko['eerste']), ci(ko['laatste']))
@@ -488,6 +491,7 @@ def omzetten(oud, uit, project=None):
     # aantal woningen per type als waarde voor de bouw (de cel zelf is een formule zonder berekende waarde)
     h = wb.create_sheet('_omzetting')
     h.sheet_state = 'hidden'
+    h['H1'] = '100% DAEB' if d100 else 'standaard'           # projectsoort voor Start D6 (de bouw zet hem)
     # 2B. Ontw PEW (gemengd project): A = concept SKO DAEB, B = concept SKO niet-DAEB en de toelichting, per post
     # (kolom D:G van _omzetting; de bouw zet ze op het nieuwe tabblad 2B. Ontw PEW)
     if '2B. Ontw PEW' in wv.sheetnames:
@@ -523,6 +527,35 @@ def omzetten(oud, uit, project=None):
     mp = ob.get('mijlpalen') or {}
     return {'log': log, 'jaar': jaar, 'oplevering': mp.get('oplevering'), 'startbouw': mp.get('startbouw'),
             'types': len(ob['types'])}
+
+
+def daeb100_omzetten(o_v, ob, okeys, O, d, wv, pw_):
+    """100% DAEB (gescheiden KAO, alleen fees): geen DAEB-blok in het oude FO, aanneemsom 0 en opbrengsten > 0 in
+    2. Ontw PEW (huidig). Dan: fee-component 1 = de opbrengsten uit het PEW, groep 1 regel 1 = de regel Totaal
+    opbrengsten van het oude CF - opbrengsten (per kwartaal); de projectsoort wordt 100% DAEB (TOT telt dan alleen het
+    DAEB-blok). Zelfde regels als DaebAlles in de VBA."""
+    if ob['daeb'] or '2. Ontw PEW' not in wv.sheetnames:
+        return False
+    pv, hc = wv['2. Ontw PEW'], pw_['huidig']
+    ar = next((r for r in range(1, 46) if _t(pv['C%d' % r].value).lower() == 'aanneemsom'), None)
+    tr_ = next((r for r in range(1, 46) if _t(pv['C%d' % r].value).lower() == 'totaal opbrengsten'), None)
+    if not ar or not tr_ or abs(_n(pv['%s%d' % (hc, ar)].value)) >= 0.5 or _n(pv['%s%d' % (hc, tr_)].value) <= 0:
+        return False
+    rt = max((r for r in range(1, o_v.max_row + 1) if _t(o_v.cell(r, 2).value).lower().startswith('totaal opbrengsten')
+              and 'daeb' not in _t(o_v.cell(r, 2).value).lower()), default=None)
+    if not rt:
+        return False
+    O['C%d' % (S.DAEB_KOP - 3)] = 'Fees (uit het oude FO)'
+    O['E%d' % (S.DAEB_KOP - 3)] = round(_n(pv['%s%d' % (hc, tr_)].value) * 1000, 2)
+    O['D%d' % (S.DAEB_KOP - 3)] = 'handmatig'
+    O['B%d' % (S.DAEB_KOP + 1)] = 'Fees (uit het oude FO)'
+    oc = range(ci(ob['eerste']), ci(ob['laatste']) + 1)
+    act = ci(ob.get('actuals') or 'J')
+    w = {c: o_v.cell(rt, c).value for c in oc}
+    if act not in oc:
+        w[act] = o_v.cell(rt, act).value
+    d.rij('CF - opbrengsten', S.DAEB_KOP + 1, w, okeys)
+    return True
 
 
 def daeb_omzetten(o_v, ob, okeys, O, d, wv):

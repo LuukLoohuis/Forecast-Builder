@@ -646,7 +646,9 @@ def maak_opbrengsten(ws):
     zet(ws, 'B%d' % TOT, 'Totaal opbrengsten', FB)
     for c in COLS + [CHK]:
         delen = ['%s%d:%s%d' % (c, eu_rij(k, 0), c, eu_rij(k, OMZ_N - 1)) for k in range(1, NT + 1)]
-        zet(ws, '%s%d' % (c, TOT), '=SUM(%s,%s%d:%s%d)+%s%d' % (','.join(delen), c, OVR1, c, OVR2, c, DAEB_TOT), FB, None, NUM)
+        # 100% DAEB (Start D6): alleen de fees (DAEB-blok)
+        zet(ws, '%s%d' % (c, TOT), '=IF(p_daeb100="100%% DAEB",%s%d,SUM(%s,%s%d:%s%d)+%s%d)'
+            % (c, DAEB_TOT, ','.join(delen), c, OVR1, c, OVR2, c, DAEB_TOT), FB, None, NUM)
     zet(ws, 'B%d' % PCT, 'Opbrengsten in %')
     for c in COLS:
         zet(ws, '%s%d' % (c, PCT), '=IFERROR(%s%d/$%s$%d,0)' % (c, TOT, CHK, TOT), F, None, '0%')
