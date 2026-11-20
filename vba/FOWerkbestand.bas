@@ -918,16 +918,21 @@ Private Function OmzettenOudFO(ByVal wbO As Workbook) As String
         With ThisWorkbook.Worksheets("Behind the scens")
             .UsedRange.ClearContents
             .Range(ws.UsedRange.Address).Formula = ws.UsedRange.Formula
-            ' CODA-posten in kolom A die als tekst staan ("5100") als getal: geen groene driehoekjes meer;
-            ' kolom Y van FO - vorig/huidig zoekt als tekst en als getal. Periodes (kolom H) blijven tekst
-            Dim bc As Range, bi As Long, bt As String
-            For bi = 1 To ws.UsedRange.Row + ws.UsedRange.Rows.Count
-                Set bc = .Cells(bi, 1)
-                If Not bc.HasFormula Then
+            ' CODA-posten in kolom A als getal (geen groene driehoekjes); de rest die als tekst stond ("1", "Q1": periodes in
+            ' kolom H/I) blijft tekst: de SAP-export heeft de periode als tekst. .Formula = maakt er anders getallen van
+            Dim bc As Range, bt As String
+            For Each bc In ws.UsedRange.Cells
+                If Not bc.HasFormula And VarType(bc.Value) = vbString Then
                     bt = Trim$(CStr(bc.Value))
-                    If Len(bt) > 0 And Len(bt) < 10 And IsNumeric(bt) And Not (bt Like "*[!0-9]*") Then bc.Value = CDbl(bt)
+                    If Len(bt) > 0 And IsNumeric(bt) Then
+                        If bc.Column = 1 And Len(bt) < 10 And Not (bt Like "*[!0-9]*") Then
+                            .Range(bc.Address).Value = CDbl(bt)
+                        Else
+                            .Range(bc.Address).Value = "'" & bc.Value
+                        End If
+                    End If
                 End If
-            Next bi
+            Next bc
         End With
     End If
 

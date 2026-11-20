@@ -1367,6 +1367,12 @@ def main():
         demo.calculateAll()
         vba_doc = t_vba(lo, S.DEMO, 'demo', python_doc=demo)
         bs_ = vba_doc.Sheets.getByName('Behind the scens')
+        h_tekst = [bs_.getCellByPosition(7, r).getType().value for r in range(1, 14) if bs_.getCellByPosition(7, r).getString().strip().isdigit()]
+        ok('Oud FO inlezen (VBA): periodes in Behind the scens kolom H blijven tekst (de SAP-export heeft tekst)',
+           h_tekst and all(t == 'TEXT' for t in h_tekst), str(h_tekst[:4]))
+        fa_ = vba_doc.Sheets.getByName('FO - actuals')
+        fout_r = [r for r in range(1, 400) if fa_.getCellByPosition(17, r).getError() != 0]
+        ok('FO - actuals: kwartaal (R) zonder fouten na Oud FO inlezen (VBA)', not fout_r, str(fout_r[:5]))
         tc = [bs_.getCellByPosition(0, r).getString() for r in range(120) if bs_.getCellByPosition(0, r).getType().value == 'TEXT'
               and bs_.getCellByPosition(0, r).getString().strip().isdigit()]
         ok('Oud FO inlezen (VBA): CODA-posten in Behind the scens als getal', not tc, str(tc[:5]))

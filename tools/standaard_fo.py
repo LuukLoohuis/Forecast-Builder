@@ -1491,6 +1491,20 @@ def maak(uit, bron=DEMO, leeg=True, jaar=2026, cashflow=None, verborgen_types=No
                 ws_['Y%d' % r] = ('=IF(X{r}="","",IFERROR(VLOOKUP(X{r}&"",\'Behind the scens\'!$A:$C,3,0),'
                                   'IFERROR(VLOOKUP(--X{r},\'Behind the scens\'!$A:$C,3,0),"")))').format(r=r)
     coda_als_getal(wb['Behind the scens'])
+    # FO - actuals Q (kosten/omzet) en R (kwartaal): opzoeken als waarde, als tekst en als getal (Behind the scens of de
+    # export kan een periode of groep als tekst of als getal hebben; Excel zoekt streng op type)
+    def tolerant(sleutel, zoek, terug):
+        a = "'Behind the scens'!%s:%s" % (zoek, zoek)
+        b = "'Behind the scens'!%s:%s" % (terug, terug)
+        return ('IFERROR(_xlfn.XLOOKUP({k},{a},{b}),IFERROR(_xlfn.XLOOKUP({k}&"",{a},{b}),_xlfn.XLOOKUP(--{k},{a},{b})))'
+                .format(k=sleutel, a=a, b=b))
+    fa = wb['FO - actuals']
+    for r in range(2, fa.max_row + 1):
+        q, rr = fa['Q%d' % r].value, fa['R%d' % r].value
+        if isinstance(q, str) and 'XLOOKUP' in q:
+            fa['Q%d' % r] = '=IF(G%d="",0,%s)' % (r, tolerant('G%d' % r, 'E', 'F'))
+        if isinstance(rr, str) and 'XLOOKUP' in rr:
+            fa['R%d' % r] = '=IF(O%d="",0,IF(P%d=2022,2022,%s))' % (r, r, tolerant('O%d' % r, 'H', 'I'))
     # FO - actuals: hulpkolom S voor de top 3 kosten in het reviewkwartaal (per kostensoortomschrijving, kolom E)
     act = wb['FO - actuals']
     act['S1'] = 'Top 3 (hulp)'
