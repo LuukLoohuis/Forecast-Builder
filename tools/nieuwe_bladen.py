@@ -21,6 +21,8 @@ from fo_aanpassingen import sap_opzet
 # ---- huisstijl (thema van het FO: accent1 = geel, accent3 = donkerblauw, accent4 = grijsblauw) ----
 FONT = 'Heijmans-Light'
 F_BASE = Font(name=FONT, size=10)
+MELDING_MACROS = ("Geen knoppen? Dan staan de macro's uit. Sluit het bestand, klik er met rechts op > Eigenschappen > "
+                  "vink Blokkering opheffen aan > OK. Open het opnieuw en klik Inhoud inschakelen.")
 F_BOLD = Font(name=FONT, size=10, bold=True)
 F_TITLE = Font(name='Heijmans-BoldCon', size=16, color=Color(theme=6))
 F_SECTION = Font(name='Heijmans-BoldCon', size=11, color=Color(theme=0))
@@ -451,6 +453,11 @@ def maak_start(wb, demo, R):
 
     # knoppen (de macro zet ze neer): kolommen J-K
     cell(ws, 'J5', 'Knoppen', F_BOLD)
+    # zonder macro's (geblokkeerd bestand) zijn er geen knoppen: deze melding blijft dan staan; met macro's haalt
+    # Workbook_Open hem weg (en BeforeSave zet hem terug, zodat een bewaard bestand hem weer toont)
+    cell(ws, 'J6', MELDING_MACROS, Font(name=FONT, size=9, bold=True, color='FFDC2626'), None, None,
+         Alignment(wrap_text=True, vertical='top'))
+    ws.merge_cells('J6:K13')
     ws.freeze_panes = 'A5'
     return {'dia10_row': dia10_row, 'checks_total': total_row, 'top3_row': top3_row}
 

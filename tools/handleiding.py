@@ -43,7 +43,7 @@ GEEN_VRAAG = {'2. Ontw PEW', '2B. Ontw PEW'}
 
 # teksten die formules of macro's zoeken (MATCH / SEARCH op het label): nooit aankomen
 BESCHERMD = ('Verkoop en levering DAEB', 'Aantal DAEB', 'Opbrengsten DAEB', 'Transport', 'Overige opbrengsten in',
-             'Periode in cashflow', 'Totaal opbrengsten', 'Termijnen ', 'Omzet HVG', 'Koopsom', 'Startbouw', 'Oplevering')
+             'Periode in cashflow', 'Totaal opbrengsten', 'Termijnen ', 'Omzet HVG', 'Koopsom', 'Startbouw', 'Oplevering', 'Geen knoppen?')
 
 # hele blokken die naar de Handleiding gaan (rijen verbergen): de uitleg 'Zo werkt het' van het scenariomodel
 BLOKKEN = {'Dashboard': [(136, 161, 'Scenariomodel · zo werkt het')]}

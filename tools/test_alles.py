@@ -1370,6 +1370,15 @@ def main():
         tc = [bs_.getCellByPosition(0, r).getString() for r in range(120) if bs_.getCellByPosition(0, r).getType().value == 'TEXT'
               and bs_.getCellByPosition(0, r).getString().strip().isdigit()]
         ok('Oud FO inlezen (VBA): CODA-posten in Behind the scens als getal', not tc, str(tc[:5]))
+        st_v = vba_doc.Sheets.getByName('Start')
+        ok('Start J6: melding "macro\'s staan uit" in het sjabloon (zonder macro\'s zichtbaar)',
+           'macro' in tekst(demo.Sheets.getByName('Start'), 'J6').lower(), tekst(demo.Sheets.getByName('Start'), 'J6')[:60])
+        try:
+            vba_doc.getScriptProvider().getScript('vnd.sun.star.script:VBAProject.ThisWorkbook.MeldingMacros?language=Basic&location=document').invoke((False,), (), ())
+            leeg = tekst(st_v, 'J6') == ''
+        except Exception as e:
+            leeg = 'macro: %s' % str(e)[:80]
+        ok('Start J6: met macro\'s aan is de melding weg', leeg is True, str(leeg))
         t_daeb100(demo, vba_doc)
         ok('standaard demo (VBA): Start D6 blijft standaard', tekst(vba_doc.Sheets.getByName('Start'), 'D6') == 'standaard',
            tekst(vba_doc.Sheets.getByName('Start'), 'D6'))
