@@ -112,17 +112,21 @@ ALGEMEEN = [
         ('100% DAEB', 'Start D6 = 100% DAEB: alleen de fees van de corporatie (CF - opbrengsten, blok Opbrengsten DAEB: '
                       'per fee naam, totaal en handmatig of gelijk verdeeld van start bouw t/m oplevering), de kosten, PEW en '
                       'cashflow. Aansluiting opbrengsten en Prijslijst dump verborgen, controles daarvoor n.v.t.; PowerPoint zonder de dia\'s '
-                      'over verkoop, transport en scenario\'s. Oud FO inlezen kiest dit zelf als de aanneemsom in het PEW 0 is: '
+                      'over verkoop, transport en scenario\'s. De cashflow volgt de fees zoals ingevuld in het DAEB-blok (niet de PEW uit '
+                      'SAP); een fee-component zonder totaal telt de som van zijn regels. Oud FO inlezen kiest dit zelf als de aanneemsom in het PEW 0 is: '
                       'de opbrengsten komen dan als fee (Fees uit het oude FO) in het DAEB-blok.'),
         ('Huidig kwartaal', 'Start, rij 8: leeg = automatisch uit de dump (laatste boekingsperiode); kies jaar en kwartaal om '
                             'het zelf vast te zetten. Actuals = alles uit de dump; de prognose begint in dit kwartaal.'),
         ('Prognose = PEW − actuals', 'per kant (kosten en opbrengsten) is de prognose vanaf het huidige kwartaal precies '
                                      'PEW min alle actuals; de planning op de CF-tabbladen bepaalt alleen de verdeling over '
-                                     'de kwartalen (Invoer, onder de controle: factor). Geen inhaalregel.'),
+                                     'de kwartalen (Invoer, onder de controle: factor). Geen inhaalregel; bij een tegengesteld teken wordt niet geschaald.'),
         ('Nog te verdelen', 'verkooptempo: aantal woningen min t/m nu en de kwartalen; anders dan 0 = rode melding.'),
     ]),
     ('Knoppen', [
         ('Oud FO inlezen', 'neemt een FO in de oude opzet over (planning, termijnen, kosten, PEW); daarna de controles op Start.'),
+        ('FO overnemen', 'neemt een werkbestand in deze opzet over (bv. van een vorige versie van het sjabloon): de exports en '
+                         'alle gele invoercellen en getallen die over een formule zijn gezet (planning); verder blijven de formules van '
+                         'dit sjabloon staan.'),
         ('Nieuw kwartaal starten', 'de huidige cashflow en planning worden de vorige prognose; FO - huidig gaat naar FO - vorig.'),
         ('PowerPoint maken', 'vult het sjabloon met de cijfers, tabellen en grafieken en bewaart een nieuwe presentatie.'),
         ('Verborgen tabbladen', 'toont of verbergt de naslag: Bouwnummers, CF vorig en huidig, Woningtypes, Scenario kosten en '

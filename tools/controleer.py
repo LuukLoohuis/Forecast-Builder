@@ -186,7 +186,7 @@ def vergelijk_cashflow(wb, oud, toon=5):
     # van het bedrag is die schaling, geen omzetfout
     fac = {4: 1, 6: 1}
     for r in range(50, 80):
-        if inv.cell(r, 3).value == 'factor':
+        if str(inv.cell(r, 3).value or '').startswith('factor'):
             for c in (4, 6):
                 v = inv.cell(r, c).value
                 fac[c] = v if isinstance(v, (int, float)) else 1

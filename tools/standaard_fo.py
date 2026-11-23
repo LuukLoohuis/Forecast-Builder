@@ -682,6 +682,9 @@ def maak_opbrengsten(ws):
         for c in ['B', 'C', 'D'] + COLS:
             zet(ws, '%s%d' % (c, r), None, F, GEEL, NUM if c not in ('B', 'C') else ('0%' if c == 'C' else None))
         zet(ws, '%s%d' % (CHK, r), '=SUM(%s%d:%s%d)' % (COLS[0], r, COLS[-1], r), F, None, NUM)
+        # regel zonder naam met een bedrag: telt wel in het totaal, maar niet in de termijnen (Dashboard / dia)
+        zet(ws, '%s%d' % (STAT, r), '=IF(AND(TRIM(B%d&"")="",N(%s%d)<>0),"FOUT: geef deze DAEB-regel een naam (anders niet in de termijnen)","")'
+            % (r, CHK, r), FB)
     zet(ws, 'B%d' % DAEB_TOT, 'Totaal opbrengsten DAEB', FB)
     # per groep (= fee-component 1 en 2): handmatig de regels, of gelijk verdeeld (totaal E) van start bouw t/m oplevering
     for j, c in enumerate(COLS + [CHK]):

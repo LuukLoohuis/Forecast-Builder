@@ -54,7 +54,8 @@ Public Sub StartKnoppen()
     donker = RGB(17, 31, 57)
     grijs = RGB(91, 97, 105)
     geel = RGB(254, 185, 0)
-    Knop ws, "J6:J8", "btnOudFO", "Oud FO inlezen...", "OudFOInlezen", grijs
+    Knop ws, "J6:J7", "btnOudFO", "Oud FO inlezen...", "OudFOInlezen", grijs
+    Knop ws, "J8", "btnOvernemen", "FO overnemen...", "FOOvernemen", grijs
     Knop ws, "K6:K8", "btnNieuwKwartaal", "Nieuw kwartaal starten", "NieuwKwartaalStarten", grijs
     Knop ws, "J9:K11", "btnPowerPoint", "PowerPoint maken", "PowerPointMaken", donker
     Knop ws, "J12:K13", "btnVerborgen", "Verborgen tabbladen tonen / verbergen", "VerborgenTabbladen", grijs
@@ -591,6 +592,115 @@ End Function
 ' =====================================================================================
 '  oud FO inlezen
 ' =====================================================================================
+
+Public Sub FOOvernemen()
+    ' een werkbestand in deze opzet (bv. van een vorige versie van het sjabloon) overnemen: de exports en alle invoer
+    Dim pad As Variant, lg As String
+#If Mac Then
+    pad = Application.GetOpenFilename()
+#Else
+    pad = Application.GetOpenFilename("Excel-werkboeken (*.xlsm;*.xlsx),*.xlsm;*.xlsx", , "FO-werkbestand kiezen")
+#End If
+    If VarType(pad) = vbBoolean Then Exit Sub
+    If LCase$(CStr(pad)) = LCase$(ThisWorkbook.FullName) Then
+        MsgBox "Kies een ander werkbestand dan dit bestand.", vbExclamation, TITEL
+        Exit Sub
+    End If
+    If MsgBox("De exports en alle invoer (gele cellen) van dit werkbestand worden vervangen door die uit:" & vbCrLf & CStr(pad) & _
+              vbCrLf & vbCrLf & "Doorgaan?", vbQuestion + vbYesNo, "FO overnemen") <> vbYes Then Exit Sub
+    lg = FOOvernemenUit(CStr(pad))
+    MsgBox "FO overgenomen." & vbCrLf & vbCrLf & lg, vbInformation, "FO overnemen"
+End Sub
+
+Public Sub FOOvernemenTest(ByVal pad As String)
+    ' zonder vragen en meldingen (voor de controle buiten Excel)
+    ThisWorkbook.Worksheets(SH_START).Range("B4").Value = FOOvernemenUit(pad)
+End Sub
+
+Private Function FOOvernemenUit(ByVal pad As String) As String
+    ' per tabblad dat in beide bestanden staat: exports (FO - vorig/huidig/actuals, Prijslijst dump, Behind the scens) helemaal,
+    ' overige tabbladen alleen de invoercellen (gele vulling); een standaardformule in dit sjabloon blijft staan tenzij het
+    ' andere bestand er een waarde of eigen formule heeft
+    Dim wbO As Workbook, ws As Worksheet, wo As Worksheet, c As Range, co As Range, lg As String, n As Long, zelf As Boolean
+    Dim wb As Workbook, rekenmodus As Long, export As Boolean, geel As Long, h As Long, mist As String
+    geel = RGB(255, 242, 204)
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    rekenmodus = Application.Calculation
+    Application.Calculation = -4135
+    For Each wb In Workbooks
+        If LCase$(wb.FullName) = LCase$(pad) Then Set wbO = wb
+    Next wb
+    If wbO Is Nothing Then
+        Application.DisplayAlerts = False
+        Set wbO = Workbooks.Open(pad, UpdateLinks:=0, ReadOnly:=True)
+        Application.DisplayAlerts = True
+        zelf = True
+    End If
+    For Each ws In ThisWorkbook.Worksheets
+        If Left$(ws.Name, 1) <> "_" And ws.Name <> "Model" Then
+            Set wo = ZoekBlad(wbO, ws.Name)
+            If wo Is Nothing Then
+                mist = mist & ", " & ws.Name
+            Else
+                n = 0
+                export = (ws.Name = "FO - vorig" Or ws.Name = "FO - huidig" Or ws.Name = "FO - actuals" Or _
+                          ws.Name = "Prijslijst dump" Or ws.Name = "Behind the scens")
+                If export Then
+                    For Each c In ws.UsedRange.Cells
+                        If Not c.HasFormula Then c.ClearContents
+                    Next c
+                    For Each co In wo.UsedRange.Cells
+                        If Not co.HasFormula And Not IsEmpty(co.Value) Then
+                            If Not ws.Range(co.Address).HasFormula Then
+                                If VarType(co.Value) = vbString Then
+                                    ws.Range(co.Address).Value = "'" & co.Value
+                                Else
+                                    ws.Range(co.Address).Value = co.Value
+                                End If
+                                n = n + 1
+                            End If
+                        End If
+                    Next co
+                    If ws.Name = "FO - vorig" Or ws.Name = "FO - huidig" Then HulpBijwerken ws, HulpKolommen(ws.Name), 17, LaatsteRij(ws, 21)
+                    If ws.Name = "FO - actuals" Then HulpBijwerken ws, HulpKolommen(ws.Name), 2, LaatsteRij(ws, 16)
+                Else
+                    For Each c In ws.UsedRange.Cells
+                        If c.Interior.Color = geel And c.MergeArea.Cells(1, 1).Address = c.Address Then
+                            Set co = wo.Range(c.Address)
+                            If co.HasFormula Then
+                                If Not c.HasFormula Then c.Formula = co.Formula: n = n + 1
+                            ElseIf IsEmpty(co.Value) Then
+                                If Not c.HasFormula And Not IsEmpty(c.Value) Then c.ClearContents
+                            ElseIf Not IsError(co.Value) Then
+                                c.Value = co.Value
+                                n = n + 1
+                            End If
+                        ElseIf c.HasFormula Then
+                            ' een getal waar dit sjabloon een formule heeft (bv. planning die Oud FO inlezen of de gebruiker
+                            ' heeft ingevuld): overnemen; tekst (koppen, notities) niet
+                            Set co = wo.Range(c.Address)
+                            If Not co.HasFormula Then
+                                If VarType(co.Value) = vbDouble Or VarType(co.Value) = vbInteger Or VarType(co.Value) = vbLong _
+                                   Or VarType(co.Value) = vbCurrency Then c.Value = co.Value: n = n + 1
+                            End If
+                        End If
+                    Next c
+                End If
+                If n > 0 Then lg = lg & "- " & ws.Name & ": " & n & " cellen" & vbCrLf
+            End If
+        End If
+    Next ws
+    If zelf Then wbO.Close SaveChanges:=False
+    Application.Calculation = rekenmodus
+    Application.EnableEvents = True
+    Application.Calculate
+    WeergaveBijwerken
+    StartKnoppen
+    Application.ScreenUpdating = True
+    If Len(mist) > 0 Then lg = lg & "- niet in het andere bestand: " & Mid$(mist, 3) & vbCrLf
+    FOOvernemenUit = lg
+End Function
 
 Public Sub OudFOInlezen()
     Dim pad As Variant, wbO As Workbook, wsO As Worksheet, wsN As Worksheet, bladen() As String, i As Long

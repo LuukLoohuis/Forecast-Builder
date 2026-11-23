@@ -15,6 +15,7 @@ from __future__ import annotations
 
 
 from xlsxpkg import Sheet, col2num, num2col
+import standaard_fo as S  # noqa: E402
 
 OK = "'CF - opbrengsten'!"
 KK = "'CF - kosten'!"
@@ -282,14 +283,21 @@ def invoer(inv: Sheet, types, st):
         teken = '' if kant == 'Kosten' else '-'
         inv.set('C%d' % hr, 'actuals (dump, alles)', st['tekst'])
         inv.set('%s%d' % (c, hr), '=%sSUMIFS(%s$K:$K,%s$Q:$Q,"%s")' % (teken, a, a, kant), st['getal'])
-        inv.set('C%d' % (hr + 1), 'restant = PEW − actuals', st['tekst'])
-        inv.set('%s%d' % (c, hr + 1), '=N(%s%d)-%s%d' % (c, tot_ + 1, c, hr), st['getal'])
+        # basis: de PEW; bij 100% DAEB (omzet) het totaal van het DAEB-blok (de fees zoals ingevuld)
+        inv.set('C%d' % (hr + 4), 'basis (PEW; bij 100% DAEB omzet: totaal DAEB-blok)', st['tekst'])
+        if kant == 'Omzet':
+            inv.set('%s%d' % (c, hr + 4), '=IF(p_daeb100="100%% DAEB",N(%s$%s$%d),N(%s%d))' % (OK, S.CHK, S.DAEB_TOT, c, tot_ + 1), st['getal'])
+        else:
+            inv.set('%s%d' % (c, hr + 4), '=N(%s%d)' % (c, tot_ + 1), st['getal'])
+        inv.set('C%d' % (hr + 1), 'restant = basis − actuals', st['tekst'])
+        inv.set('%s%d' % (c, hr + 1), '=%s%d-%s%d' % (c, hr + 4, c, hr), st['getal'])
         inv.set('C%d' % (hr + 2), 'planning vanaf huidig kwartaal', st['tekst'])
         inv.set('%s%d' % (c, hr + 2), '=SUMIFS(%s,%s,">="&p_huidig)' % (rng_, key), st['getal'])
-        inv.set('C%d' % (hr + 3), 'factor', st['tekst'])
-        inv.set('%s%d' % (c, hr + 3), '=IF(OR(N(%s%d)=0,%s%d=0),1,%s%d/%s%d)' % (c, tot_ + 1, c, hr + 2, c, hr + 1, c, hr + 2), st['pct'])
+        inv.set('C%d' % (hr + 3), 'factor (1 zonder basis of bij tegengesteld teken)', st['tekst'])
+        inv.set('%s%d' % (c, hr + 3), '=IF(OR(%s%d=0,%s%d=0,%s%d*%s%d<0),1,%s%d/%s%d)'
+                % (c, hr + 4, c, hr + 2, c, hr + 1, c, hr + 2, c, hr + 1, c, hr + 2), st['pct'])
     fac = lambda c: '$%s$%d' % (c, hr + 3)
-    los = lambda c: 'IF(AND($A{r}=p_huidig,$%s$%d=0,N($%s$%d)<>0),$%s$%d,0)' % (c, hr + 2, c, tot_ + 1, c, hr + 1)
+    los = lambda c: 'IF(AND($A{r}=p_huidig,$%s$%d=0,$%s$%d<>0),$%s$%d,0)' % (c, hr + 2, c, hr + 4, c, hr + 1)
     for r in range(q1, INV_RN + 1):
         if r == q1:
             a0 = '=IFERROR(_xlfn.AGGREGATE(15,6,%s/(%s>0),1)%s,"")' % (KEYK, KEYK, '-%d' % N_PRE if N_PRE else '')
@@ -336,7 +344,8 @@ def invoer(inv: Sheet, types, st):
     inv.set('F%d' % (tot + 1), "=N('2. Ontw PEW'!%s%d)*1000" % (pw['huidig'], pw['opbrengsten_totaal']), st['getal'])
     inv.set('C%d' % (tot + 2), 'Check', st['tekst'])
     inv.set('D%d' % (tot + 2), '=ROUND(D%d-D%d,2)' % (tot, tot + 1), st['getal'])
-    inv.set('F%d' % (tot + 2), '=ROUND(F%d-F%d,2)' % (tot, tot + 1), st['getal'])
+    # omzet: tegen de basis van de prognose (PEW; bij 100% DAEB het totaal van het DAEB-blok)
+    inv.set('F%d' % (tot + 2), '=ROUND(F%d-F%d,2)' % (tot, INV_RN + 11), st['getal'])
     inv.set('D%d' % (tot + 3), '=IF(AND(D%d<1000,D%d>-1000),"OK","FOUT")' % (tot + 2, tot + 2), st['vet'])
     inv.set('F%d' % (tot + 3), '=IF(AND(F%d<1000,F%d>-1000),"OK","FOUT")' % (tot + 2, tot + 2), st['vet'])
     return tot
@@ -401,7 +410,8 @@ def daeb_hulp(h: Sheet, types, log):
         h.set('B%d' % r, '=IF(%s<4,"",TRIM(INDEX(%s$C$1:$C$600,%s-4+A%d)&""))' % (r0, OK, r0, r))
         e, d = 'INDEX(%s$E$1:$E$600,%s-4+A%d)' % (OK, r0, r), 'INDEX(%s$D$1:$D$600,%s-4+A%d)' % (OK, r0, r)
         h.set('C%d' % r, '=IF(%s<4,0,IF(ISNUMBER(%s),%s,IF(ISNUMBER(%s),%s,0)))' % (r0, e, e, d, d))
-        h.set('D%d' % r, '=IF(AND(B%d<>"",NOT(ISNUMBER(--B%d)),C%d<>0,LEFT(LOWER(B%d),10)<>"onvoorzien"),1,0)' % (r, r, r, r))
+        # component = naam ingevuld (ook zonder totaal: dan telt de som van zijn regels, zie D408/D409)
+        h.set('D%d' % r, '=IF(AND(B%d<>"",NOT(ISNUMBER(--B%d)),LEFT(LOWER(B%d),10)<>"onvoorzien"),1,0)' % (r, r, r))
         h.set('E%d' % r, '=IF(D%d=1,SUM($D$403:D%d),0)' % (r, r))
         h.set('F%d' % r, '=' + _sleutel('B%d' % r))
     h.set('B407', 'aantal componenten (max. 2)')
@@ -409,7 +419,9 @@ def daeb_hulp(h: Sheet, types, log):
     for k, r in ((1, 408), (2, 409)):
         h.set('B%d' % r, 'component %d: naam, totaal, sleutelwoord' % k)
         h.set('C%d' % r, '=IFERROR(INDEX($B$403:$B$405,MATCH(%d,$E$403:$E$405,0)),"")' % k)
-        h.set('D%d' % r, '=IFERROR(INDEX($C$403:$C$405,MATCH(%d,$E$403:$E$405,0)),0)' % k)
+        h.set('D%d' % r, '=IFERROR(IF(N(INDEX($C$403:$C$405,MATCH(%d,$E$403:$E$405,0)))<>0,INDEX($C$403:$C$405,MATCH(%d,$E$403:$E$405,0)),'
+                         'SUMPRODUCT(($P$%d:$P$%d=%d)*($Q$%d:$Q$%d+$S$%d:$S$%d))),0)'
+              % (k, k, DR, DR + DN - 1, k, DR, DR + DN - 1, DR, DR + DN - 1))
         h.set('E%d' % r, '=IFERROR(INDEX($F$403:$F$405,MATCH(%d,$E$403:$E$405,0)),"")' % k)
     h.set('B410', "start bouw ('Startbouw' boven een kwartaal)")
     boven = 'INDEX(%s,%s-3,0):INDEX(%s,%s-1,0)' % (MATO, r0, MATO, r0)

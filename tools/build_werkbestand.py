@@ -962,6 +962,7 @@ def main():
                    sh.style_of('BY35'))
     save('Model', sh)
     grafiekbereik_en_totaal(sheet, save)
+    termijnen_per_schema(sheet, save)
     for blad, ref, oud, nieuw in (('Dashboard', 'E156', 'kopie van dia 8 in het sjabloon', 'kopie van de dia per woningtype'),
                                   ('Woningtypes', 'B42', 'Dashboard en dia 5', 'Dashboard en de dia Bouwtermijnen')):
         sh = sheet(blad)
@@ -1209,6 +1210,67 @@ def main():
     # ---- PowerPoint-sjabloon v22: v20 + vormnamen (v21) + strakker (pptx_v22) -----------------------------------
     maak_sjabloon(a.pptx, a.pptx_out)
     print('Klaar: ' + a.pptx_out)
+
+
+def termijnen_per_schema(sheet, save):
+    """bouwtermijnentabel (Model GC..GW): bij twee of meer termijnschema's (types met een andere lijst termijnen) een blok per
+    schema: een kopregel met de types van dat schema, daaronder zijn termijnen; gelijke namen in verschillende schema's
+    (Start bouw, Oplevering) worden niet samengevoegd. Hulp op _koppeling rij 791-815. Eén schema: zoals voorheen"""
+    from openpyxl.utils import get_column_letter as L
+    m, h = sheet('Model'), sheet('_koppeling')
+    NTS, R1 = 10, 791
+    rk = lambda c: '$%s$%d:$%s$%d' % (c, R1, c, R1 + NTS - 1)
+    for k in range(1, NTS + 1):
+        r, col = R1 + k - 1, L(3 + 3 * (k - 1))
+        h.set('A%d' % r, k)
+        h.set('B%d' % r, '=' + '&"|"&'.join('TRIM(Woningtypes!$%s$%d&"")' % (col, 16 + t) for t in range(10)))
+        h.set('C%d' % r, '=IF(COUNTIFS(Model!$FY$8:$FY$140,%d,Model!$GA$8:$GA$140,1,Model!$GE$8:$GE$140,0)>0,1,0)' % k)
+        h.set('D%d' % r, '=IF(C%d=0,0,_xlfn.AGGREGATE(15,6,%s/((%s=1)*(%s=B%d)),1))' % (r, rk('A'), rk('C'), rk('B'), r))
+        h.set('E%d' % r, '=IF(C%d=0,0,SUMPRODUCT((%s=%s)*(%s=1)*(%s<=D%d)))' % (r, rk('D'), rk('A'), rk('C'), rk('A'), r))
+        h.set('F%d' % r, '=IF(C%d=0,"",TRIM(Woningtypes!$%s$7&""))' % (r, col))
+        h.set('G%d' % r, '=IFERROR(_xlfn.AGGREGATE(15,6,Model!$GO$8:$GO$140/((Model!$FY$8:$FY$140=%d)*(Model!$GE$8:$GE$140=0)),1),99999)' % k)
+    h.set('A790', 'termijnschema per type: type, sleutel (termijnnamen), gebruikt (koop), schema (eerste type), rang, naam, eerste positie')
+    h.set('B803', 'aantal schema\'s')
+    h.set('C803', '=SUMPRODUCT((%s=%s)*(%s=1))' % (rk('D'), rk('A'), rk('C')))
+    h.set('B804', 'blok per schema (1/0)')
+    h.set('C804', '=IF(C803>=2,1,0)')
+    h.set('A805', 'per schema: rang, kopregel, positie kopregel in de tabel')
+    for s_ in range(1, NTS + 1):
+        r = 805 + s_
+        h.set('A%d' % r, s_)
+        namen = '&'.join('IF($E$%d=%d,$F$%d&" · ","")' % (R1 + k - 1, s_, R1 + k - 1) for k in range(1, NTS + 1))
+        h.set('C%d' % r, '=IF(OR($C$804=0,%d>$C$803),"",UPPER(LEFT(%s,MAX(0,LEN(%s)-3))))' % (s_, namen, namen))
+        h.set('D%d' % r, '=IF(OR($C$804=0,%d>$C$803),"",_xlfn.AGGREGATE(15,6,%s/(%s=%d),1)-2)' % (s_, rk('G'), rk('E'), s_))
+    hdr_pos, hdr_txt = "_koppeling!$D$806:$D$815", "_koppeling!$C$806:$C$815"
+    sch = "IF(_koppeling!$C$804=1,2*IF($GE{r}>0,_koppeling!$C$803,INDEX(_koppeling!$E$791:$E$800,$FY{r})),0)"
+    for r in range(8, 141):
+        gc = m.get('GC%d' % r)
+        if isinstance(gc, str) and gc.endswith(',$GD%d)' % r):
+            m.set_formula('GC%d' % r, gc[1:-len('$GD%d)' % r)] + 'IF(_koppeling!$C$804=1,INDEX(_koppeling!$D$791:$D$800,$FY%d)&"|"&$GD%d,$GD%d))' % (r, r, r),
+                          m.style_of('GC%d' % r))
+        go = m.get('GO%d' % r)
+        if isinstance(go, str) and go.startswith('=IF($GA%d=1,' % r) and go.endswith(',"")'):
+            m.set_formula('GO%d' % r, go[1:-len(',"")')] + '+' + sch.format(r=r) + ',"")', m.style_of('GO%d' % r))
+    n = 0
+    for r in range(11, 141):
+        k = r - 10
+        gs, gt = m.get('GS%d' % r), m.get('GT%d' % r)
+        if not (isinstance(gs, str) and isinstance(gt, str) and gs.startswith('=IF(AND($BY$310=1')):
+            continue
+        i = gs.index('),5,') + 4
+        m.set_formula('GS%d' % r, gs[1:i] + 'IF(ISNUMBER(MATCH(%d,%s,0)),7,' % (k, hdr_pos) + gs[i:] + ')', m.style_of('GS%d' % r))
+        gt2 = gt[1:].replace('IF(INDEX($GP$8:$GP$140,$GR%d)=1,INDEX($GC$8:$GC$140,$GR%d)' % (r, r),
+                             'IF(INDEX($GP$8:$GP$140,$GR%d)=1,INDEX($GD$8:$GD$140,$GR%d)' % (r, r))
+        assert gt2 != gt[1:], gt
+        m.set_formula('GT%d' % r, 'IF($GS%d=7,INDEX(%s,MATCH(%d,%s,0)),%s)' % (r, hdr_txt, k, hdr_pos, gt2), m.style_of('GT%d' % r))
+        n += 1
+    for ref in ('BY313', 'BY314'):
+        f = m.get(ref)
+        assert isinstance(f, str) and '_koppeling' not in f, (ref, f)
+        m.set_formula(ref, '%s+IF(_koppeling!$C$804=1,2*_koppeling!$C$803,0)' % f[1:], m.style_of(ref))
+    save('Model', m)
+    save('_koppeling', h)
+    note('Bouwtermijnentabel: blok per termijnschema (%d tabelrijen)' % n)
 
 
 def grafiekbereik_en_totaal(sheet, save):

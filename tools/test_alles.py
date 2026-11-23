@@ -295,7 +295,46 @@ def t_daeb100(doc, vba_doc=None):
     nvt = [tekst(st, 'B%d' % r) for r in range(31, 50) if tekst(st, 'C%d' % r).startswith('n.v.t.')]
     fout = [tekst(st, 'B%d' % r) for r in range(31, 50) if tekst(st, 'D%d' % r) == 'FOUT']
     ok('100% DAEB: controles prijslijst, aansluiting en verkoop n.v.t., geen FOUT daarvoor',
-       len(nvt) >= 5 and not [f for f in fout if f in nvt], '%d n.v.t.; FOUT: %s' % (len(nvt), fout))
+       len(nvt) >= 5 and not fout, '%d n.v.t.; FOUT: %s' % (len(nvt), fout))
+    # handmatig ingevulde fees zonder totaal (E leeg): componenten tellen, termijnen gevuld; cashflow = blok (ook bij
+    # een negatieve SAP-PEW); regel zonder naam met bedrag -> rode melding
+    o.getCellRangeByName('D%d' % r1).setString('handmatig')
+    o.getCellRangeByName('E%d' % r1).setString('')
+    o.getCellRangeByName('C%d' % r1).setString('AK')
+    o.getCellRangeByName('C%d' % (r1 + 1)).setString('Bijkomende')
+    nu = int(waarde(st, 'F8'))
+    kol = lambda q: S.QCOLS[q - int(jaar) * 4 - 1]
+    regels = [(S.DAEB_KOP + 1, 'AK fee na akkoord VO', S.COLS[0], 500000), (S.DAEB_KOP + 2, 'AK fee na akkoord DO', kol(nu + 2), 300000),
+              (S.DAEB_KOP + 10, 'Bijkomende kosten TKO', kol(nu + 3), 800000), (S.DAEB_KOP + 11, '', kol(nu + 4), 100)]
+    for r, lab, c, v in regels:
+        o.getCellRangeByName('B%d' % r).setString(lab)
+        o.getCellRangeByName('%s%d' % (c, r)).setValue(v)
+    inv = doc.Sheets.getByName('Invoer')
+    rij = {tekst(inv, 'C%d' % r): r for r in range(8, 90) if tekst(inv, 'C%d' % r)}
+    rp = rij['PEW']
+    pew_f = inv.getCellRangeByName('F%d' % rp).getFormula()
+    inv.getCellRangeByName('F%d' % rp).setValue(-1617018)
+    o.getCellRangeByName('D%d' % S.DAEB_AANTAL).setValue(78)
+    doc.calculateAll()
+    k_ = doc.Sheets.getByName('_koppeling')
+    ok('100% DAEB handmatig: fee-componenten zonder totaal tellen (som van hun regels)',
+       waarde(k_, 'C407') == 2 and abs(waarde(k_, 'D408') - 800000) < 1 and abs(waarde(k_, 'D409') - 800000) < 1,
+       'componenten %s, AK %s, Bijkomende %s' % (waarde(k_, 'C407'), waarde(k_, 'D408'), waarde(k_, 'D409')))
+    m_ = doc.Sheets.getByName('Model')
+    ok('100% DAEB handmatig, met aantal DAEB-woningen: de fees staan in de termijnengrafiek (Dashboard / dia)',
+       waarde(m_, 'BY96') > 0, 'rijen BT-blok %s' % waarde(m_, 'BY96'))
+    q_om = [waarde(inv, 'F%d' % r) for r in range(8, rij['Totaal']) if tekst(inv, 'B%d' % r)]
+    blok = waarde(o, '%s%d' % (S.CHK, S.DAEB_TOT))
+    ok('100% DAEB handmatig: cashflow = DAEB-blok, niet negatief (ook bij een negatieve SAP-PEW)',
+       min(q_om) > -1 and abs(sum(q_om) - blok) < 1, 'som %.0f, blok %.0f, laagste %.0f' % (sum(q_om), blok, min(q_om)))
+    msg = tekst(o, '%s%d' % (S.STAT, S.DAEB_KOP + 11))
+    ok('DAEB-regel zonder naam met een bedrag: rode melding', msg.startswith('FOUT'), msg)
+    inv.getCellRangeByName('F%d' % rp).setFormula(pew_f)
+    for r, lab, c, v in regels:
+        o.getCellRangeByName('B%d' % r).setString('')
+        o.getCellRangeByName('%s%d' % (c, r)).setString('')
+    o.getCellRangeByName('C%d' % (r1 + 1)).setString('')
+    o.getCellRangeByName('D%d' % S.DAEB_AANTAL).setString('')
     st.getCellRangeByName('D6').setString('standaard')
     o.getCellRangeByName('D%d' % r1).setString('handmatig')
     o.getCellRangeByName('C%d' % r1).setString('')
@@ -355,6 +394,76 @@ def t_daeb100_inlezen(lo):
     finally:
         vd.close(True)
         py.close(True)
+
+
+def t_termijnen_schema(lo):
+    """bouwtermijnentabel: twee termijnschema's -> een blok per schema met een kopregel; 'Start bouw' per schema apart"""
+    from xlsxpkg import col2num, num2col  # noqa: F401
+    kopie = os.path.join(lo.tmp, 'schema.xlsm')
+    controleer.testkopie(DEMO_WB, kopie)
+    d = lo.open(kopie)
+    try:
+        jaren_als_getal(d)
+        w = d.Sheets.getByName('Woningtypes')
+        A = ['Start bouw', 'Na fundering', 'Prefab casco', 'Buitenmetselwerk', 'Oplevering woning']
+        B = ['Start bouw', 'Ruwe begane grondvloer', 'Ruwe 1e verdiepingsvloer', 'Dak waterdicht', 'Oplevering woning']
+        for k in range(1, 11):
+            c = 2 + 3 * (k - 1)                        # 0-based kolom van type k
+            w.getCellByPosition(c, 7).setValue(10 if k <= 4 else 0)
+            if k > 4:
+                continue
+            w.getCellByPosition(c, 6).setString('Type %s%d' % ('H' if k <= 2 else 'G', k))
+            w.getCellByPosition(c, 9).setValue(2027)        # start bouw Q2 2027 (rij 10/11)
+            w.getCellByPosition(c, 10).setValue(2)
+            for t in range(10):
+                namen = A if k <= 2 else B
+                for dc, v in ((0, namen[t] if t < 5 else None), (1, 0.2 if t < 5 else None), (2, t + 1 if t < 5 else None)):
+                    cel = w.getCellByPosition(c + dc, 15 + t)
+                    if v is None:
+                        cel.setString('')
+                    elif isinstance(v, str):
+                        cel.setString(v)
+                    else:
+                        cel.setValue(v)
+        d.calculateAll()
+        m, h = d.Sheets.getByName('Model'), d.Sheets.getByName('_koppeling')
+        rijen = [(int(waarde(m, 'GS%d' % r)), tekst(m, 'GT%d' % r)) for r in range(11, 141)]
+        kop = [t for s_, t in rijen if s_ == 7]
+        banen = [t for s_, t in rijen if s_ == 3 and t.strip()]
+        ok('termijnen per schema: 2 schema\'s, een kopregel per schema met de types',
+           waarde(h, 'C803') == 2 and len(kop) == 2 and 'TYPE H1' in kop[0] and 'TYPE G3' in kop[1], '%s · %s' % (waarde(h, 'C803'), kop))
+        ok('termijnen per schema: eerst alle termijnen van schema 1, dan schema 2; Start bouw per schema apart',
+           banen.count('Start bouw') == 2 and banen.index('Buitenmetselwerk') < banen.index('Ruwe begane grondvloer')
+           and banen[:5] == A, str(banen)[:300])
+    finally:
+        d.close(True)
+
+
+def t_fo_overnemen(lo, demo):
+    """FO overnemen: het gevulde demo-werkbestand in een leeg sjabloon -> zelfde cashflow, Start en PEW"""
+    kopie = os.path.join(lo.tmp, 'overnemen.xlsm')
+    controleer.testkopie(SJABLOON, kopie)
+    d = lo.open(kopie, macros=True)
+    try:
+        try:
+            lo.macro(d, 'FOOvernemenTest', (DEMO_WB,))
+        except Exception as e:
+            ok('FO overnemen (macro) draait', False, str(e)[:200])
+            return
+        jaren_als_getal(d)
+        d.calculateAll()
+        a, b = invoer_rijen(d), invoer_rijen(demo)
+        verschil = [k for k in set(a) | set(b) if k not in a or k not in b or any(abs(x - y) > 1 for x, y in zip(a[k], b[k]))]
+        ok('FO overnemen: cashflow (kosten, omzet, saldo per periode) gelijk aan het overgenomen werkbestand',
+           a and not verschil, '%d periodes, verschil in %s' % (len(a), sorted(verschil)[:4]))
+        s1, s2 = d.Sheets.getByName('Start'), demo.Sheets.getByName('Start')
+        p1, p2 = d.Sheets.getByName('2. Ontw PEW'), demo.Sheets.getByName('2. Ontw PEW')
+        ok('FO overnemen: Start (project, kwartalen) en 2. Ontw PEW gelijk',
+           tekst(s1, 'C6') == tekst(s2, 'C6') and waarde(s1, 'F8') == waarde(s2, 'F8') and waarde(s1, 'F9') == waarde(s2, 'F9')
+           and all(abs(waarde(p1, 'E%d' % r) - waarde(p2, 'E%d' % r)) < 0.01 for r in range(7, 28)),
+           '%s / %s · %s' % (tekst(s1, 'C6'), tekst(s2, 'C6'), tekst(s1, 'B4')[:120]))
+    finally:
+        d.close(True)
 
 
 def t_prognose(doc):
@@ -1397,9 +1506,11 @@ def main():
         except Exception as e:
             ok('PowerPoint-module compileert en de knoppen worden gezet', False, str(e)[:200])
         vba_doc.close(True)
+        t_fo_overnemen(lo, demo)
         t_prognose(demo)
         t_scenarios(demo)
         t_daeb100_inlezen(lo)
+        t_termijnen_schema(lo)
         demo.close(True)
         if a.fo:
             eigen = os.path.join(lo.tmp, 'eigen.xlsm')
