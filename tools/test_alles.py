@@ -396,6 +396,16 @@ def t_daeb100_inlezen(lo):
         py.close(True)
 
 
+def t_bt_raster():
+    """bouwtermijnengrafiek (dia en Dashboard): kwartaallijnen duidelijker, grafiek doorzichtig (banden erachter)"""
+    import zipfile
+    uit = []
+    for f, n in ((PPTX, 'ppt/charts/chart5.xml'), (SJABLOON, 'xl/charts/chart5.xml')):
+        c = zipfile.ZipFile(f).read(n).decode()
+        uit.append('CBD5E1' in c and '64748B' in c and 'EDEFF2' not in c and '</c:chart><c:spPr><a:noFill/>' in c.replace('\n', ''))
+    ok('bouwtermijnengrafiek: kwartaallijnen en jaarlijnen duidelijker, achtergrond doorzichtig (dia en Dashboard)', all(uit), str(uit))
+
+
 def t_termijnen_schema(lo):
     """bouwtermijnentabel: twee termijnschema's -> een blok per schema met een kopregel; 'Start bouw' per schema apart"""
     from xlsxpkg import col2num, num2col  # noqa: F401
@@ -435,6 +445,15 @@ def t_termijnen_schema(lo):
         ok('termijnen per schema: eerst alle termijnen van schema 1, dan schema 2; Start bouw per schema apart',
            banen.count('Start bouw') == 2 and banen.index('Buitenmetselwerk') < banen.index('Ruwe begane grondvloer')
            and banen[:5] == A, str(banen)[:300])
+        blok = [[h.getCellRangeByName('%s%d' % (c, r)).getString() for c in 'EFGHIJ'] for r in (806, 807)]
+        ok('lijnen per schema: start bouw en oplevering per blok (Q2 ’27 → Q2 ’28), eerste/laatste rij',
+           all(b[4] == 'start bouw Q2 ’27' and b[5] == 'oplevering Q2 ’28' for b in blok) and int(blok[0][1]) < int(blok[1][0]),
+           str(blok))
+        lab = [r for r in range(820, 950) if waarde(h, 'E%d' % r) == 1]
+        eerste = [waarde(h, 'I%d' % r) for r in lab]
+        zebra = sum(waarde(h, 'J%d' % r) for r in range(820, 950))
+        ok('hulplijnen: per termijn het eerste kwartaal; om en om banden', len(lab) == 10 and min(eerste) == 8110
+           and max(eerste) == 8114 and zebra > 0, '%d labels, kwartalen %s, %d bandrijen' % (len(lab), eerste, zebra))
     finally:
         d.close(True)
 
@@ -1460,6 +1479,7 @@ def main():
     t_per_bouwnummer()
     t_dump_sko()
     t_start_driehoekjes()
+    t_bt_raster()
     t_daeb_dia2()
     t_dianummers()
     t_dia3_realisatie()

@@ -6,3 +6,10 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = True
 Attribute VB_TemplateDerived = False
 Attribute VB_Customizable = True
+Option Explicit
+
+Private Sub Worksheet_Activate()
+    ' bouwtermijnengrafiek: banden, hulplijnen en start bouw / oplevering bijwerken
+    On Error Resume Next
+    CashflowNaarPowerPoint.BtLijnenDashboard
+End Sub

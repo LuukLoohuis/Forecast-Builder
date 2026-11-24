@@ -1605,6 +1605,9 @@ Private Sub VulGrafiekVorm(shp As Object, vorm As String, kop As Range, n As Lon
     Next i
     If vorm = "BT_GRAFIEK" Then
         ZetTijdAs ch
+        On Error Resume Next
+        BtLijnenTekenen shp.Parent.Shapes, shp, ch, shp.Left, shp.Top
+        On Error GoTo Mislukt
         ' geen legenda: na het weghalen van reeksen verschuiven de verborgen legenda-regels en blijven de kwartaalnummers
         ' ('1'..'4') als losse cijfers onder de grafiek staan; de typekleuren staan in de tabel eronder (VT_TABEL)
         On Error Resume Next
@@ -1792,6 +1795,158 @@ Private Function KolNummer(kol As String) As Long
     Next i
     KolNummer = n
 End Function
+
+Public Sub BtLijnenDashboard()
+    ' Dashboard: de lijnen bij de bouwtermijnengrafiek opnieuw tekenen (grafiek met de rijlabels uit Model!GT)
+    Dim ws As Worksheet, co As Object, s As Object
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(SH_DASH)
+    For Each co In ws.ChartObjects
+        Set s = Nothing
+        Set s = co.Chart.SeriesCollection(1)
+        If Not s Is Nothing Then
+            If InStr(CStr(s.Formula), "$GT$8") > 0 Then
+                BtLijnenTekenen ws.Shapes, ws.Shapes(co.Name), co.Chart, co.Left, co.Top
+                Exit For
+            End If
+        End If
+    Next co
+End Sub
+
+Private Sub BtLijnenTekenen(shps As Object, frame As Object, ch As Object, fl As Double, ft As Double)
+    ' bouwtermijnengrafiek (dia en Dashboard): om en om lichtgrijze banden per termijn (achter de grafiek), een stippellijn
+    ' van de termijnnaam naar het eerste balkje, en per termijnschema een gestippelde lijn bij start bouw (groen) en bij
+    ' oplevering (donkerblauw) met een label. Gegevens: _koppeling rij 820-949 (per tabelrij) en 806-815 (per schema).
+    ' Tabelrij k = grafiekrij k + 3 (de eerste drie rijen zijn de koprijen). Vormen heten BT_LIJN_*; fouten stil overslaan.
+    Dim i As Long, n As Long, k As Long, pl As Double, pt As Double, pw As Double, ph As Double, rh As Double
+    Dim aMin As Double, aMax As Double, rij As Variant, blok As Variant, v As Object, b As Long, s As Long
+    Dim y1 As Double, y2 As Double, x As Double, omgekeerd As Boolean, nRij As Long
+    On Error Resume Next
+    For i = shps.Count To 1 Step -1
+        If shps(i).Name Like "BT_LIJN_*" Then shps(i).Delete
+    Next i
+    n = ch.SeriesCollection(1).Points.Count
+    If n < 4 Then Exit Sub
+    pl = fl + ch.PlotArea.InsideLeft
+    pt = ft + ch.PlotArea.InsideTop
+    pw = ch.PlotArea.InsideWidth
+    ph = ch.PlotArea.InsideHeight
+    aMin = ch.Axes(2, 1).MinimumScale
+    aMax = ch.Axes(2, 1).MaximumScale
+    If pw <= 0 Or ph <= 0 Or aMax <= aMin Then Exit Sub
+    omgekeerd = ch.Axes(1).ReversePlotOrder
+    rh = ph / n
+    rij = ThisWorkbook.Worksheets("_koppeling").Range("A820:K949").Value
+    blok = ThisWorkbook.Worksheets("_koppeling").Range("A806:J815").Value
+    nRij = n - 3
+    If nRij > 130 Then nRij = 130
+    ' banden om en om (aaneengesloten rijen met J = 1 samen)
+    k = 1
+    Do While k <= nRij
+        If Val(CStr(rij(k, 10))) = 1 Then
+            b = k
+            Do While b < nRij
+                If Val(CStr(rij(b + 1, 10))) <> 1 Then Exit Do
+                b = b + 1
+            Loop
+            y1 = BtRijY(k + 3, n, pt, rh, omgekeerd, 0)
+            y2 = BtRijY(b + 3, n, pt, rh, omgekeerd, 1)
+            Set v = Nothing
+            Set v = shps.AddShape(1, pl, IIf(y1 < y2, y1, y2), pw, Abs(y2 - y1))
+            If Not v Is Nothing Then
+                v.Name = "BT_LIJN_BAND_" & k
+                v.Fill.ForeColor.RGB = RGB(241, 245, 249)
+                v.Line.Visible = 0
+                i = 0
+                Do While v.ZOrderPosition > frame.ZOrderPosition And i < 400
+                    v.ZOrder 3                            ' msoSendBackward: net achter de grafiek
+                    i = i + 1
+                Loop
+            End If
+            k = b + 1
+        Else
+            k = k + 1
+        End If
+    Loop
+    ' stippellijn van de termijnnaam naar het eerste balkje
+    For k = 1 To nRij
+        If Val(CStr(rij(k, 5))) = 1 And IsNumeric(rij(k, 9)) And Len(CStr(rij(k, 9))) > 0 Then
+            x = BtX(CDbl(rij(k, 9)), aMin, aMax, pl, pw)
+            If x > pl + 2 Then
+                y1 = BtRijY(k + 3, n, pt, rh, omgekeerd, 0.5)
+                Set v = Nothing
+                Set v = shps.AddLine(pl, y1, x - 1, y1)
+                If Not v Is Nothing Then
+                    v.Name = "BT_LIJN_HULP_" & k
+                    v.Line.ForeColor.RGB = RGB(148, 163, 184)
+                    v.Line.Weight = 0.75
+                    v.Line.DashStyle = 3                  ' msoLineRoundDot
+                End If
+            End If
+        End If
+    Next k
+    ' per schema: start bouw en oplevering
+    For s = 1 To 10
+        If IsNumeric(blok(s, 5)) And IsNumeric(blok(s, 6)) And Len(CStr(blok(s, 5))) > 0 And Len(CStr(blok(s, 6))) > 0 Then
+            If CLng(blok(s, 6)) <= nRij Then
+                y1 = BtRijY(CLng(blok(s, 5)) + 3, n, pt, rh, omgekeerd, 0)
+                y2 = BtRijY(CLng(blok(s, 6)) + 3, n, pt, rh, omgekeerd, 1)
+                If IsNumeric(blok(s, 7)) And Len(CStr(blok(s, 7))) > 0 Then _
+                    BtMarkering shps, "BT_LIJN_START_" & s, BtX(CDbl(blok(s, 7)), aMin, aMax, pl, pw), y1, y2, rh, _
+                                RGB(21, 128, 61), CStr(blok(s, 9))
+                If IsNumeric(blok(s, 8)) And Len(CStr(blok(s, 8))) > 0 Then _
+                    BtMarkering shps, "BT_LIJN_OPL_" & s, BtX(CDbl(blok(s, 8)) + 1, aMin, aMax, pl, pw), y1, y2, rh, _
+                                RGB(0, 51, 102), CStr(blok(s, 10))
+            End If
+        End If
+    Next s
+    Err.Clear
+End Sub
+
+Private Function BtX(q As Double, aMin As Double, aMax As Double, pl As Double, pw As Double) As Double
+    Dim f As Double
+    f = (q - aMin) / (aMax - aMin)
+    If f < 0 Then f = 0
+    If f > 1 Then f = 1
+    BtX = pl + f * pw
+End Function
+
+Private Function BtRijY(i As Long, n As Long, pt As Double, rh As Double, omgekeerd As Boolean, deel As Double) As Double
+    ' y van grafiekrij i (1 = eerste categorie); deel 0 = bovenkant, 0,5 = midden, 1 = onderkant
+    If omgekeerd Then
+        BtRijY = pt + (i - 1 + deel) * rh
+    Else
+        BtRijY = pt + (n - i + deel) * rh
+    End If
+End Function
+
+Private Sub BtMarkering(shps As Object, naam As String, x As Double, y1 As Double, y2 As Double, rh As Double, kleur As Long, _
+                        tekst As String)
+    Dim v As Object, t As Object, yt As Double
+    On Error Resume Next
+    If y2 < y1 Then yt = y1: y1 = y2: y2 = yt
+    Set v = shps.AddLine(x, y1, x, y2)
+    If Not v Is Nothing Then
+        v.Name = naam
+        v.Line.ForeColor.RGB = kleur
+        v.Line.Weight = 1.5
+        v.Line.DashStyle = 4                              ' msoLineDash
+    End If
+    If Len(tekst) = 0 Then Exit Sub
+    Set t = shps.AddTextbox(1, x - 50, y1 - 12, 100, 11)
+    If t Is Nothing Then Exit Sub
+    t.Name = naam & "_TEKST"
+    With t.TextFrame2
+        .MarginLeft = 0: .MarginRight = 0: .MarginTop = 0: .MarginBottom = 0
+        .WordWrap = 0
+        .AutoSize = 0
+        .TextRange.Text = tekst
+        .TextRange.Font.Size = 7
+        .TextRange.Font.Bold = -1
+        .TextRange.Font.Fill.ForeColor.RGB = kleur
+        .TextRange.ParagraphFormat.Alignment = 2
+    End With
+End Sub
 
 Private Sub ZetTijdAs(ch As Object)
     ' BT_GRAFIEK: beide waarde-assen (tijd in kwartaalindex) vast op Model!BY97 (1 januari van het jaar twee jaar vóór de eerste

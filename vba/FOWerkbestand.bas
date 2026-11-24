@@ -1828,6 +1828,7 @@ Public Sub WeergaveBijwerken()
     d100 = (CStr(ThisWorkbook.Worksheets(SH_START).Range("D6").Value) = "100% DAEB")
     ThisWorkbook.Worksheets(SH_AANSL).Visible = IIf(d100, 0, -1)
     ThisWorkbook.Worksheets("Prijslijst dump").Visible = IIf(d100, 0, -1)
+    CashflowNaarPowerPoint.BtLijnenDashboard          ' lijnen bij de bouwtermijnengrafiek op het Dashboard
     On Error GoTo 0
     Set wsO = ThisWorkbook.Worksheets("CF - opbrengsten")
     Set wsK = ThisWorkbook.Worksheets("CF - kosten")

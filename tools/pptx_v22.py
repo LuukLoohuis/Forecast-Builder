@@ -312,6 +312,33 @@ def daeb_lijn(cs):
     return n
 
 
+def bt_rasterlijnen(cs):
+    """bouwtermijnen: kwartaallijnen (minor) en jaarlijnen (major) van de waarde-as duidelijker, zodat je per balkje het
+    kwartaal afleest. Alleen grafieken met kwartaallijnen (minorGridlines). Geeft het aantal assen terug."""
+    n = 0
+    for ax in cs.iter(C + 'valAx'):
+        mi, ma = ax.find(C + 'minorGridlines'), ax.find(C + 'majorGridlines')
+        if mi is None:
+            continue
+        for el, kleur, w in ((mi, 'CBD5E1', '9525'), (ma, '64748B', '12700')):
+            if el is None:
+                continue
+            for ln in el.iter(A + 'ln'):
+                ln.set('w', w)
+                for c in ln.iter(A + 'srgbClr'):
+                    c.set('val', kleur)
+        n += 1
+    if n:                          # tekenvlak en grafiek doorzichtig: de om-en-om-banden van de macro liggen erachter
+        for sp in (cs.find(C + 'spPr'),):
+            if sp is not None:
+                for f in list(sp):
+                    if f.tag in (A + 'solidFill', A + 'gradFill', A + 'pattFill'):
+                        i = list(sp).index(f)
+                        sp.remove(f)
+                        sp.insert(i, etree.Element(A + 'noFill'))
+    return n
+
+
 def palet(el):
     for c in el.iter(A + 'srgbClr'):
         v = (c.get('val') or '').upper()
@@ -547,6 +574,8 @@ def palet_en_letters(p):
                     assert daeb_lijn(cs) >= 1, shp.name
                 lijnkleuren(cs)
                 typekleuren(cs)
+                if shp.name == 'BT_GRAFIEK':
+                    assert bt_rasterlijnen(cs) == 1, shp.name
                 if shp.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK'):    # na typekleuren: de som leest de typekleuren
                     assert opsomming(cs, kol='V' if shp.name == 'VP1_GRAFIEK' else 'W') == 1, shp.name
                     assert pct_rij(cs) == 1, shp.name

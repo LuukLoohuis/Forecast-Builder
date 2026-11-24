@@ -1171,14 +1171,18 @@ def main():
                 dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
     assert n_op == 2, n_op
     # alle grafieken: vorige prognose geel, scenario rood, eigen kleuren per woningtype
-    n_lijn = n_type = 0
+    n_lijn = n_type = n_raster = 0
     for naam in [n for n in dst.parts if n.startswith('xl/charts/chart') and n.endswith('.xml')]:
         t = etree.fromstring(dst.parts[naam])
         a_, b_ = pptx_v22.lijnkleuren(t), pptx_v22.typekleuren(t)
+        if pptx_v22.bt_rasterlijnen(t):                 # bouwtermijnen: kwartaallijnen duidelijker
+            n_raster += 1
+            dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
         if a_ or b_:
             n_lijn, n_type = n_lijn + a_, n_type + b_
             dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
     assert n_lijn >= 3 and n_type >= 30, (n_lijn, n_type)
+    assert n_raster == 1, n_raster
     note('Kleuren: %d lijnen (vorige prognose / scenario), %d typereeksen' % (n_lijn, n_type))
     # als laatste: doorgetrokken formules als gedeelde formule opslaan (zoals Excel dat zelf doet): minder XML, dus een
     # kleiner bestand dat sneller opent. Controle per blad: weer uitgeschreven zijn alle formules letterlijk gelijk.
@@ -1241,6 +1245,44 @@ def termijnen_per_schema(sheet, save):
         namen = '&'.join('IF($E$%d=%d,$F$%d&" · ","")' % (R1 + k - 1, s_, R1 + k - 1) for k in range(1, NTS + 1))
         h.set('C%d' % r, '=IF(OR($C$804=0,%d>$C$803),"",UPPER(LEFT(%s,MAX(0,LEN(%s)-3))))' % (s_, namen, namen))
         h.set('D%d' % r, '=IF(OR($C$804=0,%d>$C$803),"",_xlfn.AGGREGATE(15,6,%s/(%s=%d),1)-2)' % (s_, rk('G'), rk('E'), s_))
+    # lijnen in de grafiek (macro, dia en Dashboard): per tabelrij (rij 820-949 = tabelrij 1-130 = Model-rij 11-140) soort,
+    # blok (schema), kwartaal, labelrij, groep, eerste kwartaal van de groep, om-en-om, groep 'Oplevering'
+    T1, TN = 820, 949
+    rg = lambda c: '$%s$%d:$%s$%d' % (c, T1, c, TN)
+    h.set('A819', 'lijnen bouwtermijnen per tabelrij: rij, soort, blok, kwartaal, labelrij, groep, labels t/m, oplevering, '
+                  'eerste kwartaal groep, om en om, groep oplevering')
+    for k in range(1, TN - T1 + 2):
+        r, mr = T1 + k - 1, 10 + k
+        baan = 'OR(B{r}=3,B{r}=6)'.format(r=r)
+        h.set('A%d' % r, k)
+        h.set('B%d' % r, '=N(Model!$GS$%d)' % mr)
+        h.set('C%d' % r, ('=IF({b},IF(N(Model!$GU${m})=0,0,IF($C$804=1,INDEX($E$791:$E$800,Model!$GU${m}),'
+                          'IF(INDEX($C$791:$C$800,Model!$GU${m})=1,1,0))),IF(AND(B{r}=7,$C$804=1),IFERROR(MATCH(A{r},$D$806:$D$815,0),0),0))')
+              .format(b=baan, m=mr, r=r))
+        h.set('D%d' % r, '=IF(%s,N(Model!$GV$%d),"")' % (baan, mr))
+        h.set('E%d' % r, '=IF(AND(B%d=3,TRIM(Model!$GT$%d&"")<>""),1,0)' % (r, mr))
+        nieuw = 'IF(OR(B{r}=4,B{r}=5,B{r}=7),1,0)'.format(r=r)
+        h.set('F%d' % r, '=' + nieuw if k == 1 else '=F%d+%s' % (r - 1, nieuw))
+        h.set('G%d' % r, '=E%d' % r if k == 1 else '=G%d+E%d' % (r - 1, r))
+        h.set('H%d' % r, '=IF(AND(E%d=1,LEFT(LOWER(TRIM(Model!$GT$%d&"")),10)="oplevering"),1,0)' % (r, mr))
+        h.set('I%d' % r, '=IF(E%d=1,IFERROR(_xlfn.AGGREGATE(15,6,%s/(%s=F%d),1),""),"")' % (r, rg('D'), rg('F'), r))
+        h.set('J%d' % r, '=IF(%s,MOD(IFERROR(_xlfn.AGGREGATE(14,6,%s/(%s=F%d),1),0),2),0)' % (baan, rg('G'), rg('F'), r))
+        h.set('K%d' % r, '=IF(%s,IF(SUMPRODUCT((%s=F%d)*%s)>0,1,0),0)' % (baan, rg('F'), r, rg('H')))
+    h.set('E805', 'eerste rij')
+    h.set('F805', 'laatste rij')
+    h.set('G805', 'start bouw (kw)')
+    h.set('H805', 'oplevering (kw)')
+    lane = '((%s=3)+(%s=6))' % (rg('B'), rg('B'))
+    kw = lambda c: '"Q"&({c}-4*INT(({c}-1)/4))&" ’"&RIGHT(INT(({c}-1)/4),2)'.format(c=c)
+    for s_ in range(1, NTS + 1):
+        r = 805 + s_
+        h.set('E%d' % r, '=IFERROR(_xlfn.AGGREGATE(15,6,%s/(%s=%d)/%s,1),"")' % (rg('A'), rg('C'), s_, lane))
+        h.set('F%d' % r, '=IFERROR(_xlfn.AGGREGATE(14,6,%s/(%s=%d)/%s,1),"")' % (rg('A'), rg('C'), s_, lane))
+        h.set('G%d' % r, '=IFERROR(_xlfn.AGGREGATE(15,6,%s/(%s=%d),1),"")' % (rg('D'), rg('C'), s_))
+        h.set('H%d' % r, '=IFERROR(_xlfn.AGGREGATE(14,6,%s/((%s=%d)*(%s=1)),1),IFERROR(_xlfn.AGGREGATE(14,6,%s/(%s=%d),1),""))'
+              % (rg('D'), rg('C'), s_, rg('K'), rg('D'), rg('C'), s_))
+        h.set('I%d' % r, '=IF(N(G%d)=0,"","start bouw "&%s)' % (r, kw('G%d' % r)))
+        h.set('J%d' % r, '=IF(N(H%d)=0,"","oplevering "&%s)' % (r, kw('H%d' % r)))
     hdr_pos, hdr_txt = "_koppeling!$D$806:$D$815", "_koppeling!$C$806:$C$815"
     sch = "IF(_koppeling!$C$804=1,2*IF($GE{r}>0,_koppeling!$C$803,INDEX(_koppeling!$E$791:$E$800,$FY{r})),0)"
     for r in range(8, 141):
