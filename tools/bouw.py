@@ -57,6 +57,9 @@ def main():
     print('\n'.join('  ' + x for x in r['log']))
     bouwen(std, os.path.join(ROOT, 'output', 'FO_Parkzoom_werkbestand.xlsm'),
            ['--oud', standaard_fo.DEMO, '--project', 'Parkzoom', '--oplevering', '2028-3', '--demo'])
+    print('== FO overzetten (los bestand)')
+    import overzetten
+    overzetten.maak()
 
 
 if __name__ == '__main__':

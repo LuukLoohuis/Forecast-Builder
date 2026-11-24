@@ -1113,6 +1113,7 @@ def main():
     dst.put(part_of['Start'], t_.t)
     dst.parts.pop('xl/calcChain.xml', None)
     copier.remove_override('xl/calcChain.xml')
+    note('Knoppen als vaste vormen: %d (Start en Dashboard)' % vaste_knoppen(dst, part_of, copier))
     dst.put('[Content_Types].xml', copier.ct)
     sst.finish()
     dst.put('xl/sharedStrings.xml', sst.t)
@@ -1214,6 +1215,112 @@ def main():
     # ---- PowerPoint-sjabloon v22: v20 + vormnamen (v21) + strakker (pptx_v22) -----------------------------------
     maak_sjabloon(a.pptx, a.pptx_out)
     print('Klaar: ' + a.pptx_out)
+
+
+# knoppen als vaste vormen in het bestand (zichtbaar ook als Workbook_Open niet draait); de macro's slaan bestaande namen over
+DONKER_KNOP, GRIJS_KNOP, PP_KNOP = '111F39', '5B6169', '17365D'
+START_KNOPPEN = [('J6:J7', 'btnOudFO', 'Oud FO inlezen...', 'OudFOInlezen', GRIJS_KNOP),
+                 ('J8:J8', 'btnOvernemen', 'FO overnemen...', 'FOOvernemen', GRIJS_KNOP),
+                 ('K6:K8', 'btnNieuwKwartaal', 'Nieuw kwartaal starten', 'NieuwKwartaalStarten', GRIJS_KNOP),
+                 ('J9:K11', 'btnPowerPoint', 'PowerPoint maken', 'PowerPointMaken', DONKER_KNOP),
+                 ('J12:K13', 'btnVerborgen', 'Verborgen tabbladen tonen / verbergen', 'VerborgenTabbladen', GRIJS_KNOP)]
+for _r, _a in ((15, 'Vorig'), (16, 'Huidig'), (17, 'Actuals'), (18, 'Prijs')):
+    _m = 'Prijslijst' if _a == 'Prijs' else _a
+    START_KNOPPEN += [('J%d:J%d' % (_r, _r), 'btnPlak' + _a, 'Plakken', 'Plakken' + _m, DONKER_KNOP),
+                      ('K%d:K%d' % (_r, _r), 'btnLees' + _a, 'Inlezen...', 'Inlezen' + _m, GRIJS_KNOP)]
+DASH_KNOPPEN = [('W35:X36', 'btnNaarPowerPoint', 'Naar PowerPoint', 'PowerPointMaken', PP_KNOP)]
+XDR = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing'
+DML = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+
+def _maten(t):
+    """kolombreedtes (EMU) en rijhoogtes (EMU) van een werkblad-XML"""
+    sf = t.find(M + 'sheetFormatPr')
+    drh = float(sf.get('defaultRowHeight', 15)) if sf is not None else 15.0
+    dcw = float(sf.get('defaultColWidth', 0) or 0) if sf is not None else 0
+    dcw = dcw or (float(sf.get('baseColWidth', 8)) + 0.71 if sf is not None else 8.71)
+    cw = {}
+    cols = t.find(M + 'cols')
+    if cols is not None:
+        for c in cols:
+            for i in range(int(c.get('min')), int(c.get('max')) + 1):
+                cw[i] = float(c.get('width', dcw))
+    rh = {}
+    sd = t.find(M + 'sheetData')
+    for r in sd:
+        if r.get('ht'):
+            rh[int(r.get('r'))] = float(r.get('ht'))
+    px = lambda w: int((256 * w + int(128 / 7)) / 256 * 7)
+    return (lambda c: px(cw.get(c, dcw)) * 9525), (lambda r: int(rh.get(r, drh) * 12700))
+
+
+def _anker(colw, rowh, ref, marge=25400):
+    """twee-cel-anker (van, tot) voor een bereik als 'J6:K8', met een kleine marge binnen de cellen"""
+    from openpyxl.utils import range_boundaries
+    c1, r1, c2, r2 = range_boundaries(ref)
+    return (c1 - 1, marge, r1 - 1, marge), (c2 - 1, max(0, colw(c2) - marge), r2 - 1, max(0, rowh(r2) - marge))
+
+
+def _knop_xml(nr, naam, tekst, macro, kleur, van, tot, sz=900, wrap=True):
+    x = lambda tag, c, co, r, ro: ('<xdr:%s><xdr:col>%d</xdr:col><xdr:colOff>%d</xdr:colOff><xdr:row>%d</xdr:row>'
+                                   '<xdr:rowOff>%d</xdr:rowOff></xdr:%s>' % (tag, c, co, r, ro, tag))
+    from xml.sax.saxutils import escape
+    return ('<xdr:twoCellAnchor xmlns:xdr="%s" xmlns:a="%s" editAs="oneCell">%s%s'
+            '<xdr:sp macro="%s" textlink=""><xdr:nvSpPr><xdr:cNvPr id="%d" name="%s"/><xdr:cNvSpPr/></xdr:nvSpPr>'
+            '<xdr:spPr><a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="%s"/></a:solidFill>'
+            '<a:ln><a:noFill/></a:ln></xdr:spPr><xdr:txBody><a:bodyPr wrap="%s" lIns="25400" rIns="25400" tIns="0" bIns="0" '
+            'rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="nl-NL" sz="%d" b="1">'
+            '<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr><a:t>%s</a:t></a:r></a:p></xdr:txBody></xdr:sp>'
+            '<xdr:clientData/></xdr:twoCellAnchor>'
+            % (XDR, DML, x('from', *van), x('to', *tot), macro, nr, naam, kleur, 'square' if wrap else 'none', sz, escape(tekst)))
+
+
+def vaste_knoppen(dst, part_of, copier):
+    """knoppen op Start (nieuwe tekening) en op het Dashboard (bestaande tekening met de grafieken)"""
+    from xlsxpkg import rels_name, resolve, relative
+    n = 0
+    for blad, knoppen, sz, wrap in (('Start', START_KNOPPEN, 900, True), ('Dashboard', DASH_KNOPPEN, 1000, False)):
+        part = part_of[blad]
+        t = dst.x(part)
+        colw, rowh = _maten(t)
+        tek = [resolve(part, tg) for _, ty, tg, _ in dst.rels(part) if ty.endswith('/drawing')]
+        if tek:
+            dpart = tek[0]
+            wsdr = dst.x(dpart)
+        else:
+            dpart = copier.next_name('xl/drawings/drawing%d.xml')
+            wsdr = etree.fromstring(('<xdr:wsDr xmlns:xdr="%s" xmlns:a="%s"/>' % (XDR, DML)).encode())
+            rn = rels_name(part)
+            rels = dst.x(rn) if rn in dst.parts else etree.fromstring(
+                b'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>')
+            ids = {r.get('Id') for r in rels}
+            rid = next('rId%d' % i for i in range(1, 999) if 'rId%d' % i not in ids)
+            etree.SubElement(rels, '{http://schemas.openxmlformats.org/package/2006/relationships}Relationship', Id=rid,
+                             Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+                             Target=relative(part, dpart))
+            dst.put(rn, rels)
+            copier.add_override(dpart, 'application/vnd.openxmlformats-officedocument.drawing+xml')
+            sh = Sheet(t, None)
+            d = etree.Element(M + 'drawing')
+            d.set('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id', rid)
+            sh.add_element(d)
+            t = sh.t
+            dst.put(part, t)
+        bestaand = {c.get('name') for c in wsdr.iter('{%s}cNvPr' % XDR)}
+        nr = max([int(c.get('id')) for c in wsdr.iter('{%s}cNvPr' % XDR)] + [1]) + 1
+        for ref, naam, tekst, macro, kleur in knoppen:
+            if naam in bestaand:              # bestaande knop (sjabloon): alleen de macro gelijk trekken
+                for sp in wsdr.iter('{%s}sp' % XDR):
+                    c = sp.find('.//{%s}cNvPr' % XDR)
+                    if c is not None and c.get('name') == naam:
+                        sp.set('macro', macro)
+                continue
+            van, tot = _anker(colw, rowh, ref)
+            wsdr.append(etree.fromstring(_knop_xml(nr, naam, tekst, macro, kleur, van, tot, sz, wrap).encode()))
+            nr += 1
+            n += 1
+        dst.put(dpart, wsdr)
+    return n
 
 
 def termijnen_per_schema(sheet, save):

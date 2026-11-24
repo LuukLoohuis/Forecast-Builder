@@ -609,7 +609,11 @@ Public Sub FOOvernemen()
     If MsgBox("De exports en alle invoer (gele cellen) van dit werkbestand worden vervangen door die uit:" & vbCrLf & CStr(pad) & _
               vbCrLf & vbCrLf & "Doorgaan?", vbQuestion + vbYesNo, "FO overnemen") <> vbYes Then Exit Sub
     lg = FOOvernemenUit(CStr(pad))
-    MsgBox "FO overgenomen." & vbCrLf & vbCrLf & lg, vbInformation, "FO overnemen"
+    If InStr(lg, "- FOUT") > 0 Then
+        MsgBox "FO niet helemaal overgenomen:" & vbCrLf & vbCrLf & lg, vbExclamation, "FO overnemen"
+    Else
+        MsgBox "FO overgenomen." & vbCrLf & vbCrLf & lg, vbInformation, "FO overnemen"
+    End If
 End Sub
 
 Public Sub FOOvernemenTest(ByVal pad As String)
@@ -624,6 +628,7 @@ Private Function FOOvernemenUit(ByVal pad As String) As String
     Dim wbO As Workbook, ws As Worksheet, wo As Worksheet, c As Range, co As Range, lg As String, n As Long, zelf As Boolean
     Dim wb As Workbook, rekenmodus As Long, export As Boolean, geel As Long, h As Long, mist As String
     geel = RGB(255, 242, 204)
+    On Error GoTo Fout
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     rekenmodus = Application.Calculation
@@ -647,18 +652,24 @@ Private Function FOOvernemenUit(ByVal pad As String) As String
                 export = (ws.Name = "FO - vorig" Or ws.Name = "FO - huidig" Or ws.Name = "FO - actuals" Or _
                           ws.Name = "Prijslijst dump" Or ws.Name = "Behind the scens")
                 If export Then
+                    ' samengevoegde cellen (bv. de notitie X1:AC8): alleen de cel linksboven, het hele gebied tegelijk
                     For Each c In ws.UsedRange.Cells
-                        If Not c.HasFormula Then c.ClearContents
+                        If c.MergeArea.Cells(1, 1).Address = c.Address Then
+                            If Not c.HasFormula Then c.MergeArea.ClearContents
+                        End If
                     Next c
                     For Each co In wo.UsedRange.Cells
-                        If Not co.HasFormula And Not IsEmpty(co.Value) Then
-                            If Not ws.Range(co.Address).HasFormula Then
-                                If VarType(co.Value) = vbString Then
-                                    ws.Range(co.Address).Value = "'" & co.Value
-                                Else
-                                    ws.Range(co.Address).Value = co.Value
+                        If co.MergeArea.Cells(1, 1).Address = co.Address Then
+                            If Not co.HasFormula And Not IsEmpty(co.Value) Then
+                                Set c = ws.Range(co.Address)
+                                If c.MergeArea.Cells(1, 1).Address = c.Address And Not c.HasFormula Then
+                                    If VarType(co.Value) = vbString Then
+                                        c.Value = "'" & co.Value
+                                    Else
+                                        c.Value = co.Value
+                                    End If
+                                    n = n + 1
                                 End If
-                                n = n + 1
                             End If
                         End If
                     Next co
@@ -671,12 +682,12 @@ Private Function FOOvernemenUit(ByVal pad As String) As String
                             If co.HasFormula Then
                                 If Not c.HasFormula Then c.Formula = co.Formula: n = n + 1
                             ElseIf IsEmpty(co.Value) Then
-                                If Not c.HasFormula And Not IsEmpty(c.Value) Then c.ClearContents
+                                If Not c.HasFormula And Not IsEmpty(c.Value) Then c.MergeArea.ClearContents
                             ElseIf Not IsError(co.Value) Then
                                 c.Value = co.Value
                                 n = n + 1
                             End If
-                        ElseIf c.HasFormula Then
+                        ElseIf c.HasFormula And c.MergeArea.Cells(1, 1).Address = c.Address Then
                             ' een getal waar dit sjabloon een formule heeft (bv. planning die Oud FO inlezen of de gebruiker
                             ' heeft ingevuld): overnemen; tekst (koppen, notities) niet
                             Set co = wo.Range(c.Address)
@@ -699,6 +710,22 @@ Private Function FOOvernemenUit(ByVal pad As String) As String
     StartKnoppen
     Application.ScreenUpdating = True
     If Len(mist) > 0 Then lg = lg & "- niet in het andere bestand: " & Mid$(mist, 3) & vbCrLf
+    FOOvernemenUit = lg
+    Exit Function
+Fout:
+    ' altijd terugzetten: anders blijft rekenen op handmatig en staan gebeurtenissen uit (doorgestreepte formules)
+    Dim waar As String, oms As String
+    oms = Err.Description
+    On Error Resume Next
+    If Not ws Is Nothing Then waar = "'" & ws.Name & "' "
+    If Not c Is Nothing Then waar = waar & c.Address(0, 0)
+    lg = lg & "- FOUT bij " & waar & ": " & oms & vbCrLf
+    If zelf And Not wbO Is Nothing Then wbO.Close SaveChanges:=False
+    Application.DisplayAlerts = True
+    If rekenmodus <> 0 Then Application.Calculation = rekenmodus Else Application.Calculation = -4105
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Application.Calculate
     FOOvernemenUit = lg
 End Function
 

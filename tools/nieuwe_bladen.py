@@ -453,11 +453,7 @@ def maak_start(wb, demo, R):
 
     # knoppen (de macro zet ze neer): kolommen J-K
     cell(ws, 'J5', 'Knoppen', F_BOLD)
-    # zonder macro's (geblokkeerd bestand) zijn er geen knoppen: deze melding blijft dan staan; met macro's haalt
-    # Workbook_Open hem weg (en BeforeSave zet hem terug, zodat een bewaard bestand hem weer toont)
-    cell(ws, 'J6', MELDING_MACROS, Font(name=FONT, size=9, bold=True, color='FFDC2626'), None, None,
-         Alignment(wrap_text=True, vertical='top'))
-    ws.merge_cells('J6:K13')
+    # de knoppen zelf staan als vaste vormen in het bestand (build_werkbestand.vaste_knoppen)
     ws.freeze_panes = 'A5'
     return {'dia10_row': dia10_row, 'checks_total': total_row, 'top3_row': top3_row}
 

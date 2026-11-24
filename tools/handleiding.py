@@ -127,6 +127,8 @@ ALGEMEEN = [
         ('FO overnemen', 'neemt een werkbestand in deze opzet over (bv. van een vorige versie van het sjabloon): de exports en '
                          'alle gele invoercellen en getallen die over een formule zijn gezet (planning); verder blijven de formules van '
                          'dit sjabloon staan.'),
+        ('Meerdere tegelijk', 'FO_overzetten.xlsm (los bestand): kies het nieuwste sjabloon en een of meer werkbestanden; per '
+                              'bestand komt er <naam>_nieuw.xlsm naast.'),
         ('Nieuw kwartaal starten', 'de huidige cashflow en planning worden de vorige prognose; FO - huidig gaat naar FO - vorig.'),
         ('PowerPoint maken', 'vult het sjabloon met de cijfers, tabellen en grafieken en bewaart een nieuwe presentatie.'),
         ('Verborgen tabbladen', 'toont of verbergt de naslag: Bouwnummers, CF vorig en huidig, Woningtypes, Scenario kosten en '

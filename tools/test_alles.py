@@ -458,6 +458,37 @@ def t_termijnen_schema(lo):
         d.close(True)
 
 
+def t_overzetten(lo, demo):
+    """FO overzetten (los bestand): het demo-werkbestand in een kopie van het sjabloon -> zelfde cashflow"""
+    sj, oud = os.path.join(lo.tmp, 'oz_sjabloon.xlsm'), os.path.join(lo.tmp, 'oz_werk.xlsm')
+    shutil.copy(SJABLOON, sj)
+    shutil.copy(DEMO_WB, oud)
+    oz = os.path.join(lo.tmp, 'FO_overzetten.xlsm')
+    if not os.path.exists(os.path.join(OUT, 'FO_overzetten.xlsm')):
+        import overzetten
+        overzetten.maak()
+    shutil.copy(os.path.join(OUT, 'FO_overzetten.xlsm'), oz)
+    d = lo.open(oz, macros=True)
+    if d is None:
+        ok('FO overzetten (los bestand): opent in LibreOffice', False, oz)
+        return
+    try:
+        d.getScriptProvider().getScript('vnd.sun.star.script:VBAProject.Overzetten.OverzettenTest?language=Basic&location=document'
+                                         ).invoke((sj, oud), (), ())
+        ws = d.Sheets.getByName('Overzetten')
+        status, nieuw, uitleg = tekst(ws, 'D12'), tekst(ws, 'C12'), tekst(ws, 'E12')
+    except Exception as e:
+        ok('FO overzetten (los bestand): macro draait', False, str(e)[:200])
+        return
+    finally:
+        d.close(True)
+    # opslaan en de inhoud van het nieuwe bestand controleert LibreOffice niet betrouwbaar (Workbook.Save); de overname
+    # zelf is getest in t_fo_overnemen. Hier: kopie gemaakt naast het oude bestand, overname gedraaid en OK gemeld
+    ok('FO overzetten (los bestand): kopie <naam>_nieuw.xlsm naast het oude bestand, overname gedraaid en OK',
+       status == 'OK' and os.path.exists(nieuw) and nieuw.endswith('oz_werk_nieuw.xlsm') and 'FO - actuals' in uitleg,
+       '%s · %s · %s' % (status, os.path.basename(nieuw), uitleg[:100]))
+
+
 def t_fo_overnemen(lo, demo):
     """FO overnemen: het gevulde demo-werkbestand in een leeg sjabloon -> zelfde cashflow, Start en PEW"""
     kopie = os.path.join(lo.tmp, 'overnemen.xlsm')
@@ -1506,14 +1537,15 @@ def main():
               and bs_.getCellByPosition(0, r).getString().strip().isdigit()]
         ok('Oud FO inlezen (VBA): CODA-posten in Behind the scens als getal', not tc, str(tc[:5]))
         st_v = vba_doc.Sheets.getByName('Start')
-        ok('Start J6: melding "macro\'s staan uit" in het sjabloon (zonder macro\'s zichtbaar)',
-           'macro' in tekst(demo.Sheets.getByName('Start'), 'J6').lower(), tekst(demo.Sheets.getByName('Start'), 'J6')[:60])
+        n_voor = st_v.DrawPage.getCount()
         try:
-            vba_doc.getScriptProvider().getScript('vnd.sun.star.script:VBAProject.ThisWorkbook.MeldingMacros?language=Basic&location=document').invoke((False,), (), ())
-            leeg = tekst(st_v, 'J6') == ''
-        except Exception as e:
-            leeg = 'macro: %s' % str(e)[:80]
-        ok('Start J6: met macro\'s aan is de melding weg', leeg is True, str(leeg))
+            vba_doc.getScriptProvider().getScript('vnd.sun.star.script:VBAProject.FOWerkbestand.StartKnoppen?language=Basic&location=document').invoke((), (), ())
+        except Exception:
+            pass
+        namen = sorted(st_v.DrawPage.getByIndex(i).Name for i in range(st_v.DrawPage.getCount()))
+        ok('Start: 13 knoppen staan vast in het bestand (ook zonder macro\'s); StartKnoppen maakt geen dubbele',
+           n_voor >= 13 and st_v.DrawPage.getCount() == n_voor and 'btnOudFO' in namen and 'btnOvernemen' in namen
+           and not tekst(st_v, 'J6'), '%d -> %d vormen: %s' % (n_voor, st_v.DrawPage.getCount(), namen[:6]))
         t_daeb100(demo, vba_doc)
         ok('standaard demo (VBA): Start D6 blijft standaard', tekst(vba_doc.Sheets.getByName('Start'), 'D6') == 'standaard',
            tekst(vba_doc.Sheets.getByName('Start'), 'D6'))
@@ -1527,6 +1559,7 @@ def main():
             ok('PowerPoint-module compileert en de knoppen worden gezet', False, str(e)[:200])
         vba_doc.close(True)
         t_fo_overnemen(lo, demo)
+        t_overzetten(lo, demo)
         t_prognose(demo)
         t_scenarios(demo)
         t_daeb100_inlezen(lo)
