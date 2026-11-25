@@ -802,7 +802,13 @@ Private Sub Logo(ByVal sld As Object, ByVal naam As String, ByVal rechts As Sing
     Set ws = ThisWorkbook.Worksheets("PPT")
     zicht = ws.Visible
     ws.Visible = xlSheetVisible
+    Err.Clear
     ws.Shapes(naam).Copy
+    If Err.Number <> 0 Then
+        ws.Visible = zicht
+        Err.Clear
+        Exit Sub              ' geen logo in dit bestand: dia zonder logo
+    End If
     DoEvents
     Set sr = sld.Shapes.Paste
     ws.Visible = zicht
