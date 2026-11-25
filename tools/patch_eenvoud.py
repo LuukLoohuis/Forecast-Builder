@@ -116,14 +116,13 @@ def start(bk):
     clear(s, 'E5')
     clear_rows(s, 12, 40); clear_rows(s, 7, 40, keep_cols=('B',))
     for c in ('G7','G8','G9','G10','G11','G13','G14','G15'): clear(s, c)
-    s.set('B12', style=sty['B12'], text='ZPMW03, Woningetalage, AK-% en AK-realisatie inlezen.')
-    s.set('C12', style=sty['B12'], text='Presentatie in huisstijl.')
-    s.set('D12', style=sty['B12'], text='Bron- en rekenbladen tonen of verbergen.')
+    s.set('B12', style=sty['B12'], text='Kiest de exports en plakt ze in de gele tabbladen (mag ook zelf plakken).')
+    s.set('C12', style=sty['B12'], text='Presentatie in Heijmans-stijl.')
     s.set('B14', style=sty['B14'], text='Zo werkt het')
-    steps = [('1. Inlezen', "Knop 'Bronnen inlezen', of plak zelf de exports in Bron_ZPMW03 en Bron_Woningetalage."),
-             ('2. Projectlijst', 'Oranje WBS = type of gebied invullen. Meetellen Nee = project telt nergens mee.'),
-             ('3. Versies', 'Plak de exports van Budget en eerdere kwartalen in de grijze tabbladen achteraan.'),
-             ('4. Bekijken', 'Dashboard en RDFO. Staat bij Status een ✖? Kijk op Controle.'),
+    steps = [('1. Plakken', 'Gele tabbladen achteraan: ZPMW03, Budget en Q1–Q4 ZPMW03, Woningetalage, AK-percentages, AK-realisatie, Mijlpalen.'),
+             ('2. Projectlijst', "Knop 'Nieuwe projecten toevoegen'. Oranje = soort kiezen (Opstal / Deelneming / Buiten scope), deelgebied optioneel."),
+             ('3. Invoer', 'Instellingen controleren (peildatum, versie, AK-factor). Kolom Status zegt wat nog ontbreekt.'),
+             ('4. Bekijken', 'Dashboard: kies kwartaal en deelgebied. Elk rapport heeft een link naar de berekening.'),
              ('5. Presenteren', "Knop 'Maak PowerPoint'.")]
     merges_drop(s, lambda a, b: a >= 14)
     for i, (a, b) in enumerate(steps):
@@ -139,9 +138,9 @@ def start(bk):
         if 'RDFO_BronnenInlezen' not in d or 'RDFO_PrognoseVastleggen' not in d: continue
         anchors = re.findall(r'<xdr:twoCellAnchor.*?</xdr:twoCellAnchor>', d, re.S)
         for a in anchors:
-            if any(m in a for m in ('RDFO_PrognoseVastleggen', 'RDFO_LeegMaken', 'RDFO_OudePrognosesOverzetten')):
+            if any(m in a for m in ('RDFO_PrognoseVastleggen', 'RDFO_LeegMaken', 'RDFO_OudePrognosesOverzetten', 'RDFO_ToonRekenbladen')):
                 d = d.replace(a, '')
-            elif 'RDFO_MaakPowerPoint' in a or 'RDFO_ToonRekenbladen' in a:
+            elif 'RDFO_MaakPowerPoint' in a:
                 b = re.sub(r'(<xdr:(?:from|to)><xdr:col>)(\d+)', lambda m: m.group(1)+str(int(m.group(2))-1), a)
                 d = d.replace(a, b)
         bk.settext(fn, d)
@@ -165,41 +164,38 @@ def handleiding(bk):
     def gap(): rows.append(('gap', None, None))
     rows.append(('title', 'Handleiding', None)); rows.append(('text', 'Alles wat je nodig hebt op één plek. Gele cel = invullen. n.b. = niet beschikbaar.', None)); gap()
     sec('Elk kwartaal')
-    item('1. Inlezen', "Start › 'Bronnen inlezen': kies ZPMW03, Woningetalage, AK-percentages en AK-realisatie (grootboek), vul peildatum en versie in. Zonder macro: Start › 'Toon / verberg rekenbladen' en plak de exports in A1 van Bron_ZPMW03, Bron_Woningetalage, Bron_AK en Bron_AKR; zet de peildatum op Invoer.")
-    item('2. Projectlijst', "Nieuwe projecten komen onderaan (bij 'Bronnen inlezen' vanzelf, anders knop 'Nieuwe projecten toevoegen'). Oranje WBS = type of gebied nog invullen. Meetellen = Nee: het project telt nergens mee.")
-    item('3. Versies', "Plak per versie de ZPMW03 en de Woningetalage in de grijze tabbladen achteraan (bijv. 'Q2 ZPMW03'). Het tabblad Versies toont wat er staat. Na afloop van het kwartaal: plak de huidige export ook in de Qx-tabbladen.")
-    item('4. Bekijken', 'Dashboard (kies jaar, versie, type of project), RDFO, Projecten, Outlook. Start › Status: ✖ = eerst Controle bekijken.')
-    item('5. Presenteren', "Start › 'Maak PowerPoint'. Projecten met PowerPoint = Nee (Projectlijst, verborgen kolom) blijven eruit.")
+    item('1. Plakken', "Plak de exports in de gele tabbladen achteraan, telkens vanaf A1: Bron_ZPMW03 (huidig), Budget/Q1–Q4 ZPMW03 (versies), Bron_Woningetalage, Bron_AK (AK-percentages), Bron_AKR (AK-realisatie, grootboek) en Bron_Mijlpalen. Of gebruik Start › 'Bronnen inlezen'. Alles rekent meteen.")
+    item('2. Projectlijst', "Knop 'Nieuwe projecten toevoegen' zet nieuwe WBS-elementen uit Bron_ZPMW03 onderaan. Oranje WBS = soort nog kiezen: Opstal, Deelneming of Buiten scope (telt nergens mee). Deelgebied kiezen is optioneel; leeg = geen deelgebied.")
+    item('3. Invoer', 'Rapportagejaar, peildatum, versie, eenheid en AK-factor (standaard 1,06). De kolom Status geeft aan wat nog niet is ingevuld. Deelgebieden maak je hier aan (blok 3).')
+    item('4. Bekijken', 'Dashboard: kies doeljaar, kwartaal (vergelijking met het vorige kwartaal), type, project en deelgebied. Het deelgebiedfilter geldt voor alle rapporten. Elk rapport heeft bovenaan een link naar de berekening.')
+    item('5. Presenteren', "Start › 'Maak PowerPoint' (Heijmans-stijl, met logo).")
     gap(); sec('Versies en budget')
-    item('Budget', 'De prognose die vorig jaar voor dit jaar is afgegeven, bijv. de export van Q3 2025 voor budget 2026. Plak die in Budget ZPMW03 / Budget Woningetalage.')
-    item('Q1 t/m Q4', 'De export van dat kwartaal. Peildatum leeg = einde kwartaal. Andere peildatum? Vul die in op Versies.')
-    item('Officiële AK', "Wijkt het gerapporteerde AK-bedrag af (bijv. door geboekte AK)? Vul het in op Versies, kolom 'AK-dekking officieel'.")
-    item('Nu ingelezen', 'De laatst ingelezen export (Bron_ZPMW03). Kolom heet op Projecten "Nu ingelezen"; op RDFO "Upload".')
-    gap(); sec('Begrippen')
-    item('Omzet FY', '− Bedrijfsopbrengsten LJ − OP.BOB van het jaar (volgend jaar: − OP.BOB volgend jaar). Per WBS opgeteld.')
+    item('Budget', 'De prognose die vorig jaar voor dit jaar is afgegeven, bijv. de export van Q3 2025 voor budget 2026. Plak die in Budget ZPMW03.')
+    item('Q1 t/m Q4', 'De ZPMW03-export van dat kwartaal. Peildatum leeg = einde kwartaal; anders invullen op Versies.')
+    item('Woningen', 'Alleen uit de huidige Woningetalage (één dump). Versies tonen omzet, BOR en AK-dekking.')
+    item('Officiële AK', "Wijkt het gerapporteerde AK-bedrag af? Vul het in op Versies, kolom 'AK-dekking officieel'.")
+    item('Mutatie', 'Projecten: verschil tussen het gekozen kwartaal en het vorige (Q3 t.o.v. Q2, Q1 t.o.v. Budget). Groen = hoger, rood = lager. Typ de uitleg in de gele kolom Toelichting mutatie. Niet sorteren, alleen filteren.')
+    gap(); sec('Berekeningen (te volgen via de links)')
+    item('Omzet FY', '− Bedrijfsopbrengsten LJ − OP.BOB van het jaar (volgend jaar: − OP.BOB volgend jaar). Per WBS opgeteld. Rekenblad: STG_ZPMW03 › VERW_Project; versies: VERSIE_REKEN.')
     item('BOR FY', '− Bruto (omzet) result. LJ − OP.BOR van het jaar.')
+    item('AK-dekking', 'Kosten per kwartaal / factor (Invoer, standaard 1,06) x AK %. AK % uit Bron_AK (eigen AK % op de Projectlijst gaat voor). Geboekte AK uit Bron_AKR telt t/m de peildatum. Per project uitgeschreven op AK-dekking; kolom Bron AK % linkt naar de regel in Bron_AK.')
+    item('AK-realisatie', 'AK-dekking onderaan: geboekt per jaar en kwartaal, en per kwartaal tegen het budget (onder- of overdekking).')
+    item('Bandbreedte', "Vijf scenario's per jaar: basis, afslag op verkopen, optimistisch, gewogen met kans % en 0-100. Rekenvoorbeeld per project vanaf kolom AI; rekenblad SCEN.")
+    item('Reserves', 'Zelf invullen op de Projectlijst (L–N) met % gereed (P–Q). Vrijval = reserve x % gereed.')
+    item("Kansen en risico's", 'Zelf invullen per regel (project, jaar, kwartaal, bedrag positief). Risico telt als min. Saldo per jaar in Outlook en PowerPoint.')
+    item('Mijlpalen', 'Projectdetail onderaan: per mijlpaal verwacht en werkelijk uit Bron_Mijlpalen, met status (gerealiseerd, later dan verwacht, verlopen, gepland).')
     item('Verlies', 'Projecten: BOR FY van de gekozen versie is negatief.')
-    item('AK-dekking', 'Kosten / 1,05 x AK %. Geboekte AK uit het grootboek (Bron_AKR) telt t/m de peildatum; daarna kosten x AK %. AK % eigen (Projectlijst) gaat voor SAP.')
-    item('AK-realisatie', 'Tabblad AK-dekking, onderaan: geboekte AK per jaar en kwartaal, en per kwartaal tegen het budget (onder- of overdekking). Plak de grootboekdump van alle jaren in Bron_AKR.')
-    item('Reserves', 'Zelf invullen op de Projectlijst (kolommen L–N) met % gereed eind dit en volgend jaar (P–Q). Vrijval = reserve x % gereed. Tabblad Reserves is het overzicht.')
-    item("Kansen en risico's", 'Zelf invullen: één regel per kans of risico (project, jaar, kwartaal, bedrag positief). Risico telt als min. Saldo per jaar staat in de Outlook en de PowerPoint.')
-    item('Bandbreedte', "Vijf scenario's per jaar: basis (upload), afslag op verkopen, optimistisch, gewogen met kans % en 0-100. Rekenvoorbeeld per project: tabblad Bandbreedte, kolom AI.")
-    item('Stoplicht', 'Verkoop (verkocht %), omgevingsvergunning en netcongestie. Invullen op de Projectlijst (kolommen AG–AL).')
     gap(); sec('Tabbladen')
-    for a, b in [('Start', 'Knoppen en status.'), ('Dashboard', 'Kerncijfers en grafieken; hier kies je jaar, versie, type of project.'),
-                 ('RDFO', 'Budget, Q1–Q4, upload, realisatie en verschillen; onderaan per gebied.'),
-                 ('Projecten', 'Per project alle versies, realisatie, to go, BOR, marge, verlies en stoplicht.'),
-                 ('Projectdetail', 'Eén project in detail.'), ('Woningetalage', 'Woningverkopen per maand, kwartaal, versie en segment.'),
-                 ('Outlook', 'De jaren na het lopende jaar, met AK-dekking per project.'), ('Bandbreedte', "Scenario's en stoplicht, met rekenvoorbeeld."),
-                 ("Kansen en risico's", 'Invoer en overzicht.'), ('Reserves', 'Overzicht; invoer op de Projectlijst.'),
-                 ('Projectlijst', 'De enige plek voor projectgegevens.'), ('AK-dekking', 'Per kwartaal en project; meetellende projecten bovenaan; realisatie onderaan.'),
-                 ('Controle', "Alleen nodig bij ✖ op Start. Kolom H zegt wat te doen."), ('Invoer', 'Instellingen (peildatum, eenheid), aanvullende posten, gebieden, funnel, DAEB.'),
-                 ('Versies + grijze tabbladen', 'Plakken van Budget en Q1–Q4.')]:
+    for a, b in [('Rapporten', 'Start, Dashboard, RDFO, Projecten, Projectdetail, Woningetalage, Outlook, Bandbreedte, AK-dekking.'),
+                 ('Invoer', "Projectlijst, Invoer, Kansen en risico's, Reserves, Versies."),
+                 ('Gele tabbladen', 'Plakbladen voor de exports.'),
+                 ('Grijze tabbladen', 'Rekenbladen: alleen lezen, niets wijzigen. Te bereiken via de links op de rapporten.'),
+                 ('Controle', 'Alleen nodig bij ✖ op Start; kolom H zegt wat te doen.')]:
         item(a, b)
     gap(); sec('Vragen')
-    item('Versie toont n.b.', "Plakblad leeg, of de peildatum hoort bij een ander jaar. Zie Versies, kolom Opmerking.")
-    item('Nieuw project ontbreekt', "Projectlijst › 'Nieuwe projecten toevoegen', of typ de WBS onderaan de lijst.")
-    item("Geen macro's", 'Alles werkt met plakken (zie stap 1). Alleen PowerPoint maken vraagt een macro.')
+    item('Versie toont n.b.', "Plakblad leeg, of de peildatum hoort bij een ander jaar. Zie Versies, kolom Status.")
+    item('Nieuw project ontbreekt', "Projectlijst › 'Nieuwe projecten toevoegen' (leest Bron_ZPMW03), of typ de WBS onderaan de lijst.")
+    item("Geen macro's", 'Alles werkt met plakken. Alleen nieuwe projecten toevoegen en PowerPoint maken gebruiken een macro.')
     r = 1
     for kind, a, b in rows:
         if kind == 'title': s.set(f'B{r}', text=a, style=st['title'])
@@ -212,30 +208,39 @@ def handleiding(bk):
 # ------------------------------------------------------------------ Projectlijst + Invoer
 def projectlijst(bk, dxf):
     s = bk.sheet('Projectlijst')
-    s.set('E6', text='MEETELLEN', style=s.style('E6'))
-    s.set('E7', text='Meetellen\n(Ja / Nee)', style=s.style('E7'))
+    s.set('C7', text='Soort', style=s.style('C7'))
+    s.set('D7', text='Deelgebied\n(leeg = geen)', style=s.style('D7'))
+    for dv in s.root.iter(N+'dataValidation'):
+        if dv.get('sqref') == 'C8:C107':
+            dv.find(N+'formula1').text = '"Opstal,Deelneming,Buiten scope"'
+    s.set('AN6', text='FILTER', style=s.style('AG6'))
+    s.set('AN7', text='Telt mee\n(soort + filter)', style=s.style('AG7'))
+    for r in range(8, 108):
+        s.set(f'AN{r}', is_str=True, style=s.style('O8'), formula=
+              f'IF($A{r}="","",IF(OR($E{r}="Nee",$C{r}="Buiten scope"),"Nee",IF(OR(Sel_Deelgebied="Alle",Sel_Deelgebied="",AND(Sel_Deelgebied="(geen)",$D{r}=""),$D{r}=Sel_Deelgebied),"Ja","Nee")))')
+    bk.set_name('PL_Telt', 'Projectlijst!$AN$8:$AN$107')
     cols = s.root.find(N+'cols')
     new = []
     for c in list(cols):
         mn, mx = int(c.get('min')), int(c.get('max'))
-        if mn <= 8 and mx >= 6:   # splits rond F:H
-            for a, b, hid in ((mn, min(mx, 5), False), (max(mn, 6), min(mx, 8), True), (max(mn, 9), mx, False)):
+        if mn <= 8 and mx >= 5:   # splits rond E:H
+            for a, b, hid in ((mn, min(mx, 4), False), (max(mn, 5), min(mx, 8), True), (max(mn, 9), mx, False)):
                 if a <= b:
                     e = etree.Element(N+'col'); [e.set(k, v) for k, v in c.attrib.items()]; e.set('min', str(a)); e.set('max', str(b))
                     if hid: e.set('hidden', '1')
                     new.append(e)
             cols.remove(c)
     if not any(int(c.get('min')) <= 6 <= int(c.get('max')) for c in cols) and not new:
-        e = etree.Element(N+'col'); e.set('min','6'); e.set('max','8'); e.set('width','9'); e.set('hidden','1'); e.set('customWidth','1'); new.append(e)
+        e = etree.Element(N+'col'); e.set('min','5'); e.set('max','8'); e.set('width','9'); e.set('hidden','1'); e.set('customWidth','1'); new.append(e)
     for e in new: cols.append(e)
     items = sorted(cols, key=lambda c: int(c.get('min')))
     for c in list(cols): cols.remove(c)
     for c in items: cols.append(c)
-    s.set('B2', style=s.style('B2'), text='Eén regel per project. Meetellen = Nee: het project telt nergens mee. Oranje WBS = type of gebied nog invullen.')
+    s.set('B2', style=s.style('B2'), text="Eén regel per project, gevuld vanuit ZPMW03 (knop 'Nieuwe projecten toevoegen'). Kies per project de soort: Opstal, Deelneming of Buiten scope. Deelgebied optioneel. Oranje WBS = soort nog kiezen.")
     s.set('B4', style=s.style('B4'), is_str=True, formula=
-          'IF(COUNTIFS($A$8:$A$107,"?*",$C$8:$C$107,"")+COUNTIFS($A$8:$A$107,"?*",$D$8:$D$107,"")=0,"✔ alle projecten compleet","⚠ "&SUMPRODUCT(($A$8:$A$107<>"")*((($C$8:$C$107="")+($D$8:$D$107=""))>0))&" project(en): type of gebied invullen (oranje)")'
+          'IF(COUNTIFS($A$8:$A$107,"?*",$C$8:$C$107,"")=0,"✔ alle projecten hebben een soort","⚠ "&COUNTIFS($A$8:$A$107,"?*",$C$8:$C$107,"")&" project(en): soort kiezen (oranje)")'
           '&"   ·   nieuw in ZPMW03, nog niet op de lijst: "&SUMPRODUCT((STG_ZPMW03!$B$6:$B$505<>"")*(COUNTIF($A$8:$A$107,STG_ZPMW03!$B$6:$B$505)=0)/COUNTIF(STG_ZPMW03!$B$6:$B$505,STG_ZPMW03!$B$6:$B$505&""))')
-    add_cf(s, 'A8:A107', 'AND($A8<>"",OR($C8="",$D8=""))', dxf, prio=1)
+    add_cf(s, 'A8:A107', 'AND($A8<>"",$C8="")', dxf, prio=1)
     # AK % gebruikt: zoeken op WBS i.p.v. rij
     for r in range(8, 108):
         s.set(f'K{r}', style=s.style(f'K{r}'), formula=f'IFERROR(IF(INDEX(\'AK-dekking\'!$D$21:$D$120,MATCH($A{r},\'AK-dekking\'!$A$21:$A$120,0))="","",INDEX(\'AK-dekking\'!$D$21:$D$120,MATCH($A{r},\'AK-dekking\'!$A$21:$A$120,0))),"")')
@@ -243,12 +248,11 @@ def projectlijst(bk, dxf):
     expand_shared(inv, range(31, 131))
     for i in range(100):
         r = 31 + i; p = 8 + i
-        inv.set(f'G{r}', style=inv.style(f'G{r}'), is_str=True, formula=f'IF(A{r}="","",IF(OR(Projectlijst!$E${p}="Nee",Projectlijst!$F${p}="Nee"),"Nee","Ja"))')
-        inv.set(f'U{r}', style=inv.style(f'U{r}'), is_str=True, formula=f'IF(A{r}="","",IF(OR(Projectlijst!$E${p}="Nee",Projectlijst!$G${p}="Nee"),"Nee","Ja"))')
+        inv.set(f'G{r}', style=inv.style(f'G{r}'), is_str=True, formula=f'IF(A{r}="","",IF(OR(Projectlijst!$AN${p}<>"Ja",Projectlijst!$F${p}="Nee"),"Nee","Ja"))')
+        inv.set(f'U{r}', style=inv.style(f'U{r}'), is_str=True, formula=f'IF(A{r}="","",IF(OR(Projectlijst!$AN${p}<>"Ja",Projectlijst!$G${p}="Nee"),"Nee","Ja"))')
     hide_rows(inv, 28, 132)
     inv.set('E3', style=inv.style('E3'), text='2. Projecten: zie Projectlijst')
     add_hyperlink(inv, 'E3', "'Projectlijst'!A1", 'Projectlijst')
-    inv.set('B2', style=inv.style('B2'), text='Instellingen en aanvullende posten. Projectgegevens vul je in op de Projectlijst. Gele cellen invullen.')
 
 # ------------------------------------------------------------------ AK-dekking: meetellende projecten bovenaan + realisatie
 XREF = re.compile(r"(Invoer|Projectlijst|VERW_Project)!(\$?)([A-Z]{1,3})(\$?)(\d+)(?![\d:])")
@@ -268,7 +272,7 @@ def akdekking(bk):
             parts = f.text.split('"')
             for k in range(0, len(parts), 2): parts[k] = XREF.sub(rep, parts[k])
             f.text = '"'.join(parts)
-        s.set(f'AX{r}', formula=f'IF(Invoer!$A{30+i}="",3000,IF(OR(Projectlijst!$E{7+i}="Nee",Projectlijst!$G{7+i}="Nee"),2000,IF(N(IF(Projectlijst!$I{7+i}<>"",Projectlijst!$I{7+i},Invoer!$V{30+i}))>0,0,1000)))+{i}')
+        s.set(f'AX{r}', formula=f'IF(Invoer!$A{30+i}="",3000,IF(OR(Projectlijst!$AN{7+i}<>"Ja",Projectlijst!$G{7+i}="Nee"),2000,IF(N(IF(Projectlijst!$I{7+i}<>"",Projectlijst!$I{7+i},Invoer!$V{30+i}))>0,0,1000)))+{i}')
         s.set(f'AW{r}', formula=f'MOD(SMALL($AX$21:$AX$120,{i}),1000)')
     s.set('AW20', text='rij-idx'); s.set('AX20', text='sorteersleutel')
     cols = s.root.find(N+'cols'); e = etree.SubElement(cols, N+'col'); e.set('min', '49'); e.set('max', '50'); e.set('width', '8'); e.set('hidden', '1'); e.set('customWidth', '1')

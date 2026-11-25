@@ -27,8 +27,12 @@ def main(src, dst):
     for sh in ['Bron_ZPMW03', 'Bron_Woningetalage', 'Bron_AK', 'Bron_AKR']:
         clear_values(bk.sheet(sh), 1, 2, 10**6, 10**7, whole_rows=True)
     for v in ['Budget', 'Q1', 'Q2', 'Q3', 'Q4']:
-        for k in ('ZPMW03', 'Woningetalage'):
-            clear_values(bk.sheet(f'{v} {k}'), 1, 2, 10**6, 10**7, whole_rows=True)
+        clear_values(bk.sheet(f'{v} ZPMW03'), 1, 2, 10**6, 10**7, whole_rows=True)
+    clear_values(bk.sheet('Bron_Mijlpalen'), 1, 2, 10**6, 10**7, whole_rows=True)
+    clear_values(bk.sheet('Projecten'), 19, 10, 19, 109)
+    for sh, ref in [('Invoer', 'D8')]:
+        s = bk.sheet(sh); s.set(ref, text='Regio (invullen)', style=s.style(ref))
+    d = bk.sheet('Dashboard'); d.set('N5', text='Alle', style=d.style('N5'))
     for sh, ref in [('Projectdetail', 'C4'), ('AK-dekking', 'F11'), ('Bandbreedte', 'AJ25')]:
         c, r = split(ref); clear_values(bk.sheet(sh), col2n(c), r, col2n(c), r)
     clear_values(bk.sheet('Versies'), 3, 6, 3, 10); clear_values(bk.sheet('Versies'), 11, 6, 11, 10)
