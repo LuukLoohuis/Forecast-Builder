@@ -27,8 +27,10 @@ def main(src, dst):
     for sh in ['Bron_ZPMW03', 'Bron_Woningetalage', 'Bron_AK', 'Bron_AKR']:
         clear_values(bk.sheet(sh), 1, 2, 10**6, 10**7, whole_rows=True)
     for v in ['Budget', 'Q1', 'Q2', 'Q3', 'Q4']:
-        clear_values(bk.sheet(f'{v} ZPMW03'), 1, 2, 10**6, 10**7, whole_rows=True)
-    clear_values(bk.sheet('Bron_Mijlpalen'), 1, 2, 10**6, 10**7, whole_rows=True)
+        vs = bk.sheet(f'{v} ZPMW03'); clear_values(vs, 1, 1, 10**6, 10**7, whole_rows=True)
+        vs.set('A1', text=f'Plak hier de ZPMW03-export van {v} (hele blad, vanaf A1).')
+    ms = bk.sheet('Bron_Mijlpalen'); clear_values(ms, 1, 1, 10**6, 10**7, whole_rows=True)
+    ms.set('A1', text='Plak hier de mijlpalen-export (hele blad, vanaf A1): rij 1 = mijlpalen, rij 2 = verwacht/werkelijk, kolom A = "WBS - naam".')
     clear_values(bk.sheet('Projecten'), 19, 10, 19, 109)
     for sh, ref in [('Invoer', 'D8')]:
         s = bk.sheet(sh); s.set(ref, text='Regio (invullen)', style=s.style(ref))

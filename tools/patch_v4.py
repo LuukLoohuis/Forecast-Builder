@@ -36,6 +36,7 @@ def main(src, dst):
     c.set('F9', is_str=True, style=c.style('F9'), formula=f'"verwacht "&{X}')
     c.set('G9', is_str=True, style=c.style('G9'), formula=f'IF(E9={X},"OK","FOUT")')
     c.set('D9', text='Regels ZPMW03 (huidige versie) gelezen', style=c.style('D9'))
+    c.set('G14', is_str=True, style=c.style('G14'), formula='IF(INDEX(VERSIE_REKEN!$CE$6:$CE$10,P_UploadIdx)=0,"INFO",IF(E14=0,"OK","FOUT"))')
     c.set('H9', is_str=True, style=c.style('H9'), formula='"Leest tabblad \'"&Invoer!$D$14&" ZPMW03\' (Invoer › Versie van de upload)."')
     # Invoer
     inv = bk.sheet('Invoer')

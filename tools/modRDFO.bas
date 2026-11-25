@@ -455,7 +455,7 @@ Public Sub RDFO_LeegMaken()
     Dim antw As String, il As Range
     If MsgBox("Hiermee maak je een leeg format. Dit wordt gewist:" & vbCr & _
               "   - ingelezen ZPMW03, Woningetalage, AK-percentages en AK-realisatie" & vbCr & _
-              "   - projectlijst (Invoer â€º 2), aanvullende posten, toelichtingen, koperstype," & vbCr & _
+              "   - projectlijst (Invoer › 2), aanvullende posten, toelichtingen, koperstype," & vbCr & _
               "     gebieden, funnel en target, DAEB, projectkeuze en reserves, kansen en risico's" & vbCr & _
               "   - stoplicht- en scenario-invoer (tabblad Bandbreedte)" & vbCr & _
               "   - Historie: alle vastgelegde prognoses en het importlog" & vbCr & vbCr & _
@@ -605,7 +605,7 @@ Public Sub RDFO_PrognoseVastleggen()
         Application.CalculateFull
     Else
         antw = MsgBox("Prognose " & versie & " vastleggen?" & vbCr & vbCr & _
-                      "Omzet " & Nm("P_UploadVJ").Value & ": â‚¬ " & Format(Application.WorksheetFunction.Sum(Nm("V_OmzFY")) / 1000000, "0.0") & " mln" & vbCr & _
+                      "Omzet " & Nm("P_UploadVJ").Value & ": € " & Format(Application.WorksheetFunction.Sum(Nm("V_OmzFY")) / 1000000, "0.0") & " mln" & vbCr & _
                       "Woningverkopen " & Nm("P_UploadVJ").Value & ": " & Format(Application.WorksheetFunction.SumIfs(Nm("V_W_HuidigJaar"), Nm("V_Meetellen"), "Ja"), "0") & vbCr & vbCr & _
                       "Daarna veranderen deze cijfers niet meer.", vbOKCancel + vbQuestion, "Prognose vastleggen")
         If antw <> vbOK Then Exit Sub
@@ -691,7 +691,7 @@ Public Sub RDFO_MaakPowerPoint()
                 vorige = dia
             End If
             soort = spec.Cells(r, 4).Text
-            ' elk onderdeel apart: lukt er Ã©Ã©n niet, dan gaat de rest gewoon door en volgt aan het eind een melding
+            ' elk onderdeel apart: lukt er één niet, dan gaat de rest gewoon door en volgt aan het eind een melding
             On Error Resume Next
             Err.Clear
             Select Case soort
