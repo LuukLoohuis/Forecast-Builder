@@ -74,7 +74,7 @@ Public Sub RDFO_BronnenInlezen()
     Application.Calculation = xlCalculationManual
     impId = "IMP-" & Format(Now, "yyyymmdd-hhnn")
     nZ = -2: nE = -2
-    If VarType(fZ) <> vbBoolean Then nZ = LeesBron(CStr(fZ), "Bron_ZPMW03", "WBS-element")
+    If VarType(fZ) <> vbBoolean Then nZ = LeesBron(CStr(fZ), versie & " ZPMW03", "WBS-element")
     If VarType(fE) <> vbBoolean Then nE = LeesBron(CStr(fE), "Bron_Woningetalage", "Stufe 3")
     nA = -2
     If VarType(fA) <> vbBoolean Then nA = LeesBron(CStr(fA), "Bron_AK", "WBS-element")
@@ -196,9 +196,17 @@ Private Function OntbrekendeKolommen(ByVal stg As String) As String
 End Function
 
 Private Function KolomNr(ByVal ws As Worksheet, ByVal Kop As String) As Long
+    ' zoekt de kop in de eerste 30 rijen (geplakte exports hebben soms titelregels boven de kop)
     Dim f As Range
-    Set f = ws.Rows(1).Find(What:=Kop, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    Set f = ws.Range("A1:GZ30").Find(What:=Kop, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
     If Not f Is Nothing Then KolomNr = f.Column
+End Function
+
+Private Function KopRij(ByVal ws As Worksheet, ByVal Kop As String) As Long
+    Dim f As Range
+    KopRij = 1
+    Set f = ws.Range("A1:GZ30").Find(What:=Kop, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    If Not f Is Nothing Then KopRij = f.Row
 End Function
 
 ' ================================================================= 1b. NIEUWE PROJECTEN NAAR MAPPING
@@ -223,14 +231,14 @@ Private Function ProjectenErbij(ByVal stil As Boolean) As Long
     Dim cW As Long, cP As Long, co As Long, eS As Long, eA As Long, eH As Long, wbS As String, m As Variant, naam As String
     Dim berekening As Long
 
-    Set wsZ = ThisWorkbook.Worksheets("Bron_ZPMW03")
+    Set wsZ = ThisWorkbook.Worksheets(t("P_UploadVersie") & " ZPMW03")   ' huidige versie (Invoer)
     Set wsE = ThisWorkbook.Worksheets("Bron_Woningetalage")
     Set pl = Nm("PL_Invoer")          ' Projectlijst A..D: WBS, naam, type, gebied
     Set det = Nm("PL_Details")        ' Projectlijst U..AF: projectdefinitie, aandeel, segment, strapo, verdeling
     cW = KolomNr(wsZ, "WBS-element"): cP = KolomNr(wsZ, "Projectdefinitie"): co = KolomNr(wsZ, "Omschrijving")
     eS = KolomNr(wsE, "Stufe 3"): eA = KolomNr(wsE, "Aantal woningen"): eH = KolomNr(wsE, "Aandeel Heijm.")
     If cW = 0 Then
-        If Not stil Then MsgBox "Er is nog geen ZPMW03 ingelezen (kolom 'WBS-element' niet gevonden). Klik eerst op 'Bronnen inlezen'.", vbExclamation
+        If Not stil Then MsgBox "In tabblad '" & wsZ.Name & "' staat nog geen ZPMW03 (kolom 'WBS-element' niet gevonden)." & vbCr & "Plak de export daar, of zet op Invoer de juiste 'Versie van de upload'.", vbExclamation
         ProjectenErbij = -1
         Exit Function
     End If
@@ -238,7 +246,7 @@ Private Function ProjectenErbij(ByVal stil As Boolean) As Long
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
     vrij = 1
-    For r = 2 To wsZ.Cells(wsZ.Rows.Count, cW).End(xlUp).Row
+    For r = KopRij(wsZ, "WBS-element") + 1 To wsZ.Cells(wsZ.Rows.Count, cW).End(xlUp).Row
         wbS = Trim(CStr(wsZ.Cells(r, cW).Value))
         If wbS <> "" And Application.WorksheetFunction.CountIf(pl.Columns(1), wbS) = 0 Then
             Do While vrij <= pl.Rows.Count
@@ -461,9 +469,10 @@ Public Sub RDFO_LeegMaken()
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     Application.Calculation = xlCalculationManual
-    With ThisWorkbook.Worksheets("Bron_ZPMW03")
-        .Rows("2:" & .Rows.Count).ClearContents
-    End With
+    Dim vs As Variant
+    For Each vs In Array("Budget", "Q1", "Q2", "Q3", "Q4")
+        ThisWorkbook.Worksheets(vs & " ZPMW03").Cells.ClearContents
+    Next vs
     With ThisWorkbook.Worksheets("Bron_Woningetalage")
         .Rows("2:" & .Rows.Count).ClearContents
     End With
@@ -815,7 +824,6 @@ Private Sub TitelDia(ByVal pres As Object)
     Vlak sld, 0, 0, 470, 540, NAVY
     Set sh = sld.Shapes.AddTextbox(1, 48, 150, 390, 18)
     Tekst sh, UCase(t("P_Regio")), 11, GEEL, True
-    sh.TextFrame.TextRange.Font.Spacing = 2
     Set sh = sld.Shapes.AddTextbox(1, 48, 176, 390, 120)
     Tekst sh, t("PPT_Titel"), 34, WIT, True
     Set sh = sld.Shapes.AddTextbox(1, 48, 300, 390, 30)
@@ -832,7 +840,6 @@ Private Function NieuweDia(ByVal pres As Object, ByVal titel As String, ByVal ke
     Vlak sld, 0, 0, 960, 8, GEEL
     Set sh = sld.Shapes.AddTextbox(1, 36, 22, 880, 14)
     Tekst sh, UCase(titel), 9, NAVY, True
-    sh.TextFrame.TextRange.Font.Spacing = 1.5
     Set sh = sld.Shapes.AddTextbox(1, 36, 38, 880, 30)
     If kern <> "" Then
         Tekst sh, kern, 20, NAVY, True

@@ -119,9 +119,9 @@ def start(bk):
     s.set('B12', style=sty['B12'], text='Kiest de exports en plakt ze in de gele tabbladen (mag ook zelf plakken).')
     s.set('C12', style=sty['B12'], text='Presentatie in Heijmans-stijl.')
     s.set('B14', style=sty['B14'], text='Zo werkt het')
-    steps = [('1. Plakken', 'Gele tabbladen achteraan: ZPMW03, Budget en Q1–Q4 ZPMW03, Woningetalage, AK-percentages, AK-realisatie, Mijlpalen.'),
+    steps = [('1. Plakken', 'Gele tabbladen: ZPMW03 in het tabblad van het kwartaal (Budget, Q1–Q4), Woningetalage, AK-percentages, AK-realisatie, Mijlpalen.'),
              ('2. Projectlijst', "Knop 'Nieuwe projecten toevoegen'. Oranje = soort kiezen (Opstal / Deelneming / Buiten scope), deelgebied optioneel."),
-             ('3. Invoer', 'Instellingen controleren (peildatum, versie, AK-factor). Kolom Status zegt wat nog ontbreekt.'),
+             ('3. Invoer', "Zet 'Versie van de upload' op het huidige kwartaal (bijv. Q3) en controleer de peildatum. Kolom Status zegt wat ontbreekt."),
              ('4. Bekijken', 'Dashboard: kies kwartaal en deelgebied. Elk rapport heeft een link naar de berekening.'),
              ('5. Presenteren', "Knop 'Maak PowerPoint'.")]
     merges_drop(s, lambda a, b: a >= 14)
@@ -164,14 +164,14 @@ def handleiding(bk):
     def gap(): rows.append(('gap', None, None))
     rows.append(('title', 'Handleiding', None)); rows.append(('text', 'Alles wat je nodig hebt op één plek. Gele cel = invullen. n.b. = niet beschikbaar.', None)); gap()
     sec('Elk kwartaal')
-    item('1. Plakken', "Plak de exports in de gele tabbladen achteraan, telkens vanaf A1: Bron_ZPMW03 (huidig), Budget/Q1–Q4 ZPMW03 (versies), Bron_Woningetalage, Bron_AK (AK-percentages), Bron_AKR (AK-realisatie, grootboek) en Bron_Mijlpalen. Of gebruik Start › 'Bronnen inlezen'. Alles rekent meteen.")
+    item('1. Plakken', "Plak de exports in de gele tabbladen, telkens vanaf A1: de ZPMW03 in het tabblad van het kwartaal (Budget, Q1, Q2, Q3 of Q4 ZPMW03), Bron_Woningetalage, Bron_AK (AK-percentages), Bron_AKR (AK-realisatie, grootboek) en Bron_Mijlpalen. Of gebruik Start › 'Bronnen inlezen'. Alles rekent meteen.")
     item('2. Projectlijst', "Knop 'Nieuwe projecten toevoegen' zet nieuwe WBS-elementen uit Bron_ZPMW03 onderaan. Oranje WBS = soort nog kiezen: Opstal, Deelneming of Buiten scope (telt nergens mee). Deelgebied kiezen is optioneel; leeg = geen deelgebied.")
-    item('3. Invoer', 'Rapportagejaar, peildatum, versie, eenheid en AK-factor (standaard 1,06). De kolom Status geeft aan wat nog niet is ingevuld. Deelgebieden maak je hier aan (blok 3).')
+    item('3. Invoer', "Zet 'Versie van de upload' op het huidige kwartaal: dat versie-tabblad levert de huidige cijfers voor alle rapporten (bijv. Q3 → 'Q3 ZPMW03'). Verder rapportagejaar, peildatum, eenheid en AK-factor (standaard 1,06). De kolom Status geeft aan wat nog niet is ingevuld. Deelgebieden maak je hier aan (blok 3).")
     item('4. Bekijken', 'Dashboard: kies doeljaar, kwartaal (vergelijking met het vorige kwartaal), type, project en deelgebied. Het deelgebiedfilter geldt voor alle rapporten. Elk rapport heeft bovenaan een link naar de berekening.')
     item('5. Presenteren', "Start › 'Maak PowerPoint' (Heijmans-stijl, met logo).")
     gap(); sec('Versies en budget')
     item('Budget', 'De prognose die vorig jaar voor dit jaar is afgegeven, bijv. de export van Q3 2025 voor budget 2026. Plak die in Budget ZPMW03.')
-    item('Q1 t/m Q4', 'De ZPMW03-export van dat kwartaal. Peildatum leeg = einde kwartaal; anders invullen op Versies.')
+    item('Q1 t/m Q4', 'De ZPMW03-export van dat kwartaal. Het kwartaal op Invoer (Versie van de upload) is de huidige upload; de andere zijn vergelijkingen. Volgend kwartaal: plak in het volgende tabblad en zet de versie op Invoer één verder.')
     item('Woningen', 'Alleen uit de huidige Woningetalage (één dump). Versies tonen omzet, BOR en AK-dekking.')
     item('Officiële AK', "Wijkt het gerapporteerde AK-bedrag af? Vul het in op Versies, kolom 'AK-dekking officieel'.")
     item('Mutatie', 'Projecten: verschil tussen het gekozen kwartaal en het vorige (Q3 t.o.v. Q2, Q1 t.o.v. Budget). Groen = hoger, rood = lager. Typ de uitleg in de gele kolom Toelichting mutatie. Niet sorteren, alleen filteren.')
@@ -194,7 +194,7 @@ def handleiding(bk):
         item(a, b)
     gap(); sec('Vragen')
     item('Versie toont n.b.', "Plakblad leeg, of de peildatum hoort bij een ander jaar. Zie Versies, kolom Status.")
-    item('Nieuw project ontbreekt', "Projectlijst › 'Nieuwe projecten toevoegen' (leest Bron_ZPMW03), of typ de WBS onderaan de lijst.")
+    item('Nieuw project ontbreekt', "Projectlijst › 'Nieuwe projecten toevoegen' (leest het versie-tabblad van de upload), of typ de WBS onderaan de lijst.")
     item("Geen macro's", 'Alles werkt met plakken. Alleen nieuwe projecten toevoegen en PowerPoint maken gebruiken een macro.')
     r = 1
     for kind, a, b in rows:

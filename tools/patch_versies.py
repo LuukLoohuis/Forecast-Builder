@@ -125,7 +125,7 @@ def build(bk, st):
                 R.set(f'D{row}', is_str=True, formula=f'IF(O{row}="","","Vastgesteld")'); R.set(f'F{row}', text=v); R.set(f'G{row}', formula='0')
                 R.set(f'E{row}', formula=f'Versies!$F${r}'); R.set(f'H{row}', formula=f'Versies!$D${r}')
                 R.set(f'I{row}', formula=f'Versies!$F${r}+{dj}')
-                R.set(f'J{row}', is_str=True, formula=f'$Z${w}')
+                R.set(f'J{row}', is_str=True, formula=f'IF(O{row}="","",$Z${w})')
                 R.set(f'M{row}', is_str=True, formula=f'IF($Z${w}="","",IF($CD${w}<>"",$CD${w},"Opstal"))')
                 R.set(f'N{row}', is_str=True, formula=f'IF($Z${w}="","",IFERROR(INDEX(V_IFRS,MATCH($Z${w},V_WBS,0))&"",IFERROR(INDEX({q(zs(v))}!{RNG},MATCH($Z${w},INDEX({q(zs(v))}!{RNG},0,$CG${r}),0),$DR${r})&"","J")))')
                 R.set(f'P{row}', formula=f'${dcol[key]}${w}')

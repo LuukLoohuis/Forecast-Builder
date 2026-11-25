@@ -209,9 +209,9 @@ def logos(bk, navy, wit):
 
 ORDER = ['Start', 'Dashboard', 'RDFO', 'Projecten', 'Projectdetail', 'Woningetalage', 'Outlook', 'Bandbreedte', 'AK-dekking',
          "Kansen en risico's", 'Reserves', 'Projectlijst', 'Invoer', 'Versies', 'Handleiding', 'Controle',
-         'Bron_ZPMW03', 'Budget ZPMW03', 'Q1 ZPMW03', 'Q2 ZPMW03', 'Q3 ZPMW03', 'Q4 ZPMW03', 'Bron_Woningetalage', 'Bron_AK', 'Bron_AKR', 'Bron_Mijlpalen',
+         'Budget ZPMW03', 'Q1 ZPMW03', 'Q2 ZPMW03', 'Q3 ZPMW03', 'Q4 ZPMW03', 'Bron_Woningetalage', 'Bron_AK', 'Bron_AKR', 'Bron_Mijlpalen',
          'VERSIE_REKEN', 'CALC_Versies', 'VERW_Project', 'SCEN', 'STG_ZPMW03', 'STG_Woningetalage', 'STG_AKR',
-         'Historie', 'Concept', 'Lijsten', 'PPT', 'Dias']
+         'Historie', 'Concept', 'Lijsten', 'PPT', 'Dias', 'Bron_ZPMW03']
 HIDDEN = {'Historie', 'Concept', 'Lijsten', 'PPT', 'Dias'}
 GEEL = {'Bron_ZPMW03', 'Budget ZPMW03', 'Q1 ZPMW03', 'Q2 ZPMW03', 'Q3 ZPMW03', 'Q4 ZPMW03', 'Bron_Woningetalage', 'Bron_AK', 'Bron_AKR', 'Bron_Mijlpalen'}
 GRIJS = {'VERSIE_REKEN', 'CALC_Versies', 'VERW_Project', 'SCEN', 'STG_ZPMW03', 'STG_Woningetalage', 'STG_AKR'}
