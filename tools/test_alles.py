@@ -458,6 +458,21 @@ def t_termijnen_schema(lo):
         d.close(True)
 
 
+def t_vba_namen():
+    """VBA: geen procedure met dezelfde naam als een module (Excel vindt dan de macro niet: 'kan niet worden uitgevoerd')"""
+    import glob
+    mods, procs = {}, {}
+    for f in glob.glob(os.path.join(ROOT, 'vba', '*.bas')) + glob.glob(os.path.join(ROOT, 'vba', '*.cls')):
+        t = open(f, 'rb').read().decode('cp1252')
+        m = re.search(r'Attribute VB_Name = "([^"]+)"', t)
+        naam = m.group(1) if m else os.path.splitext(os.path.basename(f))[0]
+        mods[naam.lower()] = naam
+        for p in re.findall(r'^(?:Public |Private )?(?:Sub|Function) (\w+)', t, re.M):
+            procs.setdefault(p.lower(), []).append(naam)
+    dubbel = ['%s (module %s)' % (mods[p], ', '.join(v)) for p, v in procs.items() if p in mods]
+    ok('VBA: geen macro met dezelfde naam als een module', not dubbel, ', '.join(dubbel))
+
+
 def t_overzetten(lo, demo):
     """FO overzetten (los bestand): het demo-werkbestand in een kopie van het sjabloon -> zelfde cashflow"""
     sj, oud = os.path.join(lo.tmp, 'oz_sjabloon.xlsm'), os.path.join(lo.tmp, 'oz_werk.xlsm')
@@ -473,7 +488,7 @@ def t_overzetten(lo, demo):
         ok('FO overzetten (los bestand): opent in LibreOffice', False, oz)
         return
     try:
-        d.getScriptProvider().getScript('vnd.sun.star.script:VBAProject.Overzetten.OverzettenTest?language=Basic&location=document'
+        d.getScriptProvider().getScript('vnd.sun.star.script:VBAProject.modOverzetten.OverzettenTest?language=Basic&location=document'
                                          ).invoke((sj, oud), (), ())
         ws = d.Sheets.getByName('Overzetten')
         status, nieuw, uitleg = tekst(ws, 'D12'), tekst(ws, 'C12'), tekst(ws, 'E12')
@@ -1511,6 +1526,7 @@ def main():
     t_dump_sko()
     t_start_driehoekjes()
     t_bt_raster()
+    t_vba_namen()
     t_daeb_dia2()
     t_dianummers()
     t_dia3_realisatie()

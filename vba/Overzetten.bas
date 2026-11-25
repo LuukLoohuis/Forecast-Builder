@@ -1,4 +1,4 @@
-Attribute VB_Name = "Overzetten"
+Attribute VB_Name = "modOverzetten"
 Option Explicit
 ' =====================================================================================
 '  FO overzetten: werkbestanden van een eerdere versie van het FO-werkbestand in het nieuwste sjabloon zetten.

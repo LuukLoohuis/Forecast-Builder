@@ -20,8 +20,8 @@ UIT = os.path.join(ROOT, 'output', 'FO_overzetten.xlsm')
 SCENARIO = os.path.join(ROOT, 'input', 'Cashflow_scenario_leeg_3.xlsm')
 PR = 'http://schemas.openxmlformats.org/package/2006/relationships'
 CT = '{http://schemas.openxmlformats.org/package/2006/content-types}'
-KNOPPEN = [('B8:C9', 'btnSjabloon', '1. Nieuwste sjabloon kiezen...', 'SjabloonKiezen', '5B6169'),
-           ('D8:E9', 'btnOverzetten', '2. Werkbestanden kiezen en overzetten...', 'Overzetten', '111F39')]
+KNOPPEN = [('B8:C9', 'btnSjabloon', '1. Nieuwste sjabloon kiezen...', 'modOverzetten.SjabloonKiezen', '5B6169'),
+           ('D8:E9', 'btnOverzetten', '2. Werkbestanden kiezen en overzetten...', 'modOverzetten.Overzetten', '111F39')]
 
 
 def blad(pad):
@@ -85,7 +85,7 @@ def maak(uit=UIT):
     lees = lambda n: open(os.path.join(vdir, n), 'rb').read()
     modules = [{'name': 'ThisWorkbook', 'document': True, 'code': vba_project.document_module_source('ThisWorkbook', True)},
                {'name': 'shOverzetten', 'document': True, 'code': vba_project.document_module_source('shOverzetten')},
-               {'name': 'Overzetten', 'document': False, 'code': lees('Overzetten.bas')}]
+               {'name': 'modOverzetten', 'document': False, 'code': lees('Overzetten.bas')}]
     sjab = os.path.join(tmp, 'vba.bin')
     open(sjab, 'wb').write(Package(SCENARIO).parts['xl/vbaProject.bin'])
     pkg.parts['xl/vbaProject.bin'] = vba_project.build_vba_project(sjab, modules)
