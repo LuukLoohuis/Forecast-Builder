@@ -11,6 +11,7 @@ Option Explicit
 Private Const HISTORIE_LAATSTE_RIJ As Long = 5005
 Private Const BRON_CAPACITEIT As Long = 500
 Private Const IMPORTLOG_KOLOM As Long = 24        ' kolom X op Historie
+Private Const rekenbladen As String = "VERSIE_REKEN,CALC_Versies,VERW_Project,SCEN,STG_ZPMW03,STG_Woningetalage,STG_AKR"
 Private Const verborgen As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
 
 ' ---------------------------------------------------------------- huisstijl
@@ -638,17 +639,46 @@ End Sub
 
 ' ================================================================= 3. REKENBLADEN
 Public Sub RDFO_ToonRekenbladen()
+    ' knop op Start: de grijze rekenbladen achteraan tonen of verbergen (links op de rapporten openen ze ook als ze verborgen zijn)
     Dim naam As Variant, tonen As Boolean
-    tonen = (ThisWorkbook.Worksheets("Concept").Visible <> xlSheetVisible)
-    For Each naam In Split(verborgen, ",")
+    tonen = (ThisWorkbook.Worksheets("CALC_Versies").Visible <> xlSheetVisible)
+    Application.ScreenUpdating = False
+    On Error Resume Next
+    For Each naam In Split(rekenbladen, ",")
         If tonen Then
             ThisWorkbook.Worksheets(CStr(naam)).Visible = xlSheetVisible
         Else
             ThisWorkbook.Worksheets(CStr(naam)).Visible = xlSheetHidden
         End If
     Next naam
+    On Error GoTo 0
     ThisWorkbook.Worksheets("Start").Activate
-    MsgBox IIf(tonen, "De bron- en rekenbladen staan nu achteraan zichtbaar. Wijzig daar niets.", "De bron- en rekenbladen zijn weer verborgen."), vbInformation
+    Application.ScreenUpdating = True
+End Sub
+
+Public Sub RDFO_OpenLink(ByVal adres As String)
+    ' volgt een link naar een (eventueel verborgen) tabblad
+    Dim p As Long, blad As String
+    p = InStrRev(adres, "!")
+    If p = 0 Then Exit Sub
+    blad = Left(adres, p - 1)
+    If Left(blad, 1) = "'" Then blad = Mid(blad, 2, Len(blad) - 2)
+    blad = Replace(blad, "''", "'")
+    On Error Resume Next
+    If ThisWorkbook.Worksheets(blad).Visible <> xlSheetVisible Then
+        ThisWorkbook.Worksheets(blad).Visible = xlSheetVisible
+        Application.Goto ThisWorkbook.Worksheets(blad).Range(Mid(adres, p + 1)), True
+    End If
+End Sub
+
+Public Sub RDFO_FilterBijwerken()
+    ' Projecten: verberg projecten zonder cijfers opnieuw (na nieuwe dumps of een ander kwartaal)
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("Projecten")
+    If ws.AutoFilterMode Then
+        If ws.AutoFilter.Filters(24).On Then ws.AutoFilter.ApplyFilter
+    End If
 End Sub
 
 ' ================================================================= 4. POWERPOINT

@@ -112,7 +112,7 @@ def budget(bk):
             f.text = re.sub(r'IF\(\$CD\$(\d+)<>"",\$CD\$\1,"Opstal"\)', r'IF(OR($CD$\1="",$CD$\1="Strapo"),"Opstal",$CD$\1)', f.text)
 
 def rdfo(bk):
-    s = bk.sheet('RDFO'); hide_cols(s, ['H'])
+    s = bk.sheet('RDFO'); hide_cols(s, ['H', 'J'])
     st = dict(h=s.style('C33'), l=s.style('B34'), n=s.style('C34'), t=s.style('B37'), tn=s.style('C37'), sec=s.style('B33'))
     for r in range(39, 47):
         if r in s.rows:
@@ -120,18 +120,18 @@ def rdfo(bk):
     s.set('B39', is_str=True, formula='"Vrijval reserves "&P_RJ&" ("&P_Eenheid&")  ·  klik + om open te klappen"', style=st['sec'])
     for q in range(4): s.set(f'{"CDEF"[q]}39', is_str=True, formula=f'P_RJ&"-Q{q+1}"', style=st['h'])
     s.set('G39', text='Jaar', style=st['h'])
-    for r, lab, col, kcol in ((40, 'Commerciële reserve', 'L', 'AR'), (41, 'Operationele reserve', 'M', 'AS')):
+    for r, lab, col, kcol in ((40, 'Commerciële reserve', 'L', 'P'), (41, 'Operationele reserve', 'M', 'Q'), (42, 'Nazorg', 'N', 'R')):
         s.set(f'B{r}', text=lab, style=st['l'])
         for q in range(4):
             c = 'CDEF'[q]
             s.set(f'{c}{r}', style=st['n'], formula=f'SUMIFS(Projectlijst!${col}$8:${col}$107,Projectlijst!${kcol}$8:${kcol}$107,{c}$39,PL_Telt,"Ja")/P_Factor')
         s.set(f'G{r}', style=st['n'], formula=f'SUM(C{r}:F{r})')
         row = s.row(r); row.set('outlineLevel', '1'); row.set('hidden', '1')
-    s.set('B42', text='Vrijval reserves (plus op het resultaat)', style=st['t'])
-    for c in 'CDEFG': s.set(f'{c}42', style=st['tn'], formula=f'SUM({c}40:{c}41)')
-    s.row(42).set('collapsed', '1')
-    s.set('B43', text='OPR-resultaat incl. vrijval (geselecteerde versie)', style=st['l'])
-    s.set('G43', style=st['n'], formula='IF(AND(ISNUMBER(J22),Sel_Doeljaar=P_RJ),J22+G42,"–")')
+    s.set('B43', text='Vrijval reserves (plus op het resultaat)', style=st['t'])
+    for c in 'CDEFG': s.set(f'{c}43', style=st['tn'], formula=f'SUM({c}40:{c}42)')
+    s.row(43).set('collapsed', '1')
+    s.set('B44', text='OPR-resultaat incl. vrijval (geselecteerde versie)', style=st['l'])
+    s.set('G44', style=st['n'], formula='IF(AND(ISNUMBER(J22),Sel_Doeljaar=P_RJ),J22+G43,"–")')
     pr = s.root.find(N+'sheetPr')
     if pr is None: pr = etree.Element(N+'sheetPr'); s.root.insert(0, pr)
     op = pr.find(N+'outlinePr')
@@ -151,23 +151,54 @@ def projectlijst(bk, dxf_or):
     hide_cols(p, ['X'])
     H6, H7, IN, NUM = p.style('AG6'), p.style('AG7'), p.style('AG8') or bk.sheet('Invoer').style('D9'), p.style('O8')
     inp = bk.sheet('Invoer').style('D9'); inpt = bk.sheet('Invoer').style('D14')
-    p.set('AO6', text='WONINGEN', style=H6); p.set('AR6', text='VRIJVAL RESERVES', style=H6)
+    p.set('AO6', text='WONINGEN', style=H6)
     for c, t in (('AO', 'Woningen totaal\n(Woningetalage)'), ('AP', 'Waarvan B2B\n(invullen)'), ('AQ', 'B2C\n(= totaal − B2B)'),
-                 ('AR', 'Commerciële reserve\nvalt vrij in'), ('AS', 'Operationele reserve\nvalt vrij in')):
+                 ('AR', 'Vrijval later\n(berekend)')):
         p.set(f'{c}7', text=t, style=H7)
+    # reserves: per soort een bedrag (L-N) en het kwartaal waarin die vrijvalt (P-R); S-T = vrijval per jaar
+    oud = {}
+    for r in range(8, 108):
+        for src, dst in (('AR', 'P'), ('AS', 'Q')):
+            el = p.cell(f'{src}{r}'); v = el.find(N+'v'); t = el.find(N+'is')
+            val = v.text if v is not None else (''.join(t.itertext()) if t is not None else None)
+            if val and re.match(r'^\d{4}-Q[1-4]$', val): oud[f'{dst}{r}'] = val
+    p.set('L6', text='RESERVES (EUR) EN WANNEER ZE VRIJVALLEN', style=p.style('L6'))
+    H7r = p.style('L7')
+    for c, t in (('P', 'Commerciële\nvalt vrij in'), ('Q', 'Operationele\nvalt vrij in'), ('R', 'Nazorg\nvalt vrij in')):
+        p.set(f'{c}7', text=t, style=H7r)
+    p.set('S7', is_str=True, formula='"Vrijval"&CHAR(10)&P_RJ', style=H7r); p.set('T7', is_str=True, formula='"Vrijval"&CHAR(10)&(P_RJ+1)', style=H7r)
+    NUMr = p.style('R8')
+    jr = lambda c, r, y: f'(LEFT({c}{r},4)=(P_RJ+{y})&"")'
+    for r in range(8, 108):
+        for c in 'PQR': p.set(f'{c}{r}', style=inpt, text=oud.get(f'{c}{r}'))
+        for c, y in (('S', 0), ('T', 1)):
+            p.set(f'{c}{r}', style=NUMr, formula=f'IF(O{r}="","",N(L{r})*{jr("P",r,y)}+N(M{r})*{jr("Q",r,y)}+N(N{r})*{jr("R",r,y)})')
+        p.set(f'AR{r}', style=NUM, formula=f'IF(O{r}="","",O{r}-N(S{r})-N(T{r}))')
+        clear(p, f'AS{r}')
+    clear(p, 'AS7')
+    p.root.find(N+'dataValidations').remove(next(dv for dv in p.root.iter(N+'dataValidation') if dv.get('sqref') == 'AR8:AS107')) if any(dv.get('sqref') == 'AR8:AS107' for dv in p.root.iter(N+'dataValidation')) else None
+    add_dv_list(p, 'P8:R107', 'L_Kwartalen')
+    cols = p.root.find(N+'cols')
+    for c in list(cols):
+        mn, mx = int(c.get('min')), int(c.get('max'))
+        if mn == 16 or mn == 17: c.set('width', '12')
+        if mn == 18 and mx == 19:     # R zichtbaar, S verborgen in de groep
+            e = copy.deepcopy(c); c.set('max', '18'); e.set('min', '19')
+            for a in ('hidden', 'outlineLevel'): c.attrib.pop(a, None)
+            c.addnext(e)
+    hide_cols(p, ['AR', 'AS'])
     for r in range(8, 108):
         p.set(f'AO{r}', style=NUM, formula=f'IF(OR($A{r}="",COUNTIF(STG_Woningetalage!$B$6:$B$505,$A{r})=0),"",SUMIFS(STG_Woningetalage!$Q$6:$Q$505,STG_Woningetalage!$B$6:$B$505,$A{r}))')
         p.set(f'AP{r}', style=inp)
         p.set(f'AQ{r}', style=NUM, formula=f'IF(AO{r}="","",AO{r}-N(AP{r}))')
-        p.set(f'AR{r}', style=inpt); p.set(f'AS{r}', style=inpt)
-    add_dv_list(p, 'AR8:AS107', 'L_Kwartalen')
     p.set('AT6', text='MIJLPALEN', style=H6); p.set('AT7', text='WBS in mijlpalen-dump\n(leeg = zelfde WBS)', style=H7)
     for r in range(8, 108): p.set(f'AT{r}', style=inpt)
     add_cf(p, 'AQ8:AQ107', 'AND(ISNUMBER(AQ8),AQ8<0)', dxf_or, prio=3)
     L = bk.sheet('Lijsten'); L.set('S3', text='L_Kwartalen'); k = 4
     for y in range(3):
         for q in range(1, 5): L.set(f'S{k}', is_str=True, formula=f'(P_RJ+{y})&"-Q{q}"'); k += 1
-    bk.set_name('L_Kwartalen', 'Lijsten!$S$4:$S$15')
+    L.set('S16', text='Later')
+    bk.set_name('L_Kwartalen', 'Lijsten!$S$4:$S$16')
     inv = bk.sheet('Invoer'); expand_shared(inv, range(31, 131))
     for i in range(100):
         r = 31 + i; q = 8 + i

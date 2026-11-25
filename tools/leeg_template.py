@@ -32,6 +32,8 @@ def main(src, dst):
     ms = bk.sheet('Bron_Mijlpalen'); clear_values(ms, 1, 1, 10**6, 10**7, whole_rows=True)
     ms.set('A1', text='Plak hier de mijlpalen-export (hele blad, vanaf A1): rij 1 = mijlpalen, rij 2 = verwacht/werkelijk, kolom A = "WBS - naam".')
     clear_values(bk.sheet('Projecten'), 19, 10, 19, 109)
+    pj = bk.sheet('Projecten')
+    for r in range(10, 110): pj.row(r).set('hidden', '1')   # nog geen projecten met cijfers
     for sh, ref in [('Invoer', 'D8')]:
         s = bk.sheet(sh); s.set(ref, text='Regio (invullen)', style=s.style(ref))
     d = bk.sheet('Dashboard'); d.set('N5', text='Alle', style=d.style('N5'))
