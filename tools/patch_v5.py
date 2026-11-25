@@ -135,7 +135,10 @@ def rdfo(bk):
     pr = s.root.find(N+'sheetPr')
     if pr is None: pr = etree.Element(N+'sheetPr'); s.root.insert(0, pr)
     op = pr.find(N+'outlinePr')
-    if op is None: op = etree.SubElement(pr, N+'outlinePr')
+    if op is None:
+        op = etree.Element(N+'outlinePr'); tc = pr.find(N+'tabColor')
+        if tc is not None: tc.addnext(op)
+        else: pr.insert(0, op)
     op.set('summaryBelow', '1')
     fmt = s.root.find(N+'sheetFormatPr')
     if fmt is not None: fmt.set('outlineLevelRow', '1')
@@ -158,6 +161,8 @@ def projectlijst(bk, dxf_or):
         p.set(f'AQ{r}', style=NUM, formula=f'IF(AO{r}="","",AO{r}-N(AP{r}))')
         p.set(f'AR{r}', style=inpt); p.set(f'AS{r}', style=inpt)
     add_dv_list(p, 'AR8:AS107', 'L_Kwartalen')
+    p.set('AT6', text='MIJLPALEN', style=H6); p.set('AT7', text='WBS in mijlpalen-dump\n(leeg = zelfde WBS)', style=H7)
+    for r in range(8, 108): p.set(f'AT{r}', style=inpt)
     add_cf(p, 'AQ8:AQ107', 'AND(ISNUMBER(AQ8),AQ8<0)', dxf_or, prio=3)
     L = bk.sheet('Lijsten'); L.set('S3', text='L_Kwartalen'); k = 4
     for y in range(3):
@@ -186,9 +191,26 @@ def projecten(bk, dxf_yel, dxf_grey):
 
 def projectdetail(bk, red, orange):
     p = bk.sheet('Projectdetail')
-    add_cf(p, 'C64:C79', 'AND(ISNUMBER(C64),D64="",C64<TODAY())', red, prio=1)
-    add_cf(p, 'C64:C79', 'AND(ISNUMBER(C64),D64="",C64>=TODAY(),C64<=EDATE(TODAY(),2))', orange, prio=2)
-    p.set('G63', text='Rood = verwacht verstreken · oranje = binnen 2 maanden · leeg = gerealiseerd', style=bk.sheet('Invoer').style('E9'))
+    for r in range(62, 110):
+        if r in p.rows:
+            for el in list(p.rows[r].findall(N+'c')): p.rows[r].remove(el)
+    H, L, DATE, TXT = p.style('B16'), p.style('B17'), bk.sheet('Historie').style('C6'), bk.sheet('Invoer').style('E9')
+    key = 'IF(IFERROR(INDEX(Projectlijst!$AT$8:$AT$107,MATCH(Det_WBS,Projectlijst!$A$8:$A$107,0))&"","")<>"",INDEX(Projectlijst!$AT$8:$AT$107,MATCH(Det_WBS,Projectlijst!$A$8:$A$107,0))&"",Det_WBS)'
+    p.set('B62', text='Mijlpalen', style=p.style('B15'))
+    p.set('L62', formula=f'IF(Det_Idx=0,0,IFERROR(MATCH({key}&" *",Bron_Mijlpalen!$A:$A,0),IFERROR(MATCH({key}&"*",Bron_Mijlpalen!$A:$A,0),0)))')
+    p.set('C62', is_str=True, style=TXT, formula='IF(Det_Idx=0,"",IF($L$62=0,"Geen mijlpalen gevonden: vul op de Projectlijst (kolom AT) de WBS uit de mijlpalen-dump in.","Rood = verwachte datum verstreken · oranje = binnen 2 maanden · geen kleur = gerealiseerd"))')
+    for r, t in ((63, 'Mijlpaal'), (64, 'Verwacht'), (65, 'Werkelijk'), (66, 'Status')): p.set(f'B{r}', text=t, style=H if r == 63 else L)
+    for k in range(8):
+        c = CL(3 + k); cv, cw = 2*(k+1), 2*(k+1)+1
+        p.set(f'{c}63', is_str=True, style=H, formula=f'IF($L$62=0,"",IFERROR(INDEX(Bron_Mijlpalen!$1:$1,{cv})&"",""))')
+        for r, cc in ((64, cv), (65, cw)):
+            p.set(f'{c}{r}', style=DATE, formula=f'IF(OR($L$62=0,{c}$63=""),"",IF(INDEX(Bron_Mijlpalen!$A$1:$AZ$1000,$L$62,{cc})="","",INDEX(Bron_Mijlpalen!$A$1:$AZ$1000,$L$62,{cc})))')
+        p.set(f'{c}66', is_str=True, style=L, formula=(f'IF({c}$63="","",IF(ISNUMBER({c}65),"✔ gerealiseerd",IF(ISNUMBER({c}64),'
+                                                        f'IF({c}64<TODAY(),"verlopen",IF({c}64<=EDATE(TODAY(),2),"< 2 maanden","gepland")),"–")))'))
+    r63 = p.row(63); r63.set('ht', '42'); r63.set('customHeight', '1')
+    add_cf(p, 'C64:J64', 'AND(ISNUMBER(C64),NOT(ISNUMBER(C65)),C64<TODAY())', red, prio=1)
+    add_cf(p, 'C64:J64', 'AND(ISNUMBER(C64),NOT(ISNUMBER(C65)),C64>=TODAY(),C64<=EDATE(TODAY(),2))', orange, prio=2)
+    p.root.find(N+'dimension').set('ref', 'A1:V66')
 
 def woningetalage(bk):
     w = bk.sheet('Woningetalage'); inp = bk.sheet('Invoer').style('D14')
@@ -249,8 +271,6 @@ def bandbreedte(bk):
         return 'xl/charts/' + tg.group(1)
     for sheet, nr in (('Bandbreedte', 1), ('Dias', 9)):
         fn = chart_of(sheet, nr); bk.data[fn] = xml
-        rfn = fn.replace('charts/', 'charts/_rels/') + '.rels'
-        if rfn in bk.data: del bk.data[rfn]   # geen kleurstijl-verwijzingen meer
     ct = bk.text('[Content_Types].xml')
     bk.settext('[Content_Types].xml', ct)
     p = bk.sheet('PPT'); p.set('H37', text='')
@@ -309,7 +329,7 @@ def dias_tabellen(bk, red, orange):
         rr = r2 + 30 + i
         d.set(f'R{rr}', is_str=True, formula=f'TRIM(Bron_Mijlpalen!$A{i}&"")')
         d.set(f'S{rr}', is_str=True, formula=f'IF(R{rr}="","",LEFT(R{rr},FIND(" - ",R{rr}&" - ")-1))')
-        d.set(f'T{rr}', formula=(f'IF(OR(S{rr}="",ISERROR(FIND(".",S{rr}))),"",IF(IF(COUNTIF(Projectlijst!$A$8:$A$107,S{rr})>0,COUNTIFS(Projectlijst!$A$8:$A$107,S{rr},PL_Telt,"Ja")>0,OR(Sel_Deelgebied="Alle",Sel_Deelgebied="",Sel_Deelgebied="(geen)")),MAX($T${r2+32}:T{rr-1})+1,""))'))
+        d.set(f'T{rr}', formula=(f'IF(OR(S{rr}="",ISERROR(FIND(".",S{rr}))),"",IF(IF(COUNTIF(Projectlijst!$A$8:$A$107,S{rr})+COUNTIF(Projectlijst!$AT$8:$AT$107,S{rr})>0,COUNTIFS(Projectlijst!$A$8:$A$107,S{rr},PL_Telt,"Ja")+COUNTIFS(Projectlijst!$AT$8:$AT$107,S{rr},PL_Telt,"Ja")>0,OR(Sel_Deelgebied="Alle",Sel_Deelgebied="",Sel_Deelgebied="(geen)")),MAX($T${r2+32}:T{rr-1})+1,""))'))
     d.set(f'T{r2+32}', text='nr')
     for k in range(NPJ):
         r = r2 + 1 + k
@@ -327,20 +347,6 @@ def dias_tabellen(bk, red, orange):
     add_cf(d, f'C{r2+1}:J{r2+NPJ}', f'AND(ISNUMBER(V{r2+1}),NOT(ISNUMBER(AD{r2+1})),V{r2+1}>=TODAY(),V{r2+1}<=EDATE(TODAY(),2))', orange, prio=2)
     bk.set_name('T_MIJL', f'Dias!$B${r2}:$J${r2+NPJ}')
     d.root.find(N+'dimension').set('ref', f'A1:AK{r2+95}')
-    # --- zelfde heatmap op Projectdetail (alle projecten)
-    p = bk.sheet('Projectdetail'); r3 = 82
-    p.set(f'B{r3}', text='Mijlpalen alle projecten (verwachte datum; ✔ = gerealiseerd)', style=p.style('B62'))
-    p.set(f'B{r3+1}', text='Project', style=p.style('B63'))
-    for k in range(NM): p.set(f'{CL(3+k)}{r3+1}', is_str=True, formula=f'Dias!{CL(3+k)}{r2}', style=p.style('B63'))
-    for k in range(NPJ):
-        for j in range(NM + 1):
-            p.set(f'{CL(2+j)}{r3+2+k}', is_str=True, formula=f'Dias!{CL(2+j)}{r2+1+k}&""', style=p.style('B64'))
-        for j in range(NM):
-            p.set(f'{CL(39+j)}{r3+2+k}', formula=f'Dias!{CL(22+j)}{r2+1+k}'); p.set(f'{CL(39+NM+j)}{r3+2+k}', formula=f'Dias!{CL(22+NM+j)}{r2+1+k}')
-    add_cf(p, f'C{r3+2}:J{r3+1+NPJ}', f'AND(ISNUMBER(AM{r3+2}),NOT(ISNUMBER(AU{r3+2})),AM{r3+2}<TODAY())', red, prio=3)
-    add_cf(p, f'C{r3+2}:J{r3+1+NPJ}', f'AND(ISNUMBER(AM{r3+2}),NOT(ISNUMBER(AU{r3+2})),AM{r3+2}>=TODAY(),AM{r3+2}<=EDATE(TODAY(),2))', orange, prio=4)
-    hide_cols(p, [CL(c) for c in range(39, 39 + 2*NM)])
-    p.root.find(N+'dimension').set('ref', f'A1:BB{r3+2+NPJ}')
 
 def ppt_spec(bk):
     p = bk.sheet('PPT')
@@ -412,6 +418,7 @@ def knoppen(bk):
             bk.settext(fn, t)
     # Projecten: nieuwe tekening met filterknop
     fn, rfn = drawing_of('Projecten')
+    d2 = bk.text(start); d2 = re.sub(r'<a:t>\s*\d+\s+Maak PowerPoint</a:t>', '<a:t>Maak PowerPoint</a:t>', d2); d2 = d2.replace('descr="3  Maak PowerPoint"', 'descr="Maak PowerPoint"'); bk.settext(start, d2)
     knop = tmpl.replace('RDFO_MaakPowerPoint', 'RDFO_FilterProjecten')
     knop = re.sub(r'descr="[^"]*"', 'descr="Toon alleen projecten met cijfers / alles"', knop)
     knop = re.sub(r'(<a:t>)[^<]*(</a:t>)', r'\1Alleen projecten met cijfers / alles\2', knop, count=1)
@@ -440,13 +447,31 @@ def controle(bk):
     c.set('F10', is_str=True, style=c.style('F10'), formula=f'"verwacht "&{X}')
     c.set('G10', is_str=True, style=c.style('G10'), formula=f'IF(E10={X},"OK","FOUT")')
 
+def voortgang(bk):
+    st = bk.sheet('Start'); H, L, TXT = st.style('B14'), st.style('C15'), st.style('B12')
+    items = [(f"'{v} ZPMW03'", f'{v} ZPMW03', f'N(Versies!$I${6+i})', f'IF(N(Versies!$I${6+i})>0," ("&Versies!$I${6+i}&" projecten)","")&IF(Invoer!$D$14="{v}","  ★ huidig","")') for i, v in enumerate(['Budget', 'Q1', 'Q2', 'Q3', 'Q4'])]
+    nw = 'MAX(0,COUNTIF(INDEX(Bron_Woningetalage!$A$1:$ZZ$501,0,MAX(1,STG_Woningetalage!$B$3)),"?*")-1)'
+    items += [("'Bron_Woningetalage'", 'Woningetalage', nw, f'IF({nw}>0," ("&{nw}&" regels)","")'),
+              ("'Bron_AK'", 'AK-percentages', 'COUNTA(Bron_AK!$A$2:$A$3000)', 'IF(COUNTA(Bron_AK!$A$2:$A$3000)>0," ("&COUNTA(Bron_AK!$A$2:$A$3000)&" regels)","")'),
+              ("'Bron_AKR'", 'AK-realisatie (grootboek)', 'N(AKR_Rijen)', 'IF(N(AKR_Rijen)>0," ("&AKR_Rijen&" boekingen)","")'),
+              ("'Bron_Mijlpalen'", 'Mijlpalen', 'MAX(0,COUNTA(Bron_Mijlpalen!$A$3:$A$1000))', 'IF(COUNTA(Bron_Mijlpalen!$A$3:$A$1000)>0," ("&COUNTA(Bron_Mijlpalen!$A$3:$A$1000)&" projecten)","")')]
+    tel = '+'.join(f'IF({n}>0,1,0)' for _, _, n, _ in items)
+    st.set('G7', is_str=True, style=H, formula=f'"Geüpload: "&({tel})&" van {len(items)}"')
+    for i, (sheet, label, n, extra) in enumerate(items):
+        r = 8 + i
+        st.set(f'G{r}', is_str=True, style=TXT, formula=f'IF({n}>0,"✔  ","–  ")&"{label}"&{extra}')
+        add_hyperlink(st, f'G{r}', f"{sheet}!A1", label)
+    cols = st.root.find(N+'cols')
+    for c in cols:
+        if c.get('min') == '7' and c.get('max') == '7': c.set('width', '44')
+
 def main(src, dst):
     bk = Book(src)
     red = add_dxf(bk, 'FFF4B6B2'); orange = add_dxf(bk, 'FFFCD9A0'); yel = add_dxf(bk, 'FFFFF2CC'); grey = None
     st = bk.text('xl/styles.xml'); m = re.search(r'<dxfs count="(\d+)"', st); grey = int(m.group(1))
     st = st.replace(m.group(0), f'<dxfs count="{grey+1}"', 1).replace('</dxfs>', '<dxf><font><color rgb="FFA4B3BB"/></font></dxf></dxfs>', 1); bk.settext('xl/styles.xml', st)
     labels(bk); budget(bk); rdfo(bk); projectlijst(bk, orange); projecten(bk, yel, grey); projectdetail(bk, red, orange)
-    woningetalage(bk); outlook(bk); bandbreedte(bk); controle(bk); dias_tabellen(bk, red, orange); ppt_spec(bk); knoppen(bk)
+    woningetalage(bk); outlook(bk); bandbreedte(bk); controle(bk); voortgang(bk); dias_tabellen(bk, red, orange); ppt_spec(bk); knoppen(bk)
     bk.save(dst)
 
 if __name__ == '__main__': main(sys.argv[1], sys.argv[2])
