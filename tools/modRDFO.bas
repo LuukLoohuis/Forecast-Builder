@@ -262,7 +262,7 @@ Private Function ProjectenErbij(ByVal stil As Boolean) As Long
             If co > 0 Then If Trim(CStr(wsZ.Cells(r, co).Value)) <> "" Then naam = Trim(CStr(wsZ.Cells(r, co).Value))
             If Application.WorksheetFunction.CountIf(pl.Columns(2), naam) > 0 Then naam = naam & " (" & wbS & ")"
             pl.Cells(vrij, 2).Value = naam
-            pl.Cells(vrij, 3).Value = "Opstal"
+            pl.Cells(vrij, 3).Value = ""            ' soort zelf kiezen (oranje)
             If cP > 0 Then det.Cells(vrij, 1).Value = wsZ.Cells(r, cP).Value
             det.Cells(vrij, 4).Value = "Nee"          ' strapo
             Nm("PK_Keuzes").Rows(vrij).Value = Array("Ja", "Nee", "Ja", "Ja")   ' prognose, woningen, AK, PowerPoint
@@ -736,7 +736,7 @@ Public Sub RDFO_OutlookJaren()
     Set wsO = ThisWorkbook.Worksheets("Outlook")
     ' getoond: jaar 3..6 (= RJ+1 .. RJ+4), en alleen jaren met cijfers
     n = Nm("OUT_N").Value
-    If n > 6 Then n = 6
+    If n > 7 Then n = 7
     If n < 3 Then n = 3
     For i = 1 To 8
         wsO.Columns(2 + i).Hidden = (i < 3 Or i > n)
@@ -756,7 +756,8 @@ Public Sub RDFO_OutlookJaren()
     ' bandbreedte (liggend): jaren op de verticale as = rapportagejaar .. +2
     Dim rj As Long
     rj = Nm("P_RJ").Value
-    For Each doel In Split(Nm("BB_Grafieken").Value, ";")
+    For Each doel In Split(Nm("BB_Grafieken").Value & "", ";")
+        If Len(doel) = 0 Then GoTo volgende
         delen = Split(doel, "|")
         Set co = ThisWorkbook.Worksheets(delen(0)).ChartObjects(CLng(delen(1)))
         With co.Chart.Axes(2)
@@ -764,6 +765,7 @@ Public Sub RDFO_OutlookJaren()
             .MaximumScale = rj + 3
             .TickLabels.NumberFormat = "[<" & rj & "]"""";[>" & (rj + 2) & "]"""";0"
         End With
+volgende:
     Next doel
 End Sub
 
@@ -823,44 +825,42 @@ Private Sub Logo(ByVal sld As Object, ByVal naam As String, ByVal rechts As Sing
 End Sub
 
 Private Sub TitelDia(ByVal pres As Object)
-    ' Heijmans-stijl: links donkerblauw vlak met witte titel, rechts geel met het logo
+    ' geel titelblad met donkerblauwe letters (zoals het voorbeeld) + Heijmans-logo
     Dim sld As Object, sh As Object
     Set sld = pres.Slides.Add(1, 12)
     Vlak sld, 0, 0, 960, 540, GEEL
-    Vlak sld, 0, 0, 470, 540, NAVY
-    Set sh = sld.Shapes.AddTextbox(1, 48, 150, 390, 18)
-    Tekst sh, UCase(t("P_Regio")), 11, GEEL, True
-    Set sh = sld.Shapes.AddTextbox(1, 48, 176, 390, 120)
-    Tekst sh, t("PPT_Titel"), 34, WIT, True
-    Set sh = sld.Shapes.AddTextbox(1, 48, 300, 390, 30)
-    Tekst sh, t("PPT_Sub"), 18, GEEL, False
-    Set sh = sld.Shapes.AddTextbox(1, 48, 492, 390, 16)
-    Tekst sh, "Gemaakt op " & Format(Now, "dd-mm-yyyy") & "  ·  bron: " & ThisWorkbook.Name, 9, WIT, False
-    Logo sld, "LogoNavy", 920, 470, 40
+    Vlak sld, 0, 0, 960, 10, NAVY
+    Set sh = sld.Shapes.AddTextbox(1, 72, 64, 600, 30)
+    Tekst sh, t("P_Regio"), 16, NAVY, True
+    Set sh = sld.Shapes.AddTextbox(1, 72, 180, 820, 130)
+    Tekst sh, t("PPT_Titel"), 44, NAVY, True
+    Vlak sld, 74, 322, 120, 8, NAVY
+    Set sh = sld.Shapes.AddTextbox(1, 72, 346, 820, 34)
+    Tekst sh, t("PPT_Sub"), 20, NAVY, False
+    Logo sld, "LogoNavy", 900, 456, 44
 End Sub
 
 Private Function NieuweDia(ByVal pres As Object, ByVal titel As String, ByVal kern As String) As Object
-    ' Heijmans-stijl: gele balk boven, kleine kop in hoofdletters, kernboodschap als koptekst, logo rechtsonder
+    ' donkerblauwe lijn boven, gele accentbalk bij de titel, korte kernboodschap, logo rechtsonder
     Dim sld As Object, sh As Object
     Set sld = pres.Slides.Add(pres.Slides.Count + 1, 12)
-    Vlak sld, 0, 0, 960, 8, GEEL
-    Set sh = sld.Shapes.AddTextbox(1, 36, 22, 880, 14)
-    Tekst sh, UCase(titel), 9, NAVY, True
-    Set sh = sld.Shapes.AddTextbox(1, 36, 38, 880, 30)
+    Vlak sld, 0, 0, 960, 6, NAVY
+    Vlak sld, 36, 30, 6, 30, GEEL
+    Set sh = sld.Shapes.AddTextbox(1, 52, 28, 860, 34)
+    Tekst sh, titel, 24, NAVY, True
     If kern <> "" Then
-        Tekst sh, kern, 20, NAVY, True
-    Else
-        Tekst sh, titel, 20, NAVY, True
+        Set sh = sld.Shapes.AddTextbox(1, 52, 64, 860, 22)
+        Tekst sh, kern, 12, GRIJS, False
     End If
-    Set sh = sld.Shapes.AddLine(36, 508, 924, 508)
+    Set sh = sld.Shapes.AddLine(36, 510, 924, 510)
     sh.Line.ForeColor.RGB = LIJN
     sh.Line.Weight = 0.75
-    Set sh = sld.Shapes.AddTextbox(1, 36, 516, 600, 14)
-    Tekst sh, t("PPT_Footer"), 8, GRIJS, False
-    Set sh = sld.Shapes.AddTextbox(1, 780, 516, 40, 14)
-    Tekst sh, CStr(sld.SlideIndex), 8, NAVY, True
+    Set sh = sld.Shapes.AddTextbox(1, 36, 516, 700, 16)
+    Tekst sh, t("PPT_Footer"), 9, GRIJS, False
+    Set sh = sld.Shapes.AddTextbox(1, 800, 516, 40, 16)
+    Tekst sh, CStr(sld.SlideIndex), 9, NAVY, True
     sh.TextFrame.TextRange.ParagraphFormat.Alignment = 3
-    Logo sld, "LogoNavy", 924, 512, 18
+    Logo sld, "LogoNavy", 924, 513, 18
     Set NieuweDia = sld
 End Function
 
@@ -1042,4 +1042,39 @@ Private Sub Opsomming(ByVal sld As Object, ByVal bron As Range, ByVal x As Singl
         .Bullet.Font.Color.RGB = GEEL
         .SpaceAfter = 14
     End With
+End Sub
+
+' ================================================================= AUTOMATISCH: NIEUWE PROJECTEN, FILTER, DEELGEBIED
+Public Sub RDFO_ProjectenAuto()
+    ' wordt aangeroepen bij het openen van het tabblad Projectlijst
+    Dim n As Long
+    On Error GoTo klaar
+    n = ProjectenErbij(True)
+    Application.ScreenUpdating = True
+    If n > 0 Then MsgBox n & " nieuw(e) project(en) uit ZPMW03 onderaan toegevoegd (oranje)." & vbCr & _
+                         "Kies per project de soort: Opstal, Deelneming, Strapo of Buiten scope.", vbInformation, "Projectlijst"
+klaar:
+    Application.ScreenUpdating = True
+End Sub
+
+Public Sub RDFO_FilterProjecten()
+    ' wisselt tussen 'alleen projecten met cijfers' en 'alle projecten' (kolom X = Toon)
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets("Projecten")
+    On Error Resume Next
+    If ws.AutoFilterMode = False Then ws.Range("A9:X109").AutoFilter
+    If ws.AutoFilter.Filters(24).On Then
+        ws.Range("A9:X109").AutoFilter Field:=24
+    Else
+        ws.Range("A9:X109").AutoFilter Field:=24, Criteria1:="met cijfers"
+    End If
+End Sub
+
+Public Sub RDFO_DeelgebiedSync(ByVal waarde As Variant, ByVal bron As String)
+    ' houdt de deelgebiedkeuze op Dashboard (N5) en Woningetalage (C3) gelijk
+    Application.EnableEvents = False
+    On Error Resume Next
+    If bron <> "Dashboard" Then ThisWorkbook.Worksheets("Dashboard").Range("N5").Value = waarde
+    If bron <> "Woningetalage" Then ThisWorkbook.Worksheets("Woningetalage").Range("C3").Value = waarde
+    Application.EnableEvents = True
 End Sub

@@ -39,7 +39,8 @@ def fmt(v, nf):
     if isinstance(v, str): return v
     secs = nf.split(';')
     if nf in ('General', '') or not secs[0]:
-        return nl(v, 0) if abs(v - round(v)) < 1e-9 and abs(v) >= 1 or v == 0 else nl(v, 1 if abs(v) >= 10 else 2)
+        if abs(v - round(v)) < 1e-9: return str(int(round(v)))          # Standaard: geen duizendtalpunt
+        return nl(v, 1 if abs(v) >= 10 else 2, thou=False)
     sec = secs[0] if v > 0 or len(secs) == 1 else (secs[1] if v < 0 else (secs[2] if len(secs) > 2 else secs[0]))
     lit = re.sub(r'\[[^\]]*\]', '', sec)
     if '0' not in lit and '#' not in lit: return lit.replace('\\', '').replace('"', '')
@@ -90,21 +91,21 @@ def add_logo(sld, rechts, boven, hoogte):
     w = hoogte * 236 / 83; sld.shapes.add_picture(logo, Pt(rechts - w), Pt(boven), Pt(w), Pt(hoogte))
 def titeldia():
     sld = prs.slides.add_slide(BLANK)
-    box(sld, 0, 0, 960, 540, GEEL); box(sld, 0, 0, 470, 540, NAVY)
-    text(sld, 48, 150, 390, 18, str(val('P_Regio')).upper(), 11, GEEL, True)
-    text(sld, 48, 176, 390, 120, val('PPT_Titel'), 34, WIT, True)
-    text(sld, 48, 300, 390, 30, val('PPT_Sub'), 18, GEEL)
-    text(sld, 48, 492, 390, 16, 'Gemaakt op ' + datetime.date.today().strftime('%d-%m-%Y') + '  ·  bron: ' + src.split('/')[-1], 9, WIT)
-    add_logo(sld, 920, 470, 40)
+    box(sld, 0, 0, 960, 540, GEEL); box(sld, 0, 0, 960, 10, NAVY)
+    text(sld, 72, 64, 600, 30, val('P_Regio'), 16, NAVY, True)
+    text(sld, 72, 180, 820, 130, val('PPT_Titel'), 44, NAVY, True)
+    box(sld, 74, 322, 120, 8, NAVY)
+    text(sld, 72, 346, 820, 34, val('PPT_Sub'), 20, NAVY)
+    add_logo(sld, 900, 456, 44)
 def nieuwedia(titel, kern):
     sld = prs.slides.add_slide(BLANK)
-    box(sld, 0, 0, 960, 8, GEEL)
-    text(sld, 36, 22, 880, 14, (titel or '').upper(), 9, NAVY, True)
-    text(sld, 36, 38, 880, 30, kern or titel, 20, NAVY, True)
-    ln = sld.shapes.add_connector(1, Pt(36), Pt(508), Pt(924), Pt(508)); ln.line.color.rgb = LIJN; ln.line.width = Pt(0.75)
-    text(sld, 36, 516, 600, 14, val('PPT_Footer'), 8, GRIJS)
-    text(sld, 780, 516, 40, 14, str(len(prs.slides)), 8, NAVY, True, PP_ALIGN.RIGHT)
-    add_logo(sld, 924, 512, 18)
+    box(sld, 0, 0, 960, 6, NAVY); box(sld, 36, 30, 6, 30, GEEL)
+    text(sld, 52, 28, 860, 34, titel or '', 24, NAVY, True)
+    if kern: text(sld, 52, 64, 860, 22, kern, 12, GRIJS)
+    ln = sld.shapes.add_connector(1, Pt(36), Pt(510), Pt(924), Pt(510)); ln.line.color.rgb = LIJN; ln.line.width = Pt(0.75)
+    text(sld, 36, 516, 700, 16, val('PPT_Footer'), 9, GRIJS)
+    text(sld, 800, 516, 40, 16, str(len(prs.slides)), 9, NAVY, True, PP_ALIGN.RIGHT)
+    add_logo(sld, 924, 513, 18)
     return sld
 def kop(sld, t, x, y, w):
     if t: text(sld, x, y - 20, w, 16, t, 11, NAVY, True)
@@ -149,7 +150,14 @@ def tabel(sld, nm, x, y, w, tkop):
                 for run in p.runs:
                     run.font.name = 'Arial'; run.font.size = Pt((size - 1 if i == 0 else size) + (5 if bol else 0)); run.font.color.rgb = kleur
                     run.font.bold = True if i == 0 else bool(src_cell.font and src_cell.font.b)
-            cell.fill.solid(); cell.fill.fore_color.rgb = NAVY if i == 0 else WIT
+            fill = NAVY if i == 0 else WIT
+            if i and nm == 'T_MIJL' and c >= c0 + 1:
+                ve, we = ws.cell(r, c + 19).value, ws.cell(r, c + 27).value
+                if isinstance(ve, datetime.datetime) and not isinstance(we, datetime.datetime):
+                    today = datetime.datetime.now()
+                    if ve < today: fill = RGBColor(0xF4, 0xB6, 0xB2)
+                    elif ve <= today + datetime.timedelta(days=61): fill = RGBColor(0xFC, 0xD9, 0xA0)
+            cell.fill.solid(); cell.fill.fore_color.rgb = fill
 def opsomming(sld, nm, x, y, w, h):
     sh, c0, r0, c1, r1 = rng_cells(nm)
     items = [celtekst(sh, r, c) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1) if celtekst(sh, r, c).strip()]
@@ -205,10 +213,11 @@ def chart_info(k):
 PALET = ['111F39', 'FEB900', 'A4B3BB', 'E30613', '3B7A1E', '5B9BD5']
 def grafiek(sld, k, x, y, w, h, tkop):
     kop(sld, tkop, x, y, w)
-    if k == 9:   # bandbreedte: scenario's per jaar uit het tabblad Bandbreedte
-        ws = V['Bandbreedte']; cd = CategoryChartData(); cd.categories = [str(ws.cell(5, c).value) for c in (2, 3, 4)]
-        for r in range(6, 11): cd.add_series(str(ws.cell(r, 1).value), [ws.cell(r, c).value if isinstance(ws.cell(r, c).value, (int, float)) else None for c in (2, 3, 4)])
-        typ = XL_CHART_TYPE.COLUMN_CLUSTERED; ser = None
+    if k == 9:   # bandbreedte optie A: gegevens rechtstreeks uit Bandbreedte!Y14:AB17
+        ws = V['Bandbreedte']; cd = CategoryChartData(); cd.categories = [str(ws.cell(r, 25).value) for r in (15, 16, 17)]
+        for c in (26, 27, 28): cd.add_series(str(ws.cell(14, c).value), [float(ws.cell(r, c).value or 0) for r in (15, 16, 17)])
+        typ = XL_CHART_TYPE.BAR_STACKED
+        ser = [dict(name='onder', nofill=True, color=None, dir='bar'), dict(name='Downside', nofill=False, color='E30613', dir='bar'), dict(name='Upside', nofill=False, color='3B7A1E', dir='bar')]
     else:
         ser = [s for s in chart_info(k) if s['plot'] == 'barChart' and any(v not in (None, '') for v in s['val'])]
         if not ser: return
@@ -223,12 +232,19 @@ def grafiek(sld, k, x, y, w, h, tkop):
     ch.has_legend = True; ch.legend.position = XL_LEGEND_POSITION.BOTTOM; ch.legend.include_in_layout = False
     for i, s in enumerate(ch.plots[0].series):
         info = ser[i] if ser else None
-        if info and (info['nofill'] or info['name'] in ('Basis',)):
+        if info and (info.get('nofill') or info['name'] in ('Basis',)):
             s.format.fill.background(); s.format.line.fill.background(); continue
-        s.format.fill.solid(); s.format.fill.fore_color.rgb = RGBColor.from_string((info['color'] if info and info['color'] else PALET[i % len(PALET)])[-6:])
+        s.format.fill.solid(); s.format.fill.fore_color.rgb = RGBColor.from_string((info['color'] if info and info.get('color') else PALET[i % len(PALET)])[-6:])
     if ser and ser[0]['name'] == 'Basis':   # waterval: legenda zonder 'Basis'
         ch.has_legend = False
     ch.plots[0].gap_width = 60
+    if ser and ser[0]['dir'] == 'bar': ch.category_axis.reverse_order = True
+    if k == 9 and ser:
+        ch.has_legend = False
+        for i, srs in enumerate(ch.plots[0].series):
+            if i == 0: continue
+            srs.data_labels.show_value = True; srs.data_labels.number_format = ('-#,##0.0' if i == 1 else '+#,##0.0'); srs.data_labels.number_format_is_linked = False
+            srs.data_labels.font.size = Pt(9); srs.data_labels.font.bold = True; srs.data_labels.font.color.rgb = WIT
     va = ch.value_axis; va.has_major_gridlines = True; va.major_gridlines.format.line.color.rgb = LIJN; va.tick_labels.font.size = Pt(8)
     va.tick_labels.number_format = '#,##0.0' if k in (1, 2, 3, 4, 5, 7, 9, 10) else '#,##0'; va.tick_labels.number_format_is_linked = False
     ch.category_axis.tick_labels.font.size = Pt(8)

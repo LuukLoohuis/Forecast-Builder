@@ -20,7 +20,7 @@ def main(src, dst):
         for el in row.findall(N+'c'):
             f = el.find(N+'f')
             if f is not None and f.text and 'Bron_ZPMW03' in f.text:
-                f.text = f.text.replace('Bron_ZPMW03!$A$1:$ZZ$501', 'B_ZPMW03').replace('Bron_ZPMW03!$1:$1', 'INDEX(B_ZPMW03,P_ZHdr,0)')
+                f.text = re.sub(r'Bron_ZPMW03!\$A\$1:\$[A-Z]+\$\d+', 'B_ZPMW03', f.text).replace('Bron_ZPMW03!$1:$1', 'INDEX(B_ZPMW03,P_ZHdr,0)')
     for k in range(1, 501):
         s.set(f'A{5+k}', formula=f'P_ZHdr+{k}', style=s.style(f'A{5+k}'))
     s.set('A1', text='Intern veld (leest het versie-tabblad van Invoer › Versie van de upload)')
@@ -30,7 +30,7 @@ def main(src, dst):
         for el in row.findall(N+'c'):
             f = el.find(N+'f')
             if f is not None and f.text and 'Bron_ZPMW03' in f.text:
-                f.text = (f.text.replace('COUNTA(Bron_ZPMW03!$A$2:$A$501)', 'MAX(0,COUNTA(INDEX(B_ZPMW03,0,1))-P_ZHdr)')
+                f.text = (re.sub(r'COUNTA\(Bron_ZPMW03!\$A\$2:\$A\$\d+\)', 'MAX(0,COUNTA(INDEX(B_ZPMW03,0,1))-P_ZHdr)', f.text)
                                  .replace('COUNTA(Bron_ZPMW03!$A$502:$A$20000)', '0').replace('Bron_ZPMW03!$A$502:$A$20000', 'Invoer!$ZZ$1'))
     X = 'MAX(0,COUNTIF(INDEX(B_ZPMW03,0,MAX(1,STG_ZPMW03!$B$3)),"?*")-1)'
     c.set('F9', is_str=True, style=c.style('F9'), formula=f'"verwacht "&{X}')
@@ -65,7 +65,8 @@ def main(src, dst):
     elif t == 'inlineStr': up = ''.join(el.itertext())
     elif el.find(N+'v') is not None: up = el.find(N+'v').text
     bron = bk.sheet('Bron_ZPMW03')
-    if up in VERS and len(bron.rows) > 1:
+    doel_leeg = up in VERS and len([r for r in bk.sheet(f'{up} ZPMW03').rows.values() if len(r)]) <= 1
+    if up in VERS and len(bron.rows) > 1 and doel_leeg:
         doel = bk.sheet(f'{up} ZPMW03')
         sd = doel.root.find(N+'sheetData')
         for r in list(sd): sd.remove(r)
