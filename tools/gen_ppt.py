@@ -1,6 +1,7 @@
 """Maakt de RDFO-presentatie zoals de macro RDFO_MaakPowerPoint, maar buiten Excel (python-pptx).
 usage: gen_ppt.py bestand.xlsm doorgerekend.xlsx logo.png uit.pptx"""
 import sys, re, datetime, zipfile
+import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import openpyxl
 from openpyxl.utils import column_index_from_string as CI, get_column_letter as CL
 from pptx import Presentation
@@ -213,7 +214,23 @@ def chart_info(k):
 PALET = ['111F39', 'FEB900', 'A4B3BB', 'E30613', '3B7A1E', '5B9BD5']
 def grafiek(sld, k, x, y, w, h, tkop):
     kop(sld, tkop, x, y, w)
-    if k == 9:   # bandbreedte optie A: gegevens rechtstreeks uit Bandbreedte!Y14:AB17
+    if k == 9:   # bandbreedte staand: ondergrens, basis en bovengrens per jaar (Bandbreedte!Y14:AF17)
+        import chart_bb
+        from pptx.oxml import parse_xml
+        from pptx.oxml.ns import qn
+        ws = V['Bandbreedte']; rows = (15, 16, 17)
+        num = lambda r, c: float(ws.cell(r, c).value) if isinstance(ws.cell(r, c).value, (int, float)) else None
+        kol = dict(onder=26, down=27, lijn=32, up=28, laag=29, basis=30, hoog=31)
+        vals = {rl: [num(r, c) for r in rows] for rl, c in kol.items()}
+        cats = [str(ws.cell(r, 25).value) for r in rows]
+        cd = CategoryChartData(); cd.categories = cats
+        for rl in chart_bb.ROLES: cd.add_series(chart_bb.NAMEN[rl], [v if v is not None else 0 for v in vals[rl]])
+        gf = sld.shapes.add_chart(XL_CHART_TYPE.COLUMN_STACKED, Pt(x), Pt(y), Pt(w), Pt(h), cd)
+        ext = gf.chart_part._element.find(qn('c:externalData')); rid = ext.get(qn('r:id')) if ext is not None else 'rId1'
+        xml = chart_bb.chart_xml(ppt=dict(cats=cats, **vals)).replace('r:id="rId1"', f'r:id="{rid}"')
+        gf.chart_part._element = parse_xml(xml.encode())
+        return
+    if False:
         ws = V['Bandbreedte']; cd = CategoryChartData(); cd.categories = [str(ws.cell(r, 25).value) for r in (15, 16, 17)]
         for c in (26, 27, 28): cd.add_series(str(ws.cell(14, c).value), [float(ws.cell(r, c).value or 0) for r in (15, 16, 17)])
         typ = XL_CHART_TYPE.BAR_STACKED

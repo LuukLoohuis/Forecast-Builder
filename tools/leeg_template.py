@@ -30,6 +30,10 @@ def main(src, dst):
         vs = bk.sheet(f'{v} ZPMW03'); clear_values(vs, 1, 1, 10**6, 10**7, whole_rows=True)
         vs.set('A1', text=f'Plak hier de ZPMW03-export van {v} (hele blad, vanaf A1).')
     ms = bk.sheet('Bron_Mijlpalen'); clear_values(ms, 1, 1, 10**6, 10**7, whole_rows=True)
+    if 'Bron_Reserves' in bk.paths:
+        rs = bk.sheet('Bron_Reserves'); clear_values(rs, 1, 1, 10**6, 10**7, whole_rows=True)
+        rs.set('A1', text='Plak hier de reserves-export (hele blad, vanaf A1): per WBS de kolommen Onvoorzien, Commerciële reserve en Nazorg.')
+    clear_values(bk.sheet('Projecten'), col2n('AC'), 10, col2n('AK'), 109)
     ms.set('A1', text='Plak hier de mijlpalen-export (hele blad, vanaf A1): rij 1 = mijlpalen, rij 2 = verwacht/werkelijk, kolom A = "WBS - naam".')
     clear_values(bk.sheet('Projecten'), 19, 10, 19, 109)
     pj = bk.sheet('Projecten')
@@ -40,7 +44,7 @@ def main(src, dst):
     for sh, ref in [('Projectdetail', 'C4'), ('AK-dekking', 'F11'), ('Bandbreedte', 'AJ25')]:
         c, r = split(ref); clear_values(bk.sheet(sh), col2n(c), r, col2n(c), r)
     clear_values(bk.sheet('Versies'), 3, 6, 3, 10); clear_values(bk.sheet('Versies'), 11, 6, 11, 10)
-    spec = [('PL_Invoer', 0, 0), ('PK_Keuzes', 0, 0), ('PK_AKEigen', 0, 0), ('RS_Invoer', 0, 0), ('Gebieden', 0, 0),
+    spec = [('PL_Invoer', 0, 0), ('PK_Keuzes', 0, 0), ('PK_AKEigen', 0, 0), ('RS_Invoer', 0, 0), ('RS_Eigen', 0, 0), ('Gebieden', 0, 0),
             ('MJ_Funnel', 0, 0), ('MJ_Target', 0, 0), ('DB_Omzet', 0, 7), ('KR_Project', 0, 7), ('A_Doel', 0, 12),
             ('T_Key', -8, 5), ('T_Txt', 0, 3), ('KT_WBS', 0, 6), ('KT_WBS', 10, 1), ('PL_Details', 0, 0), ('PL_Stoplicht', 0, 0)]
     for nm, off, width in spec:

@@ -11,6 +11,7 @@ Option Explicit
 Private Const HISTORIE_LAATSTE_RIJ As Long = 5005
 Private Const BRON_CAPACITEIT As Long = 500
 Private Const IMPORTLOG_KOLOM As Long = 24        ' kolom X op Historie
+Private Const dumps As String = "Budget ZPMW03,Q1 ZPMW03,Q2 ZPMW03,Q3 ZPMW03,Q4 ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,Bron_Mijlpalen,Bron_Reserves"
 Private Const rekenbladen As String = "VERSIE_REKEN,CALC_Versies,VERW_Project,SCEN,STG_ZPMW03,STG_Woningetalage,STG_AKR"
 Private Const verborgen As String = "Historie,SCEN,Concept,VERW_Project,CALC_Versies,STG_ZPMW03,STG_Woningetalage,Bron_ZPMW03,Bron_Woningetalage,Bron_AK,Bron_AKR,STG_AKR,Lijsten,PPT,Dias"
 
@@ -226,13 +227,38 @@ Public Sub RDFO_ProjectenToevoegen()
 End Sub
 
 Private Function ProjectenErbij(ByVal stil As Boolean) As Long
+    ' Loopt alle versie-tabbladen langs (eerst de huidige upload, dan Budget..Q4), zodat ook projecten die alleen in een
+    ' oudere versie staan op de Projectlijst komen. Geeft het aantal toegevoegde projecten terug (-1 = nergens ZPMW03).
+    Dim v As Variant, n As Long, k As Long, gevonden As Boolean, ws As Worksheet
+    For Each v In Array(t("P_UploadVersie"), "Budget", "Q1", "Q2", "Q3", "Q4")
+        Set ws = Nothing
+        On Error Resume Next
+        Set ws = ThisWorkbook.Worksheets(CStr(v) & " ZPMW03")
+        On Error GoTo 0
+        If Not ws Is Nothing Then
+            If KolomNr(ws, "WBS-element") > 0 Then
+                gevonden = True
+                k = ProjectenErbijTab(ws, True)
+                If k > 0 Then n = n + k
+            End If
+        End If
+    Next v
+    Application.ScreenUpdating = True
+    If Not gevonden Then
+        If Not stil Then MsgBox "Er staat nog geen ZPMW03 in de tabbladen Budget t/m Q4 ZPMW03 (kolom 'WBS-element' niet gevonden).", vbExclamation
+        ProjectenErbij = -1
+        Exit Function
+    End If
+    ProjectenErbij = n
+End Function
+
+Private Function ProjectenErbijTab(ByVal wsZ As Worksheet, ByVal stil As Boolean) As Long
     ' Zet elk WBS-element uit ZPMW03 dat nog niet op de Projectlijst staat onderaan de lijst. Keuzes standaard Ja
     ' (woningen alleen Ja als het project in de Woningetalage staat). Geeft het aantal toegevoegde projecten terug.
-    Dim wsZ As Worksheet, wsE As Worksheet, pl As Range, det As Range, r As Long, n As Long, vrij As Long
+    Dim wsE As Worksheet, pl As Range, det As Range, r As Long, n As Long, vrij As Long
     Dim cW As Long, cP As Long, co As Long, eS As Long, eA As Long, eH As Long, wbS As String, m As Variant, naam As String
     Dim berekening As Long
 
-    Set wsZ = ThisWorkbook.Worksheets(t("P_UploadVersie") & " ZPMW03")   ' huidige versie (Invoer)
     Set wsE = ThisWorkbook.Worksheets("Bron_Woningetalage")
     Set pl = Nm("PL_Invoer")          ' Projectlijst A..D: WBS, naam, type, gebied
     Set det = Nm("PL_Details")        ' Projectlijst U..AF: projectdefinitie, aandeel, segment, strapo, verdeling
@@ -240,7 +266,7 @@ Private Function ProjectenErbij(ByVal stil As Boolean) As Long
     eS = KolomNr(wsE, "Stufe 3"): eA = KolomNr(wsE, "Aantal woningen"): eH = KolomNr(wsE, "Aandeel Heijm.")
     If cW = 0 Then
         If Not stil Then MsgBox "In tabblad '" & wsZ.Name & "' staat nog geen ZPMW03 (kolom 'WBS-element' niet gevonden)." & vbCr & "Plak de export daar, of zet op Invoer de juiste 'Versie van de upload'.", vbExclamation
-        ProjectenErbij = -1
+        ProjectenErbijTab = -1
         Exit Function
     End If
     berekening = Application.Calculation
@@ -280,7 +306,7 @@ Private Function ProjectenErbij(ByVal stil As Boolean) As Long
     Application.Calculation = berekening
     If berekening = xlCalculationAutomatic Then Application.Calculate
     If Not stil Then Application.ScreenUpdating = True
-    ProjectenErbij = n
+    ProjectenErbijTab = n
 End Function
 
 ' ================================================================= 1c. CONTROLE: ALLEEN PROBLEMEN TONEN
@@ -483,6 +509,12 @@ Public Sub RDFO_LeegMaken()
     With ThisWorkbook.Worksheets("Bron_AKR")
         .Rows("2:" & .Rows.Count).ClearContents
     End With
+    On Error Resume Next
+    ThisWorkbook.Worksheets("Bron_Reserves").Cells.ClearContents
+    ThisWorkbook.Worksheets("Bron_Mijlpalen").Cells.ClearContents
+    ThisWorkbook.Worksheets("Projecten").Range("S10:S109,AC10:AK109").ClearContents
+    Nm("RS_Eigen").ClearContents
+    On Error GoTo Fout
     ThisWorkbook.Worksheets("Projectdetail").Range("C4").Value = ""
     ThisWorkbook.Worksheets("AK-dekking").Range("F11").Value = ""
     ' projectlijst: alleen de invoerkolommen (G, K en U zijn verwijzingen naar Projectlijst)
@@ -654,6 +686,39 @@ Public Sub RDFO_ToonRekenbladen()
     On Error GoTo 0
     ThisWorkbook.Worksheets("Start").Activate
     Application.ScreenUpdating = True
+End Sub
+
+Public Sub RDFO_ToonDumps()
+    ' knop op Start: de gele plaktabbladen tonen of verbergen
+    Dim naam As Variant, tonen As Boolean
+    tonen = (ThisWorkbook.Worksheets(t("P_UploadVersie") & " ZPMW03").Visible <> xlSheetVisible)
+    Application.ScreenUpdating = False
+    On Error Resume Next
+    For Each naam In Split(dumps, ",")
+        If tonen Then
+            ThisWorkbook.Worksheets(CStr(naam)).Visible = xlSheetVisible
+        Else
+            ThisWorkbook.Worksheets(CStr(naam)).Visible = xlSheetHidden
+        End If
+    Next naam
+    On Error GoTo 0
+    ThisWorkbook.Worksheets("Start").Activate
+    Application.ScreenUpdating = True
+End Sub
+
+Public Sub RDFO_NaarDump()
+    ' knop op Start: naar het ZPMW03-tabblad van de huidige upload (Invoer > Versie van de upload)
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(t("P_UploadVersie") & " ZPMW03")
+    On Error GoTo 0
+    If ws Is Nothing Then
+        MsgBox "Kies op Invoer eerst de 'Versie van de upload' (Budget, Q1, Q2, Q3 of Q4).", vbExclamation
+        Exit Sub
+    End If
+    If ws.Visible <> xlSheetVisible Then ws.Visible = xlSheetVisible
+    ws.Activate
+    ws.Range("A1").Select
 End Sub
 
 Public Sub RDFO_OpenLink(ByVal adres As String)
