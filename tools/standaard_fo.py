@@ -998,10 +998,10 @@ def maak_prijslijst(ws, wbn=None):
             Font(name='Heijmans-Light', size=9, color='FF003366', underline='single'))
         stat = lambda rr: '%s$%s$%d&""' % (OO, STAT, rr)
         plan_fout = 'COUNTIF(%s$%s$%d:$%s$%d,"FOUT*")' % (OO, STAT, plan(k, 1), STAT, plan(k, NTERM))
-        zet(ws, 'L%d' % r, ('=IF(NOT({h}),"",IF(LEFT({pi},4)="FOUT",{pi},IF(J{a}="FOUT","FOUT: aansluiting SKO / prijslijst / PEW sluit niet (blok {k})",'
+        zet(ws, 'L%d' % r, ('=IF(NOT({h}),"",IF(LEFT({pi},4)="FOUT",{pi},IF(J{a}="FOUT",IF(J{tz}="FOUT","FOUT: SKO ≠ prijslijst (blok {k}) · verschil "&TEXT(N(B{tz})-N(D{tz}),"#,##0;-#,##0"),"FOUT: aansluiting SKO / prijslijst / PEW sluit niet (blok {k})"),'
                             'IF({pf}>0,"FOUT: planning · "&{pf}&" termijn(en) niet (goed) ingepland",IF(LEFT({vk},2)<>"OK",IF({vk}="","OK",{vk}),'
                             'IF(LEFT({tt},2)<>"OK",IF({tt}="","OK",{tt}),IF(LEFT(N{a}&"",6)="LET OP",N{a},"OK")))))))').format(
-            h=heeft, pi=stat(pi), a=a, k=k, pf=plan_fout, vk=stat(vk_rij(k)), tt=stat(tt_rij(k))), FB)
+            h=heeft, pi=stat(pi), a=a, k=k, pf=plan_fout, tz=rz + 1, vk=stat(vk_rij(k)), tt=stat(tt_rij(k))), FB)
         for cc in range(1, 13):
             ws.cell(r, cc).border = Border(bottom=dun)
     rt = R0 + NT + 1
@@ -1010,8 +1010,14 @@ def maak_prijslijst(ws, wbn=None):
         zet(ws, '%s%d' % (c, rt), '=SUM(%s%d:%s%d)' % (c, R0 + 1, c, R0 + NT), FB, LICHT, '0' if c in 'BCD' else ('0;-0;"-"' if c == 'E' else NUM))
     for c in 'IJK':
         ws['%s%d' % (c, rt)].fill = LICHT
-    zet(ws, 'L%d' % rt, '=IF(COUNTIF(L{a}:L{b},"FOUT*")+COUNTIF(L{a}:L{b},"LET OP*")=0,"OK",COUNTIF(L{a}:L{b},"FOUT*")&" fout · "&'
-                        'COUNTIF(L{a}:L{b},"LET OP*")&" let op")'.format(a=R0 + 1, b=R0 + NT), FB, LICHT)
+    # SKO ↔ prijslijst op totaalniveau (alle woningtypes); alleen als er een prijslijst is
+    tot_ok = 'OR(N(F{r})=0,ABS(N(G{r})-N(F{r}))<1)'.format(r=rt)
+    zet(ws, 'I%d' % rt, '=IF(N(F{r})=0,"",IF({ok},"SKO = prijslijst","SKO ≠ prijslijst · verschil "&TEXT(N(G{r})-N(F{r}),"#,##0;-#,##0")))'
+        .format(r=rt, ok=tot_ok), Font(name='Heijmans-Light', size=10, bold=True, color='FFB91C1C'), LICHT)
+    ws.conditional_formatting.add('I%d' % rt, FormulaRule(formula=['LEFT(I%d,5)="SKO ="' % rt], font=Font(color='FF15803D', bold=True)))
+    zet(ws, 'L%d' % rt, '=IF(NOT({ok}),"FOUT: SKO ≠ prijslijst (totaal) · verschil "&TEXT(N(G{r})-N(F{r}),"#,##0;-#,##0"),'
+                        'IF(COUNTIF(L{a}:L{b},"FOUT*")+COUNTIF(L{a}:L{b},"LET OP*")=0,"OK",COUNTIF(L{a}:L{b},"FOUT*")&" fout · "&'
+                        'COUNTIF(L{a}:L{b},"LET OP*")&" let op"))'.format(a=R0 + 1, b=R0 + NT, r=rt, ok=tot_ok), FB, LICHT)
     statuskleuren(ws, 'L%d:L%d' % (R0 + 1, rt))
     # check prijslijst-dump <-> SKO op projectniveau (excl. btw): grond incl. kadastrale kosten en aanneemsom
     sko_som = lambda *regels: '+'.join('N(B%d)' % (p_aans(k) + 2 + P_REGELS.index(x)) for k in range(1, NT + 1) for x in regels)
@@ -1066,11 +1072,11 @@ def maak_prijslijst(ws, wbn=None):
             zet(ws, '%s%d' % (SKO[c_], r), None, F, GEEL, None if c_ in ('naam',) else ('0' if c_ in ('cat', 'aantal') else NUM))
         dv0.add('%s%d' % (SKO['cat'], r))
         zet(ws, '%s%d' % (SKO['vonex'], r), '=IF(%s%d="","",%s%d/1.21)' % (SKO['von'], r, SKO['von'], r), F, None, NUM)
-        zet(ws, '%s%d' % (SKO['totaal'], r), '=IF(%s%d="","",N(%s%d)*%s%d)' % (SKO['vonex'], r, SKO['aantal'], r, SKO['vonex'], r), F, None, NUM)
+        zet(ws, '%s%d' % (SKO['totaal'], r), '=IF(%s%d="","",IF(%s%d="",1,N(%s%d))*%s%d)' % (SKO['vonex'], r, SKO['aantal'], r, SKO['aantal'], r, SKO['vonex'], r), F, None, NUM)
         zet(ws, '%s%d' % (SKO['verschil'], r), '=IF(%s%d="","",N(%s%d)+N(%s%d)+N(%s%d)-%s%d)'
             % (SKO['vonex'], r, SKO['grond'], r, SKO['ontw'], r, SKO['termijnen'], r, SKO['vonex'], r), F, None, NUM)
-        zet(ws, '%s%d' % (SKO['status'], r), '=IF(AND(%s%d="",%s%d=""),"",IF(%s%d="","LET OP: categorie",IF(ABS(N(%s%d))<1,"OK","FOUT")))'
-            % (SKO['naam'], r, SKO['aantal'], r, SKO['cat'], r, SKO['verschil'], r), FB)
+        zet(ws, '%s%d' % (SKO['status'], r), '=IF(AND(%s%d="",%s%d=""),"",IF(%s%d="","LET OP: categorie",IF(ABS(N(%s%d))<1,IF(AND(%s%d="",N(%s%d)<>0),"OK (aantal leeg = 1)","OK"),"FOUT")))'
+            % (SKO['naam'], r, SKO['aantal'], r, SKO['cat'], r, SKO['verschil'], r, SKO['aantal'], r, SKO['vonex'], r), FB)
         zet(ws, '%s%d' % (SKO['catnaam'], r), '=IF(%s%d="","",INDEX($B$%d:$B$%d,%s%d)&"")' % (SKO['cat'], r, P_TYPE1, P_TYPE1 + NT - 1, SKO['cat'], r), FN)
         for cc in range(1, 14):
             ws.cell(r, cc).border = Border(bottom=dun)
@@ -1200,7 +1206,7 @@ def maak_prijslijst(ws, wbn=None):
             ws.cell(a, cc).fill = BAND['gebr']
         zet(ws, 'A%d' % a, 'Vergelijking excl. BTW - type %d' % k, FW, BAND['gebr'])
         zet(ws, 'C%d' % a, '=B%d&IF(N(S%d)>0,"  ·  "&S%d&" woningen","")' % (t, t, t), Font(name='Heijmans-BoldCon', size=11, color='FFFFFFFF'), BAND['gebr'])
-        zet(ws, 'J%d' % a, '=IF(COUNTIF(J%d:J%d,"FOUT")=0,"OK","FOUT")' % (ra, rz), FW, BAND['gebr'])
+        zet(ws, 'J%d' % a, '=IF(COUNTIF(J%d:J%d,"FOUT")=0,"OK","FOUT")' % (ra, rz + 1), FW, BAND['gebr'])
         zet(ws, 'E%d' % a, '=IF(AND(N($D%d)=0,SUM(B%d:B%d)<>0),IF(N(S%d)=0,"LET OP: vul het aantal woningen in (kolom N, rij %d)",'
                            '"geen prijslijst: de cashflow rekent met de SKO"),"")' % (t, ra, rz, t, t),
             Font(name='Heijmans-Light', size=9, italic=True, color='FFFFFFFF'), BAND['gebr'])
@@ -1218,9 +1224,12 @@ def maak_prijslijst(ws, wbn=None):
             # categorie); geen regels in blok 0: leeg, dan kun je hier zelf invullen (Oud FO inlezen vult hier in)
             sr = lambda c_: '$%s$%d:$%s$%d' % (SKO[c_], SKO1, SKO[c_], SKO1 + NSKO - 1)
             if lab == 'Grond + Ontwikkelkosten':
-                fb = '=IF(COUNTIF(%s,%d)=0,"",SUMPRODUCT((%s=%d)*%s*(%s+%s)))' % (sr('cat'), k, sr('cat'), k, sr('aantal'), sr('grond'), sr('ontw'))
+                # aantal leeg = 1 (bedragen zonder aantal tellen gewoon mee)
+                aa = '(%s+(%s=""))' % (sr('aantal'), sr('aantal'))
+                fb = '=IF(COUNTIF(%s,%d)=0,"",SUMPRODUCT((%s=%d)*%s*(%s+%s)))' % (sr('cat'), k, sr('cat'), k, aa, sr('grond'), sr('ontw'))
             elif lab == 'Aanneemsom':
-                fb = '=IF(COUNTIF(%s,%d)=0,"",SUMPRODUCT((%s=%d)*%s*%s))' % (sr('cat'), k, sr('cat'), k, sr('aantal'), sr('termijnen'))
+                aa = '(%s+(%s=""))' % (sr('aantal'), sr('aantal'))
+                fb = '=IF(COUNTIF(%s,%d)=0,"",SUMPRODUCT((%s=%d)*%s*%s))' % (sr('cat'), k, sr('cat'), k, aa, sr('termijnen'))
             else:
                 fb = None
             zet(ws, 'B%d' % r, fb, F, GEEL, NUM)
@@ -1249,8 +1258,11 @@ def maak_prijslijst(ws, wbn=None):
         ws['A%d' % (rz + 1)].fill = LICHT
         for c in 'BDFGHI':
             zet(ws, '%s%d' % (c, rz + 1), '=SUM(%s%d:%s%d)' % (c, ra, c, rz), FB, LICHT, NUM)
-        for c in 'EJ':
-            ws['%s%d' % (c, rz + 1)].fill = LICHT
+        # SKO-totaal en prijslijst-totaal moeten gelijk zijn (de Corr vangt het verschil op, maar dat is een fout in de invoer)
+        tz = rz + 1
+        zet(ws, 'J%d' % tz, '=IF(AND(N($D%d)>0,ABS(N(B%d)-N(D%d))>=1),"FOUT","")' % (t, tz, tz), Font(name='Heijmans-Light', size=10, bold=True, color='FFB91C1C'), LICHT)
+        zet(ws, 'E%d' % tz, '=IF(J%d="FOUT","FOUT: SKO ≠ prijslijst · verschil "&TEXT(N(B%d)-N(D%d),"#,##0;-#,##0"),"")' % (tz, tz, tz),
+            Font(name='Heijmans-Light', size=10, bold=True, color='FFB91C1C'), LICHT)
         ws.conditional_formatting.add('G%d:G%d' % (ra, rz), CellIsRule(operator='notBetween', formula=['-0.5', '0.5'],
                                       font=Font(color='FF92400E', bold=True), fill=PatternFill('solid', fgColor='FFFEF3C7', bgColor='FFFEF3C7')))
         CFO = "'CF - opbrengsten'!"

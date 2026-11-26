@@ -178,7 +178,7 @@ def invoer_rijen(doc):
 
 
 # ---- tests ----------------------------------------------------------------------------------------------
-def t_controleer(werkbestand, fo, naam, max_kosten_verschillen, streng=True):
+def t_controleer(werkbestand, fo, naam, max_kosten_verschillen, streng=True, toegestaan=()):
     code, uit = run([sys.executable, 'tools/controleer.py', werkbestand] + (['--fo', fo] if fo else []))
     fout = re.search(r'Foutwaarden \(#\.\.\.\): (\d+)', uit)
     ok('%s: geen foutwaarden' % naam, fout and fout.group(1) == '0')
@@ -188,7 +188,8 @@ def t_controleer(werkbestand, fo, naam, max_kosten_verschillen, streng=True):
     ok('%s: cashflow gelijk aan het oude FO' % naam, m and not omzet and n <= max_kosten_verschillen,
        m.group(0) if m else 'geen vergelijking')
     start = uit.split('Controles op tab Start')[-1]
-    fouten = [re.sub(r'\s{2,}', ' ', l.strip()) for l in start.splitlines() if re.search(r'\s(FOUT)\s*$', l)]
+    fouten = [re.sub(r'\s{2,}', ' ', l.strip()) for l in start.splitlines() if re.search(r'\s(FOUT)\s*$', l)
+              and not l.strip().startswith(tuple(toegestaan))]
     if streng:
         ok('%s: geen FOUT in de controles op Start' % naam, not fouten, '; '.join(fouten)[:200])
     else:                       # een eigen FO: de controles op Start zijn bevindingen over dat FO, geen testfout
@@ -456,6 +457,59 @@ def t_termijnen_schema(lo):
            and max(eerste) == 8114 and zebra > 0, '%d labels, kwartalen %s, %d bandrijen' % (len(lab), eerste, zebra))
     finally:
         d.close(True)
+
+
+def t_sko_aantal_leeg(lo):
+    """leeg sjabloon: SKO-regel zonder aantal (zoals Y: VON 1.000, grond 526, termijnen 300) telt als 1 woning in de
+    aansluiting per woningtype; met aantal 2 het dubbele"""
+    kopie = os.path.join(lo.tmp, 'sko_leeg.xlsm')
+    controleer.testkopie(SJABLOON, kopie)
+    d = lo.open(kopie)
+    try:
+        p = d.Sheets.getByName('Aansluiting opbrengsten')
+        a = S.p_aans(1)
+        r = S.SKO1
+        for c_, v in (('naam', 'Y'), ('cat', 1), ('von', 1000), ('grond', 526), ('termijnen', 300)):
+            cel = p.getCellRangeByName('%s%d' % (S.SKO[c_], r))
+            cel.setString(v) if isinstance(v, str) else cel.setValue(v)
+        d.calculateAll()
+        een = (waarde(p, 'B%d' % (a + 2)), waarde(p, 'B%d' % (a + 3)), tekst(p, '%s%d' % (S.SKO['status'], r)))
+        p.getCellRangeByName('%s%d' % (S.SKO['aantal'], r)).setValue(2)
+        d.calculateAll()
+        twee = (waarde(p, 'B%d' % (a + 2)), waarde(p, 'B%d' % (a + 3)))
+        ok('SKO per woningtype: regel zonder aantal telt als 1 woning in de aansluiting (aantal 2 = dubbel)',
+           een[:2] == (526, 300) and een[2].startswith('OK') and twee == (1052, 600), 'leeg %s · aantal 2 %s' % (een, twee))
+    finally:
+        d.close(True)
+
+
+def t_sko_prijslijst(doc):
+    """Aansluiting opbrengsten: SKO ≠ prijslijst -> rode FOUT (totaalrij per type, blok, Start); totaal over alle types in het
+    overzicht"""
+    p, st = doc.Sheets.getByName('Aansluiting opbrengsten'), doc.Sheets.getByName('Start')
+    a = S.p_aans(1)
+    tz, rb = a + 2 + len(S.P_REGELS), a + 2
+    rt = S.P_OVZ1 - 1 + S.NT + 1
+    rs = next((r for r in range(31, 50) if tekst(st, 'B%d' % r).startswith('Aansluiting prijslijst')), None)
+    doc.calculateAll()
+    # SKO gelijk aan de prijslijst -> geen fout; +10.000 -> rode FOUT met het verschil
+    f = p.getCellRangeByName('B%d' % rb).getFormula()
+    doc.calculateAll()
+    p.getCellRangeByName('B%d' % rb).setValue(waarde(p, 'B%d' % rb) + waarde(p, 'D%d' % tz) - waarde(p, 'B%d' % tz))
+    doc.calculateAll()
+    gelijk = (tekst(p, 'J%d' % tz), tekst(p, 'E%d' % tz))
+    p.getCellRangeByName('B%d' % rb).setValue(waarde(p, 'B%d' % rb) + 10000)
+    doc.calculateAll()
+    na = (tekst(p, 'J%d' % tz), tekst(p, 'E%d' % tz), tekst(p, 'J%d' % a), tekst(st, 'D%d' % rs) if rs else '?')
+    tot = (tekst(p, 'I%d' % rt), waarde(p, 'G%d' % rt) - waarde(p, 'F%d' % rt), tekst(p, 'L%d' % rt))
+    p.getCellRangeByName('B%d' % rb).setFormula(f)
+    doc.calculateAll()
+    ok('Aansluiting: SKO ≠ prijslijst -> rode FOUT met het verschil (totaalrij), blok en Start FOUT; gelijk -> geen fout',
+       gelijk == ('', '') and na[0] == 'FOUT' and 'verschil 10' in na[1] and na[2] == 'FOUT' and na[3] == 'FOUT',
+       'gelijk %s · na %s' % (gelijk, na))
+    ok('Aansluiting: SKO ↔ prijslijst op totaalniveau (alle woningtypes) in het overzicht, met het verschil',
+       tot[0].startswith('SKO ≠ prijslijst') and abs(tot[1]) >= 1 and tot[2].startswith('FOUT: SKO ≠ prijslijst (totaal)'),
+       '%s · %.0f · %s' % tot)
 
 
 def t_vba_namen():
@@ -1512,7 +1566,7 @@ def main():
             lo.stop()
         return 1 if [n for n, g, _ in uitslag if not g] else 0
     print('== 1-2 Controles en kringen')
-    t_controleer(DEMO_WB, None, 'demo', 4)
+    t_controleer(DEMO_WB, None, 'demo', 4, toegestaan=('Aansluiting prijslijst',))   # de demo heeft SKO ≠ prijslijst (Corr)
     t_kringen()
     print('== 6 PowerPoint-sjabloon')
     t_pptx()
@@ -1576,6 +1630,8 @@ def main():
         vba_doc.close(True)
         t_fo_overnemen(lo, demo)
         t_overzetten(lo, demo)
+        t_sko_prijslijst(demo)
+        t_sko_aantal_leeg(lo)
         t_prognose(demo)
         t_scenarios(demo)
         t_daeb100_inlezen(lo)
