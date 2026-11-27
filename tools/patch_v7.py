@@ -326,14 +326,14 @@ def bandbreedte_budget(bk):
         b.set(f'{c}12', style=b.style(f'{c}12'), formula=f'IF(Berekening!$P$5=0,"–",INDEX({DROW(R_TOT)},{2*y+1})/1000000)')
 
 def main(src, dst, herberekend=None, reserves=None):
-    from patch_v7b import bron_reserves, projectlijst_reserves, bandbreedte_grafiek, start, verberg_rekenbladen, projecten_zichtbaar
+    from patch_v7b import bron_reserves, projectlijst_reserves, bandbreedte_grafiek, start, verberg_rekenbladen, projecten_zichtbaar, outlook_grafiek, outlook_jaren_vijf
     bk = Book(src); sty = styles(bk)
     berekening(bk, sty); move_sheet(bk, 'Berekening', 'Bron_Mijlpalen')
     sel = add_dxf(bk, 'FFFFD966')
     calc_versies(bk); rdfo(bk, sty); projecten(bk, sty, sel); projectdetail(bk, sty); outlook(bk); bandbreedte_budget(bk)
     oranje = add_dxf(bk, 'FFFCD9A0')
     bron_reserves(bk, sty, reserves); move_sheet(bk, 'Bron_Reserves', 'Bron_Mijlpalen')
-    projectlijst_reserves(bk, sty, oranje); bandbreedte_grafiek(bk); start(bk); verberg_rekenbladen(bk)
+    projectlijst_reserves(bk, sty, oranje); bandbreedte_grafiek(bk); outlook_grafiek(bk); outlook_jaren_vijf(bk); start(bk); verberg_rekenbladen(bk)
     projecten_zichtbaar(bk, herberekend)
     pp = bk.sheet('PPT')
     sst = [''.join(si.itertext()) for si in etree.fromstring(bk.data['xl/sharedStrings.xml'])]

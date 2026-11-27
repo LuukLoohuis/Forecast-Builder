@@ -194,6 +194,11 @@ for m in re.finditer(r'<xdr:graphicFrame.*?</xdr:graphicFrame>', zread(drw), re.
 NS = {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart', 'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'}
 def cache(el):
     if el is None: return []
+    mc = el.find('.//c:multiLvlStrCache', NS)       # LibreOffice schrijft jaartallen soms als meerdere niveaus van 1 punt
+    if mc is not None:
+        lv = mc.findall('c:lvl', NS); n = mc.find('c:ptCount', NS)
+        if n is not None and int(n.get('val')) == 1 and len(lv) > 1:
+            return [l.find('c:pt/c:v', NS).text for l in reversed(lv)]
     pts = {}
     for pt in el.iter('{%s}pt' % NS['c']):
         v = pt.find('c:v', NS); pts[int(pt.get('idx'))] = v.text if v is not None else None
@@ -245,6 +250,7 @@ def grafiek(sld, k, x, y, w, h, tkop):
         typ = {(False, False): XL_CHART_TYPE.COLUMN_CLUSTERED, (False, True): XL_CHART_TYPE.COLUMN_STACKED,
                (True, False): XL_CHART_TYPE.BAR_CLUSTERED, (True, True): XL_CHART_TYPE.BAR_STACKED}[(horiz, stacked)]
     gf = sld.shapes.add_chart(typ, Pt(x), Pt(y), Pt(w), Pt(h), cd); ch = gf.chart
+    ch.has_title = False
     ch.font.size = Pt(8); ch.font.name = 'Arial'; ch.font.color.rgb = NAVY
     ch.has_legend = True; ch.legend.position = XL_LEGEND_POSITION.BOTTOM; ch.legend.include_in_layout = False
     for i, s in enumerate(ch.plots[0].series):
@@ -262,6 +268,14 @@ def grafiek(sld, k, x, y, w, h, tkop):
             if i == 0: continue
             srs.data_labels.show_value = True; srs.data_labels.number_format = ('-#,##0.0' if i == 1 else '+#,##0.0'); srs.data_labels.number_format_is_linked = False
             srs.data_labels.font.size = Pt(9); srs.data_labels.font.bold = True; srs.data_labels.font.color.rgb = WIT
+    if k in (2, 5) and ser and len(ser) == 1:      # omzet per jaar: alleen prognose, getal boven de kolom
+        ch.has_legend = False; pl = ch.plots[0]; pl.gap_width = 50
+        pl.has_data_labels = True; dl = pl.data_labels
+        dl.number_format = '#,##0.0'; dl.number_format_is_linked = False; dl.position = XL_LABEL_POSITION.OUTSIDE_END
+        dl.font.size = Pt(10); dl.font.bold = True; dl.font.color.rgb = NAVY
+        ch.value_axis.visible = False; ch.value_axis.has_major_gridlines = False
+        ch.category_axis.tick_labels.font.size = Pt(9); ch.category_axis.format.line.color.rgb = LIJN
+        return
     va = ch.value_axis; va.has_major_gridlines = True; va.major_gridlines.format.line.color.rgb = LIJN; va.tick_labels.font.size = Pt(8)
     va.tick_labels.number_format = '#,##0.0' if k in (1, 2, 3, 4, 5, 7, 9, 10) else '#,##0'; va.tick_labels.number_format_is_linked = False
     ch.category_axis.tick_labels.font.size = Pt(8)

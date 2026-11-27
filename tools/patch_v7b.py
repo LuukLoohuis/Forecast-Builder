@@ -188,3 +188,39 @@ def projecten_zichtbaar(bk, herberekend):
     for r in range(10, 110):
         if toon.get(r, False): s.row(r).attrib.pop('hidden', None)
         else: s.row(r).set('hidden', '1')
+
+
+def outlook_grafiek(bk):
+    """Omzet per jaar (Outlook-tabblad, dia 2 en dia 9): alleen de prognose als gele kolommen met het getal erboven."""
+    import chart_outlook as co
+    P = co.refs('Outlook', '$O$7', '$R$5:$V$5', '$R$8:$V$8')
+    xml = co.chart_xml([P + (co.GEEL, 1000, co.NAVY, True)], legend=False, gap=50, overlap=0).encode()
+    def charts_of(sheet):
+        p = bk.paths[sheet]; rels = bk.text(p.replace('worksheets/', 'worksheets/_rels/') + '.rels')
+        drw = 'xl/drawings/' + re.search(r'Target="\.\./drawings/([^"]+)"', rels).group(1)
+        dr = bk.text(drw); drels = bk.text(drw.replace('drawings/', 'drawings/_rels/') + '.rels')
+        out = []
+        for rid in re.findall(r'<xdr:graphicFrame.*?r:id="([^"]+)"', dr, re.S):
+            tg = (re.search(r'Id="%s"[^>]*Target="\.\./charts/([^"]+)"' % rid, drels)
+                  or re.search(r'Target="\.\./charts/([^"]+)"[^>]*Id="%s"' % rid, drels))
+            out.append('xl/charts/' + tg.group(1))
+        return out
+    doel = [('Outlook', 1), ('Dias', 2), ('Dias', 5)]
+    for sheet, nr in doel:
+        fn = charts_of(sheet)[nr - 1]
+        assert 'Outlook!$R$6:$U$6' in bk.text(fn) or 'Outlook!$R$8:$V$8' in bk.text(fn), (sheet, nr, fn)
+        bk.data[fn] = xml
+    # macro RDFO_OutlookJaren: één reeks -> rij 8 (totaal = prognose voor de outlookjaren)
+    pp = bk.sheet('PPT'); el = pp.cell('H36'); v = el.find(N+'v')
+    sst = [''.join(si.itertext()) for si in etree.fromstring(bk.data['xl/sharedStrings.xml'])]
+    t = sst[int(v.text)] if (el.get('t') == 's' and v is not None) else ''.join(el.itertext())
+    for sheet, nr in doel: t = t.replace(f'{sheet}|{nr}|6', f'{sheet}|{nr}|8')
+    pp.set('H36', text=t, style=pp.style('H36'))
+
+
+def outlook_jaren_vijf(bk):
+    """Overige outlook-grafieken ook RJ+1..RJ+5 (de macro RDFO_OutlookJaren zet dit in Excel ook zo)."""
+    for fn in [k for k in bk.data if re.match(r'xl/charts/chart\d+\.xml$', k)]:
+        t = bk.text(fn)
+        n = re.sub(r'Outlook!\$R\$(\d+):\$U\$(\d+)', r'Outlook!$R$\1:$V$\2', t)
+        if n != t: bk.settext(fn, n)
