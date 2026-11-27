@@ -335,6 +335,8 @@ def main(src, dst, herberekend=None, reserves=None):
     bron_reserves(bk, sty, reserves); move_sheet(bk, 'Bron_Reserves', 'Bron_Mijlpalen')
     projectlijst_reserves(bk, sty, oranje); bandbreedte_grafiek(bk); outlook_grafiek(bk); outlook_jaren_vijf(bk); start(bk); verberg_rekenbladen(bk)
     projecten_zichtbaar(bk, herberekend)
+    from patch_v7c import reserves_naam, start_tegels
+    reserves_naam(bk, sty); start_tegels(bk)
     pp = bk.sheet('PPT')
     sst = [''.join(si.itertext()) for si in etree.fromstring(bk.data['xl/sharedStrings.xml'])]
     for r in range(40, 80):
