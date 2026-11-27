@@ -339,6 +339,52 @@ def bt_rasterlijnen(cs):
     return n
 
 
+def fee_gerealiseerd_reeks(cs, val_ref, tx_ref=None, naam='Fee gerealiseerd', kleur='6B7280'):
+    """bouwtermijnen: reeks 'Fee gerealiseerd' (donkergrijs) direct vóór de reeks 'DAEB-fee' in de stapelvolgorde: een al
+    ontvangen fee loopt als donkergrijze balk over de hele gerealiseerde periode (Model VS). Kopie van de DAEB-fee-reeks met
+    een eigen bereik; idx nieuw, order van DAEB-fee en de rest één op. Geeft het aantal toegevoegde reeksen terug."""
+    naam_v = lambda ser: (''.join(v.text or '' for v in ser.find(C + 'tx').iter(C + 'v'))
+                          if ser.find(C + 'tx') is not None else '')
+    alle = list(cs.iter(C + 'ser'))
+    if any(naam_v(x).strip() == naam for x in alle):
+        return 0
+    bron = next((x for x in alle if naam_v(x).strip() == 'DAEB-fee'), None)
+    if bron is None:
+        return 0
+    nieuw = copy.deepcopy(bron)
+    for el in nieuw.findall(C + 'extLst') + nieuw.findall(C + 'dLbls'):
+        nieuw.remove(el)
+    tx = nieuw.find(C + 'tx')
+    for ch in list(tx):
+        tx.remove(ch)
+    if tx_ref:
+        sr = etree.SubElement(tx, C + 'strRef')
+        etree.SubElement(sr, C + 'f').text = tx_ref
+        sc = etree.SubElement(sr, C + 'strCache')
+        etree.SubElement(sc, C + 'ptCount', val='1')
+        pt = etree.SubElement(sc, C + 'pt', idx='0')
+        etree.SubElement(pt, C + 'v').text = naam
+    else:
+        etree.SubElement(tx, C + 'v').text = naam
+    for c in nieuw.find(C + 'spPr').iter(A + 'srgbClr'):
+        c.set('val', kleur)
+    nr = nieuw.find(C + 'val').find(C + 'numRef')
+    nr.find(C + 'f').text = val_ref
+    nc = nr.find(C + 'numCache')
+    if nc is not None:
+        for pt in nc.findall(C + 'pt'):
+            nc.remove(pt)
+    orde = int(bron.find(C + 'order').get('val'))
+    for x in alle:
+        o = x.find(C + 'order')
+        if int(o.get('val')) >= orde:
+            o.set('val', str(int(o.get('val')) + 1))
+    nieuw.find(C + 'idx').set('val', str(max(int(x.find(C + 'idx').get('val')) for x in alle) + 1))
+    nieuw.find(C + 'order').set('val', str(orde))
+    bron.addprevious(nieuw)
+    return 1
+
+
 def palet(el):
     for c in el.iter(A + 'srgbClr'):
         v = (c.get('val') or '').upper()
@@ -576,6 +622,8 @@ def palet_en_letters(p):
                 typekleuren(cs)
                 if shp.name == 'BT_GRAFIEK':
                     assert bt_rasterlijnen(cs) == 1, shp.name
+                    # gerealiseerde fees: donkergrijze balk (gegevensblad kolom DQ = tab PowerPoint kolom EQ)
+                    assert fee_gerealiseerd_reeks(cs, 'Sheet1!$DQ$2:$DQ$27', 'Sheet1!$DQ$1') == 1, shp.name
                 if shp.name in ('VP1_GRAFIEK', 'VP2_GRAFIEK'):    # na typekleuren: de som leest de typekleuren
                     assert opsomming(cs, kol='V' if shp.name == 'VP1_GRAFIEK' else 'W') == 1, shp.name
                     assert pct_rij(cs) == 1, shp.name

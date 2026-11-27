@@ -324,6 +324,21 @@ def t_daeb100(doc, vba_doc=None):
     m_ = doc.Sheets.getByName('Model')
     ok('100% DAEB handmatig, met aantal DAEB-woningen: de fees staan in de termijnengrafiek (Dashboard / dia)',
        waarde(m_, 'BY96') > 0, 'rijen BT-blok %s' % waarde(m_, 'BY96'))
+    # termijnengrafiek: ontvangen fee (actuals) donkergrijs over de gerealiseerde periode, bedragen in duizenden
+    banen = [r for r in range(11, 141) if waarde(m_, 'GS%d' % r) in (3, 6)]
+    ontv = [r for r in banen if waarde(m_, 'VQ%d' % r) == 1]
+    toek = [r for r in banen if tekst(m_, 'LB%d' % r) not in ('', '#N/A')]
+    b97, b98 = waarde(m_, 'BY97'), waarde(m_, 'BY98')
+    labels = [tekst(m_, 'L%s7' % c) for c in 'DEFGHIJKLM']
+    ok('termijnengrafiek: ontvangen fee als donkergrijze balk over de gerealiseerde periode (niet goud in het laatste kwartaal)',
+       ontv and all(waarde(m_, 'ID%d' % r) == b97 and abs(waarde(m_, 'VS%d' % r) - (b98 - b97)) < 1e-9
+                    and tekst(m_, 'LB%d' % r) == '#N/A' for r in ontv) and toek and not set(ontv) & set(toek),
+       '%d banen ontvangen, %d nog te ontvangen' % (len(ontv), len(toek)))
+    ok('termijnengrafiek: bedragen in duizenden met ✓ bij ontvangen (€500k), titel en legenda',
+       '✓ €500k' in labels and '€300k' in labels and '€800k' in labels and not any('M' in x for x in labels if x != '(uit)')
+       and '(€500k ontvangen)' in tekst(m_, 'BY319') and 'mln' not in tekst(m_, 'BY319')
+       and 'donkergrijs = fee ontvangen' in tekst(m_, 'BY320'),
+       '%s · %s' % ([x for x in labels if x != '(uit)'], tekst(m_, 'BY319')))
     q_om = [waarde(inv, 'F%d' % r) for r in range(8, rij['Totaal']) if tekst(inv, 'B%d' % r)]
     blok = waarde(o, '%s%d' % (S.CHK, S.DAEB_TOT))
     ok('100% DAEB handmatig: cashflow = DAEB-blok, niet negatief (ook bij een negatieve SAP-PEW)',
@@ -405,6 +420,22 @@ def t_bt_raster():
         c = zipfile.ZipFile(f).read(n).decode()
         uit.append('CBD5E1' in c and '64748B' in c and 'EDEFF2' not in c and '</c:chart><c:spPr><a:noFill/>' in c.replace('\n', ''))
     ok('bouwtermijnengrafiek: kwartaallijnen en jaarlijnen duidelijker, achtergrond doorzichtig (dia en Dashboard)', all(uit), str(uit))
+    from lxml import etree
+    C = '{http://schemas.openxmlformats.org/drawingml/2006/chart}'
+    uit = []
+    for f, n in ((PPTX, 'ppt/charts/chart5.xml'), (SJABLOON, 'xl/charts/chart5.xml')):
+        t = etree.fromstring(zipfile.ZipFile(f).read(n))
+        sers = list(t.iter(C + 'ser'))
+        nm = lambda x: ''.join(v.text or '' for v in x.find(C + 'tx').iter(C + 'v')) if x.find(C + 'tx') is not None else ''
+        orde = {nm(x): int(x.find(C + 'order').get('val')) for x in sers}
+        idx = [x.find(C + 'idx').get('val') for x in sers]
+        ordes = [x.find(C + 'order').get('val') for x in sers]
+        fg = next((x for x in sers if nm(x) == 'Fee gerealiseerd'), None)
+        uit.append(fg is not None and orde.get('DAEB-fee') == orde['Fee gerealiseerd'] + 1 and len(set(idx)) == len(idx)
+                   and len(set(ordes)) == len(ordes) and '6B7280' in etree.tostring(fg).decode())
+    vba = open(os.path.join(ROOT, 'vba', 'CashflowNaarPowerPoint.bas'), 'rb').read().decode('cp1252')
+    ok('bouwtermijnengrafiek: reeks \'Fee gerealiseerd\' (donkergrijs) direct vóór DAEB-fee (dia en Dashboard), blok 121 kolommen',
+       all(uit) and 'Private Const KOL_BT As Long = 121' in vba, str(uit))
 
 
 def t_termijnen_schema(lo):

@@ -78,7 +78,7 @@ Option Explicit
 '       kopregel en het bedrag per fee (alleen tab PowerPoint); sjabloon v20 (tools/pptx_v20_daeb.py).
 '       Daarna, zoals de preview: VulTeksten zet de tekst van een grafiekvorm als grafiektitel, kleurt *_ACCENT-vormen (hex in
 '       kolom D) en de blokjes/ruiten in een legenda (*_LEGENDA, BT_SUBTITEL; kleuren in kolom E, KleurLegenda); dikke gouden
-'       DAEB-fee-balken met het bedrag ernaast (reeksen dfee, fgap, fl1..fl10 achteraan het BT-blok, KOL_BT = 120; de blokken erna
+'       DAEB-fee-balken met het bedrag ernaast (reeksen dfee, fgap, fl1..fl10 achteraan het BT-blok, en 'Fee gerealiseerd' in kolom EQ, KOL_BT = 121; de blokken erna
 '       schuiven mee).
 '       Daarna: projectnaam (Dashboard CEL_PROJECTNAAM, bij Ophalen uit FO uit de bestandsnaam als hij leeg is) op de titeldia
 '       (COVER_PROJECT, COVER_KWARTAAL) en in de voettekst VOET_TEKST in de dia-indeling (ZoekVorm zoekt ook in de indelingen);
@@ -132,7 +132,7 @@ Private Const BEWAAR_VRAAG As String = "De planning die nu in dit werkboek staat
     "Ja = bewaren (lichtrood in de bouwtermijnengrafiek) · Nee = de vorige prognose laten zoals die is · Annuleren = niets ophalen"
 Private Const MAX_RIJEN As Long = 60               ' periodes (kwartalen) per grafiekblok
 Private Const MAX_RIJEN_BT As Long = 133           ' rijen in het bouwtermijnenblok (koprijen, banen type x termijn, scheidingsrijen)
-Private Const KOL_BT As Long = 120                 ' kolommen in het bouwtermijnenblok (label + alle reeksen van layout.BT_REEKSEN; layout.PP_BT_KOL)
+Private Const KOL_BT As Long = 121                 ' kolommen in het bouwtermijnenblok (label + alle reeksen van layout.BT_REEKSEN; layout.PP_BT_KOL)
 Private Const BLOK_PT As String = "GE7"            ' blok grafiek per woningtype (dia 8): kwartaal, acht reeksen, realisatie
 Private Const KOL_PT As Long = 10
 Private Const KOL_VP As Long = 32          ' kolommen van het blok van dia 6 (verkoop en transport, met cumulatief %)

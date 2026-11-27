@@ -963,6 +963,7 @@ def main():
     save('Model', sh)
     grafiekbereik_en_totaal(sheet, save)
     termijnen_per_schema(sheet, save)
+    fees_gerealiseerd(sheet, save)
     for blad, ref, oud, nieuw in (('Dashboard', 'E156', 'kopie van dia 8 in het sjabloon', 'kopie van de dia per woningtype'),
                                   ('Woningtypes', 'B42', 'Dashboard en dia 5', 'Dashboard en de dia Bouwtermijnen')):
         sh = sheet(blad)
@@ -1028,7 +1029,8 @@ def main():
                     ('cf_omzet', 'Invoer!$F$8:$F$%d' % ri), ('cf_kosten_tot', 'Invoer!$D$%d' % rt),
                     ('cf_omzet_tot', 'Invoer!$F$%d' % rt),
                     ('p_huidig', 'Start!$F$8'), ('p_oplevering', 'Start!$F$9'), ('p_actuals', 'Start!$F$12'),
-                    ('p_startbouw', 'Start!$F$7'), ('p_daeb100', 'Start!$D$6')):
+                    ('p_startbouw', 'Start!$F$7'), ('p_daeb100', 'Start!$D$6'),
+                    ('g_bt_frea', 'OFFSET(Model!$VS$8,0,0,MAX(1,Model!$BY$96),1)')):
         d = etree.SubElement(new_dn, M + 'definedName', name=nm)
         d.text = ref
     # grafieken over de hele looptijd: periode vanaf/t-m van het Dashboard (Model!BY336:BY338)
@@ -1178,6 +1180,7 @@ def main():
         a_, b_ = pptx_v22.lijnkleuren(t), pptx_v22.typekleuren(t)
         if pptx_v22.bt_rasterlijnen(t):                 # bouwtermijnen: kwartaallijnen duidelijker
             n_raster += 1
+            assert pptx_v22.fee_gerealiseerd_reeks(t, '[0]!g_bt_frea') == 1, naam     # ontvangen fees donkergrijs
             dst.parts[naam] = etree.tostring(t, xml_declaration=True, encoding='UTF-8', standalone=True)
         if a_ or b_:
             n_lijn, n_type = n_lijn + a_, n_type + b_
@@ -1323,6 +1326,102 @@ def vaste_knoppen(dst, part_of, copier):
     return n
 
 
+def fees_gerealiseerd(sheet, save):
+    """bouwtermijnengrafiek: een al ontvangen DAEB-fee (kwartaal 'actuals' of in de gerealiseerde periode) als donkergrijze
+    balk over de hele gerealiseerde periode (reeks 'Fee gerealiseerd', Model VS) in plaats van een goudkleurig blokje in het
+    laatste afgesloten kwartaal; het bedrag erachter met een vinkje. Bedragen van de fees in duizenden (€500k, €1500k)."""
+    m, pp = sheet('Model'), sheet('PowerPoint')
+    oud_eind = 'MIN(MAX($GV{r},$BY$97),$BY$99)+MAX(0,MIN($GV{r}+1,$BY$99)-MIN(MAX($GV{r},$BY$97),$BY$99))'
+    kop = m.style_of('LB7')
+    for c, t in (('VQ', 'Fee gerealiseerd (1/0)'), ('VR', 'Einde balk (huidig)'), ('VS', 'Fee gerealiseerd')):
+        m.set_value('%s7' % c, t, kop)
+    st_ = m.style_of('LB11')
+    n_eind = 0
+    for r in range(8, 141):
+        if r <= 10:                                  # koprijen (jaartallen, kwartaalnummers)
+            m.set_value('VQ%d' % r, 0, st_)
+            m.set_formula('VR%d' % r, '0', st_)
+            m.set_formula('VS%d' % r, 'NA()', st_)
+            continue
+        baan = 'OR($GS{r}=3,$GS{r}=6)'.format(r=r)
+        fee = 'IF($GR{r}="",FALSE,N(INDEX($GE$8:$GE$140,$GR{r}))>0)'.format(r=r)
+        m.set_formula('VQ%d' % r, 'IF(AND(%s,%s,N($BY$10)>0,N($GV%d)<=$BY$9),1,0)' % (baan, fee, r), st_)
+        m.set_formula('VR%d' % r, 'IF(%s,IF($VQ%d=1,$BY$98,%s),0)' % (baan, r, oud_eind.format(r=r)), st_)
+        m.set_formula('VS%d' % r, 'IF($VQ%d=1,MAX(0,$BY$98-$BY$97),NA())' % r, st_)
+        # basis: bij een ontvangen fee vanaf het begin van de as
+        f = m.get('ID%d' % r)
+        o = 'IF(OR($GS{r}=3,$GS{r}=6),MIN(MAX($GV{r},$BY$97),$BY$99),'.format(r=r)
+        assert f.startswith('=' + o), (r, f)
+        m.set_formula('ID%d' % r, 'IF(OR($GS{r}=3,$GS{r}=6),IF($VQ{r}=1,$BY$97,MIN(MAX($GV{r},$BY$97),$BY$99)),'.format(r=r)
+                      + f[1 + len(o):], m.style_of('ID%d' % r))
+        # goudkleurige fee: niet bij een ontvangen fee
+        f = m.get('LB%d' % r)
+        assert f.startswith('=IF(AND(OR($GS'), (r, f)
+        m.set_formula('LB%d' % r, 'IF($VQ%d=1,NA(),%s)' % (r, f[1:]), m.style_of('LB%d' % r))
+        # tussenruimte, labeldragers en rest rekenen vanaf het einde van de balk (VR)
+        for c in ['LC', 'IO'] + ['L%s' % x for x in 'DEFGHIJKLM']:
+            f = m.get('%s%d' % (c, r))
+            if not isinstance(f, str):
+                continue
+            stuk = '$BY$99-(%s)' % oud_eind.format(r=r)
+            if stuk in f:
+                n_eind += f.count(stuk)
+                m.set_formula('%s%d' % (c, r), f[1:].replace(stuk, '$BY$99-$VR%d' % r), m.style_of('%s%d' % (c, r)))
+    assert n_eind > 1000, n_eind
+    # labels van de fees (reeksnamen LD7..LM7): ✓ bij ontvangen, bedrag in duizenden
+    for j, c in enumerate('DEFGHIJKLM', 1):
+        f = m.get('L%s7' % c)
+        oud = '=IFERROR(IF(INDEX($GF$8:$GF$140,MATCH({j},$GX$8:$GX$140,0))<0,"−","")'.format(j=j)
+        assert f.startswith(oud) and f.count('/1000000,1)&"M"') == 1, f
+        f = ('=IFERROR(IF(AND(N($BY$10)>0,N(INDEX($GK$8:$GK$140,MATCH({j},$GX$8:$GX$140,0)))<=$BY$9),"✓ ","")&'
+             .format(j=j) + f[len('=IFERROR('):]).replace('/1000000,1)&"M"', '/1000,0,TRUE)&"k"')
+        m.set_formula('L%s7' % c, f[1:], m.style_of('L%s7' % c))
+    # kop 'DAEB · FEES · €x' en de baan-labels (bij > 10 fees) in duizenden
+    n = 0
+    for r in range(11, 141):
+        f = m.get('GT%d' % r)
+        if not isinstance(f, str):
+            continue
+        g = f.replace('UPPER(IF($BY$134<0,"−","")&"€"&FIXED(ABS($BY$134)/1000000,1)&" mln")',
+                      'IF($BY$134<0,"−","")&"€"&FIXED(ABS($BY$134)/1000,0,TRUE)&"k"')
+        g = g.replace('FIXED(ABS(INDEX($GF$8:$GF$140,$GR%d))/1000000,1)&"M"' % r, 'FIXED(ABS(INDEX($GF$8:$GF$140,$GR%d))/1000,0,TRUE)&"k"' % r)
+        if g != f:
+            n += 1
+            m.set_formula('GT%d' % r, g[1:], m.style_of('GT%d' % r))
+    assert n >= 100, n
+    # titel van de dia: 'DAEB-fees €2300k (€500k ontvangen) vanaf <eerste kwartaal van een nog te ontvangen fee>'
+    f = m.get('BY319')
+    oud = ('IF($BY$318>=99999,""," · DAEB-fees "&IF($BY$134<0,"−","")&"€"&FIXED(ABS($BY$134)/1000000,1)&" mln"&" vanaf "&"Q"&'
+           '(MOD($BY$318-1,4)+1)&" ’"&RIGHT(INT(($BY$318-1)/4),2))')
+    assert f.endswith(oud), f[-200:]
+    ontv = 'IF(N($BY$10)>0,SUMIFS($GF$8:$GF$140,$GE$8:$GE$140,">0",$GA$8:$GA$140,1,$GK$8:$GK$140,"<="&$BY$9),0)'
+    toek = ('IFERROR(_xlfn.AGGREGATE(15,6,$GK$8:$GK$140/(($GE$8:$GE$140>0)*($GA$8:$GA$140=1)*((($GK$8:$GK$140>$BY$9)+'
+            '(N($BY$10)=0))>0)*($GK$8:$GK$140<99999)),1),99999)')
+    nieuw = ('IF($BY$318>=99999,""," · DAEB-fees "&IF($BY$134<0,"−","")&"€"&FIXED(ABS($BY$134)/1000,0,TRUE)&"k"'
+             '&IF({o}>0," (€"&FIXED({o}/1000,0,TRUE)&"k ontvangen)","")'
+             '&IF({t}>=99999,""," vanaf Q"&(MOD({t}-1,4)+1)&" ’"&RIGHT(INT(({t}-1)/4),2)))').format(o=ontv, t=toek)
+    m.set_formula('BY319', f[1:-len(oud)] + nieuw, m.style_of('BY319'))
+    # legenda: donkergrijs = fee ontvangen (alleen als er een ontvangen fee is)
+    f = m.get('BY320')
+    oud = '&"·   grijs = gerealiseerd t/m "&$BY$11&" · lichtrood = vorige prognose"'
+    assert f.endswith(oud), f[-120:]
+    m.set_formula('BY320', f[1:-len(oud)] + '&"·   grijs = gerealiseerd t/m "&$BY$11&IF(SUM($VQ$11:$VQ$140)>0,'
+                  '" · donkergrijs = fee ontvangen","")&" · lichtrood = vorige prognose"', m.style_of('BY320'))
+    save('Model', m)
+    d = sheet('Dashboard')
+    f = d.get('O96')
+    assert f == '="lichtrood = vorige prognose · grijs = gerealiseerd t/m "&Model!$BY$11', f
+    d.set_formula('O96', f[1:] + '&IF(SUM(Model!$VQ$11:$VQ$140)>0," · donkergrijs = fee ontvangen","")', d.style_of('O96'))
+    save('Dashboard', d)
+    # tab PowerPoint: kolom EQ = reeks 'Fee gerealiseerd' (het bouwtermijnenblok AA7 heeft nu 121 kolommen)
+    assert not pp.get('EQ7') and not pp.get('EQ8')
+    pp.set_value('EQ7', 'Fee gerealiseerd', pp.style_of('EP7'))
+    for r in range(8, 141):
+        pp.set_formula('EQ%d' % r, 'IF(%d>Model!$BY$96,NA(),INDEX(Model!$VS$8:$VS$140,%d))' % (r - 7, r - 7), pp.style_of('EP%d' % r))
+    save('PowerPoint', pp)
+    note('Bouwtermijnen: ontvangen fees donkergrijs over de gerealiseerde periode, bedragen in duizenden')
+
+
 def termijnen_per_schema(sheet, save):
     """bouwtermijnentabel (Model GC..GW): bij twee of meer termijnschema's (types met een andere lijst termijnen) een blok per
     schema: een kopregel met de types van dat schema, daaronder zijn termijnen; gelijke namen in verschillende schema's
@@ -1366,7 +1465,7 @@ def termijnen_per_schema(sheet, save):
         h.set('C%d' % r, ('=IF({b},IF(N(Model!$GU${m})=0,0,IF($C$804=1,INDEX($E$791:$E$800,Model!$GU${m}),'
                           'IF(INDEX($C$791:$C$800,Model!$GU${m})=1,1,0))),IF(AND(B{r}=7,$C$804=1),IFERROR(MATCH(A{r},$D$806:$D$815,0),0),0))')
               .format(b=baan, m=mr, r=r))
-        h.set('D%d' % r, '=IF(%s,N(Model!$GV$%d),"")' % (baan, mr))
+        h.set('D%d' % r, '=IF(%s,IF(N(Model!$VQ$%d)=1,Model!$BY$97,N(Model!$GV$%d)),"")' % (baan, mr, mr))
         h.set('E%d' % r, '=IF(AND(B%d=3,TRIM(Model!$GT$%d&"")<>""),1,0)' % (r, mr))
         nieuw = 'IF(OR(B{r}=4,B{r}=5,B{r}=7),1,0)'.format(r=r)
         h.set('F%d' % r, '=' + nieuw if k == 1 else '=F%d+%s' % (r - 1, nieuw))
